@@ -39,3 +39,11 @@ There are two ways to remove a zone:
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
 
 There is one way to add a zone: by pressing the keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
+
+## Debugging
+
+For debugging purposes, it is important to see where all the windows are, whether they are minimized or not, and obtain other information about them. This can help us debug, for example, whether the window was successfully moved to its zone location.
+
+To list the positions and other information about windows, we should use `winmanmon` located at:
+`/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude/build/release/winmanmon`
+The `--help` command line argument explains the functionality.
