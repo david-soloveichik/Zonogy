@@ -1,5 +1,15 @@
 import Foundation
 import AppKit
+import Carbon
+
+/// Main controller that coordinates all components
+private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
+
+private func AppControllerHotKeyHandler(_ nextHandler: EventHandlerCallRef?, _ event: EventRef?, _ userData: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let event, let userData else { return noErr }
+    let controller = Unmanaged<AppController>.fromOpaque(userData).takeUnretainedValue()
+    return controller.handleHotKeyEvent(event: event)
+}
 
 /// Main controller that coordinates all components
 class AppController: NSObject, WindowControllerDelegate {
@@ -8,6 +18,8 @@ class AppController: NSObject, WindowControllerDelegate {
     private let zoneController: ZoneController
     private let windowController: WindowController
     private var eventMonitors: [Any] = []
+    private var hotKeyRefs: [EventHotKeyRef] = []
+    private var hotKeyEventHandler: EventHandlerRef?
 
     private override init() {
         // Get the main screen frame
@@ -29,6 +41,23 @@ class AppController: NSObject, WindowControllerDelegate {
 
         // Create initial placeholder for the first empty zone
         syncWindowsToZones()
+    }
+
+    deinit {
+        for monitor in eventMonitors {
+            NSEvent.removeMonitor(monitor)
+        }
+        eventMonitors.removeAll()
+
+        for hotKeyRef in hotKeyRefs {
+            UnregisterEventHotKey(hotKeyRef)
+        }
+        hotKeyRefs.removeAll()
+
+        if let handler = hotKeyEventHandler {
+            RemoveEventHandler(handler)
+            hotKeyEventHandler = nil
+        }
     }
 
     // MARK: - Zone Management
@@ -230,21 +259,17 @@ class AppController: NSObject, WindowControllerDelegate {
         }
     }
 
-    private enum ShortcutSource {
-        case global
-        case local
+    private enum HotKeyID: UInt32 {
+        case addZone = 1
+        case removeZone = 2
     }
 
     private func setupKeyboardShortcuts() {
-        if let globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            self?.handleShortcut(event: event, source: .global)
-        }) {
-            eventMonitors.append(globalMonitor)
-        }
+        registerGlobalHotKeys()
 
         if let localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
             guard let self = self else { return event }
-            if self.handleShortcut(event: event, source: .local) {
+            if self.handleLocalShortcut(event: event) {
                 return nil
             }
             return event
@@ -254,32 +279,111 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     @discardableResult
-    private func handleShortcut(event: NSEvent, source: ShortcutSource) -> Bool {
-        if source == .global && NSApp.isActive {
-            return false
-        }
-
+    private func handleLocalShortcut(event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command),
-              event.modifierFlags.contains(.control),
-              let characters = event.charactersIgnoringModifiers else {
+              event.modifierFlags.contains(.control) else {
             return false
         }
 
-        switch characters {
-        case "=":
-            DispatchQueue.main.async { [weak self] in
-                self?.addZone()
-            }
+        switch Int(event.keyCode) {
+        case kVK_ANSI_Equal:
+            Logger.debug("Local shortcut add zone triggered")
+            triggerShortcut(.addZone)
             return true
-        case "-":
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self,
-                      let highestIndex = self.zoneController.highestIndexZone()?.index else { return }
-                self.removeZone(at: highestIndex)
-            }
+        case kVK_ANSI_Minus:
+            Logger.debug("Local shortcut remove zone triggered")
+            triggerShortcut(.removeZone)
             return true
         default:
             return false
+        }
+    }
+
+    fileprivate func handleHotKeyEvent(event: EventRef) -> OSStatus {
+        var hotKeyID = EventHotKeyID()
+        let status = GetEventParameter(
+            event,
+            EventParamName(kEventParamDirectObject),
+            EventParamType(typeEventHotKeyID),
+            nil,
+            MemoryLayout<EventHotKeyID>.size,
+            nil,
+            &hotKeyID
+        )
+
+        guard status == noErr, hotKeyID.signature == hotKeySignature else {
+            return status
+        }
+
+        switch HotKeyID(rawValue: hotKeyID.id) {
+        case .addZone:
+            Logger.debug("Hotkey add zone triggered")
+            triggerShortcut(.addZone)
+        case .removeZone:
+            Logger.debug("Hotkey remove zone triggered")
+            triggerShortcut(.removeZone)
+        case .none:
+            break
+        }
+
+        return noErr
+    }
+
+    private func registerGlobalHotKeys() {
+        installHotKeyEventHandler()
+        registerHotKey(keyCode: UInt32(kVK_ANSI_Equal), id: HotKeyID.addZone.rawValue)
+        registerHotKey(keyCode: UInt32(kVK_ANSI_Minus), id: HotKeyID.removeZone.rawValue)
+    }
+
+    private func installHotKeyEventHandler() {
+        guard hotKeyEventHandler == nil else { return }
+
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let status = InstallEventHandler(
+            GetApplicationEventTarget(),
+            AppControllerHotKeyHandler,
+            1,
+            &eventType,
+            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            &hotKeyEventHandler
+        )
+
+        if status != noErr {
+            Logger.debug("Failed to install hotkey handler with status \(status)")
+        }
+    }
+
+    private func registerHotKey(keyCode: UInt32, id: UInt32) {
+        var hotKeyRef: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: id)
+        let modifierFlags = UInt32(cmdKey | controlKey)
+        let status = RegisterEventHotKey(
+            keyCode,
+            modifierFlags,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        if status == noErr, let hotKeyRef {
+            hotKeyRefs.append(hotKeyRef)
+            Logger.debug("Registered hotkey id \(id) keyCode \(keyCode)")
+        } else if status != noErr {
+            Logger.debug("Failed to register hotkey \(id) with status \(status)")
+        }
+    }
+
+    private func triggerShortcut(_ action: HotKeyID) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            switch action {
+            case .addZone:
+                self.addZone()
+            case .removeZone:
+                guard let highestIndex = self.zoneController.highestIndexZone()?.index else { return }
+                self.removeZone(at: highestIndex)
+            }
         }
     }
 

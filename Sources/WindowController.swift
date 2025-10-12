@@ -54,16 +54,33 @@ class WindowController {
         let contentView = NSView(frame: NSRect(origin: .zero, size: frame.size))
         contentView.wantsLayer = true
 
-        // Create a blue "x" close button
-        let closeButton = NSButton(frame: NSRect(x: 10, y: frame.height - 40, width: 30, height: 30))
-        closeButton.title = "×"
-        closeButton.bezelStyle = .regularSquare
-        closeButton.isBordered = true
+        // Create a custom blue "x" close button that matches the spec
+        let buttonSize: CGFloat = 36
+        let closeButton = NSButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
+        closeButton.frame = NSRect(x: 16, y: max(frame.height - buttonSize - 16, 16), width: buttonSize, height: buttonSize)
+        closeButton.setButtonType(.momentaryChange)
+        closeButton.bezelStyle = .shadowlessSquare
+        closeButton.isBordered = false
+        closeButton.focusRingType = .none
         closeButton.wantsLayer = true
-        closeButton.layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.5).cgColor
-        closeButton.layer?.cornerRadius = 15
-        closeButton.font = NSFont.systemFont(ofSize: 20, weight: .bold)
-        closeButton.contentTintColor = .white
+        closeButton.alphaValue = 0.9
+        if let layer = closeButton.layer {
+            layer.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.6).cgColor
+            layer.cornerRadius = buttonSize / 2
+            layer.shadowColor = NSColor.black.withAlphaComponent(0.25).cgColor
+            layer.shadowOpacity = 0.25
+            layer.shadowRadius = 3
+            layer.shadowOffset = CGSize(width: 0, height: -1)
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
+        }
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.white,
+            .font: NSFont.systemFont(ofSize: 20, weight: .semibold)
+        ]
+        let attributedTitle = NSAttributedString(string: "×", attributes: titleAttributes)
+        closeButton.attributedTitle = attributedTitle
+        closeButton.attributedAlternateTitle = attributedTitle
         closeButton.target = self
         closeButton.action = #selector(handlePlaceholderClose(_:))
         closeButton.tag = zoneIndex
