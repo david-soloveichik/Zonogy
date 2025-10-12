@@ -4,3 +4,4 @@
 - When git committing, Agent should include SPECIFICATION.md if it was changed by Agent or the user.
 - When Agent is asked to commit, please split `git add` and `git commit -m ...` in separate calls, allowing the user to not approve the second while still approving the first
 - After making changes, the Agent should rebuild the tool to make sure that there are no errors.
+- For codex only (not claude): If running `swift build` or other commands gives a sandbox error, ask me for approval.

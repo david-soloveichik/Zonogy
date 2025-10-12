@@ -95,3 +95,47 @@ Helpful optional commands (for faster debugging):
 - Provide a pure-function test hook for layout calculations (for example, a `ZoneLayoutTests.run()` method invocable from the REPL via a `test-layout` command) to assert expected frames for 1–3 zones and quickly catch regressions.
 
 The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
+
+### Unix Domain Socket Interface for Agent Interaction
+
+To enable better AI agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
+
+**Starting the socket server:**
+
+```bash
+.build/debug/LatticeTopology --socket
+# Or with custom socket path:
+.build/debug/LatticeTopology --socket --socket-path=/tmp/custom.sock
+```
+
+**Key features:**
+
+- **JSON-RPC style protocol**: Commands and responses use structured JSON format
+- **Newline-delimited**: Each request/response is a single JSON object followed by a newline
+- **Default socket path**: `/tmp/lattice-topology.sock`
+- **Non-blocking accept**: Uses a timer-based polling approach to accept connections
+- **Thread-safe**: All commands are dispatched to the main thread for AppKit safety
+- **Debug logging**: Writes to `/tmp/lattice-topology-debug.log` when in socket mode
+
+**Request format:**
+```json
+{"method": "command-name", "id": 1, "params": {"param1": "value1"}}
+```
+
+**Response format:**
+```json
+{"id": 1, "success": true, "result": {...}, "error": null}
+```
+
+**Available commands:** All REPL commands are exposed via the socket with JSON equivalents:
+- `list`: Get all zones and their state
+- `add-zone`: Add a new zone
+- `remove-zone`: Remove a zone by index (requires `params: {"index": N}`)
+- `create-window`: Create a new test window
+- `close-window`: Close a window (requires `params: {"window_id": N}`)
+- `minimize` / `unminimize`: Toggle window minimization (requires `params: {"window_id": N}`)
+- `window-info`: Get detailed window information (requires `params: {"window_id": N}`)
+- `frames`: Get all window frames
+- `layout`: Force layout recalculation
+
+For complete API documentation, examples, and error handling details, see **[SOCKET_API.md](SOCKET_API.md)**.
