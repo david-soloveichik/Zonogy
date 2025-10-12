@@ -7,6 +7,7 @@ class AppController: NSObject, WindowControllerDelegate {
 
     private let zoneController: ZoneController
     private let windowController: WindowController
+    private var eventMonitors: [Any] = []
 
     private override init() {
         // Get the main screen frame
@@ -21,6 +22,8 @@ class AppController: NSObject, WindowControllerDelegate {
         super.init()
 
         self.windowController.delegate = self
+        minimizeExistingApplicationWindows()
+        setupKeyboardShortcuts()
 
         Logger.debug("AppController initialized")
 
@@ -40,10 +43,16 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     func removeZone(at index: Int) {
-        guard zoneController.removeZone(at: index) else {
+        guard let removalResult = zoneController.removeZone(at: index) else {
             print("Failed to remove zone \(index)")
             return
         }
+
+        if let removedWindowId = removalResult.removedWindowId,
+           let managed = windowController.window(withId: removedWindowId) {
+            placeNewWindow(managed)
+        }
+
         syncWindowsToZones()
         print("Removed zone \(index)")
     }
@@ -106,6 +115,10 @@ class AppController: NSObject, WindowControllerDelegate {
     // MARK: - Window Placement Logic
 
     private func placeNewWindow(_ managed: ManagedWindow) {
+        // Clear any previous zone assignment for this window.
+        zoneController.removeWindow(windowId: managed.windowId)
+        managed.zoneIndex = nil
+
         if let emptyZone = zoneController.findEmptyZone() {
             // Place in the empty zone with lowest index
             assignWindowToZone(managed, zone: emptyZone)
@@ -117,6 +130,8 @@ class AppController: NSObject, WindowControllerDelegate {
                    let oldWindow = windowController.window(withId: oldWindowId) {
                     // Move new window to position first (for smooth UI)
                     assignWindowToZone(managed, zone: highestZone)
+                    // Clear the old window's assignment before minimizing it
+                    oldWindow.zoneIndex = nil
                     // Then minimize the old window
                     windowController.minimizeWindow(oldWindow)
                 } else {
@@ -153,6 +168,8 @@ class AppController: NSObject, WindowControllerDelegate {
             windowController.closeWindow(window)
         }
 
+        var assignedWindowIds = Set<Int>()
+
         // Then, for each zone, either show the window or create a placeholder
         for zone in zoneController.allZones {
             if let windowId = zone.windowId,
@@ -160,6 +177,7 @@ class AppController: NSObject, WindowControllerDelegate {
                 // Move the window to match the zone frame
                 windowController.moveWindow(managed, to: zone.frame)
                 managed.zoneIndex = zone.index
+                assignedWindowIds.insert(windowId)
             } else {
                 // Create a placeholder (but don't assign its ID to the zone - keep zone empty)
                 let placeholder = windowController.createPlaceholderWindow(
@@ -168,6 +186,13 @@ class AppController: NSObject, WindowControllerDelegate {
                 )
                 placeholder.zoneIndex = zone.index
                 windowController.showWindow(placeholder, at: zone.frame)
+            }
+        }
+
+        // Mark any real windows that are no longer assigned to a zone as minimized/unassigned
+        for window in windowController.allWindows where !window.isPlaceholder {
+            if !assignedWindowIds.contains(window.windowId) {
+                window.zoneIndex = nil
             }
         }
     }
@@ -195,6 +220,67 @@ class AppController: NSObject, WindowControllerDelegate {
         Logger.debug("Window \(windowId) did deminiaturize")
         guard let managed = windowController.window(withId: windowId) else { return }
         placeNewWindow(managed)
+    }
+
+    // MARK: - Startup helpers
+
+    private func minimizeExistingApplicationWindows() {
+        for window in NSApplication.shared.windows where !window.isMiniaturized {
+            window.miniaturize(nil)
+        }
+    }
+
+    private enum ShortcutSource {
+        case global
+        case local
+    }
+
+    private func setupKeyboardShortcuts() {
+        if let globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            self?.handleShortcut(event: event, source: .global)
+        }) {
+            eventMonitors.append(globalMonitor)
+        }
+
+        if let localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            guard let self = self else { return event }
+            if self.handleShortcut(event: event, source: .local) {
+                return nil
+            }
+            return event
+        }) {
+            eventMonitors.append(localMonitor)
+        }
+    }
+
+    @discardableResult
+    private func handleShortcut(event: NSEvent, source: ShortcutSource) -> Bool {
+        if source == .global && NSApp.isActive {
+            return false
+        }
+
+        guard event.modifierFlags.contains(.command),
+              event.modifierFlags.contains(.control),
+              let characters = event.charactersIgnoringModifiers else {
+            return false
+        }
+
+        switch characters {
+        case "=":
+            DispatchQueue.main.async { [weak self] in
+                self?.addZone()
+            }
+            return true
+        case "-":
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self,
+                      let highestIndex = self.zoneController.highestIndexZone()?.index else { return }
+                self.removeZone(at: highestIndex)
+            }
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Inspection
@@ -255,14 +341,25 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     func removeZoneJSON(at index: Int) -> [String: Any] {
-        guard zoneController.removeZone(at: index) else {
+        guard let removalResult = zoneController.removeZone(at: index) else {
             return ["error": "Failed to remove zone \(index)"]
         }
-        syncWindowsToZones()
-        return [
+
+        var response: [String: Any] = [
             "removed_index": index,
-            "zone_count": zoneController.allZones.count
+            "zone_count": zoneController.allZones.count,
+            "removed_window_id": removalResult.removedWindowId as Any
         ]
+
+        if let removedWindowId = removalResult.removedWindowId,
+           let managed = windowController.window(withId: removedWindowId) {
+            placeNewWindow(managed)
+            response["reassigned_window_id"] = managed.windowId
+            response["reassigned_zone_index"] = managed.zoneIndex as Any
+        }
+
+        syncWindowsToZones()
+        return response
     }
 
     func createWindowJSON() -> [String: Any] {

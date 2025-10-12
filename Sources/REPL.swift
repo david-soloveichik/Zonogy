@@ -134,6 +134,9 @@ class REPL {
         case "frames":
             appController.printFrames()
 
+        case "test-layout":
+            _ = ZoneLayoutTests.run()
+
         case "help":
             printHelp()
 
@@ -164,6 +167,7 @@ class REPL {
           unminimize <window_id>       - Unminimize the specified window
           window-info <window_id>      - Show detailed info for a window
           frames                       - Show all window frames
+          test-layout                  - Run ZoneLayout frame assertions
 
         Other:
           help                         - Show this help message
