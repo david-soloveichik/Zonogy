@@ -33,6 +33,8 @@ Every empty zone should have a placeholder window created by our window manager.
 
 Both normal windows and placeholder windows should have a margin of 5 pixels from the side of the zone for a nicer visual effect.
 
+Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
+
 **Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window.
 
 ### Adding and removing zones
@@ -57,6 +59,10 @@ A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The 
 ### Resizing zones
 
 If a zone is empty (contains a placeholder window), then the placeholder window can be resized. Resizing it, resizes the zone and re-adjusts the other zones appropriately.
+
+The resize affordances should only allow motions that can actually change the zone layout. For example, when zone 1 is the left-most column its bottom edge cannot be dragged vertically—only its right edge can move horizontally. When there are three zones, the right-hand zones can adjust both horizontally (shared splitter with zone 1) and vertically (between themselves). Attempted drags in unsupported directions must be ignored.
+
+While the user is dragging an edge, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
 For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before the 5px margin is applied). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
 

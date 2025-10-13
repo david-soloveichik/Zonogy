@@ -1,6 +1,13 @@
 import Foundation
 import AppKit
 
+struct PlaceholderResizeAxes: OptionSet {
+    let rawValue: Int
+
+    static let horizontal = PlaceholderResizeAxes(rawValue: 1 << 0)
+    static let vertical = PlaceholderResizeAxes(rawValue: 1 << 1)
+}
+
 /// Encapsulates AppKit window creation and manipulation
 class WindowController {
     private var nextWindowId = 1
@@ -165,6 +172,26 @@ class WindowController {
         Logger.debug("Moved window \(managedWindow.windowId) to frame \(frame)")
     }
 
+    func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
+        guard let managed = managedWindows[windowId],
+              managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            return proposedSize
+        }
+
+        let allowedAxes = delegate?.placeholderAllowedResizeAxes(zoneIndex: zoneIndex) ?? []
+        var size = proposedSize
+
+        if !allowedAxes.contains(.horizontal) {
+            size.width = currentSize.width
+        }
+        if !allowedAxes.contains(.vertical) {
+            size.height = currentSize.height
+        }
+
+        return size
+    }
+
     /// Get all managed windows
     var allWindows: [ManagedWindow] {
         return Array(managedWindows.values)
@@ -177,7 +204,10 @@ protocol WindowControllerDelegate: AnyObject {
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
-    func placeholderDidResize(zoneIndex: Int, to frame: CGRect)
+    func placeholderLiveResizeDidBegin(zoneIndex: Int)
+    func placeholderLiveResized(zoneIndex: Int, to frame: CGRect)
+    func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect)
+    func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes
 }
 
 /// NSWindowDelegate for tracking window events
@@ -202,12 +232,48 @@ class ManagedWindowDelegate: NSObject, NSWindowDelegate {
         controller?.delegate?.windowDidDeminiaturize(windowId: windowId)
     }
 
+    func windowWillStartLiveResize(_ notification: Notification) {
+        controller?.windowWillStartLiveResize(windowId: windowId)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        controller?.windowDidResize(windowId: windowId)
+    }
+
     func windowDidEndLiveResize(_ notification: Notification) {
         controller?.windowDidEndLiveResize(windowId: windowId)
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        return controller?.constrainedPlaceholderSize(
+            for: windowId,
+            proposedSize: frameSize,
+            currentSize: sender.frame.size
+        ) ?? frameSize
     }
 }
 
 extension WindowController {
+    func windowWillStartLiveResize(windowId: Int) {
+        guard let managed = managedWindows[windowId],
+              managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            return
+        }
+
+        delegate?.placeholderLiveResizeDidBegin(zoneIndex: zoneIndex)
+    }
+
+    func windowDidResize(windowId: Int) {
+        guard let managed = managedWindows[windowId],
+              managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            return
+        }
+
+        delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: managed.actualFrame)
+    }
+
     func windowDidEndLiveResize(windowId: Int) {
         guard let managed = managedWindows[windowId],
               managed.isPlaceholder,
@@ -215,6 +281,6 @@ extension WindowController {
             return
         }
 
-        delegate?.placeholderDidResize(zoneIndex: zoneIndex, to: managed.actualFrame)
+        delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: managed.actualFrame)
     }
 }

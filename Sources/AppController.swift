@@ -23,6 +23,8 @@ class AppController: NSObject, WindowControllerDelegate {
     private let zoneMargin: CGFloat = 5
     private var isSyncingWindows = false
     private var pendingSync = false
+    private var pendingSyncExcludedZones: Set<Int> = []
+    private var liveResizingZoneIndex: Int?
 
     private override init() {
         // Get the main screen frame
@@ -215,17 +217,21 @@ class AppController: NSObject, WindowControllerDelegate {
     // MARK: - Synchronization
 
     /// Sync all windows to their zones, creating placeholders as needed
-    private func syncWindowsToZones() {
+    private func syncWindowsToZones(excluding excludedZones: Set<Int> = []) {
         if isSyncingWindows {
             pendingSync = true
+            pendingSyncExcludedZones.formUnion(excludedZones)
             return
         }
         isSyncingWindows = true
+        let currentExcludedZones = excludedZones
         defer {
             isSyncingWindows = false
             if pendingSync {
                 pendingSync = false
-                syncWindowsToZones()
+                let pendingExcluded = pendingSyncExcludedZones
+                pendingSyncExcludedZones.removeAll()
+                syncWindowsToZones(excluding: pendingExcluded)
             }
         }
 
@@ -249,6 +255,7 @@ class AppController: NSObject, WindowControllerDelegate {
         // Then, for each zone, either show the window or create a placeholder
         for zone in zoneController.allZones {
             let displayFrame = frameWithMargin(for: zone)
+            let isExcluded = currentExcludedZones.contains(zone.index)
             if let windowId = zone.windowId,
                let managed = windowController.window(withId: windowId) {
                 // Move the window to match the zone frame
@@ -264,8 +271,12 @@ class AppController: NSObject, WindowControllerDelegate {
                 if let existingPlaceholder = placeholdersByZone[zone.index] {
                     // Reuse existing placeholder, update its frame
                     existingPlaceholder.zoneIndex = zone.index
-                    windowController.showWindow(existingPlaceholder, at: displayFrame)
-                    windowController.moveWindow(existingPlaceholder, to: displayFrame)
+                    if isExcluded {
+                        existingPlaceholder.window.orderFront(nil)
+                    } else {
+                        windowController.showWindow(existingPlaceholder, at: displayFrame)
+                        windowController.moveWindow(existingPlaceholder, to: displayFrame)
+                    }
                     placeholdersToClose.removeValue(forKey: zone.index)
                 } else if let unassignedPlaceholder = placeholdersWithoutZone.popLast() {
                     unassignedPlaceholder.zoneIndex = zone.index
@@ -313,6 +324,20 @@ class AppController: NSObject, WindowControllerDelegate {
         return zoneFrame
     }
 
+    private func applyPlaceholderResize(zoneIndex: Int, placeholderFrame: CGRect, finalize: Bool) {
+        let zoneFrame = zoneFrame(fromPlaceholderFrame: placeholderFrame)
+        guard zoneController.resizeZone(at: zoneIndex, to: zoneFrame) else {
+            return
+        }
+
+        if finalize {
+            Logger.debug("Placeholder for zone \(zoneIndex) resize finalized")
+            syncWindowsToZones()
+        } else {
+            syncWindowsToZones(excluding: Set([zoneIndex]))
+        }
+    }
+
     private func clamp(frame: CGRect, to bounds: CGRect) -> CGRect {
         var normalized = frame.standardized
 
@@ -353,11 +378,45 @@ class AppController: NSObject, WindowControllerDelegate {
         placeNewWindow(managed)
     }
 
-    func placeholderDidResize(zoneIndex: Int, to frame: CGRect) {
-        Logger.debug("Placeholder for zone \(zoneIndex) resized")
-        let zoneFrame = zoneFrame(fromPlaceholderFrame: frame)
-        if zoneController.resizeZone(at: zoneIndex, to: zoneFrame) {
-            syncWindowsToZones()
+    func placeholderLiveResizeDidBegin(zoneIndex: Int) {
+        liveResizingZoneIndex = zoneIndex
+    }
+
+    func placeholderLiveResized(zoneIndex: Int, to frame: CGRect) {
+        guard liveResizingZoneIndex == zoneIndex else {
+            return
+        }
+
+        applyPlaceholderResize(zoneIndex: zoneIndex, placeholderFrame: frame, finalize: false)
+    }
+
+    func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect) {
+        if liveResizingZoneIndex == zoneIndex {
+            liveResizingZoneIndex = nil
+        }
+
+        applyPlaceholderResize(zoneIndex: zoneIndex, placeholderFrame: frame, finalize: true)
+    }
+
+    func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes {
+        guard let zone = zoneController.zone(at: zoneIndex), zone.isEmpty else {
+            return []
+        }
+
+        let zoneCount = zoneController.allZones.count
+        switch zoneCount {
+        case 0, 1:
+            return []
+        case 2:
+            return [.horizontal]
+        case 3:
+            if zoneIndex == 1 {
+                return [.horizontal]
+            } else {
+                return [.horizontal, .vertical]
+            }
+        default:
+            return []
         }
     }
 
