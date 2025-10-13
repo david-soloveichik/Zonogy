@@ -11,7 +11,7 @@ Each zone has an index (for example, if there are 3 zones, then the indexes are:
 
 ### Initial startup behavior
 
-When LatticeTopology starts, it begins with 1 empty zone by default. All windows on the screen should be minimized for a clean start.
+When LatticeTopology starts, it begins with 1 empty zone by default. Existing application windows are left alone so the user’s workspace remains unchanged until zones start claiming windows.
 
 ### Window placement for new windows
 

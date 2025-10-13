@@ -19,6 +19,7 @@ class AppController: NSObject, WindowControllerDelegate {
     private let windowController: WindowController
     private let configuration: Configuration
     private var eventMonitors: [Any] = []
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
     private let zoneMargin: CGFloat = 5
@@ -44,6 +45,7 @@ class AppController: NSObject, WindowControllerDelegate {
         self.windowController.delegate = self
         minimizeExistingApplicationWindows()
         setupKeyboardShortcuts()
+        setupApplicationMonitoring()
 
         Logger.debug("AppController initialized")
 
@@ -56,6 +58,12 @@ class AppController: NSObject, WindowControllerDelegate {
             NSEvent.removeMonitor(monitor)
         }
         eventMonitors.removeAll()
+
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for observer in workspaceObservers {
+            workspaceCenter.removeObserver(observer)
+        }
+        workspaceObservers.removeAll()
 
         for hotKeyRef in hotKeyRefs {
             UnregisterEventHotKey(hotKeyRef)
@@ -485,13 +493,14 @@ class AppController: NSObject, WindowControllerDelegate {
         }
     }
 
+    func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {
+        placeNewWindow(window)
+    }
+
     // MARK: - Startup helpers
 
     private func minimizeExistingApplicationWindows() {
-        windowController.minimizeAllExternalWindows()
-        for window in NSApplication.shared.windows where !window.isMiniaturized {
-            window.miniaturize(nil)
-        }
+        // No-op: leave existing application windows untouched for faster startup.
     }
 
     private enum HotKeyID: UInt32 {
@@ -511,6 +520,76 @@ class AppController: NSObject, WindowControllerDelegate {
         }) {
             eventMonitors.append(localMonitor)
         }
+    }
+
+    private func setupApplicationMonitoring() {
+        let center = NSWorkspace.shared.notificationCenter
+
+        let activationObserver = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationEvent(application)
+        }
+        workspaceObservers.append(activationObserver)
+
+        let launchObserver = center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationEvent(application)
+        }
+        workspaceObservers.append(launchObserver)
+
+        let unhideObserver = center.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationEvent(application)
+        }
+        workspaceObservers.append(unhideObserver)
+
+        if let frontmost = NSWorkspace.shared.frontmostApplication {
+            handleApplicationEvent(frontmost)
+        }
+    }
+
+    private func handleApplicationEvent(_ application: NSRunningApplication?) {
+        guard let application else {
+            return
+        }
+
+        guard shouldManage(application: application) else {
+            return
+        }
+
+        scheduleCapture(for: application, delay: 0.0)
+        scheduleCapture(for: application, delay: 0.4)
+    }
+
+    private func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
+        let pid = application.processIdentifier
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else { return }
+            guard self.shouldManage(application: refreshedApplication) else { return }
+
+            let newWindows = self.windowController.captureWindows(for: refreshedApplication, notifyDelegate: false, allowExisting: false)
+            for window in newWindows {
+                self.placeNewWindow(window)
+            }
+        }
+    }
+
+    private func shouldManage(application: NSRunningApplication) -> Bool {
+        guard !application.isTerminated else {
+            return false
+        }
+        if application.processIdentifier == getpid() {
+            return false
+        }
+        if let bundleId = application.bundleIdentifier,
+           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            return false
+        }
+        return true
     }
 
     @discardableResult

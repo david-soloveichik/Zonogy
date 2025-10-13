@@ -20,6 +20,7 @@ private let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as St
 private let axDeminiaturizedNotification = kAXWindowDeminiaturizedNotification as String
 private let axMovedNotificationName = kAXMovedNotification as String
 private let axResizedNotificationName = kAXResizedNotification as String
+private let axWindowCreatedNotificationName = kAXWindowCreatedNotification as String
 
 struct PlaceholderResizeAxes: OptionSet {
     let rawValue: Int
@@ -58,6 +59,9 @@ class WindowController {
         kAXWindowDeminiaturizedNotification as CFString,
         kAXMovedNotification as CFString,
         kAXResizedNotification as CFString
+    ]
+    private let applicationAccessibilityNotifications: [CFString] = [
+        kAXWindowCreatedNotification as CFString
     ]
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()
@@ -256,27 +260,119 @@ class WindowController {
         }
 
         let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
+        return captureWindowIfNeeded(
+            element: windowElement,
+            pid: pid,
+            appElement: appElement,
+            allowReturningExisting: true,
+            notifyDelegate: false
+        )
+    }
 
-        guard isStandardWindow(windowElement) else {
-            Logger.debug("Focused element is not a standard window; ignoring")
+    /// Capture all top-level windows for the specified application.
+    /// - Parameters:
+    ///   - application: The running application whose windows should be managed.
+    ///   - notifyDelegate: When true, the delegate is notified for each newly captured window.
+    ///   - allowExisting: When true, existing managed windows are included in the result.
+    /// - Returns: Newly captured windows (and existing ones if requested).
+    func captureWindows(
+        for application: NSRunningApplication,
+        notifyDelegate: Bool,
+        allowExisting: Bool = false
+    ) -> [ManagedWindow] {
+        guard ensureAccessibilityPermissions() else {
+            return []
+        }
+
+        guard application.processIdentifier != getpid() else {
+            return []
+        }
+
+        if let bundleId = application.bundleIdentifier,
+           ignoredBundleIdentifiers.contains(bundleId) {
+            return []
+        }
+
+        let pid = application.processIdentifier
+        let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
+        accessibilityApplications[pid] = appElement
+
+        _ = ensureObserver(for: pid, appElement: appElement)
+
+        var windowsObject: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        guard status == .success, let windowsObject else {
+            if status != .success {
+                Logger.debug("Failed to enumerate windows for pid \(pid) (AX error \(status.rawValue))")
+            }
+            return []
+        }
+
+        var captured: [ManagedWindow] = []
+
+        if let windowElements = windowsObject as? [AXUIElement] {
+            for element in windowElements {
+                if let managed = captureWindowIfNeeded(
+                    element: element,
+                    pid: pid,
+                    appElement: appElement,
+                    allowReturningExisting: allowExisting,
+                    notifyDelegate: notifyDelegate
+                ) {
+                    captured.append(managed)
+                }
+            }
+        } else if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
+            let array = unsafeBitCast(windowsObject, to: CFArray.self)
+            let count = CFArrayGetCount(array)
+            for index in 0..<count {
+                let rawElement = CFArrayGetValueAtIndex(array, index)
+                let element = unsafeBitCast(rawElement, to: AXUIElement.self)
+                if let managed = captureWindowIfNeeded(
+                    element: element,
+                    pid: pid,
+                    appElement: appElement,
+                    allowReturningExisting: allowExisting,
+                    notifyDelegate: notifyDelegate
+                ) {
+                    captured.append(managed)
+                }
+            }
+        }
+
+        return captured
+    }
+
+    private func captureWindowIfNeeded(
+        element: AXUIElement,
+        pid: pid_t,
+        appElement: AXUIElement,
+        allowReturningExisting: Bool,
+        notifyDelegate: Bool
+    ) -> ManagedWindow? {
+        guard isStandardWindow(element) else {
             return nil
         }
 
-        let elementKey = AccessibilityElementKey(element: windowElement)
+        if isWindowMinimized(element) {
+            return nil
+        }
+
+        let elementKey = AccessibilityElementKey(element: element)
         if let existing = externalWindowsByElement[elementKey] {
-            Logger.debug("External window for pid \(pid) already managed as \(existing.windowId)")
-            return existing
+            return allowReturningExisting ? existing : nil
         }
 
-        let identifier = externalIdentifier(for: windowElement)
-        if let identifier, let existing = externalWindows[identifier] {
-            Logger.debug("Window \(identifier.windowNumber) for pid \(pid) already managed as \(existing.windowId)")
-            return existing
+        if let identifier = externalIdentifier(for: element),
+           let existing = externalWindows[identifier] {
+            externalWindowsByElement[elementKey] = existing
+            return allowReturningExisting ? existing : nil
         }
 
+        let identifier = externalIdentifier(for: element)
         let managed = ManagedWindow(
             windowId: nextWindowId,
-            backing: .accessibility(element: windowElement, pid: pid, windowNumber: identifier?.windowNumber),
+            backing: .accessibility(element: element, pid: pid, windowNumber: identifier?.windowNumber),
             isPlaceholder: false
         )
         nextWindowId += 1
@@ -285,17 +381,17 @@ class WindowController {
         externalWindowsByElement[elementKey] = managed
         if let identifier {
             externalWindows[identifier] = managed
-        } else {
-            Logger.debug("Tracking external window \(managed.windowId) without AXWindowNumber")
-        }
-
-        registerAccessibilityNotifications(for: managed, appElement: appElement)
-
-        if let identifier {
             Logger.debug("Captured external window \(identifier.windowNumber) from pid \(pid) as managed id \(managed.windowId)")
         } else {
             Logger.debug("Captured external window with unknown window number from pid \(pid) as managed id \(managed.windowId)")
         }
+
+        registerAccessibilityNotifications(for: managed, appElement: appElement)
+
+        if notifyDelegate {
+            delegate?.windowController(self, didCaptureExternalWindow: managed)
+        }
+
         return managed
     }
 
@@ -432,6 +528,21 @@ class WindowController {
         return status == .success
     }
 
+    private func isWindowMinimized(_ element: AXUIElement) -> Bool {
+        var minimizedValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, kAXMinimizedAttribute as CFString, &minimizedValue)
+        guard status == .success, let minimizedValue else {
+            return false
+        }
+        if CFGetTypeID(minimizedValue) == CFBooleanGetTypeID() {
+            return CFBooleanGetValue(unsafeBitCast(minimizedValue, to: CFBoolean.self))
+        }
+        if let number = minimizedValue as? NSNumber {
+            return number.boolValue
+        }
+        return false
+    }
+
     private func ensureAccessibilityPermissions() -> Bool {
         if AXIsProcessTrusted() {
             return true
@@ -515,6 +626,14 @@ class WindowController {
         let runLoopSource = AXObserverGetRunLoopSource(observer)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, CFRunLoopMode.commonModes)
 
+        for notification in applicationAccessibilityNotifications {
+            let status = AXObserverAddNotification(observer, appElement, notification, observerRefcon)
+            if status == .success || status == .notificationAlreadyRegistered {
+                continue
+            }
+            Logger.debug("Failed to register application notification \(notification) for pid \(pid), AX error \(status.rawValue)")
+        }
+
         return observer
     }
 
@@ -537,11 +656,36 @@ class WindowController {
     }
 
     private func handleAXNotificationOnMain(element: AXUIElement, notification: CFString) {
-        guard let managed = managedWindow(matching: element) else {
+        let notificationName = notification as String
+
+        if notificationName == axWindowCreatedNotificationName {
+            var pid: pid_t = 0
+            let status = AXUIElementGetPid(element, &pid)
+            guard status == .success, pid != getpid() else {
+                return
+            }
+
+            if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+               ignoredBundleIdentifiers.contains(bundleId) {
+                return
+            }
+
+            let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
+            accessibilityApplications[pid] = appElement
+
+            _ = captureWindowIfNeeded(
+                element: element,
+                pid: pid,
+                appElement: appElement,
+                allowReturningExisting: false,
+                notifyDelegate: true
+            )
             return
         }
 
-        let notificationName = notification as String
+        guard let managed = managedWindow(matching: element) else {
+            return
+        }
 
         switch notificationName {
         case axDestroyedNotification:
@@ -661,6 +805,7 @@ protocol WindowControllerDelegate: AnyObject {
     func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes
     func windowManualResizeDidEnd(windowId: Int, frame: CGRect)
     func windowManualMoveDidEnd(windowId: Int, frame: CGRect)
+    func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
 }
 
 /// NSWindowDelegate for tracking window events
