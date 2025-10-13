@@ -41,14 +41,23 @@ class WindowController {
 
         let window = NSWindow(
             contentRect: frame,
-            styleMask: [.borderless],
+            styleMask: [.titled, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.styleMask.insert(.fullSizeContentView)
         window.isReleasedWhenClosed = false
         window.level = .normal
         window.backgroundColor = .clear
         window.isOpaque = false
+        window.hasShadow = false
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = false
+        window.minSize = NSSize(width: 120, height: 120)
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
 
         // Create a custom content view with a close button
         let contentView = NSView(frame: NSRect(origin: .zero, size: frame.size))
@@ -93,9 +102,16 @@ class WindowController {
         closeButton.target = self
         closeButton.action = #selector(handlePlaceholderClose(_:))
         closeButton.tag = zoneIndex
+        closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
 
         contentView.addSubview(closeButton)
         window.contentView = contentView
+        contentView.autoresizingMask = [.width, .height]
+
+        // Set up delegate to track resize events
+        let windowDelegate = ManagedWindowDelegate(windowId: windowId, controller: self)
+        window.delegate = windowDelegate
+        windowDelegates[windowId] = windowDelegate
 
         let managed = ManagedWindow(windowId: windowId, window: window, isPlaceholder: true)
         managedWindows[windowId] = managed
@@ -160,6 +176,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
+    func placeholderDidResize(zoneIndex: Int, to frame: CGRect)
 }
 
 /// NSWindowDelegate for tracking window events
@@ -182,5 +199,21 @@ class ManagedWindowDelegate: NSObject, NSWindowDelegate {
 
     func windowDidDeminiaturize(_ notification: Notification) {
         controller?.delegate?.windowDidDeminiaturize(windowId: windowId)
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        controller?.windowDidEndLiveResize(windowId: windowId)
+    }
+}
+
+extension WindowController {
+    func windowDidEndLiveResize(windowId: Int) {
+        guard let managed = managedWindows[windowId],
+              managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            return
+        }
+
+        delegate?.placeholderDidResize(zoneIndex: zoneIndex, to: managed.actualFrame)
     }
 }

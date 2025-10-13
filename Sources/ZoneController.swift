@@ -8,6 +8,7 @@ class ZoneController {
     }
 
     private var zones: [Zone] = []
+    private var layout = ZoneLayout()
     private let screenFrame: CGRect
 
     init(screenFrame: CGRect) {
@@ -17,7 +18,7 @@ class ZoneController {
     }
 
     private func initializeZones(count: Int) {
-        let frames = ZoneLayout.computeFrames(zoneCount: count, screenFrame: screenFrame)
+        let frames = layout.frames(for: count, screenFrame: screenFrame)
         zones = frames.enumerated().map { index, frame in
             Zone(index: index + 1, frame: frame)
         }
@@ -110,9 +111,36 @@ class ZoneController {
         return zones.max(by: { $0.index < $1.index })
     }
 
+    /// Resize an empty zone and adjust layout ratios accordingly.
+    /// - Parameters:
+    ///   - index: Zone index (1-based)
+    ///   - newFrame: Requested frame for the zone (without margins)
+    /// - Returns: true if resize was applied
+    @discardableResult
+    func resizeZone(at index: Int, to newFrame: CGRect) -> Bool {
+        guard let zone = zone(at: index) else {
+            Logger.debug("Cannot resize zone: zone \(index) not found")
+            return false
+        }
+
+        guard zone.isEmpty else {
+            Logger.debug("Cannot resize zone \(index): zone is occupied")
+            return false
+        }
+
+        let sanitizedFrame = sanitizeFrame(newFrame)
+        layout.resize(zoneIndex: index, zoneCount: zones.count, screenFrame: screenFrame, to: sanitizedFrame)
+
+        let assignments = zones.sorted { $0.index < $1.index }.map { $0.windowId }
+        recomputeLayout(zoneCount: zones.count, preservingAssignments: assignments)
+
+        Logger.debug("Resized zone \(index) using frame \(sanitizedFrame)")
+        return true
+    }
+
     /// Recompute the layout for the current number of zones
     private func recomputeLayout(zoneCount: Int, preservingAssignments assignmentsParam: [Int?]? = nil) {
-        let frames = ZoneLayout.computeFrames(zoneCount: zoneCount, screenFrame: screenFrame)
+        let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
 
         let assignments: [Int?]
         if let provided = assignmentsParam {
@@ -131,5 +159,25 @@ class ZoneController {
     func relayout() {
         recomputeLayout(zoneCount: zones.count)
         Logger.debug("Relayout complete for \(zones.count) zone(s)")
+    }
+
+    /// Screen frame used for the layout. Useful for clamping zone adjustments.
+    var layoutBounds: CGRect {
+        return screenFrame
+    }
+
+    private func sanitizeFrame(_ frame: CGRect) -> CGRect {
+        var standardized = frame.standardized
+
+        let clampedOriginX = max(screenFrame.minX, standardized.origin.x)
+        let clampedOriginY = max(screenFrame.minY, standardized.origin.y)
+        let maxX = min(screenFrame.maxX, standardized.maxX)
+        let maxY = min(screenFrame.maxY, standardized.maxY)
+
+        standardized.origin = CGPoint(x: clampedOriginX, y: clampedOriginY)
+        standardized.size.width = max(0, maxX - standardized.origin.x)
+        standardized.size.height = max(0, maxY - standardized.origin.y)
+
+        return standardized
     }
 }

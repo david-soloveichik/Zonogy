@@ -128,6 +128,40 @@ Remove a zone by index.
 }
 ```
 
+### resize-zone
+Resize an empty zone by providing a new frame. Coordinates are in screen space (before the 5px margin is applied). The target zone must currently be empty; otherwise, the command fails.
+
+**Request:**
+```json
+{
+  "method": "resize-zone",
+  "id": 9,
+  "params": {
+    "index": 2,
+    "frame": {"x": 400, "y": 0, "width": 600, "height": 700}
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": 9,
+  "success": true,
+  "result": {
+    "zone_index": 2,
+    "frame": {
+      "x": 400,
+      "y": 0,
+      "width": 600,
+      "height": 700
+    },
+    "zone_count": 2
+  },
+  "error": null
+}
+```
+
 ### create-window
 Create a new test window.
 

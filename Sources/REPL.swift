@@ -78,6 +78,30 @@ class REPL {
             }
             appController.removeZone(at: index)
 
+        case "resize-zone":
+            guard parts.count == 2 else {
+                print("Usage: resize-zone <index> <x> <y> <width> <height>")
+                return
+            }
+            let args = parts[1].split(separator: " ").map(String.init)
+            guard args.count == 5 else {
+                print("Usage: resize-zone <index> <x> <y> <width> <height>")
+                return
+            }
+            guard let index = Int(args[0]) else {
+                print("Invalid index: \(args[0])")
+                return
+            }
+            guard let x = Double(args[1]),
+                  let y = Double(args[2]),
+                  let width = Double(args[3]),
+                  let height = Double(args[4]) else {
+                print("Invalid frame values. Expected numeric x y width height.")
+                return
+            }
+            let frame = CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(width), height: CGFloat(height))
+            appController.resizeZone(at: index, frame: frame)
+
         case "create-window":
             appController.createWindow()
 
@@ -157,6 +181,8 @@ class REPL {
         Zone management:
           add-zone                     - Add a new zone (up to 3)
           remove-zone <index>          - Remove the specified zone
+          resize-zone <index> <x> <y> <width> <height>
+                                       - Resize an empty zone using screen coordinates
           list                         - Print current zones and their windows
           layout                       - Force a layout recalculation
 

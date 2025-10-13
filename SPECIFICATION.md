@@ -54,6 +54,12 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
+### Resizing zones
+
+If a zone is empty (contains a placeholder window), then the placeholder window can be resized. Resizing it, resizes the zone and re-adjusts the other zones appropriately.
+
+For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before the 5px margin is applied). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+
 ## Initial Implementation and Debugging
 
 For our initial implementation of LatticeTopology, we won't want to manage the windows of other applications. Instead, the window manager should create its own "test" windows that have title like "test `window_id`", and manage those in the way described above. These windows are always created and owned by our process so that we can exercise the tiling logic without touching real apps.
@@ -87,6 +93,7 @@ Helpful optional commands (for faster debugging):
 - `layout`: force a recomputation of zone frames (useful after changing screen size in tests).
 - `window-info <window_id>`: display the target zone index, the zone’s desired frame, and the actual on-screen frame reported by AppKit so we can compare intended versus real geometry.
 - `frames`: dump a quick summary of every managed window’s actual frame (including minimized placeholders) to make tiling issues easy to spot.
+- `resize-zone <index> <x> <y> <width> <height>`: resize an empty zone using screen coordinates.
 - `help`: describe available commands.
 
 ### Additional implementation notes

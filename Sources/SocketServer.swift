@@ -188,6 +188,16 @@ class SocketServer {
                 }
                 return appController.removeZoneJSON(at: index)
 
+            case "resize-zone":
+                guard let index = params["index"] as? Int else {
+                    return ["error": "Missing required parameter: index"]
+                }
+                guard let frameDict = params["frame"] as? [String: Any],
+                      let frame = parseFrame(from: frameDict) else {
+                    return ["error": "Missing or invalid frame parameter. Expected {\"x\":<number>,\"y\":<number>,\"width\":<number>,\"height\":<number>}"]
+                }
+                return appController.resizeZoneJSON(at: index, frame: frame)
+
             case "create-window":
                 return appController.createWindowJSON()
 
@@ -252,5 +262,29 @@ class SocketServer {
         var data = try! JSONSerialization.data(withJSONObject: response, options: [.prettyPrinted])
         data.append("\n".data(using: .utf8)!)
         return data
+    }
+
+    private func parseFrame(from dict: [String: Any]) -> CGRect? {
+        guard let x = numberToCGFloat(dict["x"]),
+              let y = numberToCGFloat(dict["y"]),
+              let width = numberToCGFloat(dict["width"]),
+              let height = numberToCGFloat(dict["height"]) else {
+            return nil
+        }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func numberToCGFloat(_ value: Any?) -> CGFloat? {
+        switch value {
+        case let number as NSNumber:
+            return CGFloat(truncating: number)
+        case let string as String:
+            if let doubleValue = Double(string) {
+                return CGFloat(doubleValue)
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 }

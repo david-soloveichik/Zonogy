@@ -21,6 +21,8 @@ class AppController: NSObject, WindowControllerDelegate {
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
     private let zoneMargin: CGFloat = 5
+    private var isSyncingWindows = false
+    private var pendingSync = false
 
     private override init() {
         // Get the main screen frame
@@ -85,6 +87,29 @@ class AppController: NSObject, WindowControllerDelegate {
 
         syncWindowsToZones()
         print("Removed zone \(index)")
+    }
+
+    func resizeZone(at index: Int, frame: CGRect) {
+        guard let zone = zoneController.zone(at: index) else {
+            print("Zone \(index) not found")
+            return
+        }
+
+        guard zone.isEmpty else {
+            print("Zone \(index) is occupied; minimize or close its window before resizing.")
+            return
+        }
+
+        if zoneController.resizeZone(at: index, to: frame) {
+            syncWindowsToZones()
+            if let updatedZone = zoneController.zone(at: index) {
+                print("Resized zone \(index) to \(updatedZone.frame)")
+            } else {
+                print("Zone \(index) resized")
+            }
+        } else {
+            print("Failed to resize zone \(index)")
+        }
     }
 
     // MARK: - Window Management
@@ -191,12 +216,33 @@ class AppController: NSObject, WindowControllerDelegate {
 
     /// Sync all windows to their zones, creating placeholders as needed
     private func syncWindowsToZones() {
+        if isSyncingWindows {
+            pendingSync = true
+            return
+        }
+        isSyncingWindows = true
+        defer {
+            isSyncingWindows = false
+            if pendingSync {
+                pendingSync = false
+                syncWindowsToZones()
+            }
+        }
+
         Logger.debug("Syncing windows to zones")
 
-        // First, close all placeholder windows
+        // Keep track of existing placeholders by zone
+        var placeholdersByZone = [Int: ManagedWindow]()
+        var placeholdersWithoutZone = [ManagedWindow]()
         for window in windowController.allWindows where window.isPlaceholder {
-            windowController.closeWindow(window)
+            if let zoneIndex = window.zoneIndex {
+                placeholdersByZone[zoneIndex] = window
+            } else {
+                placeholdersWithoutZone.append(window)
+            }
         }
+
+        var placeholdersToClose = placeholdersByZone
 
         var assignedWindowIds = Set<Int>()
 
@@ -209,15 +255,40 @@ class AppController: NSObject, WindowControllerDelegate {
                 windowController.moveWindow(managed, to: displayFrame)
                 managed.zoneIndex = zone.index
                 assignedWindowIds.insert(windowId)
+
+                // No placeholder needed for this zone
+                if let placeholder = placeholdersToClose.removeValue(forKey: zone.index) {
+                    windowController.closeWindow(placeholder)
+                }
             } else {
-                // Create a placeholder (but don't assign its ID to the zone - keep zone empty)
-                let placeholder = windowController.createPlaceholderWindow(
-                    frame: displayFrame,
-                    zoneIndex: zone.index
-                )
-                placeholder.zoneIndex = zone.index
-                windowController.showWindow(placeholder, at: displayFrame)
+                if let existingPlaceholder = placeholdersByZone[zone.index] {
+                    // Reuse existing placeholder, update its frame
+                    existingPlaceholder.zoneIndex = zone.index
+                    windowController.showWindow(existingPlaceholder, at: displayFrame)
+                    windowController.moveWindow(existingPlaceholder, to: displayFrame)
+                    placeholdersToClose.removeValue(forKey: zone.index)
+                } else if let unassignedPlaceholder = placeholdersWithoutZone.popLast() {
+                    unassignedPlaceholder.zoneIndex = zone.index
+                    windowController.showWindow(unassignedPlaceholder, at: displayFrame)
+                    windowController.moveWindow(unassignedPlaceholder, to: displayFrame)
+                } else {
+                    // Create a placeholder (but don't assign its ID to the zone - keep zone empty)
+                    let placeholder = windowController.createPlaceholderWindow(
+                        frame: displayFrame,
+                        zoneIndex: zone.index
+                    )
+                    placeholder.zoneIndex = zone.index
+                    windowController.showWindow(placeholder, at: displayFrame)
+                }
             }
+        }
+
+        // Close any leftover placeholders that aren't needed
+        for placeholder in placeholdersToClose.values {
+            windowController.closeWindow(placeholder)
+        }
+        for placeholder in placeholdersWithoutZone {
+            windowController.closeWindow(placeholder)
         }
 
         // Mark any real windows that are no longer assigned to a zone as minimized/unassigned
@@ -233,6 +304,28 @@ class AppController: NSObject, WindowControllerDelegate {
         let insetX = min(zoneMargin, zone.frame.width / 2)
         let insetY = min(zoneMargin, zone.frame.height / 2)
         return zone.frame.insetBy(dx: insetX, dy: insetY)
+    }
+
+    /// Convert a placeholder frame (which already includes margins) back into the zone frame.
+    private func zoneFrame(fromPlaceholderFrame frame: CGRect) -> CGRect {
+        var zoneFrame = frame.insetBy(dx: -zoneMargin, dy: -zoneMargin)
+        zoneFrame = clamp(frame: zoneFrame, to: zoneController.layoutBounds)
+        return zoneFrame
+    }
+
+    private func clamp(frame: CGRect, to bounds: CGRect) -> CGRect {
+        var normalized = frame.standardized
+
+        let originX = max(bounds.minX, normalized.origin.x)
+        let originY = max(bounds.minY, normalized.origin.y)
+        let maxX = min(bounds.maxX, normalized.maxX)
+        let maxY = min(bounds.maxY, normalized.maxY)
+
+        normalized.origin = CGPoint(x: originX, y: originY)
+        normalized.size.width = max(0, maxX - originX)
+        normalized.size.height = max(0, maxY - originY)
+
+        return normalized
     }
 
     // MARK: - WindowControllerDelegate
@@ -258,6 +351,14 @@ class AppController: NSObject, WindowControllerDelegate {
         Logger.debug("Window \(windowId) did deminiaturize")
         guard let managed = windowController.window(withId: windowId) else { return }
         placeNewWindow(managed)
+    }
+
+    func placeholderDidResize(zoneIndex: Int, to frame: CGRect) {
+        Logger.debug("Placeholder for zone \(zoneIndex) resized")
+        let zoneFrame = zoneFrame(fromPlaceholderFrame: frame)
+        if zoneController.resizeZone(at: zoneIndex, to: zoneFrame) {
+            syncWindowsToZones()
+        }
     }
 
     // MARK: - Startup helpers
@@ -473,6 +574,37 @@ class AppController: NSObject, WindowControllerDelegate {
 
         syncWindowsToZones()
         return response
+    }
+
+    func resizeZoneJSON(at index: Int, frame: CGRect) -> [String: Any] {
+        guard let zone = zoneController.zone(at: index) else {
+            return ["error": "Zone \(index) not found"]
+        }
+
+        guard zone.isEmpty else {
+            return ["error": "Zone \(index) is occupied; minimize or close its window before resizing."]
+        }
+
+        guard zoneController.resizeZone(at: index, to: frame) else {
+            return ["error": "Failed to resize zone \(index)"]
+        }
+
+        syncWindowsToZones()
+
+        guard let updatedZone = zoneController.zone(at: index) else {
+            return ["error": "Zone \(index) unavailable after resize"]
+        }
+
+        return [
+            "zone_index": updatedZone.index,
+            "frame": [
+                "x": updatedZone.frame.origin.x,
+                "y": updatedZone.frame.origin.y,
+                "width": updatedZone.frame.width,
+                "height": updatedZone.frame.height
+            ],
+            "zone_count": zoneController.allZones.count
+        ]
     }
 
     func createWindowJSON() -> [String: Any] {
