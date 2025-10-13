@@ -47,12 +47,21 @@ class WindowController {
         )
         window.isReleasedWhenClosed = false
         window.level = .normal
-        window.backgroundColor = NSColor(white: 0.9, alpha: 0.3)
+        window.backgroundColor = .clear
         window.isOpaque = false
 
         // Create a custom content view with a close button
         let contentView = NSView(frame: NSRect(origin: .zero, size: frame.size))
         contentView.wantsLayer = true
+        if let layer = contentView.layer {
+            layer.backgroundColor = NSColor(white: 0.9, alpha: 0.3).cgColor
+            layer.cornerRadius = 12
+            layer.borderWidth = 2
+            layer.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
+            if #available(macOS 10.15, *) {
+                layer.cornerCurve = .continuous
+            }
+        }
 
         // Create a custom blue "x" close button that matches the spec
         let buttonSize: CGFloat = 36

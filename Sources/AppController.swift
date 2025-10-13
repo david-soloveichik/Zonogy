@@ -20,6 +20,7 @@ class AppController: NSObject, WindowControllerDelegate {
     private var eventMonitors: [Any] = []
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
+    private let zoneMargin: CGFloat = 5
 
     private override init() {
         // Get the main screen frame
@@ -183,7 +184,7 @@ class AppController: NSObject, WindowControllerDelegate {
         managed.zoneIndex = zone.index
 
         // Position the window
-        windowController.showWindow(managed, at: zone.frame)
+        windowController.showWindow(managed, at: frameWithMargin(for: zone))
     }
 
     // MARK: - Synchronization
@@ -201,20 +202,21 @@ class AppController: NSObject, WindowControllerDelegate {
 
         // Then, for each zone, either show the window or create a placeholder
         for zone in zoneController.allZones {
+            let displayFrame = frameWithMargin(for: zone)
             if let windowId = zone.windowId,
                let managed = windowController.window(withId: windowId) {
                 // Move the window to match the zone frame
-                windowController.moveWindow(managed, to: zone.frame)
+                windowController.moveWindow(managed, to: displayFrame)
                 managed.zoneIndex = zone.index
                 assignedWindowIds.insert(windowId)
             } else {
                 // Create a placeholder (but don't assign its ID to the zone - keep zone empty)
                 let placeholder = windowController.createPlaceholderWindow(
-                    frame: zone.frame,
+                    frame: displayFrame,
                     zoneIndex: zone.index
                 )
                 placeholder.zoneIndex = zone.index
-                windowController.showWindow(placeholder, at: zone.frame)
+                windowController.showWindow(placeholder, at: displayFrame)
             }
         }
 
@@ -224,6 +226,13 @@ class AppController: NSObject, WindowControllerDelegate {
                 window.zoneIndex = nil
             }
         }
+    }
+
+    /// Compute the frame used to render content inside a zone, honoring the spec margin
+    private func frameWithMargin(for zone: Zone) -> CGRect {
+        let insetX = min(zoneMargin, zone.frame.width / 2)
+        let insetY = min(zoneMargin, zone.frame.height / 2)
+        return zone.frame.insetBy(dx: insetX, dy: insetY)
     }
 
     // MARK: - WindowControllerDelegate
