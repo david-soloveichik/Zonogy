@@ -58,13 +58,20 @@ A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The 
 
 ### Resizing zones
 
-If a zone is empty (contains a placeholder window), then the placeholder window can be resized. Resizing it, resizes the zone and re-adjusts the other zones appropriately.
+#### If a zone is empty (contains a placeholder window)
+
+The placeholder window can be resized. Resizing it, resizes the zone and re-adjusts the other zones appropriately.
 
 The resize affordances should only allow motions that can actually change the zone layout. For example, when zone 1 is the left-most column its bottom edge cannot be dragged vertically—only its right edge can move horizontally. When there are three zones, the right-hand zones can adjust both horizontally (shared splitter with zone 1) and vertically (between themselves). Attempted drags in unsupported directions must be ignored.
 
 While the user is dragging an edge, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
 For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before the 5px margin is applied). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+
+#### If a zone contains a window
+
+Resizing the window should resize the zone to the best of our ability. Unlike for the placeholder window, we don't want a "live update".
+Also if the window is moved to another location and released, it should "snap" back to its proper location in its zone.
 
 ## Initial Implementation and Debugging
 
@@ -133,16 +140,19 @@ To enable better AI agent integration and programmatic control, LatticeTopology 
 - **Debug logging**: Writes to `/tmp/lattice-topology-debug.log` when in socket mode
 
 **Request format:**
+
 ```json
 {"method": "command-name", "id": 1, "params": {"param1": "value1"}}
 ```
 
 **Response format:**
+
 ```json
 {"id": 1, "success": true, "result": {...}, "error": null}
 ```
 
 **Available commands:** All REPL commands are exposed via the socket with JSON equivalents:
+
 - `list`: Get all zones and their state
 - `add-zone`: Add a new zone
 - `remove-zone`: Remove a zone by index (requires `params: {"index": N}`)

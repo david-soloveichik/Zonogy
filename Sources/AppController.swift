@@ -317,15 +317,15 @@ class AppController: NSObject, WindowControllerDelegate {
         return zone.frame.insetBy(dx: insetX, dy: insetY)
     }
 
-    /// Convert a placeholder frame (which already includes margins) back into the zone frame.
-    private func zoneFrame(fromPlaceholderFrame frame: CGRect) -> CGRect {
+    /// Convert a content frame (placeholder or occupant window) back into the zone frame.
+    private func zoneFrame(fromContentFrame frame: CGRect) -> CGRect {
         var zoneFrame = frame.insetBy(dx: -zoneMargin, dy: -zoneMargin)
         zoneFrame = clamp(frame: zoneFrame, to: zoneController.layoutBounds)
         return zoneFrame
     }
 
     private func applyPlaceholderResize(zoneIndex: Int, placeholderFrame: CGRect, finalize: Bool) {
-        let zoneFrame = zoneFrame(fromPlaceholderFrame: placeholderFrame)
+        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame)
         guard zoneController.resizeZone(at: zoneIndex, to: zoneFrame) else {
             return
         }
@@ -396,6 +396,43 @@ class AppController: NSObject, WindowControllerDelegate {
         }
 
         applyPlaceholderResize(zoneIndex: zoneIndex, placeholderFrame: frame, finalize: true)
+    }
+
+    func windowManualResizeDidEnd(windowId: Int, frame: CGRect) {
+        guard let managed = windowController.window(withId: windowId),
+              let zoneIndex = managed.zoneIndex else {
+            Logger.debug("Resize completed for window \(windowId) without a zone assignment")
+            return
+        }
+
+        let zoneFrame = zoneFrame(fromContentFrame: frame)
+        guard zoneController.resizeZone(at: zoneIndex, to: zoneFrame, allowOccupied: true) else {
+            Logger.debug("Failed to resize zone \(zoneIndex) from window \(windowId)")
+            return
+        }
+
+        Logger.debug("Applied window-driven resize for zone \(zoneIndex) from window \(windowId)")
+        syncWindowsToZones()
+    }
+
+    func windowManualMoveDidEnd(windowId: Int, frame: CGRect) {
+        guard let managed = windowController.window(withId: windowId),
+              let zoneIndex = managed.zoneIndex,
+              let zone = zoneController.zone(at: zoneIndex) else {
+            Logger.debug("Move completed for window \(windowId) with no zone to snap to")
+            return
+        }
+
+        let targetFrame = frameWithMargin(for: zone)
+        let needsSnap = abs(targetFrame.origin.x - frame.origin.x) > 0.5 ||
+            abs(targetFrame.origin.y - frame.origin.y) > 0.5 ||
+            abs(targetFrame.size.width - frame.size.width) > 0.5 ||
+            abs(targetFrame.size.height - frame.size.height) > 0.5
+
+        if needsSnap {
+            Logger.debug("Snapping window \(windowId) back to zone \(zoneIndex)")
+            windowController.moveWindow(managed, to: targetFrame)
+        }
     }
 
     func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes {

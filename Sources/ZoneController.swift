@@ -117,13 +117,14 @@ class ZoneController {
     ///   - newFrame: Requested frame for the zone (without margins)
     /// - Returns: true if resize was applied
     @discardableResult
-    func resizeZone(at index: Int, to newFrame: CGRect) -> Bool {
+    func resizeZone(at index: Int, to newFrame: CGRect, allowOccupied: Bool = false) -> Bool {
         guard let zone = zone(at: index) else {
             Logger.debug("Cannot resize zone: zone \(index) not found")
             return false
         }
 
-        guard zone.isEmpty else {
+        let wasOccupied = !zone.isEmpty
+        if wasOccupied && !allowOccupied {
             Logger.debug("Cannot resize zone \(index): zone is occupied")
             return false
         }
@@ -134,7 +135,11 @@ class ZoneController {
         let assignments = zones.sorted { $0.index < $1.index }.map { $0.windowId }
         recomputeLayout(zoneCount: zones.count, preservingAssignments: assignments)
 
-        Logger.debug("Resized zone \(index) using frame \(sanitizedFrame)")
+        if wasOccupied {
+            Logger.debug("Resized occupied zone \(index) using frame \(sanitizedFrame)")
+        } else {
+            Logger.debug("Resized zone \(index) using frame \(sanitizedFrame)")
+        }
         return true
     }
 

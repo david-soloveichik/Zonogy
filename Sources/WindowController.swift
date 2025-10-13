@@ -14,6 +14,29 @@ class WindowController {
     private var managedWindows: [Int: ManagedWindow] = [:]
     private var windowDelegates: [Int: ManagedWindowDelegate] = [:]
     weak var delegate: WindowControllerDelegate?
+    private var currentDraggingWindowId: Int?
+    private var mouseUpMonitor: Any?
+    private var mouseUpGlobalMonitor: Any?
+    private var resizingWindowId: Int?
+
+    init() {
+        mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
+            self?.handleMouseUp()
+            return event
+        }
+        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
+            self?.handleMouseUp()
+        }
+    }
+
+    deinit {
+        if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = mouseUpGlobalMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
 
     /// Create a new test window with a title
     func createTestWindow(frame: CGRect) -> ManagedWindow {
@@ -192,6 +215,20 @@ class WindowController {
         return size
     }
 
+    private func handleMouseUp() {
+        guard let windowId = currentDraggingWindowId else {
+            return
+        }
+        currentDraggingWindowId = nil
+
+        guard let managed = managedWindows[windowId], !managed.isPlaceholder else {
+            return
+        }
+
+        Logger.debug("Finished dragging window \(windowId), requesting snap back")
+        delegate?.windowManualMoveDidEnd(windowId: windowId, frame: managed.actualFrame)
+    }
+
     /// Get all managed windows
     var allWindows: [ManagedWindow] {
         return Array(managedWindows.values)
@@ -208,6 +245,8 @@ protocol WindowControllerDelegate: AnyObject {
     func placeholderLiveResized(zoneIndex: Int, to frame: CGRect)
     func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect)
     func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes
+    func windowManualResizeDidEnd(windowId: Int, frame: CGRect)
+    func windowManualMoveDidEnd(windowId: Int, frame: CGRect)
 }
 
 /// NSWindowDelegate for tracking window events
@@ -244,6 +283,14 @@ class ManagedWindowDelegate: NSObject, NSWindowDelegate {
         controller?.windowDidEndLiveResize(windowId: windowId)
     }
 
+    func windowWillMove(_ notification: Notification) {
+        controller?.windowWillMove(windowId: windowId)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        controller?.windowDidMove(windowId: windowId)
+    }
+
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
         return controller?.constrainedPlaceholderSize(
             for: windowId,
@@ -255,32 +302,66 @@ class ManagedWindowDelegate: NSObject, NSWindowDelegate {
 
 extension WindowController {
     func windowWillStartLiveResize(windowId: Int) {
-        guard let managed = managedWindows[windowId],
-              managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex else {
+        guard let managed = managedWindows[windowId] else {
             return
         }
 
-        delegate?.placeholderLiveResizeDidBegin(zoneIndex: zoneIndex)
+        if managed.isPlaceholder {
+            guard let zoneIndex = managed.zoneIndex else {
+                return
+            }
+            delegate?.placeholderLiveResizeDidBegin(zoneIndex: zoneIndex)
+        } else {
+            resizingWindowId = windowId
+        }
     }
 
     func windowDidResize(windowId: Int) {
-        guard let managed = managedWindows[windowId],
-              managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex else {
+        guard let managed = managedWindows[windowId] else {
             return
         }
 
-        delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: managed.actualFrame)
+        if managed.isPlaceholder {
+            guard let zoneIndex = managed.zoneIndex else {
+                return
+            }
+            delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: managed.actualFrame)
+        }
     }
 
     func windowDidEndLiveResize(windowId: Int) {
-        guard let managed = managedWindows[windowId],
-              managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex else {
+        guard let managed = managedWindows[windowId] else {
             return
         }
 
-        delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: managed.actualFrame)
+        if managed.isPlaceholder {
+            guard let zoneIndex = managed.zoneIndex else {
+                return
+            }
+            delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: managed.actualFrame)
+        } else {
+            guard resizingWindowId == windowId else {
+                return
+            }
+            resizingWindowId = nil
+            Logger.debug("Finished resizing window \(windowId), notifying delegate")
+            delegate?.windowManualResizeDidEnd(windowId: windowId, frame: managed.actualFrame)
+        }
+    }
+
+    func windowWillMove(windowId: Int) {
+        guard let managed = managedWindows[windowId], !managed.isPlaceholder else {
+            return
+        }
+
+        currentDraggingWindowId = windowId
+        Logger.debug("User began dragging window \(windowId)")
+    }
+
+    func windowDidMove(windowId: Int) {
+        guard managedWindows[windowId] != nil else {
+            return
+        }
+        // Drag completion handling occurs on mouse-up.
     }
 }
