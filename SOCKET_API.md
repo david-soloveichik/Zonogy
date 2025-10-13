@@ -183,6 +183,41 @@ Create a new test window.
 }
 ```
 
+### capture-frontmost
+Adopt the currently focused window from the frontmost application. Requires Accessibility permission for LatticeTopology. If the window is already managed, the response includes a short message and retains the current zone assignment.
+
+**Request:**
+```json
+{"method": "capture-frontmost", "id": 11}
+```
+
+**Response (newly captured):**
+```json
+{
+  "id": 11,
+  "success": true,
+  "result": {
+    "window_id": 7,
+    "zone_index": 1
+  },
+  "error": null
+}
+```
+
+**Response (already managed):**
+```json
+{
+  "id": 11,
+  "success": true,
+  "result": {
+    "window_id": 7,
+    "zone_index": 1,
+    "message": "Already managed"
+  },
+  "error": null
+}
+```
+
 ### close-window
 Close a window by ID.
 

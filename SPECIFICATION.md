@@ -200,3 +200,25 @@ To enable better AI agent integration and programmatic control, LatticeTopology 
 - `layout`: Force layout recalculation
 
 For complete API documentation, examples, and error handling details, see **[SOCKET_API.md](SOCKET_API.md)**.
+
+## Configuration
+
+An optional `config.json` file lets users specify bundle identifiers that the window manager should ignore. When present, it is discovered using the following search order:
+
+1. The executable directory (sibling to the built binary)
+2. The current working directory
+3. `~/Library/Application Support/LatticeTopology/config.json`
+4. `~/.latticetopology/config.json`
+
+The file schema:
+
+```json
+{
+  "ignoredBundleIdentifiers": [
+    "com.example.App",
+    "org.example.OtherApp"
+  ]
+}
+```
+
+Bundle identifiers listed here (plus the default `com.microsoft.VSCode`) are excluded from zone management and will not be minimized during startup.

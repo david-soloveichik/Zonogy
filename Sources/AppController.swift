@@ -17,6 +17,7 @@ class AppController: NSObject, WindowControllerDelegate {
 
     private let zoneController: ZoneController
     private let windowController: WindowController
+    private let configuration: Configuration
     private var eventMonitors: [Any] = []
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
@@ -33,8 +34,10 @@ class AppController: NSObject, WindowControllerDelegate {
         }
         let screenFrame = screen.visibleFrame
 
+        let configuration = Configuration.load()
+        self.configuration = configuration
         self.zoneController = ZoneController(screenFrame: screenFrame)
-        self.windowController = WindowController()
+        self.windowController = WindowController(ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers)
 
         super.init()
 
@@ -169,6 +172,31 @@ class AppController: NSObject, WindowControllerDelegate {
         print("Unminimized window \(windowId)")
     }
 
+    func captureFrontmostWindow() {
+        if let frontmost = NSWorkspace.shared.frontmostApplication,
+           let bundleId = frontmost.bundleIdentifier,
+           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            print("Frontmost application \(bundleId) is configured to be ignored.")
+            return
+        }
+
+        guard let managed = windowController.captureFrontmostWindow() else {
+            print("No frontmost window available. Make sure Accessibility permissions are granted and another app has a visible window.")
+            return
+        }
+
+        if let zoneIndex = managed.zoneIndex,
+           let zone = zoneController.zone(at: zoneIndex),
+           zone.windowId == managed.windowId {
+            syncWindowsToZones()
+            print("Window \(managed.windowId) is already managed in zone \(zoneIndex)")
+            return
+        }
+
+        placeNewWindow(managed)
+        print("Captured window \(managed.windowId)")
+    }
+
     // MARK: - Window Placement Logic
 
     private func placeNewWindow(_ managed: ManagedWindow) {
@@ -272,7 +300,7 @@ class AppController: NSObject, WindowControllerDelegate {
                     // Reuse existing placeholder, update its frame
                     existingPlaceholder.zoneIndex = zone.index
                     if isExcluded {
-                        existingPlaceholder.window.orderFront(nil)
+                        existingPlaceholder.appKitWindow?.orderFront(nil)
                     } else {
                         windowController.showWindow(existingPlaceholder, at: displayFrame)
                         windowController.moveWindow(existingPlaceholder, to: displayFrame)
@@ -460,6 +488,7 @@ class AppController: NSObject, WindowControllerDelegate {
     // MARK: - Startup helpers
 
     private func minimizeExistingApplicationWindows() {
+        windowController.minimizeAllExternalWindows()
         for window in NSApplication.shared.windows where !window.isMiniaturized {
             window.miniaturize(nil)
         }
@@ -706,6 +735,36 @@ class AppController: NSObject, WindowControllerDelegate {
     func createWindowJSON() -> [String: Any] {
         let managed = windowController.createTestWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
         placeNewWindow(managed)
+        return [
+            "window_id": managed.windowId,
+            "zone_index": managed.zoneIndex as Any
+        ]
+    }
+
+    func captureFrontmostWindowJSON() -> [String: Any] {
+        if let frontmost = NSWorkspace.shared.frontmostApplication,
+           let bundleId = frontmost.bundleIdentifier,
+           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            return ["error": "Frontmost application \(bundleId) is configured to be ignored"]
+        }
+
+        guard let managed = windowController.captureFrontmostWindow() else {
+            return ["error": "No frontmost window available or Accessibility permissions missing"]
+        }
+
+        if let zoneIndex = managed.zoneIndex,
+           let zone = zoneController.zone(at: zoneIndex),
+           zone.windowId == managed.windowId {
+            syncWindowsToZones()
+            return [
+                "window_id": managed.windowId,
+                "zone_index": zoneIndex,
+                "message": "Already managed"
+            ]
+        }
+
+        placeNewWindow(managed)
+
         return [
             "window_id": managed.windowId,
             "zone_index": managed.zoneIndex as Any

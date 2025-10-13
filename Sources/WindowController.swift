@@ -1,5 +1,25 @@
 import Foundation
 import AppKit
+import ApplicationServices
+
+private func windowControllerObserverCallback(
+    _ observer: AXObserver,
+    _ element: AXUIElement,
+    _ notification: CFString,
+    _ refcon: UnsafeMutableRawPointer?
+) {
+    guard let refcon else { return }
+    let controller = Unmanaged<WindowController>.fromOpaque(refcon).takeUnretainedValue()
+    controller.handleAXNotification(element: element, notification: notification)
+}
+
+private let axWindowNumberAttribute: CFString = "AXWindowNumber" as CFString
+private let axCloseAction: CFString = "AXClose" as CFString
+private let axDestroyedNotification = kAXUIElementDestroyedNotification as String
+private let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as String
+private let axDeminiaturizedNotification = kAXWindowDeminiaturizedNotification as String
+private let axMovedNotificationName = kAXMovedNotification as String
+private let axResizedNotificationName = kAXResizedNotification as String
 
 struct PlaceholderResizeAxes: OptionSet {
     let rawValue: Int
@@ -8,18 +28,48 @@ struct PlaceholderResizeAxes: OptionSet {
     static let vertical = PlaceholderResizeAxes(rawValue: 1 << 1)
 }
 
+private struct AccessibilityElementKey: Hashable {
+    let element: AXUIElement
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(CFHash(element))
+    }
+
+    static func == (lhs: AccessibilityElementKey, rhs: AccessibilityElementKey) -> Bool {
+        return CFEqual(lhs.element, rhs.element)
+    }
+}
+
 /// Encapsulates AppKit window creation and manipulation
 class WindowController {
     private var nextWindowId = 1
     private var managedWindows: [Int: ManagedWindow] = [:]
     private var windowDelegates: [Int: ManagedWindowDelegate] = [:]
+    private var externalWindows: [ExternalWindowIdentifier: ManagedWindow] = [:]
+    private var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
+    private var accessibilityObservers: [pid_t: AXObserver] = [:]
+    private var accessibilityApplications: [pid_t: AXUIElement] = [:]
+    private var programmaticUpdateWindowIds: Set<Int> = []
+    private var ignoredBundleIdentifiers: Set<String>
+    private var accessibilityPermissionWarningShown = false
+    private let windowAccessibilityNotifications: [CFString] = [
+        kAXUIElementDestroyedNotification as CFString,
+        kAXWindowMiniaturizedNotification as CFString,
+        kAXWindowDeminiaturizedNotification as CFString,
+        kAXMovedNotification as CFString,
+        kAXResizedNotification as CFString
+    ]
+    private lazy var observerRefcon: UnsafeMutableRawPointer = {
+        Unmanaged.passUnretained(self).toOpaque()
+    }()
     weak var delegate: WindowControllerDelegate?
     private var currentDraggingWindowId: Int?
     private var mouseUpMonitor: Any?
     private var mouseUpGlobalMonitor: Any?
     private var resizingWindowId: Int?
 
-    init() {
+    init(ignoredBundleIdentifiers: Set<String> = []) {
+        self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
             self?.handleMouseUp()
             return event
@@ -57,7 +107,11 @@ class WindowController {
         window.delegate = windowDelegate
         windowDelegates[windowId] = windowDelegate  // Retain the delegate
 
-        let managed = ManagedWindow(windowId: windowId, window: window, isPlaceholder: false)
+        let managed = ManagedWindow(
+            windowId: windowId,
+            backing: .appKit(window),
+            isPlaceholder: false
+        )
         managedWindows[windowId] = managed
 
         Logger.debug("Created test window \(windowId)")
@@ -144,7 +198,11 @@ class WindowController {
         window.delegate = windowDelegate
         windowDelegates[windowId] = windowDelegate
 
-        let managed = ManagedWindow(windowId: windowId, window: window, isPlaceholder: true)
+        let managed = ManagedWindow(
+            windowId: windowId,
+            backing: .appKit(window),
+            isPlaceholder: true
+        )
         managedWindows[windowId] = managed
 
         Logger.debug("Created placeholder window \(windowId) for zone \(zoneIndex)")
@@ -157,6 +215,118 @@ class WindowController {
         delegate?.placeholderCloseRequested(zoneIndex: zoneIndex)
     }
 
+    /// Attempt to capture the frontmost standard window of the active application.
+    /// Returns the managed wrapper if successful.
+    func captureFrontmostWindow() -> ManagedWindow? {
+        guard ensureAccessibilityPermissions() else {
+            Logger.debug("Accessibility permissions missing; cannot capture frontmost window")
+            return nil
+        }
+
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
+            Logger.debug("No frontmost application available to capture")
+            return nil
+        }
+
+        if let bundleId = frontmostApp.bundleIdentifier,
+           ignoredBundleIdentifiers.contains(bundleId) {
+            Logger.debug("Skipping capture for ignored bundle \(bundleId)")
+            return nil
+        }
+
+        let pid = frontmostApp.processIdentifier
+        if pid == getpid() {
+            Logger.debug("Frontmost application is LatticeTopology; nothing to capture")
+            return nil
+        }
+
+        let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
+        accessibilityApplications[pid] = appElement
+
+        var windowObject: CFTypeRef?
+        let windowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
+        guard windowResult == .success, let windowObject else {
+            Logger.debug("Failed to obtain focused window for pid \(pid) (AX error \(windowResult.rawValue))")
+            return nil
+        }
+
+        guard CFGetTypeID(windowObject) == AXUIElementGetTypeID() else {
+            Logger.debug("Focused element for pid \(pid) is not a window element")
+            return nil
+        }
+
+        let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
+
+        guard isStandardWindow(windowElement) else {
+            Logger.debug("Focused element is not a standard window; ignoring")
+            return nil
+        }
+
+        let elementKey = AccessibilityElementKey(element: windowElement)
+        if let existing = externalWindowsByElement[elementKey] {
+            Logger.debug("External window for pid \(pid) already managed as \(existing.windowId)")
+            return existing
+        }
+
+        let identifier = externalIdentifier(for: windowElement)
+        if let identifier, let existing = externalWindows[identifier] {
+            Logger.debug("Window \(identifier.windowNumber) for pid \(pid) already managed as \(existing.windowId)")
+            return existing
+        }
+
+        let managed = ManagedWindow(
+            windowId: nextWindowId,
+            backing: .accessibility(element: windowElement, pid: pid, windowNumber: identifier?.windowNumber),
+            isPlaceholder: false
+        )
+        nextWindowId += 1
+
+        managedWindows[managed.windowId] = managed
+        externalWindowsByElement[elementKey] = managed
+        if let identifier {
+            externalWindows[identifier] = managed
+        } else {
+            Logger.debug("Tracking external window \(managed.windowId) without AXWindowNumber")
+        }
+
+        registerAccessibilityNotifications(for: managed, appElement: appElement)
+
+        if let identifier {
+            Logger.debug("Captured external window \(identifier.windowNumber) from pid \(pid) as managed id \(managed.windowId)")
+        } else {
+            Logger.debug("Captured external window with unknown window number from pid \(pid) as managed id \(managed.windowId)")
+        }
+        return managed
+    }
+
+    /// Best-effort minimization of all standard windows belonging to other applications.
+    func minimizeAllExternalWindows() {
+        guard ensureAccessibilityPermissions() else {
+            return
+        }
+
+        for app in NSWorkspace.shared.runningApplications where !app.isTerminated && app.processIdentifier != getpid() {
+            let pid = app.processIdentifier
+            if let bundleId = app.bundleIdentifier,
+               ignoredBundleIdentifiers.contains(bundleId) {
+                Logger.debug("Skipping minimization for ignored bundle \(bundleId)")
+                continue
+            }
+            let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
+            accessibilityApplications[pid] = appElement
+
+            var windowsObject: AnyObject?
+            let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+            guard status == .success, let windowElements = windowsObject as? [AXUIElement] else {
+                continue
+            }
+
+            for windowElement in windowElements {
+                _ = AXUIElementSetAttributeValue(windowElement, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+            }
+        }
+    }
+
     /// Get a managed window by ID
     func window(withId windowId: Int) -> ManagedWindow? {
         return managedWindows[windowId]
@@ -164,35 +334,279 @@ class WindowController {
 
     /// Show a window at the specified frame
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect) {
-        managedWindow.window.setFrame(frame, display: true)
-        managedWindow.window.orderFront(nil)
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.setFrame(frame, display: true)
+            window.orderFront(nil)
+        case .accessibility(let element, _, _):
+            performProgrammaticUpdate(for: managedWindow.windowId) {
+                _ = setAccessibilityFrame(element: element, frame: frame)
+            }
+            _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        }
         Logger.debug("Showed window \(managedWindow.windowId) at frame \(frame)")
     }
 
     /// Minimize a window
     func minimizeWindow(_ managedWindow: ManagedWindow) {
-        managedWindow.window.miniaturize(nil)
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.miniaturize(nil)
+        case .accessibility(let element, _, _):
+            _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+        }
         Logger.debug("Minimized window \(managedWindow.windowId)")
     }
 
     /// Unminimize a window
     func unminimizeWindow(_ managedWindow: ManagedWindow) {
-        managedWindow.window.deminiaturize(nil)
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.deminiaturize(nil)
+        case .accessibility(let element, _, _):
+            _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        }
         Logger.debug("Unminimized window \(managedWindow.windowId)")
     }
 
     /// Close a window
     func closeWindow(_ managedWindow: ManagedWindow) {
-        managedWindow.window.close()
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.close()
+        case .accessibility(let element, _, _):
+            removeAccessibilityTracking(for: managedWindow)
+            _ = AXUIElementPerformAction(element, axCloseAction)
+        }
         managedWindows.removeValue(forKey: managedWindow.windowId)
         windowDelegates.removeValue(forKey: managedWindow.windowId)
+        if let identifier = managedWindow.externalIdentifier {
+            externalWindows.removeValue(forKey: identifier)
+        }
         Logger.debug("Closed window \(managedWindow.windowId)")
     }
 
     /// Resize and reposition a window to match a frame
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect) {
-        managedWindow.window.setFrame(frame, display: true, animate: false)
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.setFrame(frame, display: true, animate: false)
+        case .accessibility(let element, _, _):
+            performProgrammaticUpdate(for: managedWindow.windowId) {
+                _ = setAccessibilityFrame(element: element, frame: frame)
+            }
+        }
         Logger.debug("Moved window \(managedWindow.windowId) to frame \(frame)")
+    }
+
+    private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
+        programmaticUpdateWindowIds.insert(windowId)
+        block()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.programmaticUpdateWindowIds.remove(windowId)
+        }
+    }
+
+    private func setAccessibilityFrame(element: AXUIElement, frame: CGRect) -> Bool {
+        let positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: frame.origin)
+        let sizeResult = setAccessibilitySize(element: element, size: frame.size)
+        return positionResult && sizeResult
+    }
+
+    private func setAccessibilityPoint(element: AXUIElement, attribute: CFString, point: CGPoint) -> Bool {
+        var mutablePoint = point
+        guard let value = AXValueCreate(AXValueType(rawValue: kAXValueCGPointType)!, &mutablePoint) else {
+            return false
+        }
+        let status = AXUIElementSetAttributeValue(element, attribute, value)
+        return status == .success
+    }
+
+    private func setAccessibilitySize(element: AXUIElement, size: CGSize) -> Bool {
+        var mutableSize = size
+        guard let value = AXValueCreate(AXValueType(rawValue: kAXValueCGSizeType)!, &mutableSize) else {
+            return false
+        }
+        let status = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
+        return status == .success
+    }
+
+    private func ensureAccessibilityPermissions() -> Bool {
+        if AXIsProcessTrusted() {
+            return true
+        }
+        if !accessibilityPermissionWarningShown {
+            accessibilityPermissionWarningShown = true
+            print("LatticeTopology requires Accessibility access. Enable it in System Settings ▸ Privacy & Security ▸ Accessibility.")
+        }
+        return false
+    }
+
+    private func isStandardWindow(_ element: AXUIElement) -> Bool {
+        var roleObject: AnyObject?
+        let roleStatus = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
+        guard roleStatus == .success, let role = roleObject as? String, role == kAXWindowRole as String else {
+            return false
+        }
+
+        var subroleObject: AnyObject?
+        let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
+        if subroleStatus == .success, let subrole = subroleObject as? String {
+            return subrole == kAXStandardWindowSubrole as String || subrole == kAXDialogSubrole as String
+        }
+
+        return true
+    }
+
+    private func externalIdentifier(for element: AXUIElement) -> ExternalWindowIdentifier? {
+        var pid: pid_t = 0
+        let pidStatus = AXUIElementGetPid(element, &pid)
+        guard pidStatus == .success else {
+            return nil
+        }
+
+        var numberObject: CFTypeRef?
+        let numberStatus = AXUIElementCopyAttributeValue(element, axWindowNumberAttribute, &numberObject)
+        guard numberStatus == .success, let numberObject else {
+            return nil
+        }
+
+        if let number = numberObject as? NSNumber {
+            return ExternalWindowIdentifier(pid: pid, windowNumber: number.intValue)
+        }
+
+        return nil
+    }
+
+    private func registerAccessibilityNotifications(for managed: ManagedWindow, appElement: AXUIElement) {
+        guard case .accessibility(let element, let pid, _) = managed.backing else {
+            return
+        }
+
+        guard let observer = ensureObserver(for: pid, appElement: appElement) else {
+            return
+        }
+
+        for notification in windowAccessibilityNotifications {
+            let status = AXObserverAddNotification(observer, element, notification, observerRefcon)
+            if status == .success || status == .notificationAlreadyRegistered {
+                continue
+            }
+            Logger.debug("Failed to register \(notification) for pid \(pid), AX error \(status.rawValue)")
+        }
+    }
+
+    private func ensureObserver(for pid: pid_t, appElement: AXUIElement) -> AXObserver? {
+        if let observer = accessibilityObservers[pid] {
+            return observer
+        }
+
+        var observer: AXObserver?
+        let status = AXObserverCreate(pid, windowControllerObserverCallback, &observer)
+        guard status == .success, let observer else {
+            Logger.debug("Unable to create AXObserver for pid \(pid): \(status.rawValue)")
+            return nil
+        }
+
+        accessibilityObservers[pid] = observer
+        accessibilityApplications[pid] = appElement
+
+        let runLoopSource = AXObserverGetRunLoopSource(observer)
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, CFRunLoopMode.commonModes)
+
+        return observer
+    }
+
+    private func managedWindow(matching element: AXUIElement) -> ManagedWindow? {
+        for window in managedWindows.values {
+            if let candidate = window.accessibilityElement, CFEqual(candidate, element) {
+                return window
+            }
+        }
+        if let identifier = externalIdentifier(for: element) {
+            return externalWindows[identifier]
+        }
+        return nil
+    }
+
+    func handleAXNotification(element: AXUIElement, notification: CFString) {
+        DispatchQueue.main.async { [weak self] in
+            self?.handleAXNotificationOnMain(element: element, notification: notification)
+        }
+    }
+
+    private func handleAXNotificationOnMain(element: AXUIElement, notification: CFString) {
+        guard let managed = managedWindow(matching: element) else {
+            return
+        }
+
+        let notificationName = notification as String
+
+        switch notificationName {
+        case axDestroyedNotification:
+            Logger.debug("External window \(managed.windowId) destroyed, notifying delegate")
+            delegate?.windowWillClose(windowId: managed.windowId)
+            removeAccessibilityTracking(for: managed)
+            if let identifier = managed.externalIdentifier {
+                externalWindows.removeValue(forKey: identifier)
+            }
+            managedWindows.removeValue(forKey: managed.windowId)
+
+        case axMiniaturizedNotification:
+            Logger.debug("External window \(managed.windowId) minimized")
+            delegate?.windowDidMiniaturize(windowId: managed.windowId)
+
+        case axDeminiaturizedNotification:
+            Logger.debug("External window \(managed.windowId) deminiaturized")
+            delegate?.windowDidDeminiaturize(windowId: managed.windowId)
+
+        case axMovedNotificationName:
+            guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
+                return
+            }
+            Logger.debug("External window \(managed.windowId) moved by user")
+            delegate?.windowManualMoveDidEnd(windowId: managed.windowId, frame: managed.actualFrame)
+
+        case axResizedNotificationName:
+            guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
+                return
+            }
+            Logger.debug("External window \(managed.windowId) resized by user")
+            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, frame: managed.actualFrame)
+
+        default:
+            break
+        }
+    }
+
+    private func removeAccessibilityTracking(for managed: ManagedWindow) {
+        guard case .accessibility(let element, let pid, _) = managed.backing else {
+            return
+        }
+
+        externalWindowsByElement.removeValue(forKey: AccessibilityElementKey(element: element))
+
+        guard let observer = accessibilityObservers[pid] else {
+            return
+        }
+
+        for notification in windowAccessibilityNotifications {
+            AXObserverRemoveNotification(observer, element, notification)
+        }
+
+        let stillManaged = managedWindows.values.contains { window in
+            guard case .accessibility(_, let otherPid, _) = window.backing else {
+                return false
+            }
+            return otherPid == pid && window.windowId != managed.windowId
+        }
+
+        if !stillManaged {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), CFRunLoopMode.commonModes)
+            accessibilityObservers.removeValue(forKey: pid)
+            accessibilityApplications.removeValue(forKey: pid)
+        }
     }
 
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {

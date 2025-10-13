@@ -138,6 +138,9 @@ class REPL {
             }
             appController.unminimizeWindow(withId: windowId)
 
+        case "capture-frontmost":
+            appController.captureFrontmostWindow()
+
         case "list":
             appController.listZones()
 
@@ -191,6 +194,7 @@ class REPL {
           close-window <window_id>     - Close the specified window
           minimize <window_id>         - Minimize the specified window
           unminimize <window_id>       - Unminimize the specified window
+          capture-frontmost            - Capture the currently focused window from the active app
           window-info <window_id>      - Show detailed info for a window
           frames                       - Show all window frames
           test-layout                  - Run ZoneLayout frame assertions

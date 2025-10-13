@@ -201,6 +201,9 @@ class SocketServer {
             case "create-window":
                 return appController.createWindowJSON()
 
+            case "capture-frontmost":
+                return appController.captureFrontmostWindowJSON()
+
             case "close-window":
                 guard let windowId = params["window_id"] as? Int else {
                     return ["error": "Missing required parameter: window_id"]
