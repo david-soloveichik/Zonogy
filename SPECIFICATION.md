@@ -73,6 +73,42 @@ For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y>
 Resizing the window should resize the zone to the best of our ability. Unlike for the placeholder window, we don't want a "live update".
 Also if the window is moved to another location and released, it should "snap" back to its proper location in its zone.
 
+## Conditions for which windows are managed
+
+We manage a window if it passes several conditions (see `winmanmon` source code for how it collects this information):
+
+- Subrole: AXStandardWindow
+- isMovable: T
+- hasZoom: T
+
+## External tools and code reference
+
+### tool `winmanmon`
+
+For debugging purposes, it may be useful to see where all the windows are, whether they are minimized or not, and obtain other information about them. This can help us debug, for example, whether the window was successfully moved to its zone location. This is enabled by the following `winmanmon` command line tool, which displays for each window:
+    - Application bundle identifier (e.g., "com.apple.Dictionary")
+    - Window ID
+    - Title (may be empty)
+    - Screen
+    - Dimensions (x, y, width, height)
+    - Is minimized? (T/F)
+    - Subrole (e.g., kAXStandardWindowSubrole, kAXDialogSubrole)
+    - isMovable (T/F) - whether window position can be modified
+    - hasZoom (T/F) - whether window has a zoom button
+
+(Certain applications and types of windows that we don't care about are excluded.)
+
+Location: `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude/.build/release/winmanmon`
+The `--help` argument explains the functionality.
+
+### source code of `winmanmon`
+
+The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiencly read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
+
+### Amethyst and Silica
+
+The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
+
 ## Initial Implementation and Debugging
 
 For our initial implementation of LatticeTopology, we won't want to manage the windows of other applications. Instead, the window manager should create its own "test" windows that have title like "test `window_id`", and manage those in the way described above. These windows are always created and owned by our process so that we can exercise the tiling logic without touching real apps.
