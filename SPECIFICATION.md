@@ -98,12 +98,11 @@ For debugging purposes, it may be useful to see where all the windows are, wheth
 
 (Certain applications and types of windows that we don't care about are excluded.)
 
-Location: `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude/.build/release/winmanmon`
 The `--help` argument explains the functionality.
 
 ### source code of `winmanmon`
 
-The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiencly read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
+The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiently read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
 
 ### Amethyst and Silica
 
