@@ -215,6 +215,28 @@ def collect_stage(label: str) -> Dict[str, Any]:
     }
 
 
+def determine_target_title(
+    stage: Dict[str, Any],
+    zone_entry: Dict[str, Any],
+    fallback_title: str,
+) -> str:
+    """Determine the TextEdit title for a zone prior to closing."""
+    target_title = fallback_title
+    zone_info = zone_entry.get("info")
+    if zone_info and zone_info.get("actual_frame"):
+        target_signature = frame_signature(zone_info["actual_frame"])
+        for window in stage["textedit"]:
+            dims = window.get("dimensions")
+            if not dims:
+                continue
+            if frame_signature(dims) == target_signature:
+                candidate_title = window.get("title")
+                if candidate_title:
+                    target_title = candidate_title
+                break
+    return target_title
+
+
 def wait_for_zone_to_clear(
     zone_index: int,
     label: str,
@@ -245,6 +267,54 @@ def wait_for_zone_to_clear(
     print(json.dumps(debug_dump, indent=2))
 
     return last_stage, False
+
+
+def close_zone_window(
+    zone_index: int,
+    initial_stage: Dict[str, Any],
+    fallback_title: str,
+    stages: List[Dict[str, Any]],
+    stage_label: str,
+) -> Dict[str, Any]:
+    """Close the TextEdit window occupying the given zone via AppleScript."""
+    zone_entry = find_zone_entry(initial_stage, zone_index)
+    window_id = zone_entry["zone"].get("window_id")
+    if window_id is None:
+        print(f"Zone {zone_index} already empty; skipping close.")
+        return initial_stage
+
+    previous_placeholder_count = count_placeholders(initial_stage)
+    target_title = determine_target_title(initial_stage, zone_entry, fallback_title)
+
+    print(f"Closing TextEdit document '{target_title}' via AppleScript…")
+    closed = close_textedit_document(target_title)
+    if not closed:
+        raise AssertionError(f"AppleScript failed to close TextEdit document '{target_title}'")
+
+    send_socket_command("layout")
+
+    after_close, cleared = wait_for_zone_to_clear(zone_index, stage_label)
+    stages.append(after_close)
+
+    final_stage = after_close
+    if not cleared:
+        print(f"AppleScript close did not clear zone {zone_index}; invoking REPL close-window fallback.")
+        send_socket_command("close-window", {"window_id": window_id})
+        time.sleep(SETTLE_SECONDS)
+        final_stage = collect_stage(f"{stage_label} (after close-window fallback)")
+        stages.append(final_stage)
+
+    zone_after_close = find_zone_entry(final_stage, zone_index)
+    if zone_after_close["zone"].get("window_id") is not None:
+        raise AssertionError(f"Zone {zone_index} still reports a window after AppleScript close")
+    if zone_after_close["info"] is not None:
+        raise AssertionError(f"Window info unexpectedly available after closing zone {zone_index}")
+
+    new_placeholder_count = count_placeholders(final_stage)
+    if new_placeholder_count <= previous_placeholder_count:
+        raise AssertionError(f"No new placeholder appeared after closing zone {zone_index}")
+
+    return final_stage
 
 
 def create_new_textedit_document() -> str:
@@ -412,55 +482,29 @@ def main() -> int:
         three_zones = collect_stage("three zones")
         stages.append(three_zones)
 
-        print("Closing window in zone 3…")
-        zone_to_close = find_zone_entry(three_zones, 3)
-        window_id = zone_to_close["zone"].get("window_id")
-        if window_id is None:
-            raise AssertionError("Zone 3 does not have a window before AppleScript close test")
+        final_stage = close_zone_window(
+            zone_index=3,
+            initial_stage=three_zones,
+            fallback_title=third_title,
+            stages=stages,
+            stage_label="after closing zone 3 window",
+        )
 
-        previous_placeholder_count = count_placeholders(three_zones)
+        final_stage = close_zone_window(
+            zone_index=2,
+            initial_stage=final_stage,
+            fallback_title=second_title,
+            stages=stages,
+            stage_label="after closing zone 2 window",
+        )
 
-        target_title = third_title
-        zone_info = zone_to_close.get("info")
-        if zone_info and zone_info.get("actual_frame"):
-            target_signature = frame_signature(zone_info["actual_frame"])
-            for window in three_zones["textedit"]:
-                dims = window.get("dimensions")
-                if not dims:
-                    continue
-                if frame_signature(dims) == target_signature:
-                    candidate_title = window.get("title")
-                    if candidate_title:
-                        target_title = candidate_title
-                    break
-
-        print(f"Closing TextEdit document '{target_title}' via AppleScript…")
-        closed = close_textedit_document(target_title)
-        if not closed:
-            raise AssertionError(f"AppleScript failed to close TextEdit document '{target_title}'")
-
-        send_socket_command("layout")
-
-        after_close, cleared = wait_for_zone_to_clear(3, "after closing zone 3 window")
-        stages.append(after_close)
-
-        final_stage = after_close
-        if not cleared:
-            print("AppleScript close did not clear zone; invoking REPL close-window fallback.")
-            send_socket_command("close-window", {"window_id": window_id})
-            time.sleep(SETTLE_SECONDS)
-            final_stage = collect_stage("after close-window fallback")
-            stages.append(final_stage)
-
-        zone_after_close = find_zone_entry(final_stage, 3)
-        if zone_after_close["zone"].get("window_id") is not None:
-            raise AssertionError("Zone 3 still reports a window after AppleScript close")
-        if zone_after_close["info"] is not None:
-            raise AssertionError("Window info unexpectedly available after AppleScript close")
-
-        new_placeholder_count = count_placeholders(final_stage)
-        if new_placeholder_count <= previous_placeholder_count:
-            raise AssertionError("No new placeholder appeared after closing the window via AppleScript")
+        final_stage = close_zone_window(
+            zone_index=1,
+            initial_stage=final_stage,
+            fallback_title=initial_title,
+            stages=stages,
+            stage_label="after closing zone 1 window",
+        )
 
         print_report(stages)
         return 0

@@ -273,6 +273,13 @@ class AppController: NSObject, WindowControllerDelegate {
 
         Logger.debug("Syncing windows to zones")
 
+        let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
+        if !prunedWindowIds.isEmpty {
+            for windowId in prunedWindowIds {
+                zoneController.removeWindow(windowId: windowId)
+            }
+        }
+
         // Keep track of existing placeholders by zone
         var placeholdersByZone = [Int: ManagedWindow]()
         var placeholdersWithoutZone = [ManagedWindow]()

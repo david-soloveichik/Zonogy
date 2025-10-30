@@ -753,6 +753,42 @@ class WindowController {
         }
     }
 
+    /// Detect and prune external windows whose accessibility elements have been destroyed.
+    /// - Returns: The window identifiers that were removed.
+    func pruneDestroyedExternalWindows() -> [Int] {
+        var stale: [(Int, ManagedWindow, AXError)] = []
+
+        for (windowId, managed) in managedWindows {
+            guard case .accessibility(let element, _, _) = managed.backing else {
+                continue
+            }
+
+            var roleObject: AnyObject?
+            let status = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
+            if status == .invalidUIElement || status == .cannotComplete {
+                stale.append((windowId, managed, status))
+            }
+        }
+
+        if stale.isEmpty {
+            return []
+        }
+
+        var removedWindowIds: [Int] = []
+        for (windowId, managed, status) in stale {
+            Logger.debug("Detected destroyed external window \(windowId) (AX error \(status.rawValue)); pruning")
+            removeAccessibilityTracking(for: managed)
+            managedWindows.removeValue(forKey: windowId)
+            if let identifier = managed.externalIdentifier {
+                externalWindows.removeValue(forKey: identifier)
+            }
+            removedWindowIds.append(windowId)
+            Logger.debug("Pruned destroyed external window \(windowId)")
+        }
+
+        return removedWindowIds
+    }
+
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
         guard let managed = managedWindows[windowId],
               managed.isPlaceholder,
