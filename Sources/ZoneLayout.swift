@@ -63,13 +63,13 @@ struct ZoneLayout {
 
             let rightTopFrame = CGRect(
                 x: rightOriginX,
-                y: screenFrame.minY + bottomHeight,
+                y: screenFrame.minY,
                 width: rightWidth,
                 height: topHeight
             )
             let rightBottomFrame = CGRect(
                 x: rightOriginX,
-                y: screenFrame.minY,
+                y: screenFrame.minY + topHeight,
                 width: rightWidth,
                 height: bottomHeight
             )

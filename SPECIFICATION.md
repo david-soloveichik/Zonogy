@@ -33,6 +33,8 @@ Every empty zone should have a placeholder window created by our window manager.
 
 Both normal windows and placeholder windows should have a margin of 5 pixels from the side of the zone for a nicer visual effect.
 
+**Coordinate system**: Zone frames use screen coordinates with y:0 at the top-left. In the 3-zone layout, zone 2 is positioned at the top of the right column (y:0) and zone 3 at the bottom (y:screenHeight/2).
+
 Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
 
 **Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window.
@@ -97,6 +99,8 @@ For debugging purposes, it may be useful to see where all the windows are, wheth
     - hasZoom (T/F) - whether window has a zoom button
 
 (Certain applications and types of windows that we don't care about are excluded.)
+
+The tool is available in the shell path.
 
 The `--help` argument explains the functionality.
 
