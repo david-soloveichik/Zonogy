@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+CLOSE_SETTLE_SECONDS = 2.0
 SETTLE_SECONDS = 0.7
 SOCKET_PATH = Path("/tmp/lattice-topology-test.sock")
 REQUEST_COUNTER = itertools.count(1)
@@ -47,6 +48,48 @@ def run_osascript(script: str) -> str:
     """Execute AppleScript and return trimmed stdout."""
     result = run_command(["osascript", "-e", script])
     return result.stdout.strip()
+
+
+def applescript_quote(text: str) -> str:
+    """Escape a string for AppleScript double-quoted literals."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def close_textedit_document(title: str) -> bool:
+    """Close a TextEdit document by title; return True if any document was closed."""
+    escaped = applescript_quote(title)
+    script = f'''
+tell application "TextEdit"
+    set matchingDocs to (every document whose name is "{escaped}")
+    if (count of matchingDocs) is 0 then
+        return false
+    end if
+    repeat with docRef in matchingDocs
+        close docRef saving no
+    end repeat
+    return true
+end tell
+'''
+    result = run_osascript(script)
+    time.sleep(SETTLE_SECONDS)
+    return result.lower() == "true"
+
+
+def log_winmanmon_snapshot(label: str) -> None:
+    """Dump current TextEdit windows from winmanmon with a label."""
+    print(f"Cleanup snapshot: {label}")
+    windows = [
+        window
+        for window in get_winmanmon()
+        if window.get("bundleIdentifier") == "com.apple.TextEdit"
+    ]
+    if not windows:
+        print("  No TextEdit windows (winmanmon)")
+        return
+    print("  TextEdit windows (winmanmon):")
+    for window in windows:
+        title = window.get("title") or "<untitled>"
+        print(f"    {title} id {window['windowID']}: {format_frame(window['dimensions'])}")
 
 
 def wait_for_socket(path: Path, timeout: float = 10.0) -> None:
@@ -234,9 +277,18 @@ def make_new_textedit_document() -> str:
     return create_new_textedit_document()
 
 
-def cleanup(process: Optional[subprocess.Popen[Any]]) -> None:
+def cleanup(process: Optional[subprocess.Popen[Any]], created_titles: List[str]) -> None:
     """Stop LatticeTopology, remove socket, and shut down TextEdit."""
     try:
+        unique_titles = list(dict.fromkeys(created_titles))
+        for title in unique_titles:
+            try:
+                closed = close_textedit_document(title)
+            except subprocess.CalledProcessError:
+                closed = False
+            status = "closed" if closed else "not found"
+            print(f"Cleanup: requested close for TextEdit document '{title}' ({status})")
+            log_winmanmon_snapshot(f"after close request for '{title}'")
         run_osascript('tell application "TextEdit" to quit saving no')
     except subprocess.CalledProcessError:
         pass
@@ -270,7 +322,9 @@ def main() -> int:
         wait_for_socket(SOCKET_PATH)
         time.sleep(0.5)
 
+        created_titles: List[str] = []
         initial_title = ensure_textedit_ready()
+        created_titles.append(initial_title)
         capture_textedit_window(initial_title)
         time.sleep(SETTLE_SECONDS)
 
@@ -282,6 +336,7 @@ def main() -> int:
         time.sleep(SETTLE_SECONDS)
 
         second_title = make_new_textedit_document()
+        created_titles.append(second_title)
         capture_textedit_window(second_title)
         time.sleep(SETTLE_SECONDS)
         stages.append(collect_stage("two zones"))
@@ -290,6 +345,7 @@ def main() -> int:
         send_socket_command("add-zone")
         time.sleep(SETTLE_SECONDS)
         third_title = make_new_textedit_document()
+        created_titles.append(third_title)
         capture_textedit_window(third_title)
         time.sleep(SETTLE_SECONDS)
         three_zones = collect_stage("three zones")
@@ -304,7 +360,7 @@ def main() -> int:
         previous_placeholder_count = count_placeholders(three_zones)
 
         send_socket_command("close-window", {"window_id": window_id})
-        time.sleep(SETTLE_SECONDS)
+        time.sleep(CLOSE_SETTLE_SECONDS)
 
         after_close = collect_stage("after closing zone 3 window")
         stages.append(after_close)
@@ -322,7 +378,7 @@ def main() -> int:
         print_report(stages)
         return 0
     finally:
-        cleanup(process)
+        cleanup(process, locals().get("created_titles", []))
 
 
 if __name__ == "__main__":
