@@ -106,7 +106,9 @@ def capture_textedit_window(title: str, attempts: int = 5) -> None:
             f"""
 tell application "TextEdit"
     activate
-    set index of (first window whose name is "{title}") to 1
+    set targetWindow to (first window whose name is "{title}")
+    set miniaturized of targetWindow to false
+    set index of targetWindow to 1
 end tell
 """
         )
@@ -144,6 +146,34 @@ def collect_stage(label: str) -> Dict[str, Any]:
         "frames": frames,
         "textedit": textedit_windows,
     }
+
+
+def create_new_textedit_document() -> str:
+    script = """
+tell application "TextEdit"
+    set newDoc to make new document
+    delay 0.1
+    set docWindow to front window
+    set miniaturized of docWindow to false
+    set index of docWindow to 1
+    activate
+    return name of newDoc
+end tell
+"""
+    title = run_osascript(script)
+    time.sleep(0.5)
+    return title
+
+
+def find_zone_entry(stage: Dict[str, Any], zone_index: int) -> Dict[str, Any]:
+    for entry in stage["zones"]:
+        if entry["zone"].get("index") == zone_index:
+            return entry
+    raise AssertionError(f"Zone {zone_index} not present in stage '{stage['label']}'")
+
+
+def count_placeholders(stage: Dict[str, Any]) -> int:
+    return sum(1 for window in stage["frames"] if window.get("is_placeholder"))
 
 
 def format_frame(frame: Dict[str, Any]) -> str:
@@ -196,24 +226,12 @@ def ensure_textedit_ready() -> str:
     time.sleep(0.5)
     run_osascript('tell application "TextEdit" to activate')
     time.sleep(0.8)
-    script = """
-tell application "TextEdit"
-    if (count of documents) = 0 then
-        return name of (make new document)
-    else
-        return name of front document
-    end if
-end tell
-"""
-    return run_osascript(script)
+    return create_new_textedit_document()
 
 
 def make_new_textedit_document() -> str:
     """Create a new TextEdit document and return its title."""
-    script = 'tell application "TextEdit" to return name of (make new document)'
-    title = run_osascript(script)
-    time.sleep(0.5)
-    return title
+    return create_new_textedit_document()
 
 
 def cleanup(process: Optional[subprocess.Popen[Any]]) -> None:
@@ -271,7 +289,35 @@ def main() -> int:
         print("Adding third zone…")
         send_socket_command("add-zone")
         time.sleep(SETTLE_SECONDS)
-        stages.append(collect_stage("three zones"))
+        third_title = make_new_textedit_document()
+        capture_textedit_window(third_title)
+        time.sleep(SETTLE_SECONDS)
+        three_zones = collect_stage("three zones")
+        stages.append(three_zones)
+
+        print("Closing window in zone 3…")
+        zone_to_close = find_zone_entry(three_zones, 3)
+        window_id = zone_to_close["zone"].get("window_id")
+        if window_id is None:
+            raise AssertionError("Zone 3 does not have a window before close-window test")
+
+        previous_placeholder_count = count_placeholders(three_zones)
+
+        send_socket_command("close-window", {"window_id": window_id})
+        time.sleep(SETTLE_SECONDS)
+
+        after_close = collect_stage("after closing zone 3 window")
+        stages.append(after_close)
+
+        zone_after_close = find_zone_entry(after_close, 3)
+        if zone_after_close["zone"].get("window_id") is not None:
+            raise AssertionError("Zone 3 still reports a window after close-window command")
+        if zone_after_close["info"] is not None:
+            raise AssertionError("Window info unexpectedly available for closed zone")
+
+        new_placeholder_count = count_placeholders(after_close)
+        if new_placeholder_count <= previous_placeholder_count:
+            raise AssertionError("No new placeholder appeared after closing the window")
 
         print_report(stages)
         return 0
