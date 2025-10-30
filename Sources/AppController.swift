@@ -27,6 +27,7 @@ class AppController: NSObject, WindowControllerDelegate {
     private var pendingSync = false
     private var pendingSyncExcludedZones: Set<Int> = []
     private var liveResizingZoneIndex: Int?
+    private var lastActiveApplicationPid: pid_t?
 
     private override init() {
         // Get the main screen frame
@@ -398,6 +399,12 @@ class AppController: NSObject, WindowControllerDelegate {
 
     // MARK: - WindowControllerDelegate
 
+    func windowFocusChanged(pid: pid_t) {
+        // When focus changes in an application, validate its windows
+        // This catches window closures that didn't fire destroy notifications
+        validateWindowsForApplication(pid: pid)
+    }
+
     func placeholderCloseRequested(zoneIndex: Int) {
         Logger.debug("Placeholder close requested for zone \(zoneIndex)")
         removeZone(at: zoneIndex)
@@ -535,6 +542,17 @@ class AppController: NSObject, WindowControllerDelegate {
         let activationObserver = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
             guard let self = self else { return }
             let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+
+            // When switching applications, validate windows for the previously active app
+            // This catches window closures that happened while the app was active
+            if let previousPid = self.lastActiveApplicationPid {
+                self.validateWindowsForApplication(pid: previousPid)
+            }
+
+            if let application = application {
+                self.lastActiveApplicationPid = application.processIdentifier
+            }
+
             self.handleApplicationEvent(application)
         }
         workspaceObservers.append(activationObserver)
@@ -553,7 +571,30 @@ class AppController: NSObject, WindowControllerDelegate {
         }
         workspaceObservers.append(unhideObserver)
 
+        // Listen to deactivation and hide events to detect window changes
+        let deactivationObserver = center.addObserver(forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationStateChange(application)
+        }
+        workspaceObservers.append(deactivationObserver)
+
+        let hideObserver = center.addObserver(forName: NSWorkspace.didHideApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationStateChange(application)
+        }
+        workspaceObservers.append(hideObserver)
+
+        let terminateObserver = center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self else { return }
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.handleApplicationTermination(application)
+        }
+        workspaceObservers.append(terminateObserver)
+
         if let frontmost = NSWorkspace.shared.frontmostApplication {
+            lastActiveApplicationPid = frontmost.processIdentifier
             handleApplicationEvent(frontmost)
         }
     }
@@ -569,6 +610,48 @@ class AppController: NSObject, WindowControllerDelegate {
 
         scheduleCapture(for: application, delay: 0.0)
         scheduleCapture(for: application, delay: 0.4)
+    }
+
+    private func handleApplicationStateChange(_ application: NSRunningApplication?) {
+        guard let application else {
+            return
+        }
+
+        guard shouldManage(application: application) else {
+            return
+        }
+
+        // When an application changes state (deactivate/hide), validate all its windows
+        // This catches window closures that didn't fire destroy notifications
+        validateWindowsForApplication(pid: application.processIdentifier)
+    }
+
+    private func handleApplicationTermination(_ application: NSRunningApplication?) {
+        guard let application else {
+            return
+        }
+
+        // When an application terminates, prune all its windows immediately
+        let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(application.processIdentifier)
+        if !prunedWindowIds.isEmpty {
+            Logger.debug("Application terminated, pruned \(prunedWindowIds.count) windows")
+            for windowId in prunedWindowIds {
+                zoneController.removeWindow(windowId: windowId)
+            }
+            syncWindowsToZones()
+        }
+    }
+
+    private func validateWindowsForApplication(pid: pid_t) {
+        // Check if any managed windows from this application have been destroyed
+        let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(pid)
+        if !prunedWindowIds.isEmpty {
+            Logger.debug("Validated windows for pid \(pid), pruned \(prunedWindowIds.count) destroyed windows")
+            for windowId in prunedWindowIds {
+                zoneController.removeWindow(windowId: windowId)
+            }
+            syncWindowsToZones()
+        }
     }
 
     private func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {

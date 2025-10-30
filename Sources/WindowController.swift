@@ -61,7 +61,8 @@ class WindowController {
         kAXResizedNotification as CFString
     ]
     private let applicationAccessibilityNotifications: [CFString] = [
-        kAXWindowCreatedNotification as CFString
+        kAXWindowCreatedNotification as CFString,
+        kAXFocusedWindowChangedNotification as CFString
     ]
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()
@@ -602,6 +603,7 @@ class WindowController {
         for notification in windowAccessibilityNotifications {
             let status = AXObserverAddNotification(observer, element, notification, observerRefcon)
             if status == .success || status == .notificationAlreadyRegistered {
+                Logger.debug("Successfully registered notification '\(notification as String)' for window pid \(pid)")
                 continue
             }
             Logger.debug("Failed to register \(notification) for pid \(pid), AX error \(status.rawValue)")
@@ -629,6 +631,7 @@ class WindowController {
         for notification in applicationAccessibilityNotifications {
             let status = AXObserverAddNotification(observer, appElement, notification, observerRefcon)
             if status == .success || status == .notificationAlreadyRegistered {
+                Logger.debug("Successfully registered application notification '\(notification as String)' for pid \(pid)")
                 continue
             }
             Logger.debug("Failed to register application notification \(notification) for pid \(pid), AX error \(status.rawValue)")
@@ -658,6 +661,8 @@ class WindowController {
     private func handleAXNotificationOnMain(element: AXUIElement, notification: CFString) {
         let notificationName = notification as String
 
+        Logger.debug("AX notification received: \(notificationName)")
+
         if notificationName == axWindowCreatedNotificationName {
             var pid: pid_t = 0
             let status = AXUIElementGetPid(element, &pid)
@@ -683,13 +688,25 @@ class WindowController {
             return
         }
 
+        if notificationName == "AXFocusedWindowChanged" {
+            // When focus changes, validate windows for the application
+            // This catches window closures that didn't fire destroy notifications
+            var pid: pid_t = 0
+            let status = AXUIElementGetPid(element, &pid)
+            if status == .success, pid != getpid() {
+                Logger.debug("Focus changed in app pid \(pid), validating windows")
+                delegate?.windowFocusChanged(pid: pid)
+            }
+            return
+        }
+
         guard let managed = managedWindow(matching: element) else {
             return
         }
 
         switch notificationName {
         case axDestroyedNotification:
-            Logger.debug("External window \(managed.windowId) destroyed, notifying delegate")
+            Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
             delegate?.windowWillClose(windowId: managed.windowId)
             removeAccessibilityTracking(for: managed)
             if let identifier = managed.externalIdentifier {
@@ -754,19 +771,33 @@ class WindowController {
     }
 
     /// Detect and prune external windows whose accessibility elements have been destroyed.
+    /// Uses the window server as the ground truth source.
     /// - Returns: The window identifiers that were removed.
     func pruneDestroyedExternalWindows() -> [Int] {
-        var stale: [(Int, ManagedWindow, AXError)] = []
+        // Get all actual windows from the window server (ground truth)
+        guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        var actualWindows = Set<ExternalWindowIdentifier>()
+        for windowInfo in windowList {
+            if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
+                actualWindows.insert(ExternalWindowIdentifier(pid: ownerPID, windowNumber: windowNumber))
+            }
+        }
+
+        var stale: [(Int, ManagedWindow)] = []
 
         for (windowId, managed) in managedWindows {
-            guard case .accessibility(let element, _, _) = managed.backing else {
+            guard case .accessibility(_, let pid, let windowNumber?) = managed.backing else {
                 continue
             }
 
-            var roleObject: AnyObject?
-            let status = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
-            if status == .invalidUIElement || status == .cannotComplete {
-                stale.append((windowId, managed, status))
+            let identifier = ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber)
+            // If the window is not in the actual windows from window server, it's been destroyed
+            if !actualWindows.contains(identifier) {
+                stale.append((windowId, managed))
             }
         }
 
@@ -775,8 +806,8 @@ class WindowController {
         }
 
         var removedWindowIds: [Int] = []
-        for (windowId, managed, status) in stale {
-            Logger.debug("Detected destroyed external window \(windowId) (AX error \(status.rawValue)); pruning")
+        for (windowId, managed) in stale {
+            Logger.debug("Detected destroyed external window \(windowId) (not in CGWindowList); pruning")
             removeAccessibilityTracking(for: managed)
             managedWindows.removeValue(forKey: windowId)
             if let identifier = managed.externalIdentifier {
@@ -787,6 +818,70 @@ class WindowController {
         }
 
         return removedWindowIds
+    }
+
+    /// Detect and prune external windows for a specific PID whose accessibility elements have been destroyed.
+    /// - Parameter pid: The process identifier to check windows for.
+    /// - Returns: The window identifiers that were removed.
+    func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int] {
+        // Get the ground truth from the window server
+        let actualWindowNumbers = getActualWindowNumbersFromWindowServer(forPid: pid)
+
+        var stale: [(Int, ManagedWindow)] = []
+
+        for (windowId, managed) in managedWindows {
+            guard case .accessibility(_, let windowPid, let windowNumber?) = managed.backing else {
+                continue
+            }
+
+            // Only check windows for this specific PID
+            guard windowPid == pid else {
+                continue
+            }
+
+            // If the window number is not in the actual windows from window server, it's been destroyed
+            if !actualWindowNumbers.contains(windowNumber) {
+                stale.append((windowId, managed))
+            }
+        }
+
+        if stale.isEmpty {
+            return []
+        }
+
+        var removedWindowIds: [Int] = []
+        for (windowId, managed) in stale {
+            Logger.debug("Detected destroyed external window \(windowId) for pid \(pid) (not in CGWindowList); pruning")
+            removeAccessibilityTracking(for: managed)
+            managedWindows.removeValue(forKey: windowId)
+            if let identifier = managed.externalIdentifier {
+                externalWindows.removeValue(forKey: identifier)
+            }
+            removedWindowIds.append(windowId)
+            Logger.debug("Pruned destroyed external window \(windowId)")
+        }
+
+        return removedWindowIds
+    }
+
+    /// Query the window server for actual window numbers for a given PID.
+    /// This is the ground truth source for which windows exist.
+    private func getActualWindowNumbersFromWindowServer(forPid pid: pid_t) -> Set<Int> {
+        var windowNumbers = Set<Int>()
+
+        guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return windowNumbers
+        }
+
+        for windowInfo in windowList {
+            if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               ownerPID == pid,
+               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
+                windowNumbers.insert(windowNumber)
+            }
+        }
+
+        return windowNumbers
     }
 
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
@@ -835,6 +930,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
+    func windowFocusChanged(pid: pid_t)
     func placeholderLiveResizeDidBegin(zoneIndex: Int)
     func placeholderLiveResized(zoneIndex: Int, to frame: CGRect)
     func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect)

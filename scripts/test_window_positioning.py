@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-CLOSE_POLL_TIMEOUT_SECONDS = 6.0
+CLOSE_POLL_TIMEOUT_SECONDS = 2.0
 CLOSE_POLL_INTERVAL_SECONDS = 0.25
 SETTLE_SECONDS = 0.7
 SOCKET_PATH = Path("/tmp/lattice-topology-test.sock")
