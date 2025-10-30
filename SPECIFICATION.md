@@ -112,24 +112,13 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
 
-## Initial Implementation and Debugging
+## Test Windows for Debugging
 
-For our initial implementation of LatticeTopology, we won't want to manage the windows of other applications. Instead, the window manager should create its own "test" windows that have title like "test `window_id`", and manage those in the way described above. These windows are always created and owned by our process so that we can exercise the tiling logic without touching real apps.
+The window manager can create its own "test" windows that have title like "test `window_id`", and manage those in the way described above. These windows are always created and owned by our process so that we can exercise the tiling logic without touching real apps.
 
-### Runtime architecture
+## Command-line REPL for debugging
 
-- Launch an AppKit `NSApplication`. The main entry point should initialize a singleton `AppController` that wires together all services and keeps the run loop alive.
-- Maintain an in-memory model of zones and windows in a lightweight data layer. Suggested types:
-  - `Zone`: stores `index`, `frame`, and optional `window_id` that currently occupies the zone.
-  - `ManagedWindow`: stores the AppKit window reference, its current assignment (zone index or `nil` when minimized), and bookkeeping fields like `window_id` and `isPlaceholder`. Desired geometry lives on the owning `Zone`; the window just reports its actual frame when queried.
-- A `ZoneLayout` helper computes the frame rectangles for 1, 2, or 3 zones. It should be stateless and take the screen frame as input so we can re-run it whenever the zone count changes.
-- A `ZoneController` owns the ordered list of zones, enforces the min (1) and max (3) counts, and provides methods for adding/removing zones, assigning windows, and reindexing after structural changes.
-- A `WindowController` encapsulates AppKit window creation and manipulation. It creates frameless placeholder windows for empty zones (semi-translucent background, custom blue “x” close control) and titled test windows (`test <window_id>`) for occupied zones. All show/minimize/close requests flow through this controller so the rest of the code stays platform-agnostic.
-- The controller layer should react to model changes by reconciling AppKit state: reflow frames, show/hide placeholders, and perform the “replace highest-index window” sequence atomically (position the new test window first, then minimize the evicted one).
-
-### Command-line REPL for debugging
-
-To allow the Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop). Each command delegates to the controllers above and prints a concise status message.
+To allow an AI Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
 
 Required commands:
 
@@ -148,18 +137,17 @@ Helpful optional commands (for faster debugging):
 - `resize-zone <index> <x> <y> <width> <height>`: resize an empty zone using screen coordinates.
 - `help`: describe available commands.
 
-### Additional implementation notes
+## Additional implementation notes
 
 - `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes. The REPL can expose the next ID in status messages when `create-window` succeeds.
 - Add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
-- Placeholder windows need an interactive blue “x” control that sends a callback to remove the zone. For the first cut, use an `NSButton` positioned in the top-left of the placeholder window and wire it to `ZoneController.removeZone(at:)`.
-- Provide a pure-function test hook for layout calculations (for example, a `ZoneLayoutTests.run()` method invocable from the REPL via a `test-layout` command) to assert expected frames for 1–3 zones and quickly catch regressions.
+- Placeholder windows need an interactive blue “x” control that sends a callback to remove the zone.
 
 The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
-### Unix Domain Socket Interface for Agent Interaction
+## Unix Domain Socket Interface for Agent Interaction
 
-To enable better AI agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
+To enable better AI Agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
 
 **Starting the socket server:**
 
