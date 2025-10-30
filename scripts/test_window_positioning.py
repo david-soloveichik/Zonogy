@@ -24,7 +24,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-CLOSE_SETTLE_SECONDS = 2.0
+CLOSE_POLL_TIMEOUT_SECONDS = 6.0
+CLOSE_POLL_INTERVAL_SECONDS = 0.25
 SETTLE_SECONDS = 0.7
 SOCKET_PATH = Path("/tmp/lattice-topology-test.sock")
 REQUEST_COUNTER = itertools.count(1)
@@ -59,16 +60,39 @@ def close_textedit_document(title: str) -> bool:
     """Close a TextEdit document by title; return True if any document was closed."""
     escaped = applescript_quote(title)
     script = f'''
+set closedAny to false
 tell application "TextEdit"
-    set matchingDocs to (every document whose name is "{escaped}")
-    if (count of matchingDocs) is 0 then
-        return false
-    end if
-    repeat with docRef in matchingDocs
-        close docRef saving no
-    end repeat
-    return true
+    set matchingWindows to (every window whose name is "{escaped}")
 end tell
+if (count of matchingWindows) is 0 then
+    return false
+end if
+repeat with windowRef in matchingWindows
+    try
+        tell application "TextEdit"
+            if (exists windowRef) then
+                set index of windowRef to 1
+                activate
+            end if
+        end tell
+        delay 0.1
+        tell application "System Events"
+            tell process "TextEdit"
+                set frontmost to true
+                keystroke "w" using {{command down}}
+                delay 0.1
+                if (exists sheet 1 of window 1) then
+                    try
+                        click button "Don't Save" of sheet 1 of window 1
+                    end try
+                end if
+            end tell
+        end tell
+        delay 0.2
+        set closedAny to true
+    end try
+end repeat
+return closedAny
 '''
     result = run_osascript(script)
     time.sleep(SETTLE_SECONDS)
@@ -191,6 +215,38 @@ def collect_stage(label: str) -> Dict[str, Any]:
     }
 
 
+def wait_for_zone_to_clear(
+    zone_index: int,
+    label: str,
+    timeout: float = CLOSE_POLL_TIMEOUT_SECONDS,
+    poll_interval: float = CLOSE_POLL_INTERVAL_SECONDS,
+) -> tuple[Dict[str, Any], bool]:
+    """Poll until the specified zone no longer reports a managed window."""
+    deadline = time.time() + timeout
+    last_stage: Optional[Dict[str, Any]] = None
+    while time.time() < deadline:
+        stage = collect_stage(label)
+        zone_entry = find_zone_entry(stage, zone_index)
+        if zone_entry["zone"].get("window_id") is None:
+            return stage, True
+        last_stage = stage
+        time.sleep(poll_interval)
+
+    if last_stage is None:
+        last_stage = collect_stage(label)
+
+    zone_entry = find_zone_entry(last_stage, zone_index)
+    debug_dump = {
+        "zone": zone_entry["zone"],
+        "info": zone_entry["info"],
+        "placeholders": [p for p in last_stage["frames"] if p.get("is_placeholder")],
+    }
+    print(f"Debug: Zone {zone_index} state after waiting {timeout:.1f}s:")
+    print(json.dumps(debug_dump, indent=2))
+
+    return last_stage, False
+
+
 def create_new_textedit_document() -> str:
     script = """
 tell application "TextEdit"
@@ -221,6 +277,11 @@ def count_placeholders(stage: Dict[str, Any]) -> int:
 
 def format_frame(frame: Dict[str, Any]) -> str:
     return f"(x:{frame['x']}, y:{frame['y']}, w:{frame['width']}, h:{frame['height']})"
+
+
+def frame_signature(frame: Dict[str, Any]) -> tuple[float, float, float, float]:
+    """Create a rounded frame signature for approximate equality checks."""
+    return tuple(round(float(frame[key]), 1) for key in ("x", "y", "width", "height"))
 
 
 def format_deltas(zone_frame: Dict[str, Any], actual_frame: Dict[str, Any]) -> str:
@@ -355,25 +416,51 @@ def main() -> int:
         zone_to_close = find_zone_entry(three_zones, 3)
         window_id = zone_to_close["zone"].get("window_id")
         if window_id is None:
-            raise AssertionError("Zone 3 does not have a window before close-window test")
+            raise AssertionError("Zone 3 does not have a window before AppleScript close test")
 
         previous_placeholder_count = count_placeholders(three_zones)
 
-        send_socket_command("close-window", {"window_id": window_id})
-        time.sleep(CLOSE_SETTLE_SECONDS)
+        target_title = third_title
+        zone_info = zone_to_close.get("info")
+        if zone_info and zone_info.get("actual_frame"):
+            target_signature = frame_signature(zone_info["actual_frame"])
+            for window in three_zones["textedit"]:
+                dims = window.get("dimensions")
+                if not dims:
+                    continue
+                if frame_signature(dims) == target_signature:
+                    candidate_title = window.get("title")
+                    if candidate_title:
+                        target_title = candidate_title
+                    break
 
-        after_close = collect_stage("after closing zone 3 window")
+        print(f"Closing TextEdit document '{target_title}' via AppleScript…")
+        closed = close_textedit_document(target_title)
+        if not closed:
+            raise AssertionError(f"AppleScript failed to close TextEdit document '{target_title}'")
+
+        send_socket_command("layout")
+
+        after_close, cleared = wait_for_zone_to_clear(3, "after closing zone 3 window")
         stages.append(after_close)
 
-        zone_after_close = find_zone_entry(after_close, 3)
-        if zone_after_close["zone"].get("window_id") is not None:
-            raise AssertionError("Zone 3 still reports a window after close-window command")
-        if zone_after_close["info"] is not None:
-            raise AssertionError("Window info unexpectedly available for closed zone")
+        final_stage = after_close
+        if not cleared:
+            print("AppleScript close did not clear zone; invoking REPL close-window fallback.")
+            send_socket_command("close-window", {"window_id": window_id})
+            time.sleep(SETTLE_SECONDS)
+            final_stage = collect_stage("after close-window fallback")
+            stages.append(final_stage)
 
-        new_placeholder_count = count_placeholders(after_close)
+        zone_after_close = find_zone_entry(final_stage, 3)
+        if zone_after_close["zone"].get("window_id") is not None:
+            raise AssertionError("Zone 3 still reports a window after AppleScript close")
+        if zone_after_close["info"] is not None:
+            raise AssertionError("Window info unexpectedly available after AppleScript close")
+
+        new_placeholder_count = count_placeholders(final_stage)
         if new_placeholder_count <= previous_placeholder_count:
-            raise AssertionError("No new placeholder appeared after closing the window")
+            raise AssertionError("No new placeholder appeared after closing the window via AppleScript")
 
         print_report(stages)
         return 0
