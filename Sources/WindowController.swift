@@ -568,7 +568,29 @@ class WindowController {
         var subroleObject: AnyObject?
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
-            return subrole == kAXStandardWindowSubrole as String || subrole == kAXDialogSubrole as String
+            guard subrole == kAXStandardWindowSubrole as String || subrole == kAXDialogSubrole as String else {
+                return false
+            }
+        }
+
+        // Check isMovable attribute (per SPECIFICATION.md)
+        var movableObject: AnyObject?
+        let movableStatus = AXUIElementCopyAttributeValue(element, "AXMovable" as CFString, &movableObject)
+        if movableStatus == .success {
+            if let movable = movableObject as? NSNumber, !movable.boolValue {
+                return false
+            } else if CFGetTypeID(movableObject!) == CFBooleanGetTypeID(),
+                      !CFBooleanGetValue(unsafeBitCast(movableObject, to: CFBoolean.self)) {
+                return false
+            }
+        }
+
+        // Check for zoom button (hasZoom) attribute (per SPECIFICATION.md)
+        var actionNamesObject: AnyObject?
+        let actionStatus = AXUIElementCopyAttributeValue(element, kAXZoomButtonAttribute as CFString, &actionNamesObject)
+        if actionStatus != .success {
+            // No zoom button means this window shouldn't be managed
+            return false
         }
 
         return true

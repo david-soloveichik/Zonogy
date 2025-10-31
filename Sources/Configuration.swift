@@ -14,19 +14,26 @@ struct Configuration: Decodable {
     static func load(fileManager: FileManager = .default) -> Configuration {
         let candidateURLs = configurationFileCandidates(fileManager: fileManager)
 
+        // Always ignore LatticeTopology's own bundle identifier to prevent managing our own windows
+        var finalIgnoredBundles = defaultIgnoredBundles
+        if let ownBundleId = Bundle.main.bundleIdentifier {
+            finalIgnoredBundles.insert(ownBundleId)
+            Logger.debug("Automatically ignoring own bundle identifier: \(ownBundleId)")
+        }
+
         for url in candidateURLs {
             if fileManager.fileExists(atPath: url.path),
                let data = try? Data(contentsOf: url),
                let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
                 let configured = Set(decoded.ignoredBundleIdentifiers ?? [])
-                let merged = configured.union(defaultIgnoredBundles)
+                let merged = configured.union(finalIgnoredBundles)
                 Logger.debug("Loaded configuration from \(url.path) with ignored bundles: \(Array(merged))")
                 return Configuration(ignoredBundleIdentifiers: merged)
             }
         }
 
-        Logger.debug("No configuration file found; using default ignored bundles: \(Array(defaultIgnoredBundles))")
-        return Configuration(ignoredBundleIdentifiers: defaultIgnoredBundles)
+        Logger.debug("No configuration file found; using default ignored bundles: \(Array(finalIgnoredBundles))")
+        return Configuration(ignoredBundleIdentifiers: finalIgnoredBundles)
     }
 
     private static func configurationFileCandidates(fileManager: FileManager) -> [URL] {
