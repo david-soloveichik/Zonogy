@@ -814,8 +814,20 @@ class AppController: NSObject, WindowControllerDelegate {
             return
         }
 
+        let type: String
+        if managed.isPlaceholder {
+            type = "placeholder"
+        } else {
+            switch managed.backing {
+            case .appKit:
+                type = "test"
+            case .accessibility:
+                type = "external"
+            }
+        }
+
         print("\nWindow \(windowId):")
-        print("  Type: \(managed.isPlaceholder ? "placeholder" : "test")")
+        print("  Type: \(type)")
         print("  Zone: \(managed.zoneIndex?.description ?? "none (minimized)")")
         print("  Actual frame: \(managed.actualFrame)")
 
@@ -829,7 +841,17 @@ class AppController: NSObject, WindowControllerDelegate {
     func printFrames() {
         print("\nAll window frames:")
         for window in windowController.allWindows {
-            let type = window.isPlaceholder ? "placeholder" : "test"
+            let type: String
+            if window.isPlaceholder {
+                type = "placeholder"
+            } else {
+                switch window.backing {
+                case .appKit:
+                    type = "test"
+                case .accessibility:
+                    type = "external"
+                }
+            }
             print("  Window \(window.windowId) (\(type)): \(window.actualFrame)")
         }
         print("")
@@ -1005,8 +1027,21 @@ class AppController: NSObject, WindowControllerDelegate {
             return ["error": "Window \(windowId) not found"]
         }
 
+        let type: String
+        if managed.isPlaceholder {
+            type = "placeholder"
+        } else {
+            switch managed.backing {
+            case .appKit:
+                type = "test"
+            case .accessibility:
+                type = "external"
+            }
+        }
+
         var result: [String: Any] = [
             "window_id": windowId,
+            "type": type,
             "is_placeholder": managed.isPlaceholder,
             "zone_index": managed.zoneIndex as Any,
             "actual_frame": [
@@ -1032,8 +1067,21 @@ class AppController: NSObject, WindowControllerDelegate {
 
     func printFramesJSON() -> [String: Any] {
         let frames = windowController.allWindows.map { window -> [String: Any] in
-            [
+            let type: String
+            if window.isPlaceholder {
+                type = "placeholder"
+            } else {
+                switch window.backing {
+                case .appKit:
+                    type = "test"
+                case .accessibility:
+                    type = "external"
+                }
+            }
+
+            return [
                 "window_id": window.windowId,
+                "type": type,
                 "is_placeholder": window.isPlaceholder,
                 "frame": [
                     "x": window.actualFrame.origin.x,
