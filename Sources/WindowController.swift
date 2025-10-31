@@ -21,6 +21,7 @@ private let axDeminiaturizedNotification = kAXWindowDeminiaturizedNotification a
 private let axMovedNotificationName = kAXMovedNotification as String
 private let axResizedNotificationName = kAXResizedNotification as String
 private let axWindowCreatedNotificationName = kAXWindowCreatedNotification as String
+private let axMainWindowChangedNotificationName = kAXMainWindowChangedNotification as String
 
 struct PlaceholderResizeAxes: OptionSet {
     let rawValue: Int
@@ -62,7 +63,9 @@ class WindowController {
     ]
     private let applicationAccessibilityNotifications: [CFString] = [
         kAXWindowCreatedNotification as CFString,
-        kAXFocusedWindowChangedNotification as CFString
+        kAXFocusedWindowChangedNotification as CFString,
+        kAXMainWindowChangedNotification as CFString,
+        kAXUIElementDestroyedNotification as CFString
     ]
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()
@@ -685,6 +688,41 @@ class WindowController {
                 allowReturningExisting: false,
                 notifyDelegate: true
             )
+            return
+        }
+
+        if notificationName == axMainWindowChangedNotificationName {
+            var pid: pid_t = 0
+            let status = AXUIElementGetPid(element, &pid)
+
+            var resolvedPid: pid_t?
+            if status == .success {
+                resolvedPid = pid
+            } else if let managed = managedWindow(matching: element),
+                      case .accessibility(_, let managedPid, _) = managed.backing {
+                resolvedPid = managedPid
+            }
+
+            guard let targetPid = resolvedPid, targetPid != getpid() else {
+                return
+            }
+
+            Logger.debug("AX main window changed for pid \(targetPid)")
+
+            let appElement = accessibilityApplications[targetPid] ?? AXUIElementCreateApplication(targetPid)
+            accessibilityApplications[targetPid] = appElement
+
+            if status == .success {
+                _ = captureWindowIfNeeded(
+                    element: element,
+                    pid: targetPid,
+                    appElement: appElement,
+                    allowReturningExisting: true,
+                    notifyDelegate: true
+                )
+            }
+
+            delegate?.windowFocusChanged(pid: targetPid)
             return
         }
 
