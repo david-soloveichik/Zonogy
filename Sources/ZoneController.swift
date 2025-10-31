@@ -134,6 +134,11 @@ class ZoneController {
         return zones.first { $0.isEmpty }
     }
 
+    /// Find an empty zone with the highest index, or nil if none are empty
+    func highestIndexEmptyZone() -> Zone? {
+        return zones.filter { $0.isEmpty }.max(by: { $0.index < $1.index })
+    }
+
     /// Find the zone with the highest index
     func highestIndexZone() -> Zone? {
         return zones.max(by: { $0.index < $1.index })

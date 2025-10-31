@@ -29,15 +29,25 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
-### **Multi-screen support**
+### **Targeted zone & multi-screen support**
 
 **Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
 
-**Independent zone management:** Each screen maintains its own independent set of zones (1-3 zones per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
+**Targeted zone concept:** Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are always placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule.
+
+**Targeted zone selection:**
+
+- When LatticeTopology launches, the first zone on the primary display becomes the targeted zone.
+- Creating a new zone immediately makes it the targeted zone.
+- Clicking anywhere on a placeholder window, or clicking the zone indicator described below, makes that zone the targeted zone.
+- Removing the targeted zone promotes another zone: prefer empty zones on the same screen with the highest index; if none exist, choose empty zones on other screens by highest index (ties broken by screen order). If no empty zones exist, use the highest-index occupied zone with the same tie-breaking rules.
+
+**Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
 
-**Screen-local window placement:** When a window is unminimized or newly created, it is only considered for zones on the screen where it appears. Windows are never moved between screens automatically.
+
+**Indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone’s indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
 
 ### Zones abstraction
 
@@ -73,7 +83,7 @@ Both normal windows and placeholder windows should preserve an 8 pixel buffer at
 
 Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
 
-**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window.
+**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
 
 ### Adding and removing zones
 

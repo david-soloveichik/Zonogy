@@ -35,6 +35,45 @@ private struct PlaceholderTarget {
     let zoneIndex: Int
 }
 
+private final class PlaceholderContentView: NSView {
+    weak var controller: WindowController?
+    private(set) var screenId: CGDirectDisplayID
+    private(set) var zoneIndex: Int
+
+    init(frame: NSRect, controller: WindowController, screenId: CGDirectDisplayID, zoneIndex: Int) {
+        self.controller = controller
+        self.screenId = screenId
+        self.zoneIndex = zoneIndex
+        super.init(frame: frame)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        controller?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+        super.mouseDown(with: event)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+
+    func update(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        self.screenId = screenId
+        self.zoneIndex = zoneIndex
+    }
+
+    override func layout() {
+        super.layout()
+        if let layer = layer {
+            layer.cornerRadius = 12
+        }
+    }
+}
+
 private struct AccessibilityElementKey: Hashable {
     let element: AXUIElement
 
@@ -161,8 +200,12 @@ class WindowController {
         window.standardWindowButton(.zoomButton)?.isHidden = true
 
         // Create a custom content view with a close button
-        let contentView = NSView(frame: NSRect(origin: .zero, size: frame.size))
-        contentView.wantsLayer = true
+        let contentView = PlaceholderContentView(
+            frame: NSRect(origin: .zero, size: frame.size),
+            controller: self,
+            screenId: screen.displayId,
+            zoneIndex: zoneIndex
+        )
         if let layer = contentView.layer {
             layer.backgroundColor = NSColor(white: 0.9, alpha: 0.3).cgColor
             layer.cornerRadius = 12
@@ -239,6 +282,15 @@ class WindowController {
         if let closeButton = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
             closeButton.tag = zoneIndex
         }
+
+        if let contentView = window.contentView as? PlaceholderContentView {
+            contentView.update(screenId: screenId, zoneIndex: zoneIndex)
+        }
+    }
+
+    func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        Logger.debug("Placeholder activated for zone \(zoneIndex) on display \(screenId)")
+        delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     @objc private func handlePlaceholderClose(_ sender: NSButton) {
@@ -1133,6 +1185,7 @@ extension ManagedWindow {
 /// Delegate protocol for window controller events
 protocol WindowControllerDelegate: AnyObject {
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
+    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int)
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
