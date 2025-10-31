@@ -13,11 +13,24 @@ private func AppControllerHotKeyHandler(_ nextHandler: EventHandlerCallRef?, _ e
 
 /// Main controller that coordinates all components
 class AppController: NSObject, WindowControllerDelegate {
+    private struct ScreenContext {
+        var descriptor: ScreenDescriptor
+        let zoneController: ZoneController
+    }
+
+    private struct ZoneKey: Hashable {
+        let screenId: CGDirectDisplayID
+        let index: Int
+    }
+
     static let shared = AppController()
 
-    private let zoneController: ZoneController
     private let windowController: WindowController
     private let configuration: Configuration
+    private var screenContexts: [CGDirectDisplayID: ScreenContext] = [:]
+    private var screenOrder: [CGDirectDisplayID] = []
+    private let primaryScreenId: CGDirectDisplayID
+    private let primaryScreenBounds: CGRect
     private var eventMonitors: [Any] = []
     private var workspaceObservers: [NSObjectProtocol] = []
     private var hotKeyRefs: [EventHotKeyRef] = []
@@ -25,46 +38,59 @@ class AppController: NSObject, WindowControllerDelegate {
     private let zoneMargin: CGFloat = 5
     private var isSyncingWindows = false
     private var pendingSync = false
-    private var pendingSyncExcludedZones: Set<Int> = []
-    private var liveResizingZoneIndex: Int?
+    private var pendingSyncExcludedZones: Set<ZoneKey> = []
+    private var liveResizingZoneKey: ZoneKey?
     private var lastActiveApplicationPid: pid_t?
-    private let screenHeight: CGFloat
+    private var placeholderIdToZoneKey: [Int: ZoneKey] = [:]
 
     private override init() {
-        // Get the main screen frame
-        guard let screen = NSScreen.main else {
-            fatalError("No main screen found")
-        }
-
-        // Store the full screen height for coordinate conversions
-        // Cocoa coordinates: y:0 at bottom-left, y increases upward
-        // Screen coordinates: y:0 at top-left, y increases downward
-        let fullScreenHeight = screen.frame.height
-        self.screenHeight = fullScreenHeight
-
-        // Convert visible frame from Cocoa to screen coordinates for zone layout
-        let cocoaVisibleFrame = screen.visibleFrame
-        let screenFrame = CoordinateConversion.cocoaToScreen(
-            cocoaFrame: cocoaVisibleFrame,
-            screenHeight: fullScreenHeight
-        )
-
         let configuration = Configuration.load()
         self.configuration = configuration
-        self.zoneController = ZoneController(screenFrame: screenFrame)
+
+        let screens = NSScreen.screens
+        guard let primaryScreen = screens.first,
+              let primaryId = AppController.displayId(for: primaryScreen) else {
+            fatalError("No primary screen found")
+        }
+
+        self.primaryScreenId = primaryId
+        self.primaryScreenBounds = primaryScreen.frame
+
         self.windowController = WindowController(
             ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
-            screenHeight: fullScreenHeight
+            primaryScreenBounds: primaryScreen.frame
         )
+
+        var initialContexts: [CGDirectDisplayID: ScreenContext] = [:]
+        var order: [CGDirectDisplayID] = []
+
+        for screen in screens {
+            guard let displayId = AppController.displayId(for: screen) else {
+                continue
+            }
+
+            let descriptor = ScreenDescriptor(
+                displayId: displayId,
+                localizedName: screen.localizedName,
+                cocoaBounds: screen.frame,
+                visibleCocoaBounds: screen.visibleFrame,
+                primaryBounds: primaryScreen.frame
+            )
+            let zoneController = ZoneController(screenFrame: descriptor.visibleScreenBounds)
+            initialContexts[displayId] = ScreenContext(descriptor: descriptor, zoneController: zoneController)
+            order.append(displayId)
+        }
 
         super.init()
 
+        self.screenContexts = initialContexts
+        self.screenOrder = order
         self.windowController.delegate = self
         minimizeExistingApplicationWindows()
         setupKeyboardShortcuts()
         setupApplicationMonitoring()
 
-        Logger.debug("AppController initialized with screen coordinates")
+        Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
         // Create initial placeholder for the first empty zone
         syncWindowsToZones()
@@ -96,32 +122,66 @@ class AppController: NSObject, WindowControllerDelegate {
     // MARK: - Zone Management
 
     func addZone() {
-        guard let newZone = zoneController.addZone() else {
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId],
+              let newZone = context.zoneController.addZone() else {
             print("Failed to add zone (max 3 zones)")
             return
         }
         syncWindowsToZones()
-        print("Added zone \(newZone.index)")
+        print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
     }
 
     func removeZone(at index: Int) {
-        guard let removalResult = zoneController.removeZone(at: index) else {
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId] else {
+            print("Active screen not available")
+            return
+        }
+
+        guard performRemoveZone(at: index, on: screenId, announce: true, context: context) != nil else {
             print("Failed to remove zone \(index)")
             return
+        }
+    }
+
+    private func performRemoveZone(
+        at index: Int,
+        on screenId: CGDirectDisplayID,
+        announce: Bool,
+        context: ScreenContext? = nil
+    ) -> ZoneController.RemovalResult? {
+        let context = context ?? screenContexts[screenId]
+        guard let context else {
+            return nil
+        }
+
+        guard let removalResult = context.zoneController.removeZone(at: index) else {
+            return nil
         }
 
         if let removedWindowId = removalResult.removedWindowId,
            let managed = windowController.window(withId: removedWindowId) {
-            placeNewWindow(managed)
+            placeNewWindow(managed, preferredScreenId: screenId)
         }
 
         syncWindowsToZones()
-        print("Removed zone \(index)")
+
+        if announce {
+            print("Removed zone \(index) on \(context.descriptor.localizedName)")
+        }
+        return removalResult
     }
 
     func resizeZone(at index: Int, frame: CGRect) {
-        guard let zone = zoneController.zone(at: index) else {
-            print("Zone \(index) not found")
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId] else {
+            print("Active screen not available")
+            return
+        }
+
+        guard let zone = context.zoneController.zone(at: index) else {
+            print("Zone \(index) not found on \(context.descriptor.localizedName)")
             return
         }
 
@@ -130,10 +190,10 @@ class AppController: NSObject, WindowControllerDelegate {
             return
         }
 
-        if zoneController.resizeZone(at: index, to: frame) {
+        if context.zoneController.resizeZone(at: index, to: frame) {
             syncWindowsToZones()
-            if let updatedZone = zoneController.zone(at: index) {
-                print("Resized zone \(index) to \(updatedZone.frame)")
+            if let updatedZone = context.zoneController.zone(at: index) {
+                print("Resized zone \(index) on \(context.descriptor.localizedName) to \(updatedZone.frame)")
             } else {
                 print("Zone \(index) resized")
             }
@@ -157,7 +217,7 @@ class AppController: NSObject, WindowControllerDelegate {
         }
 
         // Remove from zone
-        zoneController.removeWindow(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId)
 
         // Close the window
         windowController.closeWindow(managed)
@@ -177,7 +237,7 @@ class AppController: NSObject, WindowControllerDelegate {
         windowController.minimizeWindow(managed)
 
         // Remove from zone and sync (delegate may not fire in CLI environment)
-        zoneController.removeWindow(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
 
         print("Minimized window \(windowId)")
@@ -211,7 +271,8 @@ class AppController: NSObject, WindowControllerDelegate {
         }
 
         if let zoneIndex = managed.zoneIndex,
-           let zone = zoneController.zone(at: zoneIndex),
+           let screenId = managed.screenDisplayId,
+           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex),
            zone.windowId == managed.windowId {
             syncWindowsToZones()
             print("Window \(managed.windowId) is already managed in zone \(zoneIndex)")
@@ -224,53 +285,54 @@ class AppController: NSObject, WindowControllerDelegate {
 
     // MARK: - Window Placement Logic
 
-    private func placeNewWindow(_ managed: ManagedWindow) {
-        // Clear any previous zone assignment for this window.
-        zoneController.removeWindow(windowId: managed.windowId)
+    private func placeNewWindow(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID? = nil) {
+        removeWindowFromAllZones(windowId: managed.windowId)
         managed.zoneIndex = nil
 
-        if let emptyZone = zoneController.findEmptyZone() {
-            // Place in the empty zone with lowest index
-            assignWindowToZone(managed, zone: emptyZone)
-        } else {
-            // Replace the window in the highest index zone
-            if let highestZone = zoneController.highestIndexZone() {
-                // First, get the old window if there is one
-                if let oldWindowId = highestZone.windowId,
-                   let oldWindow = windowController.window(withId: oldWindowId) {
-                    // Move new window to position first (for smooth UI)
-                    assignWindowToZone(managed, zone: highestZone)
-                    // Clear the old window's assignment before minimizing it
-                    oldWindow.zoneIndex = nil
-                    // Then minimize the old window
-                    windowController.minimizeWindow(oldWindow)
-                } else {
-                    assignWindowToZone(managed, zone: highestZone)
-                }
+        let targetScreenId = preferredScreenId ?? detectScreenId(for: managed) ?? activeScreenId()
+        guard let controller = zoneController(for: targetScreenId),
+              let descriptor = descriptor(for: targetScreenId) else {
+            return
+        }
+
+        if let emptyZone = controller.findEmptyZone() {
+            assignWindowToZone(managed, zone: emptyZone, screenId: targetScreenId, descriptor: descriptor)
+        } else if let highestZone = controller.highestIndexZone() {
+            if let oldWindowId = highestZone.windowId,
+               let oldWindow = windowController.window(withId: oldWindowId) {
+                assignWindowToZone(managed, zone: highestZone, screenId: targetScreenId, descriptor: descriptor)
+                clearManagedWindowZone(oldWindow)
+                windowController.minimizeWindow(oldWindow)
+            } else {
+                assignWindowToZone(managed, zone: highestZone, screenId: targetScreenId, descriptor: descriptor)
             }
         }
     }
 
-    private func assignWindowToZone(_ managed: ManagedWindow, zone: Zone) {
-        // Find and close any placeholder window in this zone
-        for window in windowController.allWindows {
-            if window.isPlaceholder && window.zoneIndex == zone.index {
+    private func assignWindowToZone(
+        _ managed: ManagedWindow,
+        zone: Zone,
+        screenId: CGDirectDisplayID,
+        descriptor: ScreenDescriptor
+    ) {
+        for window in windowController.allWindows where window.isPlaceholder {
+            if window.zoneIndex == zone.index && window.screenDisplayId == screenId {
                 windowController.closeWindow(window)
+                forgetPlaceholder(windowId: window.windowId)
             }
         }
 
-        // Assign to zone
-        zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
-        managed.zoneIndex = zone.index
+        zoneController(for: screenId)?.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
+        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
-        // Position the window
-        windowController.showWindow(managed, at: frameWithMargin(for: zone))
+        let displayFrame = frameWithMargin(for: zone)
+        windowController.showWindow(managed, at: displayFrame, on: descriptor)
     }
 
     // MARK: - Synchronization
 
     /// Sync all windows to their zones, creating placeholders as needed
-    private func syncWindowsToZones(excluding excludedZones: Set<Int> = []) {
+    private func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = []) {
         if isSyncingWindows {
             pendingSync = true
             pendingSyncExcludedZones.formUnion(excludedZones)
@@ -293,79 +355,89 @@ class AppController: NSObject, WindowControllerDelegate {
         let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
         if !prunedWindowIds.isEmpty {
             for windowId in prunedWindowIds {
-                zoneController.removeWindow(windowId: windowId)
+                removeWindowFromAllZones(windowId: windowId)
             }
         }
 
-        // Keep track of existing placeholders by zone
-        var placeholdersByZone = [Int: ManagedWindow]()
-        var placeholdersWithoutZone = [ManagedWindow]()
+        var placeholdersByKey: [ZoneKey: ManagedWindow] = [:]
+        var placeholdersWithoutKey: [ManagedWindow] = []
         for window in windowController.allWindows where window.isPlaceholder {
-            if let zoneIndex = window.zoneIndex {
-                placeholdersByZone[zoneIndex] = window
+            if let key = placeholderIdToZoneKey[window.windowId] {
+                placeholdersByKey[key] = window
+            } else if let screenId = window.screenDisplayId,
+                      let zoneIndex = window.zoneIndex {
+                let key = ZoneKey(screenId: screenId, index: zoneIndex)
+                recordPlaceholder(window, key: key)
+                placeholdersByKey[key] = window
             } else {
-                placeholdersWithoutZone.append(window)
+                placeholdersWithoutKey.append(window)
             }
         }
 
-        var placeholdersToClose = placeholdersByZone
-
+        var placeholdersToClose = placeholdersByKey
         var assignedWindowIds = Set<Int>()
 
-        // Then, for each zone, either show the window or create a placeholder
-        for zone in zoneController.allZones {
-            let displayFrame = frameWithMargin(for: zone)
-            let isExcluded = currentExcludedZones.contains(zone.index)
-            if let windowId = zone.windowId,
-               let managed = windowController.window(withId: windowId) {
-                // Move the window to match the zone frame
-                windowController.moveWindow(managed, to: displayFrame)
-                managed.zoneIndex = zone.index
-                assignedWindowIds.insert(windowId)
+        for screenId in screenOrder {
+            guard let context = screenContexts[screenId],
+                  let descriptor = descriptor(for: screenId) else {
+                continue
+            }
+            let controller = context.zoneController
 
-                // No placeholder needed for this zone
-                if let placeholder = placeholdersToClose.removeValue(forKey: zone.index) {
-                    windowController.closeWindow(placeholder)
-                }
-            } else {
-                if let existingPlaceholder = placeholdersByZone[zone.index] {
-                    // Reuse existing placeholder, update its frame
-                    existingPlaceholder.zoneIndex = zone.index
-                    if isExcluded {
-                        existingPlaceholder.appKitWindow?.orderFront(nil)
-                    } else {
-                        windowController.showWindow(existingPlaceholder, at: displayFrame)
-                        windowController.moveWindow(existingPlaceholder, to: displayFrame)
+            for zone in controller.allZones {
+                let key = ZoneKey(screenId: screenId, index: zone.index)
+                let isExcluded = currentExcludedZones.contains(key)
+                let displayFrame = frameWithMargin(for: zone)
+
+                if let windowId = zone.windowId,
+                   let managed = windowController.window(withId: windowId) {
+                    windowController.moveWindow(managed, to: displayFrame, on: descriptor)
+                    setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                    assignedWindowIds.insert(windowId)
+
+                    if let placeholder = placeholdersToClose.removeValue(forKey: key) {
+                        windowController.closeWindow(placeholder)
+                        forgetPlaceholder(windowId: placeholder.windowId)
                     }
-                    placeholdersToClose.removeValue(forKey: zone.index)
-                } else if let unassignedPlaceholder = placeholdersWithoutZone.popLast() {
-                    unassignedPlaceholder.zoneIndex = zone.index
-                    windowController.showWindow(unassignedPlaceholder, at: displayFrame)
-                    windowController.moveWindow(unassignedPlaceholder, to: displayFrame)
                 } else {
-                    // Create a placeholder (but don't assign its ID to the zone - keep zone empty)
-                    let placeholder = windowController.createPlaceholderWindow(
-                        frame: displayFrame,
-                        zoneIndex: zone.index
-                    )
-                    placeholder.zoneIndex = zone.index
-                    windowController.showWindow(placeholder, at: displayFrame)
+                    if let placeholder = placeholdersByKey[key] {
+                        recordPlaceholder(placeholder, key: key)
+                        if isExcluded {
+                            placeholder.appKitWindow?.orderFront(nil)
+                        } else {
+                            windowController.showWindow(placeholder, at: displayFrame, on: descriptor)
+                            windowController.moveWindow(placeholder, to: displayFrame, on: descriptor)
+                        }
+                        placeholdersToClose.removeValue(forKey: key)
+                    } else if let unassigned = placeholdersWithoutKey.popLast() {
+                        recordPlaceholder(unassigned, key: key)
+                        windowController.showWindow(unassigned, at: displayFrame, on: descriptor)
+                        windowController.moveWindow(unassigned, to: displayFrame, on: descriptor)
+                    } else {
+                        let placeholder = windowController.createPlaceholderWindow(
+                            frame: displayFrame,
+                            zoneIndex: zone.index,
+                            on: descriptor
+                        )
+                        recordPlaceholder(placeholder, key: key)
+                        windowController.showWindow(placeholder, at: displayFrame, on: descriptor)
+                    }
                 }
             }
         }
 
-        // Close any leftover placeholders that aren't needed
         for placeholder in placeholdersToClose.values {
             windowController.closeWindow(placeholder)
+            forgetPlaceholder(windowId: placeholder.windowId)
         }
-        for placeholder in placeholdersWithoutZone {
+        for placeholder in placeholdersWithoutKey {
             windowController.closeWindow(placeholder)
+            forgetPlaceholder(windowId: placeholder.windowId)
         }
 
-        // Mark any real windows that are no longer assigned to a zone as minimized/unassigned
         for window in windowController.allWindows where !window.isPlaceholder {
             if !assignedWindowIds.contains(window.windowId) {
-                window.zoneIndex = nil
+                clearManagedWindowZone(window)
             }
         }
     }
@@ -378,23 +450,27 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     /// Convert a content frame (placeholder or occupant window) back into the zone frame.
-    private func zoneFrame(fromContentFrame frame: CGRect) -> CGRect {
+    private func zoneFrame(fromContentFrame frame: CGRect, in context: ScreenContext) -> CGRect {
         var zoneFrame = frame.insetBy(dx: -zoneMargin, dy: -zoneMargin)
-        zoneFrame = clamp(frame: zoneFrame, to: zoneController.layoutBounds)
+        zoneFrame = clamp(frame: zoneFrame, to: context.zoneController.layoutBounds)
         return zoneFrame
     }
 
-    private func applyPlaceholderResize(zoneIndex: Int, placeholderFrame: CGRect, finalize: Bool) {
-        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame)
-        guard zoneController.resizeZone(at: zoneIndex, to: zoneFrame) else {
+    private func applyPlaceholderResize(zoneKey: ZoneKey, placeholderFrame: CGRect, finalize: Bool) {
+        guard let context = screenContexts[zoneKey.screenId] else {
+            return
+        }
+
+        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame, in: context)
+        guard context.zoneController.resizeZone(at: zoneKey.index, to: zoneFrame) else {
             return
         }
 
         if finalize {
-            Logger.debug("Placeholder for zone \(zoneIndex) resize finalized")
+            Logger.debug("Placeholder for zone \(zoneKey.index) on display \(zoneKey.screenId) resize finalized")
             syncWindowsToZones()
         } else {
-            syncWindowsToZones(excluding: Set([zoneIndex]))
+            syncWindowsToZones(excluding: Set([zoneKey]))
         }
     }
 
@@ -413,6 +489,113 @@ class AppController: NSObject, WindowControllerDelegate {
         return normalized
     }
 
+    private static func displayId(for screen: NSScreen) -> CGDirectDisplayID? {
+        guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return nil
+        }
+        return CGDirectDisplayID(screenNumber.uint32Value)
+    }
+
+    private func activeScreenId() -> CGDirectDisplayID {
+        if let main = NSScreen.main,
+           let id = AppController.displayId(for: main),
+           screenContexts[id] != nil {
+            return id
+        }
+        return primaryScreenId
+    }
+
+    private func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
+        screenContexts[screenId]?.descriptor
+    }
+
+    private func zoneController(for screenId: CGDirectDisplayID) -> ZoneController? {
+        screenContexts[screenId]?.zoneController
+    }
+
+    private func removeWindowFromAllZones(windowId: Int) {
+        for context in screenContexts.values {
+            context.zoneController.removeWindow(windowId: windowId)
+        }
+    }
+
+    private func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {
+        ZoneKey(screenId: screenId, index: index)
+    }
+
+    private func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
+        managed.screenDisplayId = screenId
+        managed.zoneIndex = zoneIndex
+    }
+
+    private func clearManagedWindowZone(_ managed: ManagedWindow) {
+        managed.zoneIndex = nil
+        managed.screenDisplayId = nil
+    }
+
+    private func recordPlaceholder(_ placeholder: ManagedWindow, key: ZoneKey) {
+        placeholderIdToZoneKey[placeholder.windowId] = key
+        windowController.refreshPlaceholderMetadata(placeholder, screenId: key.screenId, zoneIndex: key.index)
+    }
+
+    private func forgetPlaceholder(windowId: Int) {
+        placeholderIdToZoneKey.removeValue(forKey: windowId)
+    }
+
+    private func detectScreenId(for managed: ManagedWindow) -> CGDirectDisplayID? {
+        if let existing = managed.screenDisplayId, screenContexts[existing] != nil {
+            return existing
+        }
+
+        guard let cocoaFrame = cocoaFrame(for: managed) else {
+            return nil
+        }
+
+        var bestId: CGDirectDisplayID?
+        var largestArea: CGFloat = 0
+
+        for (screenId, context) in screenContexts {
+            let intersection = cocoaFrame.intersection(context.descriptor.cocoaBounds)
+            if intersection.isNull {
+                continue
+            }
+            let area = intersection.width * intersection.height
+            if area > largestArea {
+                largestArea = area
+                bestId = screenId
+            }
+        }
+
+        if let bestId, largestArea > 0 {
+            return bestId
+        }
+
+        for (screenId, context) in screenContexts {
+            if context.descriptor.cocoaBounds.contains(cocoaFrame.origin) {
+                return screenId
+            }
+        }
+
+        return nil
+    }
+
+    private func cocoaFrame(for managed: ManagedWindow) -> CGRect? {
+        switch managed.backing {
+        case .appKit(let window):
+            return window.frame
+        case .accessibility(let element, _, _):
+            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+                return nil
+            }
+            let accessibilityFrame = CGRect(origin: position, size: size)
+            return CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: accessibilityFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
+        }
+    }
+
     // MARK: - WindowControllerDelegate
 
     func windowFocusChanged(pid: pid_t) {
@@ -421,20 +604,23 @@ class AppController: NSObject, WindowControllerDelegate {
         validateWindowsForApplication(pid: pid)
     }
 
-    func placeholderCloseRequested(zoneIndex: Int) {
-        Logger.debug("Placeholder close requested for zone \(zoneIndex)")
-        removeZone(at: zoneIndex)
+    func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        Logger.debug("Placeholder close requested for zone \(zoneIndex) on display \(screenId)")
+        _ = performRemoveZone(at: zoneIndex, on: screenId, announce: false)
     }
 
     func windowWillClose(windowId: Int) {
         Logger.debug("Window \(windowId) will close")
-        zoneController.removeWindow(windowId: windowId)
+        if let managed = windowController.window(withId: windowId), managed.isPlaceholder {
+            forgetPlaceholder(windowId: windowId)
+        }
+        removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
     }
 
     func windowDidMiniaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did miniaturize")
-        zoneController.removeWindow(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
     }
 
@@ -444,35 +630,39 @@ class AppController: NSObject, WindowControllerDelegate {
         placeNewWindow(managed)
     }
 
-    func placeholderLiveResizeDidBegin(zoneIndex: Int) {
-        liveResizingZoneIndex = zoneIndex
+    func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        liveResizingZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
     }
 
-    func placeholderLiveResized(zoneIndex: Int, to frame: CGRect) {
-        guard liveResizingZoneIndex == zoneIndex else {
+    func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect) {
+        let key = ZoneKey(screenId: screenId, index: zoneIndex)
+        guard liveResizingZoneKey == key else {
             return
         }
 
-        applyPlaceholderResize(zoneIndex: zoneIndex, placeholderFrame: frame, finalize: false)
+        applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: false)
     }
 
-    func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect) {
-        if liveResizingZoneIndex == zoneIndex {
-            liveResizingZoneIndex = nil
+    func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect) {
+        let key = ZoneKey(screenId: screenId, index: zoneIndex)
+        if liveResizingZoneKey == key {
+            liveResizingZoneKey = nil
         }
 
-        applyPlaceholderResize(zoneIndex: zoneIndex, placeholderFrame: frame, finalize: true)
+        applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: true)
     }
 
-    func windowManualResizeDidEnd(windowId: Int, frame: CGRect) {
-        guard let managed = windowController.window(withId: windowId),
+    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
+        guard let screenId,
+              let context = screenContexts[screenId],
+              let managed = windowController.window(withId: windowId),
               let zoneIndex = managed.zoneIndex else {
             Logger.debug("Resize completed for window \(windowId) without a zone assignment")
             return
         }
 
-        let zoneFrame = zoneFrame(fromContentFrame: frame)
-        guard zoneController.resizeZone(at: zoneIndex, to: zoneFrame, allowOccupied: true) else {
+        let zoneFrame = zoneFrame(fromContentFrame: frame, in: context)
+        guard context.zoneController.resizeZone(at: zoneIndex, to: zoneFrame, allowOccupied: true) else {
             Logger.debug("Failed to resize zone \(zoneIndex) from window \(windowId)")
             return
         }
@@ -481,10 +671,13 @@ class AppController: NSObject, WindowControllerDelegate {
         syncWindowsToZones()
     }
 
-    func windowManualMoveDidEnd(windowId: Int, frame: CGRect) {
-        guard let managed = windowController.window(withId: windowId),
+    func windowManualMoveDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
+        guard let screenId,
+              let context = screenContexts[screenId],
+              let managed = windowController.window(withId: windowId),
               let zoneIndex = managed.zoneIndex,
-              let zone = zoneController.zone(at: zoneIndex) else {
+              let zone = context.zoneController.zone(at: zoneIndex),
+              let descriptor = descriptor(for: screenId) else {
             Logger.debug("Move completed for window \(windowId) with no zone to snap to")
             return
         }
@@ -497,16 +690,17 @@ class AppController: NSObject, WindowControllerDelegate {
 
         if needsSnap {
             Logger.debug("Snapping window \(windowId) back to zone \(zoneIndex)")
-            windowController.moveWindow(managed, to: targetFrame)
+            windowController.moveWindow(managed, to: targetFrame, on: descriptor)
         }
     }
 
-    func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes {
-        guard let zone = zoneController.zone(at: zoneIndex), zone.isEmpty else {
+    func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {
+        guard let context = screenContexts[screenId],
+              let zone = context.zoneController.zone(at: zoneIndex), zone.isEmpty else {
             return []
         }
 
-        let zoneCount = zoneController.allZones.count
+        let zoneCount = context.zoneController.allZones.count
         switch zoneCount {
         case 0, 1:
             return []
@@ -525,6 +719,10 @@ class AppController: NSObject, WindowControllerDelegate {
 
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {
         placeNewWindow(window)
+    }
+
+    func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
+        descriptor(for: screenId)
     }
 
     // MARK: - Startup helpers
@@ -652,7 +850,7 @@ class AppController: NSObject, WindowControllerDelegate {
         if !prunedWindowIds.isEmpty {
             Logger.debug("Application terminated, pruned \(prunedWindowIds.count) windows")
             for windowId in prunedWindowIds {
-                zoneController.removeWindow(windowId: windowId)
+                removeWindowFromAllZones(windowId: windowId)
             }
             syncWindowsToZones()
         }
@@ -664,7 +862,7 @@ class AppController: NSObject, WindowControllerDelegate {
         if !prunedWindowIds.isEmpty {
             Logger.debug("Validated windows for pid \(pid), pruned \(prunedWindowIds.count) destroyed windows")
             for windowId in prunedWindowIds {
-                zoneController.removeWindow(windowId: windowId)
+                    removeWindowFromAllZones(windowId: windowId)
             }
             syncWindowsToZones()
         }
@@ -801,8 +999,9 @@ class AppController: NSObject, WindowControllerDelegate {
             case .addZone:
                 self.addZone()
             case .removeZone:
-                guard let highestIndex = self.zoneController.highestIndexZone()?.index else { return }
-                self.removeZone(at: highestIndex)
+                let screenId = self.activeScreenId()
+                guard let highestIndex = self.zoneController(for: screenId)?.highestIndexZone()?.index else { return }
+                _ = self.performRemoveZone(at: highestIndex, on: screenId, announce: true)
             }
         }
     }
@@ -811,17 +1010,23 @@ class AppController: NSObject, WindowControllerDelegate {
 
     func listZones() {
         print("\nCurrent zones:")
-        for zone in zoneController.allZones {
-            let windowInfo = zone.windowId.map { "window \($0)" } ?? "empty"
-            print("  Zone \(zone.index): \(windowInfo), frame: \(zone.frame)")
+        for screenId in screenOrder {
+            guard let context = screenContexts[screenId] else { continue }
+            print("  Screen \(context.descriptor.localizedName) [\(screenId)]:")
+            for zone in context.zoneController.allZones {
+                let windowInfo = zone.windowId.map { "window \($0)" } ?? "empty"
+                print("    Zone \(zone.index): \(windowInfo), frame: \(zone.frame)")
+            }
         }
         print("")
     }
 
     func relayout() {
-        zoneController.relayout()
+        for context in screenContexts.values {
+            context.zoneController.relayout()
+        }
         syncWindowsToZones()
-        print("Layout recalculated")
+        print("Layouts recalculated")
     }
 
     func windowInfo(windowId: Int) {
@@ -842,15 +1047,32 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
-        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed)
+        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        let screenDescriptor = screenId.flatMap { (id: CGDirectDisplayID) -> ScreenDescriptor? in
+            descriptor(for: id)
+        }
+        let actualFrame: CGRect
+        if let screenDescriptor {
+            actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)
+        } else if let fallback = windowController.actualFrameInScreenCoordinates(for: managed) {
+            actualFrame = fallback
+        } else {
+            actualFrame = .zero
+        }
 
         print("\nWindow \(windowId):")
         print("  Type: \(type)")
+        if let screenId, let screenDescriptor {
+            print("  Screen: \(screenDescriptor.localizedName) [\(screenId)]")
+        } else {
+            print("  Screen: unknown")
+        }
         print("  Zone: \(managed.zoneIndex?.description ?? "none (minimized)")")
         print("  Actual frame: \(actualFrame)")
 
         if let zoneIndex = managed.zoneIndex,
-           let zone = zoneController.zone(at: zoneIndex) {
+           let screenId = managed.screenDisplayId,
+           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex) {
             print("  Zone frame: \(zone.frame)")
         }
         print("")
@@ -870,8 +1092,23 @@ class AppController: NSObject, WindowControllerDelegate {
                     type = "external"
                 }
             }
-            let actualFrame = windowController.actualFrameInScreenCoordinates(for: window)
-            print("  Window \(window.windowId) (\(type)): \(actualFrame)")
+            let screenId = window.screenDisplayId ?? detectScreenId(for: window)
+            let screenDescriptor = screenId.flatMap { (id: CGDirectDisplayID) -> ScreenDescriptor? in
+                descriptor(for: id)
+            }
+            let actualFrame: CGRect
+            if let screenDescriptor {
+                actualFrame = windowController.actualFrameInScreenCoordinates(for: window, on: screenDescriptor)
+            } else if let fallback = windowController.actualFrameInScreenCoordinates(for: window) {
+                actualFrame = fallback
+            } else {
+                actualFrame = .zero
+            }
+            if let screenId, let screenDescriptor {
+                print("  Window \(window.windowId) (\(type)) on \(screenDescriptor.localizedName) [\(screenId)]: \(actualFrame)")
+            } else {
+                print("  Window \(window.windowId) (\(type)) on unknown screen: \(actualFrame)")
+            }
         }
         print("")
     }
@@ -879,58 +1116,72 @@ class AppController: NSObject, WindowControllerDelegate {
     // MARK: - JSON API for Socket Server
 
     func addZoneJSON() -> [String: Any] {
-        guard let newZone = zoneController.addZone() else {
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId],
+              let newZone = context.zoneController.addZone() else {
             return ["error": "Failed to add zone (max 3 zones)"]
         }
         syncWindowsToZones()
         return [
+            "screen_display_id": screenId,
+            "screen_name": context.descriptor.localizedName,
             "zone_index": newZone.index,
-            "zone_count": zoneController.allZones.count
+            "zone_count": context.zoneController.allZones.count
         ]
     }
 
     func removeZoneJSON(at index: Int) -> [String: Any] {
-        guard let removalResult = zoneController.removeZone(at: index) else {
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId],
+              let removalResult = performRemoveZone(at: index, on: screenId, announce: false, context: context) else {
             return ["error": "Failed to remove zone \(index)"]
         }
 
         var response: [String: Any] = [
+            "screen_display_id": screenId,
+            "screen_name": context.descriptor.localizedName,
             "removed_index": index,
-            "zone_count": zoneController.allZones.count,
+            "zone_count": context.zoneController.allZones.count,
             "removed_window_id": removalResult.removedWindowId as Any
         ]
 
         if let removedWindowId = removalResult.removedWindowId,
            let managed = windowController.window(withId: removedWindowId) {
-            placeNewWindow(managed)
             response["reassigned_window_id"] = managed.windowId
             response["reassigned_zone_index"] = managed.zoneIndex as Any
+            response["reassigned_screen_display_id"] = managed.screenDisplayId as Any
         }
 
-        syncWindowsToZones()
         return response
     }
 
     func resizeZoneJSON(at index: Int, frame: CGRect) -> [String: Any] {
-        guard let zone = zoneController.zone(at: index) else {
-            return ["error": "Zone \(index) not found"]
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId] else {
+            return ["error": "Active screen not available"]
+        }
+
+        guard let zone = context.zoneController.zone(at: index) else {
+            return ["error": "Zone \(index) not found on \(context.descriptor.localizedName)"]
         }
 
         guard zone.isEmpty else {
             return ["error": "Zone \(index) is occupied; minimize or close its window before resizing."]
         }
 
-        guard zoneController.resizeZone(at: index, to: frame) else {
+        guard context.zoneController.resizeZone(at: index, to: frame) else {
             return ["error": "Failed to resize zone \(index)"]
         }
 
         syncWindowsToZones()
 
-        guard let updatedZone = zoneController.zone(at: index) else {
+        guard let updatedZone = context.zoneController.zone(at: index) else {
             return ["error": "Zone \(index) unavailable after resize"]
         }
 
         return [
+            "screen_display_id": screenId,
+            "screen_name": context.descriptor.localizedName,
             "zone_index": updatedZone.index,
             "frame": [
                 "x": updatedZone.frame.origin.x,
@@ -938,7 +1189,7 @@ class AppController: NSObject, WindowControllerDelegate {
                 "width": updatedZone.frame.width,
                 "height": updatedZone.frame.height
             ],
-            "zone_count": zoneController.allZones.count
+            "zone_count": context.zoneController.allZones.count
         ]
     }
 
@@ -947,7 +1198,8 @@ class AppController: NSObject, WindowControllerDelegate {
         placeNewWindow(managed)
         return [
             "window_id": managed.windowId,
-            "zone_index": managed.zoneIndex as Any
+            "zone_index": managed.zoneIndex as Any,
+            "screen_display_id": managed.screenDisplayId as Any
         ]
     }
 
@@ -963,12 +1215,15 @@ class AppController: NSObject, WindowControllerDelegate {
         }
 
         if let zoneIndex = managed.zoneIndex,
-           let zone = zoneController.zone(at: zoneIndex),
+           let screenId = managed.screenDisplayId,
+           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex),
            zone.windowId == managed.windowId {
             syncWindowsToZones()
             return [
                 "window_id": managed.windowId,
                 "zone_index": zoneIndex,
+                "screen_display_id": screenId,
+                "screen_name": screenContexts[screenId]?.descriptor.localizedName as Any,
                 "message": "Already managed"
             ]
         }
@@ -977,7 +1232,8 @@ class AppController: NSObject, WindowControllerDelegate {
 
         return [
             "window_id": managed.windowId,
-            "zone_index": managed.zoneIndex as Any
+            "zone_index": managed.zoneIndex as Any,
+            "screen_display_id": managed.screenDisplayId as Any
         ]
     }
 
@@ -986,7 +1242,7 @@ class AppController: NSObject, WindowControllerDelegate {
             return ["error": "Window \(windowId) not found"]
         }
 
-        zoneController.removeWindow(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId)
         windowController.closeWindow(managed)
         syncWindowsToZones()
 
@@ -999,7 +1255,7 @@ class AppController: NSObject, WindowControllerDelegate {
         }
 
         windowController.minimizeWindow(managed)
-        zoneController.removeWindow(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
 
         return ["window_id": windowId]
@@ -1015,30 +1271,46 @@ class AppController: NSObject, WindowControllerDelegate {
 
         return [
             "window_id": windowId,
-            "zone_index": managed.zoneIndex as Any
+            "zone_index": managed.zoneIndex as Any,
+            "screen_display_id": managed.screenDisplayId as Any
         ]
     }
 
     func listZonesJSON() -> [String: Any] {
-        let zones = zoneController.allZones.map { zone -> [String: Any] in
-            [
-                "index": zone.index,
-                "window_id": zone.windowId as Any,
-                "frame": [
-                    "x": zone.frame.origin.x,
-                    "y": zone.frame.origin.y,
-                    "width": zone.frame.width,
-                    "height": zone.frame.height
+        let zones = screenOrder.flatMap { screenId -> [[String: Any]] in
+            guard let context = screenContexts[screenId] else { return [] }
+            return context.zoneController.allZones.map { zone in
+                [
+                    "screen_display_id": screenId,
+                    "screen_name": context.descriptor.localizedName,
+                    "index": zone.index,
+                    "window_id": zone.windowId as Any,
+                    "frame": [
+                        "x": zone.frame.origin.x,
+                        "y": zone.frame.origin.y,
+                        "width": zone.frame.width,
+                        "height": zone.frame.height
+                    ]
                 ]
-            ]
+            }
         }
         return ["zones": zones]
     }
 
     func relayoutJSON() -> [String: Any] {
-        zoneController.relayout()
+        for context in screenContexts.values {
+            context.zoneController.relayout()
+        }
         syncWindowsToZones()
-        return ["zone_count": zoneController.allZones.count]
+        let screenSummaries = screenOrder.compactMap { screenId -> [String: Any]? in
+            guard let context = screenContexts[screenId] else { return nil }
+            return [
+                "screen_display_id": screenId,
+                "screen_name": context.descriptor.localizedName,
+                "zone_count": context.zoneController.allZones.count
+            ]
+        }
+        return ["screens": screenSummaries]
     }
 
     func windowInfoJSON(windowId: Int) -> [String: Any] {
@@ -1058,7 +1330,18 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
-        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed)
+        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        let screenDescriptor = screenId.flatMap { (id: CGDirectDisplayID) -> ScreenDescriptor? in
+            descriptor(for: id)
+        }
+        let actualFrame: CGRect
+        if let screenDescriptor {
+            actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)
+        } else if let fallback = windowController.actualFrameInScreenCoordinates(for: managed) {
+            actualFrame = fallback
+        } else {
+            actualFrame = .zero
+        }
 
         var result: [String: Any] = [
             "window_id": windowId,
@@ -1073,8 +1356,14 @@ class AppController: NSObject, WindowControllerDelegate {
             ]
         ]
 
+        if let screenId, let screenDescriptor {
+            result["screen_display_id"] = screenId
+            result["screen_name"] = screenDescriptor.localizedName
+        }
+
         if let zoneIndex = managed.zoneIndex,
-           let zone = zoneController.zone(at: zoneIndex) {
+           let screenId = managed.screenDisplayId,
+           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex) {
             result["zone_frame"] = [
                 "x": zone.frame.origin.x,
                 "y": zone.frame.origin.y,
@@ -1099,13 +1388,24 @@ class AppController: NSObject, WindowControllerDelegate {
                     type = "external"
                 }
             }
-
-            let actualFrame = windowController.actualFrameInScreenCoordinates(for: window)
-
+            let screenId = window.screenDisplayId ?? detectScreenId(for: window)
+            let screenDescriptor = screenId.flatMap { (id: CGDirectDisplayID) -> ScreenDescriptor? in
+                descriptor(for: id)
+            }
+            let actualFrame: CGRect
+            if let screenDescriptor {
+                actualFrame = windowController.actualFrameInScreenCoordinates(for: window, on: screenDescriptor)
+            } else if let fallback = windowController.actualFrameInScreenCoordinates(for: window) {
+                actualFrame = fallback
+            } else {
+                actualFrame = .zero
+            }
             return [
                 "window_id": window.windowId,
                 "type": type,
                 "is_placeholder": window.isPlaceholder,
+                "screen_display_id": screenId as Any,
+                "screen_name": screenDescriptor?.localizedName as Any,
                 "frame": [
                     "x": actualFrame.origin.x,
                     "y": actualFrame.origin.y,

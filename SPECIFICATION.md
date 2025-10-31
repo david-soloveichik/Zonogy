@@ -29,6 +29,16 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
+### **Multi-screen support**
+
+**Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
+
+**Independent zone management:** Each screen maintains its own independent set of zones (1-3 zones per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
+
+**Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
+
+**Screen-local window placement:** When a window is unminimized or newly created, it is only considered for zones on the screen where it appears. Windows are never moved between screens automatically.
+
 ### Zones abstraction
 
 A zone can either contain an (unminimized) window or be empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
@@ -36,7 +46,7 @@ Each zone has an index (for example, if there are 3 zones, then the indexes are:
 
 ### Initial startup behavior
 
-When LatticeTopology starts, it begins with 1 empty zone by default. Existing application windows are left alone so the user’s workspace remains unchanged until zones start claiming windows.
+When LatticeTopology starts, each screen begins with 1 empty zone by default. Existing application windows are left alone so the user's workspace remains unchanged until zones start claiming windows.
 
 ### Window placement for new windows
 
@@ -68,7 +78,7 @@ Placeholder windows must stay anchored to their zone. Dragging their surface sho
 
 When adding or removing zones, the remaining zones should be reindexed. For example, if there are zones 1, 2, 3, and I remove zone 1, then zone 2 should become zone 1, and zone 3 should become zone 2.
 
-Whenever zones are added or removed, the dimensions of the remaining zones should be adjusted. Intuitively, they should be re-"tiled" to split the screen. The tiling is as follows:
+Whenever zones are added or removed on a screen, the dimensions of the remaining zones on that screen should be adjusted. Intuitively, they should be re-"tiled" to split the screen. The tiling is as follows:
 
 - 1 zone: full screen (zone 1)
 - 2 zones: split the screen into left (zone 1) and right (zone 2)
@@ -145,6 +155,8 @@ The window manager can create its own "test" windows that have title like "test 
 
 To allow an AI Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
 
+**Note:** Zone manipulation commands (`add-zone`, `remove-zone`, `resize-zone`) operate on the currently active screen.
+
 Required commands:
 
 - `add-zone`: add a new zone (up to 3) and recompute layouts.
@@ -203,7 +215,7 @@ To enable better AI Agent integration and programmatic control, LatticeTopology 
 {"id": 1, "success": true, "result": {...}, "error": null}
 ```
 
-**Available commands:** All REPL commands are exposed via the socket with JSON equivalents:
+**Available commands:** All REPL commands are exposed via the socket with JSON equivalents. Zone manipulation commands operate on the currently active screen.
 
 - `list`: Get all zones and their state
 - `add-zone`: Add a new zone

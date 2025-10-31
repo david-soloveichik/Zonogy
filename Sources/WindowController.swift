@@ -30,6 +30,11 @@ struct PlaceholderResizeAxes: OptionSet {
     static let vertical = PlaceholderResizeAxes(rawValue: 1 << 1)
 }
 
+private struct PlaceholderTarget {
+    let screenId: CGDirectDisplayID
+    let zoneIndex: Int
+}
+
 private struct AccessibilityElementKey: Hashable {
     let element: AXUIElement
 
@@ -75,11 +80,11 @@ class WindowController {
     private var mouseUpMonitor: Any?
     private var mouseUpGlobalMonitor: Any?
     private var resizingWindowId: Int?
-    private let screenHeight: CGFloat
+    private let primaryScreenBounds: CGRect
 
-    init(ignoredBundleIdentifiers: Set<String> = [], screenHeight: CGFloat) {
+    init(ignoredBundleIdentifiers: Set<String> = [], primaryScreenBounds: CGRect) {
         self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
-        self.screenHeight = screenHeight
+        self.primaryScreenBounds = primaryScreenBounds
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
             self?.handleMouseUp()
             return event
@@ -129,12 +134,13 @@ class WindowController {
     }
 
     /// Create a placeholder window for an empty zone
-    func createPlaceholderWindow(frame: CGRect, zoneIndex: Int) -> ManagedWindow {
+    func createPlaceholderWindow(frame: CGRect, zoneIndex: Int, on screen: ScreenDescriptor) -> ManagedWindow {
         let windowId = nextWindowId
         nextWindowId += 1
 
+        let cocoaFrame = screen.screenToCocoa(frame)
         let window = NSWindow(
-            contentRect: frame,
+            contentRect: cocoaFrame,
             styleMask: [.titled, .resizable],
             backing: .buffered,
             defer: false
@@ -213,16 +219,43 @@ class WindowController {
             backing: .appKit(window),
             isPlaceholder: true
         )
+        managed.screenDisplayId = screen.displayId
+        managed.zoneIndex = zoneIndex
         managedWindows[windowId] = managed
 
-        Logger.debug("Created placeholder window \(windowId) for zone \(zoneIndex)")
+        Logger.debug("Created placeholder window \(windowId) for zone \(zoneIndex) on display \(screen.displayId)")
         return managed
+    }
+
+    func refreshPlaceholderMetadata(_ placeholder: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int) {
+        guard placeholder.isPlaceholder,
+              let window = placeholder.appKitWindow else {
+            return
+        }
+
+        placeholder.screenDisplayId = screenId
+        placeholder.zoneIndex = zoneIndex
+
+        if let closeButton = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
+            closeButton.tag = zoneIndex
+        }
     }
 
     @objc private func handlePlaceholderClose(_ sender: NSButton) {
         let zoneIndex = sender.tag
-        Logger.debug("Placeholder close button clicked for zone \(zoneIndex)")
-        delegate?.placeholderCloseRequested(zoneIndex: zoneIndex)
+        let screenId: CGDirectDisplayID?
+        if let window = sender.window {
+            screenId = managedWindows.values.first(where: { managed in
+                managed.isPlaceholder && managed.appKitWindow === window
+            })?.screenDisplayId
+        } else {
+            screenId = nil
+        }
+
+        Logger.debug("Placeholder close button clicked for zone \(zoneIndex) on display \(screenId ?? 0)")
+        if let screenId {
+            delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
+        }
     }
 
     /// Attempt to capture the frontmost standard window of the active application.
@@ -434,22 +467,26 @@ class WindowController {
         return managedWindows[windowId]
     }
 
-    /// Show a window at the specified frame (frame should be in screen coordinates)
-    func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect) {
+    /// Show a window at the specified frame (frame is in screen-local coordinates)
+    func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
+        let accessibilityFrame = screen.screenToAccessibility(frame)
         switch managedWindow.backing {
         case .appKit(let window):
-            // Convert from screen coordinates to Cocoa coordinates for AppKit windows
-            let cocoaFrame = CoordinateConversion.screenToCocoa(screenFrame: frame, screenHeight: screenHeight)
+            // Convert accessibility coordinates back to Cocoa for AppKit windows
+            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: accessibilityFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
             window.setFrame(cocoaFrame, display: true)
             window.orderFront(nil)
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
-                _ = setAccessibilityFrame(element: element, frame: frame)
+                _ = setAccessibilityFrame(element: element, frame: accessibilityFrame)
             }
             _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         }
-        Logger.debug("Showed window \(managedWindow.windowId) at frame \(frame)")
+        Logger.debug("Showed window \(managedWindow.windowId) on display \(screen.displayId) at frame \(frame)")
     }
 
     /// Minimize a window
@@ -492,20 +529,23 @@ class WindowController {
         Logger.debug("Closed window \(managedWindow.windowId)")
     }
 
-    /// Resize and reposition a window to match a frame (frame should be in screen coordinates)
-    func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect) {
+    /// Resize and reposition a window to match a frame (frame is in screen-local coordinates)
+    func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect, on screen: ScreenDescriptor) {
+        let accessibilityFrame = screen.screenToAccessibility(frame)
         switch managedWindow.backing {
         case .appKit(let window):
-            // Convert from screen coordinates to Cocoa coordinates for AppKit windows
-            let cocoaFrame = CoordinateConversion.screenToCocoa(screenFrame: frame, screenHeight: screenHeight)
+            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: accessibilityFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
             window.setFrame(cocoaFrame, display: true, animate: false)
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
-                _ = setAccessibilityFrame(element: element, frame: frame)
+                _ = setAccessibilityFrame(element: element, frame: accessibilityFrame)
             }
         }
-        Logger.debug("Moved window \(managedWindow.windowId) to frame \(frame)")
+        Logger.debug("Moved window \(managedWindow.windowId) on display \(screen.displayId) to frame \(frame)")
     }
 
     private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
@@ -795,16 +835,22 @@ class WindowController {
                 return
             }
             Logger.debug("External window \(managed.windowId) moved by user")
-            let screenFrame = actualFrameInScreenCoordinates(for: managed)
-            delegate?.windowManualMoveDidEnd(windowId: managed.windowId, frame: screenFrame)
+            if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
+                delegate?.windowManualMoveDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+            } else {
+                delegate?.windowManualMoveDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
+            }
 
         case axResizedNotificationName:
             guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
                 return
             }
             Logger.debug("External window \(managed.windowId) resized by user")
-            let screenFrame = actualFrameInScreenCoordinates(for: managed)
-            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, frame: screenFrame)
+            if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
+                delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+            } else {
+                delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
+            }
 
         default:
             break
@@ -957,11 +1003,12 @@ class WindowController {
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
         guard let managed = managedWindows[windowId],
               managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex else {
+              let zoneIndex = managed.zoneIndex,
+              let screenId = managed.screenDisplayId else {
             return proposedSize
         }
 
-        let allowedAxes = delegate?.placeholderAllowedResizeAxes(zoneIndex: zoneIndex) ?? []
+        let allowedAxes = delegate?.placeholderAllowedResizeAxes(screenId: screenId, zoneIndex: zoneIndex) ?? []
         var size = proposedSize
 
         if !allowedAxes.contains(.horizontal) {
@@ -985,25 +1032,36 @@ class WindowController {
         }
 
         Logger.debug("Finished dragging window \(windowId), requesting snap back")
-        let screenFrame = actualFrameInScreenCoordinates(for: managed)
-        delegate?.windowManualMoveDidEnd(windowId: windowId, frame: screenFrame)
+        if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
+            delegate?.windowManualMoveDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+        } else {
+            delegate?.windowManualMoveDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: .zero)
+        }
     }
 
-    /// Get the actual frame of a window in screen coordinates
-    func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow) -> CGRect {
+    /// Get the actual frame of a window in screen-local coordinates
+    func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow, on screen: ScreenDescriptor) -> CGRect {
         switch managedWindow.backing {
         case .appKit(let window):
-            // Convert from Cocoa to screen coordinates
             let cocoaFrame = window.frame
-            return CoordinateConversion.cocoaToScreen(cocoaFrame: cocoaFrame, screenHeight: screenHeight)
+            return screen.cocoaToScreen(cocoaFrame)
         case .accessibility(let element, _, _):
-            // Accessibility API already returns screen coordinates
             guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
                   let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
                 return .zero
             }
-            return CGRect(origin: position, size: size)
+            let accessibilityFrame = CGRect(origin: position, size: size)
+            return screen.accessibilityToScreen(accessibilityFrame)
         }
+    }
+
+    /// Convenience helper that resolves the screen descriptor via the delegate.
+    func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow) -> CGRect? {
+        guard let screenId = managedWindow.screenDisplayId,
+              let descriptor = delegate?.screenDescriptor(for: screenId) else {
+            return nil
+        }
+        return actualFrameInScreenCoordinates(for: managedWindow, on: descriptor)
     }
 
     /// Get all managed windows
@@ -1058,17 +1116,18 @@ extension ManagedWindow {
 
 /// Delegate protocol for window controller events
 protocol WindowControllerDelegate: AnyObject {
-    func placeholderCloseRequested(zoneIndex: Int)
+    func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
     func windowFocusChanged(pid: pid_t)
-    func placeholderLiveResizeDidBegin(zoneIndex: Int)
-    func placeholderLiveResized(zoneIndex: Int, to frame: CGRect)
-    func placeholderLiveResizeDidEnd(zoneIndex: Int, to frame: CGRect)
-    func placeholderAllowedResizeAxes(zoneIndex: Int) -> PlaceholderResizeAxes
-    func windowManualResizeDidEnd(windowId: Int, frame: CGRect)
-    func windowManualMoveDidEnd(windowId: Int, frame: CGRect)
+    func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int)
+    func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
+    func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
+    func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes
+    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    func windowManualMoveDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
 }
 
@@ -1130,10 +1189,11 @@ extension WindowController {
         }
 
         if managed.isPlaceholder {
-            guard let zoneIndex = managed.zoneIndex else {
+            guard let zoneIndex = managed.zoneIndex,
+                  let screenId = managed.screenDisplayId else {
                 return
             }
-            delegate?.placeholderLiveResizeDidBegin(zoneIndex: zoneIndex)
+            delegate?.placeholderLiveResizeDidBegin(screenId: screenId, zoneIndex: zoneIndex)
         } else {
             resizingWindowId = windowId
         }
@@ -1145,11 +1205,12 @@ extension WindowController {
         }
 
         if managed.isPlaceholder {
-            guard let zoneIndex = managed.zoneIndex else {
+            guard let zoneIndex = managed.zoneIndex,
+                  let screenId = managed.screenDisplayId,
+                  let screenFrame = actualFrameInScreenCoordinates(for: managed) else {
                 return
             }
-            let screenFrame = actualFrameInScreenCoordinates(for: managed)
-            delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: screenFrame)
+            delegate?.placeholderLiveResized(screenId: screenId, zoneIndex: zoneIndex, to: screenFrame)
         }
     }
 
@@ -1159,19 +1220,23 @@ extension WindowController {
         }
 
         if managed.isPlaceholder {
-            guard let zoneIndex = managed.zoneIndex else {
+            guard let zoneIndex = managed.zoneIndex,
+                  let screenId = managed.screenDisplayId,
+                  let screenFrame = actualFrameInScreenCoordinates(for: managed) else {
                 return
             }
-            let screenFrame = actualFrameInScreenCoordinates(for: managed)
-            delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: screenFrame)
+            delegate?.placeholderLiveResizeDidEnd(screenId: screenId, zoneIndex: zoneIndex, to: screenFrame)
         } else {
             guard resizingWindowId == windowId else {
                 return
             }
             resizingWindowId = nil
             Logger.debug("Finished resizing window \(windowId), notifying delegate")
-            let screenFrame = actualFrameInScreenCoordinates(for: managed)
-            delegate?.windowManualResizeDidEnd(windowId: windowId, frame: screenFrame)
+            if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
+                delegate?.windowManualResizeDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+            } else {
+                delegate?.windowManualResizeDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: .zero)
+            }
         }
     }
 

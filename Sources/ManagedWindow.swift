@@ -28,11 +28,15 @@ class ManagedWindow {
     /// The zone index this window is currently assigned to, or `nil` if minimized/unassigned.
     var zoneIndex: Int?
 
+    /// Identifier for the display this window is currently associated with.
+    var screenDisplayId: CGDirectDisplayID?
+
     init(windowId: Int, backing: ManagedWindowBacking, isPlaceholder: Bool) {
         self.windowId = windowId
         self.backing = backing
         self.isPlaceholder = isPlaceholder
         self.zoneIndex = nil
+        self.screenDisplayId = nil
     }
 
     /// The underlying AppKit window, if any.

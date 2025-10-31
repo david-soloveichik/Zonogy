@@ -181,13 +181,13 @@ class REPL {
 
         Available commands:
 
-        Zone management:
-          add-zone                     - Add a new zone (up to 3)
-          remove-zone <index>          - Remove the specified zone
+        Zone management (current active screen):
+          add-zone                     - Add a new zone (up to 3) on the active screen
+          remove-zone <index>          - Remove the specified zone on the active screen
           resize-zone <index> <x> <y> <width> <height>
-                                       - Resize an empty zone using screen coordinates
-          list                         - Print current zones and their windows
-          layout                       - Force a layout recalculation
+                                       - Resize an empty zone using screen-local coordinates
+          list                         - Print current zones grouped by screen
+          layout                       - Force a layout recalculation for all screens
 
         Window management:
           create-window                - Create a new test window
