@@ -5,9 +5,7 @@ struct Configuration: Decodable {
         let ignoredBundleIdentifiers: [String]?
     }
 
-    private static let defaultIgnoredBundles: Set<String> = [
-        "com.microsoft.VSCode"
-    ]
+    private static let defaultIgnoredBundles: Set<String> = []
 
     let ignoredBundleIdentifiers: Set<String>
 

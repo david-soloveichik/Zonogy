@@ -249,4 +249,4 @@ The file schema:
 }
 ```
 
-Bundle identifiers listed here (plus the default `com.microsoft.VSCode`) are excluded from zone management and will not be minimized during startup.
+Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
