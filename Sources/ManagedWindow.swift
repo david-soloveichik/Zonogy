@@ -87,44 +87,4 @@ class ManagedWindow {
             return false
         }
     }
-
-    private static func copyCGPointValue(element: AXUIElement, attribute: CFString) -> CGPoint? {
-        var rawValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
-        guard status == .success, let rawValue else {
-            return nil
-        }
-        guard CFGetTypeID(rawValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let axValue = unsafeBitCast(rawValue, to: AXValue.self)
-
-        var point = CGPoint.zero
-        guard AXValueGetType(axValue) == AXValueType(rawValue: kAXValueCGPointType),
-              AXValueGetValue(axValue, AXValueType(rawValue: kAXValueCGPointType)!, &point) else {
-            return nil
-        }
-        return point
-    }
-
-    private static func copyCGSizeValue(element: AXUIElement, attribute: CFString) -> CGSize? {
-        var rawValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
-        guard status == .success, let rawValue else {
-            return nil
-        }
-        guard CFGetTypeID(rawValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let axValue = unsafeBitCast(rawValue, to: AXValue.self)
-
-        var size = CGSize.zero
-        guard AXValueGetType(axValue) == AXValueType(rawValue: kAXValueCGSizeType),
-              AXValueGetValue(axValue, AXValueType(rawValue: kAXValueCGSizeType)!, &size) else {
-            return nil
-        }
-        return size
-    }
 }

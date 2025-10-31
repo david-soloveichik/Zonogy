@@ -4,6 +4,31 @@ LatticeTopology is a variation on a tiling window manager. In particular, it use
 
 ## Zones
 
+### **CRITICAL: Coordinate System**
+
+**All zone frames, window positions, and dimensions MUST use screen coordinates with y:0 at the top-left corner of the screen.**
+
+This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at the bottom-left:
+
+- **Screen coordinates** (used by Accessibility API and zones): y:0 is at the **TOP-LEFT**, y increases **DOWNWARD**
+- **Cocoa coordinates** (used by NSScreen, NSWindow): y:0 is at the **BOTTOM-LEFT**, y increases **UPWARD**
+
+**Implementation requirements:**
+
+1. All zone frames computed by `ZoneLayout` and stored in `ZoneController` must be in screen coordinates
+2. When obtaining screen bounds from `NSScreen.visibleFrame` or `NSScreen.frame`, **convert from Cocoa to screen coordinates**
+3. When positioning **AppKit windows** (test windows, placeholders), **convert from screen to Cocoa coordinates** before calling `setFrame()`
+4. When positioning **external windows via Accessibility API**, use screen coordinates directly (no conversion needed)
+5. All logging, REPL output, and socket API responses must report frames in screen coordinates
+
+**Example for 3-zone layout on a 1080p display:**
+
+- Zone 1 (left column): `{x: 0, y: 0, width: 960, height: 1080}` — starts at top-left
+- Zone 2 (right-top): `{x: 960, y: 0, width: 960, height: 540}` — **y:0 is at the TOP**
+- Zone 3 (right-bottom): `{x: 960, y: 540, width: 960, height: 540}` — y:540 is **BELOW** zone 2
+
+Never mix coordinate systems or windows will be positioned incorrectly.
+
 ### Zones abstraction
 
 A zone can either contain an (unminimized) window or be empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
@@ -33,7 +58,7 @@ Every empty zone should have a placeholder window created by our window manager.
 
 Both normal windows and placeholder windows should have a margin of 5 pixels from the side of the zone for a nicer visual effect.
 
-**Coordinate system**: Zone frames use screen coordinates with y:0 at the top-left. In the 3-zone layout, zone 2 is positioned at the top of the right column (y:0) and zone 3 at the bottom (y:screenHeight/2).
+**Important**: All frames are in screen coordinates (see the "CRITICAL: Coordinate System" section above). In the 3-zone layout, zone 2 is at the top of the right column (y:0) and zone 3 is below it (starting at y:screenHeight/2).
 
 Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
 
@@ -77,11 +102,11 @@ Also if the window is moved to another location and released, it should "snap" b
 
 ## Conditions for which windows are managed
 
-We manage a window if it passes several conditions (see `winmanmon` source code for how it collects this information):
+We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
 
-- Subrole: AXStandardWindow
-- isMovable: T
-- hasZoom: T
+- **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole)
+- **isMovable: T** (window position can be modified)
+- **hasZoom: T** (window has a zoom button)
 
 ## External tools and code reference
 

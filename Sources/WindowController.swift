@@ -75,9 +75,11 @@ class WindowController {
     private var mouseUpMonitor: Any?
     private var mouseUpGlobalMonitor: Any?
     private var resizingWindowId: Int?
+    private let screenHeight: CGFloat
 
-    init(ignoredBundleIdentifiers: Set<String> = []) {
+    init(ignoredBundleIdentifiers: Set<String> = [], screenHeight: CGFloat) {
         self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
+        self.screenHeight = screenHeight
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
             self?.handleMouseUp()
             return event
@@ -432,13 +434,16 @@ class WindowController {
         return managedWindows[windowId]
     }
 
-    /// Show a window at the specified frame
+    /// Show a window at the specified frame (frame should be in screen coordinates)
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect) {
         switch managedWindow.backing {
         case .appKit(let window):
-            window.setFrame(frame, display: true)
+            // Convert from screen coordinates to Cocoa coordinates for AppKit windows
+            let cocoaFrame = CoordinateConversion.screenToCocoa(screenFrame: frame, screenHeight: screenHeight)
+            window.setFrame(cocoaFrame, display: true)
             window.orderFront(nil)
         case .accessibility(let element, _, _):
+            // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
                 _ = setAccessibilityFrame(element: element, frame: frame)
             }
@@ -487,12 +492,15 @@ class WindowController {
         Logger.debug("Closed window \(managedWindow.windowId)")
     }
 
-    /// Resize and reposition a window to match a frame
+    /// Resize and reposition a window to match a frame (frame should be in screen coordinates)
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect) {
         switch managedWindow.backing {
         case .appKit(let window):
-            window.setFrame(frame, display: true, animate: false)
+            // Convert from screen coordinates to Cocoa coordinates for AppKit windows
+            let cocoaFrame = CoordinateConversion.screenToCocoa(screenFrame: frame, screenHeight: screenHeight)
+            window.setFrame(cocoaFrame, display: true, animate: false)
         case .accessibility(let element, _, _):
+            // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
                 _ = setAccessibilityFrame(element: element, frame: frame)
             }
@@ -568,7 +576,7 @@ class WindowController {
         var subroleObject: AnyObject?
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
-            guard subrole == kAXStandardWindowSubrole as String || subrole == kAXDialogSubrole as String else {
+            guard subrole == kAXStandardWindowSubrole as String else {
                 return false
             }
         }
@@ -787,14 +795,16 @@ class WindowController {
                 return
             }
             Logger.debug("External window \(managed.windowId) moved by user")
-            delegate?.windowManualMoveDidEnd(windowId: managed.windowId, frame: managed.actualFrame)
+            let screenFrame = actualFrameInScreenCoordinates(for: managed)
+            delegate?.windowManualMoveDidEnd(windowId: managed.windowId, frame: screenFrame)
 
         case axResizedNotificationName:
             guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
                 return
             }
             Logger.debug("External window \(managed.windowId) resized by user")
-            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, frame: managed.actualFrame)
+            let screenFrame = actualFrameInScreenCoordinates(for: managed)
+            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, frame: screenFrame)
 
         default:
             break
@@ -975,12 +985,74 @@ class WindowController {
         }
 
         Logger.debug("Finished dragging window \(windowId), requesting snap back")
-        delegate?.windowManualMoveDidEnd(windowId: windowId, frame: managed.actualFrame)
+        let screenFrame = actualFrameInScreenCoordinates(for: managed)
+        delegate?.windowManualMoveDidEnd(windowId: windowId, frame: screenFrame)
+    }
+
+    /// Get the actual frame of a window in screen coordinates
+    func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow) -> CGRect {
+        switch managedWindow.backing {
+        case .appKit(let window):
+            // Convert from Cocoa to screen coordinates
+            let cocoaFrame = window.frame
+            return CoordinateConversion.cocoaToScreen(cocoaFrame: cocoaFrame, screenHeight: screenHeight)
+        case .accessibility(let element, _, _):
+            // Accessibility API already returns screen coordinates
+            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+                return .zero
+            }
+            return CGRect(origin: position, size: size)
+        }
     }
 
     /// Get all managed windows
     var allWindows: [ManagedWindow] {
         return Array(managedWindows.values)
+    }
+}
+
+// Helper methods for ManagedWindow to access coordinate conversion
+extension ManagedWindow {
+    /// Helper methods to copy AX values - made internal for use by WindowController
+    static func copyCGPointValue(element: AXUIElement, attribute: CFString) -> CGPoint? {
+        var rawValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        guard status == .success, let rawValue else {
+            return nil
+        }
+        guard CFGetTypeID(rawValue) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        let axValue = unsafeBitCast(rawValue, to: AXValue.self)
+
+        var point = CGPoint.zero
+        guard AXValueGetType(axValue) == AXValueType(rawValue: kAXValueCGPointType),
+              AXValueGetValue(axValue, AXValueType(rawValue: kAXValueCGPointType)!, &point) else {
+            return nil
+        }
+        return point
+    }
+
+    static func copyCGSizeValue(element: AXUIElement, attribute: CFString) -> CGSize? {
+        var rawValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        guard status == .success, let rawValue else {
+            return nil
+        }
+        guard CFGetTypeID(rawValue) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        let axValue = unsafeBitCast(rawValue, to: AXValue.self)
+
+        var size = CGSize.zero
+        guard AXValueGetType(axValue) == AXValueType(rawValue: kAXValueCGSizeType),
+              AXValueGetValue(axValue, AXValueType(rawValue: kAXValueCGSizeType)!, &size) else {
+            return nil
+        }
+        return size
     }
 }
 
@@ -1076,7 +1148,8 @@ extension WindowController {
             guard let zoneIndex = managed.zoneIndex else {
                 return
             }
-            delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: managed.actualFrame)
+            let screenFrame = actualFrameInScreenCoordinates(for: managed)
+            delegate?.placeholderLiveResized(zoneIndex: zoneIndex, to: screenFrame)
         }
     }
 
@@ -1089,14 +1162,16 @@ extension WindowController {
             guard let zoneIndex = managed.zoneIndex else {
                 return
             }
-            delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: managed.actualFrame)
+            let screenFrame = actualFrameInScreenCoordinates(for: managed)
+            delegate?.placeholderLiveResizeDidEnd(zoneIndex: zoneIndex, to: screenFrame)
         } else {
             guard resizingWindowId == windowId else {
                 return
             }
             resizingWindowId = nil
             Logger.debug("Finished resizing window \(windowId), notifying delegate")
-            delegate?.windowManualResizeDidEnd(windowId: windowId, frame: managed.actualFrame)
+            let screenFrame = actualFrameInScreenCoordinates(for: managed)
+            delegate?.windowManualResizeDidEnd(windowId: windowId, frame: screenFrame)
         }
     }
 

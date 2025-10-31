@@ -28,18 +28,34 @@ class AppController: NSObject, WindowControllerDelegate {
     private var pendingSyncExcludedZones: Set<Int> = []
     private var liveResizingZoneIndex: Int?
     private var lastActiveApplicationPid: pid_t?
+    private let screenHeight: CGFloat
 
     private override init() {
         // Get the main screen frame
         guard let screen = NSScreen.main else {
             fatalError("No main screen found")
         }
-        let screenFrame = screen.visibleFrame
+
+        // Store the full screen height for coordinate conversions
+        // Cocoa coordinates: y:0 at bottom-left, y increases upward
+        // Screen coordinates: y:0 at top-left, y increases downward
+        let fullScreenHeight = screen.frame.height
+        self.screenHeight = fullScreenHeight
+
+        // Convert visible frame from Cocoa to screen coordinates for zone layout
+        let cocoaVisibleFrame = screen.visibleFrame
+        let screenFrame = CoordinateConversion.cocoaToScreen(
+            cocoaFrame: cocoaVisibleFrame,
+            screenHeight: fullScreenHeight
+        )
 
         let configuration = Configuration.load()
         self.configuration = configuration
         self.zoneController = ZoneController(screenFrame: screenFrame)
-        self.windowController = WindowController(ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers)
+        self.windowController = WindowController(
+            ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
+            screenHeight: fullScreenHeight
+        )
 
         super.init()
 
@@ -48,7 +64,7 @@ class AppController: NSObject, WindowControllerDelegate {
         setupKeyboardShortcuts()
         setupApplicationMonitoring()
 
-        Logger.debug("AppController initialized")
+        Logger.debug("AppController initialized with screen coordinates")
 
         // Create initial placeholder for the first empty zone
         syncWindowsToZones()
@@ -826,10 +842,12 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
+        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed)
+
         print("\nWindow \(windowId):")
         print("  Type: \(type)")
         print("  Zone: \(managed.zoneIndex?.description ?? "none (minimized)")")
-        print("  Actual frame: \(managed.actualFrame)")
+        print("  Actual frame: \(actualFrame)")
 
         if let zoneIndex = managed.zoneIndex,
            let zone = zoneController.zone(at: zoneIndex) {
@@ -852,7 +870,8 @@ class AppController: NSObject, WindowControllerDelegate {
                     type = "external"
                 }
             }
-            print("  Window \(window.windowId) (\(type)): \(window.actualFrame)")
+            let actualFrame = windowController.actualFrameInScreenCoordinates(for: window)
+            print("  Window \(window.windowId) (\(type)): \(actualFrame)")
         }
         print("")
     }
@@ -1039,16 +1058,18 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
+        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed)
+
         var result: [String: Any] = [
             "window_id": windowId,
             "type": type,
             "is_placeholder": managed.isPlaceholder,
             "zone_index": managed.zoneIndex as Any,
             "actual_frame": [
-                "x": managed.actualFrame.origin.x,
-                "y": managed.actualFrame.origin.y,
-                "width": managed.actualFrame.width,
-                "height": managed.actualFrame.height
+                "x": actualFrame.origin.x,
+                "y": actualFrame.origin.y,
+                "width": actualFrame.width,
+                "height": actualFrame.height
             ]
         ]
 
@@ -1079,15 +1100,17 @@ class AppController: NSObject, WindowControllerDelegate {
                 }
             }
 
+            let actualFrame = windowController.actualFrameInScreenCoordinates(for: window)
+
             return [
                 "window_id": window.windowId,
                 "type": type,
                 "is_placeholder": window.isPlaceholder,
                 "frame": [
-                    "x": window.actualFrame.origin.x,
-                    "y": window.actualFrame.origin.y,
-                    "width": window.actualFrame.width,
-                    "height": window.actualFrame.height
+                    "x": actualFrame.origin.x,
+                    "y": actualFrame.origin.y,
+                    "width": actualFrame.width,
+                    "height": actualFrame.height
                 ]
             ]
         }
