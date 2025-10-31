@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Carbon
+import ApplicationServices
 
 /// Main controller that coordinates all components
 private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
@@ -112,7 +113,7 @@ class AppController: NSObject, WindowControllerDelegate {
         self.screenContexts = initialContexts
         self.screenOrder = order
         self.windowController.delegate = self
-        minimizeExistingApplicationWindows()
+        prepareExistingApplicationWindows()
         setupKeyboardShortcuts()
         setupApplicationMonitoring()
 
@@ -975,8 +976,56 @@ class AppController: NSObject, WindowControllerDelegate {
 
     // MARK: - Startup helpers
 
-    private func minimizeExistingApplicationWindows() {
-        // No-op: leave existing application windows untouched for faster startup.
+    private func prepareExistingApplicationWindows() {
+        var windowsByScreen: [CGDirectDisplayID: [ManagedWindow]] = [:]
+        let visibleBundleIds = bundleIdsWithVisibleWindows()
+
+        for application in NSWorkspace.shared.runningApplications {
+            guard shouldManage(application: application, visibleBundleIds: visibleBundleIds) else {
+                continue
+            }
+
+            let windows = windowController.captureWindows(for: application, notifyDelegate: false, allowExisting: false)
+            for window in windows {
+                let resolvedScreenId = detectScreenId(for: window) ?? primaryScreenId
+                guard screenContexts[resolvedScreenId] != nil else {
+                    continue
+                }
+                windowsByScreen[resolvedScreenId, default: []].append(window)
+            }
+        }
+
+        for (screenId, windows) in windowsByScreen {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+
+            let desiredZoneCount = max(1, min(windows.count, 3))
+            let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
+
+            for removedId in removedWindowIds {
+                if let removedWindow = windowController.window(withId: removedId) {
+                    clearManagedWindowZone(removedWindow)
+                    windowController.minimizeWindow(removedWindow)
+                }
+            }
+
+            let managedCandidates = windows.prefix(desiredZoneCount)
+            let excessWindows = windows.dropFirst(desiredZoneCount)
+
+            for window in managedCandidates {
+                placeNewWindow(window, preferredScreenId: screenId)
+            }
+
+            for window in excessWindows {
+                clearManagedWindowZone(window)
+                windowController.minimizeWindow(window)
+            }
+        }
+
+        for (screenId, context) in screenContexts where windowsByScreen[screenId] == nil {
+            context.zoneController.setZoneCount(to: 1)
+        }
     }
 
     private enum HotKeyID: UInt32 {
@@ -1130,18 +1179,58 @@ class AppController: NSObject, WindowControllerDelegate {
         }
     }
 
-    private func shouldManage(application: NSRunningApplication) -> Bool {
+    private func shouldManage(application: NSRunningApplication, visibleBundleIds: Set<String>? = nil) -> Bool {
         guard !application.isTerminated else {
             return false
         }
         if application.processIdentifier == getpid() {
             return false
         }
-        if let bundleId = application.bundleIdentifier,
-           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+        guard let bundleId = application.bundleIdentifier else {
+            return false
+        }
+        if let visibleBundleIds = visibleBundleIds,
+           !visibleBundleIds.contains(bundleId) {
+            return false
+        }
+        if configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            return false
+        }
+        if application.activationPolicy != .regular {
+            return false
+        }
+        if isXpcOrHelperProcess(application) {
             return false
         }
         return true
+    }
+
+    private func bundleIdsWithVisibleWindows() -> Set<String> {
+        guard let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        var bundleIds: Set<String> = []
+        for info in windowInfoList {
+            guard let ownerPid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let app = NSRunningApplication(processIdentifier: ownerPid),
+                  let bundleId = app.bundleIdentifier else {
+                continue
+            }
+            bundleIds.insert(bundleId)
+        }
+        return bundleIds
+    }
+
+    private func isXpcOrHelperProcess(_ application: NSRunningApplication) -> Bool {
+        guard let url = application.bundleURL else {
+            return false
+        }
+
+        let path = url.path
+        return path.hasSuffix(".xpc") ||
+            path.contains("/Contents/XPCServices/") ||
+            path.contains(".xpc/")
     }
 
     @discardableResult

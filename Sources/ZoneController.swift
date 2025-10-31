@@ -11,18 +11,18 @@ class ZoneController {
     private var layout = ZoneLayout()
     private let screenFrame: CGRect
 
-    init(screenFrame: CGRect) {
+    init(screenFrame: CGRect, initialZoneCount: Int = 1) {
         self.screenFrame = screenFrame
-        // Start with 1 empty zone
-        initializeZones(count: 1)
+        initializeZones(count: initialZoneCount)
     }
 
     private func initializeZones(count: Int) {
-        let frames = layout.frames(for: count, screenFrame: screenFrame)
+        let zoneCount = clampedZoneCount(count)
+        let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
         zones = frames.enumerated().map { index, frame in
             Zone(index: index + 1, frame: frame)
         }
-        Logger.debug("Initialized \(count) zone(s)")
+        Logger.debug("Initialized \(zoneCount) zone(s)")
     }
 
     /// Get all zones
@@ -72,6 +72,34 @@ class ZoneController {
 
         Logger.debug("Removed zone \(index), now have \(newCount) zone(s)")
         return RemovalResult(removedWindowId: removedWindowId)
+    }
+
+    /// Force the number of zones to the specified count (clamped to 1...3).
+    /// - Returns: Window IDs removed due to a reduction in zone count.
+    @discardableResult
+    func setZoneCount(to desiredCount: Int) -> [Int] {
+        let clampedCount = clampedZoneCount(desiredCount)
+        guard clampedCount != zones.count else {
+            return []
+        }
+
+        let sortedZones = zones.sorted { $0.index < $1.index }
+        var assignments: [Int?]
+        var removedWindowIds: [Int] = []
+
+        if clampedCount < sortedZones.count {
+            assignments = sortedZones.prefix(clampedCount).map { $0.windowId }
+            removedWindowIds = sortedZones.dropFirst(clampedCount).compactMap { $0.windowId }
+        } else {
+            assignments = sortedZones.map { $0.windowId }
+            if clampedCount > assignments.count {
+                assignments.append(contentsOf: Array(repeating: nil, count: clampedCount - assignments.count))
+            }
+        }
+
+        recomputeLayout(zoneCount: clampedCount, preservingAssignments: assignments)
+        Logger.debug("Adjusted zone count to \(clampedCount)")
+        return removedWindowIds
     }
 
     /// Assign a window to a zone
@@ -184,5 +212,9 @@ class ZoneController {
         standardized.size.height = max(0, maxY - standardized.origin.y)
 
         return standardized
+    }
+
+    private func clampedZoneCount(_ count: Int) -> Int {
+        return max(1, min(3, count))
     }
 }

@@ -336,8 +336,6 @@ class WindowController {
         let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
         accessibilityApplications[pid] = appElement
 
-        _ = ensureObserver(for: pid, appElement: appElement)
-
         var windowsObject: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
         guard status == .success, let windowsObject else {
@@ -346,6 +344,8 @@ class WindowController {
             }
             return []
         }
+
+        _ = ensureObserver(for: pid, appElement: appElement)
 
         var captured: [ManagedWindow] = []
 
