@@ -110,6 +110,10 @@ For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y>
 Resizing the window should resize the zone to the best of our ability. Unlike for the placeholder window, we don't want a "live update".
 Also if the window is moved to another location and released, it should "snap" back to its proper location in its zone.
 
+### Dragging windows between zones
+
+When the user drags a managed window, LatticeTopology suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the dragged window. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
+
 ## Conditions for which windows are managed
 
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
