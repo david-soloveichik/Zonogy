@@ -551,7 +551,7 @@ class WindowController {
     private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
         programmaticUpdateWindowIds.insert(windowId)
         block()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.programmaticUpdateWindowIds.remove(windowId)
         }
     }

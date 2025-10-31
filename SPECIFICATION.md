@@ -59,6 +59,7 @@ If a new window is created by an application or an existing window is unminimize
 
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
 Important: When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should _not_ keep on trying to resize them in an infinite loop.
+After any programmatic move/resize, suppress handling of that window's Accessibility move/resize notifications for 0.5 seconds to avoid feedback loops during zone updates.
 
 ### Zone visual representation
 
