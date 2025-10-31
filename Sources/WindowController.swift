@@ -835,11 +835,12 @@ class WindowController {
                 return
             }
             Logger.debug("External window \(managed.windowId) moved by user")
-            if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
-                delegate?.windowManualMoveDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
-            } else {
-                delegate?.windowManualMoveDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
+            let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+            if currentDraggingWindowId != managed.windowId {
+                currentDraggingWindowId = managed.windowId
+                delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: accessibilityFrame)
             }
+            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
 
         case axResizedNotificationName:
             guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
@@ -1031,12 +1032,9 @@ class WindowController {
             return
         }
 
-        Logger.debug("Finished dragging window \(windowId), requesting snap back")
-        if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
-            delegate?.windowManualMoveDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: screenFrame)
-        } else {
-            delegate?.windowManualMoveDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: .zero)
-        }
+        Logger.debug("Finished dragging window \(windowId)")
+        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+        delegate?.windowManualMoveDidEnd(windowId: windowId, finalFrame: accessibilityFrame)
     }
 
     /// Get the actual frame of a window in screen-local coordinates
@@ -1062,6 +1060,24 @@ class WindowController {
             return nil
         }
         return actualFrameInScreenCoordinates(for: managedWindow, on: descriptor)
+    }
+
+    /// Get the actual frame expressed in accessibility coordinates (origin at primary display top-left).
+    func actualFrameInAccessibilityCoordinates(for managedWindow: ManagedWindow) -> CGRect? {
+        switch managedWindow.backing {
+        case .appKit(let window):
+            let cocoaFrame = window.frame
+            return CoordinateConversion.cocoaToAccessibility(
+                cocoaFrame: cocoaFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
+        case .accessibility(let element, _, _):
+            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+                return nil
+            }
+            return CGRect(origin: position, size: size)
+        }
     }
 
     /// Get all managed windows
@@ -1126,7 +1142,9 @@ protocol WindowControllerDelegate: AnyObject {
     func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
     func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
-    func windowManualMoveDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    func windowManualMoveDidBegin(windowId: Int, frame: CGRect)
+    func windowManualMoveDidUpdate(windowId: Int, frame: CGRect)
+    func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect)
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
 }
@@ -1247,12 +1265,16 @@ extension WindowController {
 
         currentDraggingWindowId = windowId
         Logger.debug("User began dragging window \(windowId)")
+        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+        delegate?.windowManualMoveDidBegin(windowId: windowId, frame: accessibilityFrame)
     }
 
     func windowDidMove(windowId: Int) {
-        guard managedWindows[windowId] != nil else {
+        guard currentDraggingWindowId == windowId,
+              let managed = managedWindows[windowId],
+              let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) else {
             return
         }
-        // Drag completion handling occurs on mouse-up.
+        delegate?.windowManualMoveDidUpdate(windowId: windowId, frame: accessibilityFrame)
     }
 }

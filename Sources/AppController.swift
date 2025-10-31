@@ -18,9 +18,19 @@ class AppController: NSObject, WindowControllerDelegate {
         let zoneController: ZoneController
     }
 
-    private struct ZoneKey: Hashable {
-        let screenId: CGDirectDisplayID
-        let index: Int
+    private struct DragSession {
+        let windowId: Int
+        let originZoneKey: ZoneKey?
+        let originScreenId: CGDirectDisplayID?
+        let originFrame: CGRect
+        var latestFrame: CGRect
+        var hoveredZoneKey: ZoneKey?
+        let beganAt: Date
+    }
+
+    private struct DropResult {
+        let displacedWindow: ManagedWindow?
+        let preferredScreenId: CGDirectDisplayID?
     }
 
     static let shared = AppController()
@@ -42,6 +52,22 @@ class AppController: NSObject, WindowControllerDelegate {
     private var liveResizingZoneKey: ZoneKey?
     private var lastActiveApplicationPid: pid_t?
     private var placeholderIdToZoneKey: [Int: ZoneKey] = [:]
+    private var dragSession: DragSession?
+    private let dragOverlayManager = DragOverlayManager()
+
+    private var dragExcludedZones: Set<ZoneKey> {
+        guard let dragSession else {
+            return []
+        }
+        var excluded: Set<ZoneKey> = []
+        if let origin = dragSession.originZoneKey {
+            excluded.insert(origin)
+        }
+        if let hovered = dragSession.hoveredZoneKey {
+            excluded.insert(hovered)
+        }
+        return excluded
+    }
 
     private override init() {
         let configuration = Configuration.load()
@@ -333,13 +359,14 @@ class AppController: NSObject, WindowControllerDelegate {
 
     /// Sync all windows to their zones, creating placeholders as needed
     private func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = []) {
+        let effectiveExcludedZones = excludedZones.union(dragExcludedZones)
         if isSyncingWindows {
             pendingSync = true
-            pendingSyncExcludedZones.formUnion(excludedZones)
+            pendingSyncExcludedZones.formUnion(effectiveExcludedZones)
             return
         }
         isSyncingWindows = true
-        let currentExcludedZones = excludedZones
+        let currentExcludedZones = effectiveExcludedZones
         defer {
             isSyncingWindows = false
             if pendingSync {
@@ -426,13 +453,22 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
+        var idlePlaceholders: [ManagedWindow] = []
+
         for placeholder in placeholdersToClose.values {
-            windowController.closeWindow(placeholder)
+            placeholder.appKitWindow?.orderOut(nil)
+            clearManagedWindowZone(placeholder)
             forgetPlaceholder(windowId: placeholder.windowId)
+            idlePlaceholders.append(placeholder)
         }
         for placeholder in placeholdersWithoutKey {
-            windowController.closeWindow(placeholder)
-            forgetPlaceholder(windowId: placeholder.windowId)
+            placeholder.appKitWindow?.orderOut(nil)
+            clearManagedWindowZone(placeholder)
+            idlePlaceholders.append(placeholder)
+        }
+
+        if !idlePlaceholders.isEmpty {
+            Logger.debug("Parking \(idlePlaceholders.count) placeholder window(s) for reuse")
         }
 
         for window in windowController.allWindows where !window.isPlaceholder {
@@ -447,6 +483,169 @@ class AppController: NSObject, WindowControllerDelegate {
         let insetX = min(zoneMargin, zone.frame.width / 2)
         let insetY = min(zoneMargin, zone.frame.height / 2)
         return zone.frame.insetBy(dx: insetX, dy: insetY)
+    }
+
+    private func zoneAccessibilityFrame(_ zone: Zone, descriptor: ScreenDescriptor) -> CGRect {
+        descriptor.screenToAccessibility(zone.frame)
+    }
+
+    private func zoneOverlayDescriptors() -> [ZoneOverlayDescriptor] {
+        var descriptors: [ZoneOverlayDescriptor] = []
+        for (screenId, context) in screenContexts {
+            let descriptor = context.descriptor
+            for zone in context.zoneController.allZones {
+                let cocoaFrame = descriptor.screenToCocoa(zone.frame)
+                descriptors.append(
+                    ZoneOverlayDescriptor(
+                        key: ZoneKey(screenId: screenId, index: zone.index),
+                        cocoaFrame: cocoaFrame,
+                        isEmpty: zone.isEmpty
+                    )
+                )
+            }
+        }
+        return descriptors
+    }
+
+    private func screenOrderIndex(for screenId: CGDirectDisplayID) -> Int {
+        screenOrder.firstIndex(of: screenId) ?? Int.max
+    }
+
+    private func prefersCandidate(_ candidate: ZoneKey, over current: ZoneKey?) -> Bool {
+        guard let current else {
+            return true
+        }
+
+        if candidate.screenId == current.screenId {
+            return candidate.index < current.index
+        }
+
+        return screenOrderIndex(for: candidate.screenId) < screenOrderIndex(for: current.screenId)
+    }
+
+    private func resolveDropTarget(for accessibilityFrame: CGRect) -> ZoneKey? {
+        let normalizedFrame = accessibilityFrame.standardized
+        let center = CGPoint(x: normalizedFrame.midX, y: normalizedFrame.midY)
+
+        var bestKey: ZoneKey?
+        var bestScore: CGFloat = 0
+        var bestIntersection: CGFloat = 0
+
+        for (screenId, context) in screenContexts {
+            let descriptor = context.descriptor
+            for zone in context.zoneController.allZones {
+                let accessibilityZone = zoneAccessibilityFrame(zone, descriptor: descriptor)
+                let intersection = normalizedFrame.intersection(accessibilityZone)
+                let intersectionArea: CGFloat
+                if intersection.isNull {
+                    intersectionArea = 0
+                } else {
+                    intersectionArea = intersection.width * intersection.height
+                }
+
+                let zoneArea = accessibilityZone.width * accessibilityZone.height
+                let containsCenter = accessibilityZone.contains(center)
+                let score = intersectionArea + (containsCenter ? zoneArea : 0)
+
+                guard score > 0 else {
+                    continue
+                }
+
+                let candidateKey = ZoneKey(screenId: screenId, index: zone.index)
+                if score > bestScore ||
+                    (score == bestScore && (intersectionArea > bestIntersection ||
+                        (intersectionArea == bestIntersection && prefersCandidate(candidateKey, over: bestKey)))) {
+                    bestScore = score
+                    bestIntersection = intersectionArea
+                    bestKey = candidateKey
+                }
+            }
+        }
+
+        return bestKey
+    }
+
+    private func recordDragUpdate(windowId: Int, frame: CGRect) {
+        guard var session = dragSession, session.windowId == windowId else {
+            return
+        }
+        session.latestFrame = frame
+        let targetKey = resolveDropTarget(for: frame)
+        session.hoveredZoneKey = targetKey
+        dragSession = session
+        dragOverlayManager.updateHighlight(to: targetKey)
+    }
+
+    private func handleDropCancellation(session: DragSession) {
+        Logger.debug("Drag cancelled for window \(session.windowId); reverting to original assignment if needed")
+    }
+
+    private func performDrop(session: DragSession, targetKey: ZoneKey) -> DropResult? {
+        guard let managed = windowController.window(withId: session.windowId) else {
+            return nil
+        }
+
+        guard let targetContext = screenContexts[targetKey.screenId],
+              let targetZone = targetContext.zoneController.zone(at: targetKey.index) else {
+            return nil
+        }
+
+        if targetZone.windowId == session.windowId {
+            Logger.debug("Window \(session.windowId) already assigned to target zone \(targetKey.index); no swap needed")
+            setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
+            return DropResult(displacedWindow: nil, preferredScreenId: nil)
+        }
+
+        let sourceKey = session.originZoneKey
+
+        if let sourceKey,
+           sourceKey == targetKey {
+            Logger.debug("Window \(session.windowId) dropped back into its original zone \(targetKey.index)")
+            return DropResult(displacedWindow: nil, preferredScreenId: nil)
+        }
+
+        if let sourceKey,
+           let sourceContext = screenContexts[sourceKey.screenId] {
+            sourceContext.zoneController.removeWindow(windowId: session.windowId)
+        }
+
+        var displacedWindow: ManagedWindow?
+        if let displacedWindowId = targetZone.windowId,
+           displacedWindowId != session.windowId,
+           let occupant = windowController.window(withId: displacedWindowId) {
+            targetContext.zoneController.removeWindow(windowId: displacedWindowId)
+            displacedWindow = occupant
+        }
+
+        targetContext.zoneController.assignWindow(windowId: session.windowId, toZoneIndex: targetKey.index)
+        setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
+        Logger.debug("Assigned window \(session.windowId) to zone \(targetKey.index) on display \(targetKey.screenId)")
+
+        if let displaced = displacedWindow,
+           let sourceKey,
+           let sourceContext = screenContexts[sourceKey.screenId] {
+            sourceContext.zoneController.assignWindow(windowId: displaced.windowId, toZoneIndex: sourceKey.index)
+            setManagedWindow(displaced, screenId: sourceKey.screenId, zoneIndex: sourceKey.index)
+            if displaced.isPlaceholder {
+                recordPlaceholder(displaced, key: sourceKey)
+            }
+            Logger.debug("Swapped displaced window \(displaced.windowId) back into original zone \(sourceKey.index)")
+            return DropResult(displacedWindow: nil, preferredScreenId: nil)
+        }
+
+        if let displaced = displacedWindow {
+            if displaced.isPlaceholder {
+                Logger.debug("Closing displaced placeholder \(displaced.windowId) after drop")
+                windowController.closeWindow(displaced)
+                forgetPlaceholder(windowId: displaced.windowId)
+                return DropResult(displacedWindow: nil, preferredScreenId: nil)
+            }
+            clearManagedWindowZone(displaced)
+            Logger.debug("Window \(displaced.windowId) displaced from zone \(targetKey.index); will reassign later")
+            return DropResult(displacedWindow: displaced, preferredScreenId: targetKey.screenId)
+        }
+
+        return DropResult(displacedWindow: nil, preferredScreenId: nil)
     }
 
     /// Convert a content frame (placeholder or occupant window) back into the zone frame.
@@ -614,12 +813,20 @@ class AppController: NSObject, WindowControllerDelegate {
         if let managed = windowController.window(withId: windowId), managed.isPlaceholder {
             forgetPlaceholder(windowId: windowId)
         }
+        if dragSession?.windowId == windowId {
+            dragOverlayManager.tearDown()
+            dragSession = nil
+        }
         removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
     }
 
     func windowDidMiniaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did miniaturize")
+        if dragSession?.windowId == windowId {
+            dragOverlayManager.tearDown()
+            dragSession = nil
+        }
         removeWindowFromAllZones(windowId: windowId)
         syncWindowsToZones()
     }
@@ -671,27 +878,68 @@ class AppController: NSObject, WindowControllerDelegate {
         syncWindowsToZones()
     }
 
-    func windowManualMoveDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
-        guard let screenId,
-              let context = screenContexts[screenId],
-              let managed = windowController.window(withId: windowId),
-              let zoneIndex = managed.zoneIndex,
-              let zone = context.zoneController.zone(at: zoneIndex),
-              let descriptor = descriptor(for: screenId) else {
-            Logger.debug("Move completed for window \(windowId) with no zone to snap to")
+    func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
+        guard let managed = windowController.window(withId: windowId), !managed.isPlaceholder else {
             return
         }
 
-        let targetFrame = frameWithMargin(for: zone)
-        let needsSnap = abs(targetFrame.origin.x - frame.origin.x) > 0.5 ||
-            abs(targetFrame.origin.y - frame.origin.y) > 0.5 ||
-            abs(targetFrame.size.width - frame.size.width) > 0.5 ||
-            abs(targetFrame.size.height - frame.size.height) > 0.5
-
-        if needsSnap {
-            Logger.debug("Snapping window \(windowId) back to zone \(zoneIndex)")
-            windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+        let originZoneKey: ZoneKey?
+        if let screenId = managed.screenDisplayId, let zoneIndex = managed.zoneIndex {
+            originZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
+        } else {
+            originZoneKey = nil
         }
+
+        let originScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        dragSession = DragSession(
+            windowId: windowId,
+            originZoneKey: originZoneKey,
+            originScreenId: originScreenId,
+            originFrame: frame,
+            latestFrame: frame,
+            hoveredZoneKey: nil,
+            beganAt: Date()
+        )
+        Logger.debug("Drag session began for window \(windowId)")
+        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        recordDragUpdate(windowId: windowId, frame: frame)
+    }
+
+    func windowManualMoveDidUpdate(windowId: Int, frame: CGRect) {
+        recordDragUpdate(windowId: windowId, frame: frame)
+    }
+
+    func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect) {
+        recordDragUpdate(windowId: windowId, frame: finalFrame)
+
+        guard let session = dragSession, session.windowId == windowId else {
+            dragOverlayManager.tearDown()
+            syncWindowsToZones()
+            return
+        }
+
+        dragOverlayManager.tearDown()
+
+        var displacedWindow: ManagedWindow?
+        var displacedPreferredScreen: CGDirectDisplayID?
+
+        if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame) {
+            if let result = performDrop(session: session, targetKey: targetKey) {
+                displacedWindow = result.displacedWindow
+                displacedPreferredScreen = result.preferredScreenId
+            }
+        } else {
+            handleDropCancellation(session: session)
+        }
+
+        dragSession = nil
+
+        if let displacedWindow {
+            let preferredScreen = displacedPreferredScreen ?? session.originScreenId
+            placeNewWindow(displacedWindow, preferredScreenId: preferredScreen)
+        }
+
+        syncWindowsToZones()
     }
 
     func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {
