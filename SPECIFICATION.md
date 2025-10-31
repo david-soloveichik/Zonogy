@@ -67,7 +67,7 @@ If a zone contains a window, then that window simply "represents" the zone and t
 
 Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (ie minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
 
-Both normal windows and placeholder windows should have a margin of 5 pixels from the side of the zone for a nicer visual effect.
+Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
 
 **Important**: All frames are in screen coordinates (see the "CRITICAL: Coordinate System" section above). In the 3-zone layout, zone 2 is at the top of the right column (y:0) and zone 3 is below it (starting at y:screenHeight/2).
 
@@ -104,7 +104,7 @@ The resize affordances should only allow motions that can actually change the zo
 
 While the user is dragging an edge, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
-For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before the 5px margin is applied). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
 
 #### If a zone contains a window
 

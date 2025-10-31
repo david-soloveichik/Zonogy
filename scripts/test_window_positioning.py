@@ -5,7 +5,8 @@ Automated regression script for LatticeTopology window positioning.
 The script exercises the window manager through its Unix domain socket while
 observing actual AppKit window geometry via ``winmanmon``. It launches
 TextEdit, captures its windows into zones, adds more zones, and verifies that
-resulting frames respect the spec-mandated 5px inset.
+resulting frames respect the spec-mandated spacing (8px at outer edges and
+8px combined between adjacent zones).
 
 Usage:
     python3 scripts/test_window_positioning.py

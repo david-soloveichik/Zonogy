@@ -129,7 +129,7 @@ Remove a zone by index.
 ```
 
 ### resize-zone
-Resize an empty zone by providing a new frame. Coordinates are in screen space (before the 5px margin is applied). The target zone must currently be empty; otherwise, the command fails.
+Resize an empty zone by providing a new frame. Coordinates are in screen space (before per-edge margins are applied—8px at the screen edges and 4px per zone along shared boundaries). The target zone must currently be empty; otherwise, the command fails.
 
 **Request:**
 ```json

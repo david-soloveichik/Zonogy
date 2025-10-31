@@ -34,6 +34,13 @@ class AppController: NSObject, WindowControllerDelegate {
         let preferredScreenId: CGDirectDisplayID?
     }
 
+    private struct ZoneEdgeMargins {
+        var top: CGFloat
+        var left: CGFloat
+        var bottom: CGFloat
+        var right: CGFloat
+    }
+
     static let shared = AppController()
 
     private let windowController: WindowController
@@ -46,7 +53,8 @@ class AppController: NSObject, WindowControllerDelegate {
     private var workspaceObservers: [NSObjectProtocol] = []
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
-    private let zoneMargin: CGFloat = 5
+    private let zoneMargin: CGFloat = 8
+    private let edgeAlignmentTolerance: CGFloat = 0.5
     private var isSyncingWindows = false
     private var pendingSync = false
     private var pendingSyncExcludedZones: Set<ZoneKey> = []
@@ -349,10 +357,13 @@ class AppController: NSObject, WindowControllerDelegate {
             }
         }
 
-        zoneController(for: screenId)?.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
+        guard let controller = zoneController(for: screenId) else {
+            return
+        }
+        controller.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
-        let displayFrame = frameWithMargin(for: zone)
+        let displayFrame = frameWithMargin(for: zone, in: controller)
         windowController.showWindow(managed, at: displayFrame, on: descriptor)
     }
 
@@ -415,7 +426,7 @@ class AppController: NSObject, WindowControllerDelegate {
             for zone in controller.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
                 let isExcluded = currentExcludedZones.contains(key)
-                let displayFrame = frameWithMargin(for: zone)
+                let displayFrame = frameWithMargin(for: zone, in: controller)
 
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId) {
@@ -480,10 +491,112 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     /// Compute the frame used to render content inside a zone, honoring the spec margin
-    private func frameWithMargin(for zone: Zone) -> CGRect {
-        let insetX = min(zoneMargin, zone.frame.width / 2)
-        let insetY = min(zoneMargin, zone.frame.height / 2)
-        return zone.frame.insetBy(dx: insetX, dy: insetY)
+    private func frameWithMargin(for zone: Zone, in controller: ZoneController) -> CGRect {
+        let margins = zoneMargins(for: zone, in: controller)
+
+        var left = margins.left
+        var right = margins.right
+        var top = margins.top
+        var bottom = margins.bottom
+
+        var frame = zone.frame.standardized
+
+        let horizontalTotal = left + right
+        if horizontalTotal > frame.width && frame.width > 0 {
+            let scale = frame.width / horizontalTotal
+            left *= scale
+            right *= scale
+        }
+
+        let verticalTotal = top + bottom
+        if verticalTotal > frame.height && frame.height > 0 {
+            let scale = frame.height / verticalTotal
+            top *= scale
+            bottom *= scale
+        }
+
+        frame.origin.x += left
+        frame.origin.y += top
+        frame.size.width = max(0, frame.size.width - (left + right))
+        frame.size.height = max(0, frame.size.height - (top + bottom))
+
+        return frame
+    }
+
+    private func zoneMargins(for zone: Zone, in controller: ZoneController) -> ZoneEdgeMargins {
+        let frame = zone.frame.standardized
+        let bounds = controller.layoutBounds.standardized
+        let neighbors = controller.allZones.filter { $0 !== zone }
+
+        let fullMargin = zoneMargin
+        let sharedMargin = zoneMargin / 2
+        let tolerance = edgeAlignmentTolerance
+
+        func verticalOverlap(with other: CGRect) -> CGFloat {
+            let standardized = other.standardized
+            return min(frame.maxY, standardized.maxY) - max(frame.minY, standardized.minY)
+        }
+
+        func horizontalOverlap(with other: CGRect) -> CGFloat {
+            let standardized = other.standardized
+            return min(frame.maxX, standardized.maxX) - max(frame.minX, standardized.minX)
+        }
+
+        let hasLeftNeighbor = neighbors.contains {
+            abs($0.frame.standardized.maxX - frame.minX) <= tolerance && verticalOverlap(with: $0.frame) > 0
+        }
+        let hasRightNeighbor = neighbors.contains {
+            abs($0.frame.standardized.minX - frame.maxX) <= tolerance && verticalOverlap(with: $0.frame) > 0
+        }
+        let hasTopNeighbor = neighbors.contains {
+            abs($0.frame.standardized.maxY - frame.minY) <= tolerance && horizontalOverlap(with: $0.frame) > 0
+        }
+        let hasBottomNeighbor = neighbors.contains {
+            abs($0.frame.standardized.minY - frame.maxY) <= tolerance && horizontalOverlap(with: $0.frame) > 0
+        }
+
+        let leftMargin: CGFloat
+        if abs(frame.minX - bounds.minX) <= tolerance {
+            leftMargin = fullMargin
+        } else if hasLeftNeighbor {
+            leftMargin = sharedMargin
+        } else {
+            leftMargin = fullMargin
+        }
+
+        let rightMargin: CGFloat
+        if abs(frame.maxX - bounds.maxX) <= tolerance {
+            rightMargin = fullMargin
+        } else if hasRightNeighbor {
+            rightMargin = sharedMargin
+        } else {
+            rightMargin = fullMargin
+        }
+
+        let topMargin: CGFloat
+        if abs(frame.minY - bounds.minY) <= tolerance {
+            topMargin = fullMargin
+        } else if hasTopNeighbor {
+            topMargin = sharedMargin
+        } else {
+            topMargin = fullMargin
+        }
+
+        let bottomMargin: CGFloat
+        if abs(frame.maxY - bounds.maxY) <= tolerance {
+            bottomMargin = fullMargin
+        } else if hasBottomNeighbor {
+            bottomMargin = sharedMargin
+        } else {
+            bottomMargin = fullMargin
+        }
+
+        return ZoneEdgeMargins(
+            top: max(0, topMargin),
+            left: max(0, leftMargin),
+            bottom: max(0, bottomMargin),
+            right: max(0, rightMargin)
+        )
     }
 
     private func zoneAccessibilityFrame(_ zone: Zone, descriptor: ScreenDescriptor) -> CGRect {
@@ -650,8 +763,14 @@ class AppController: NSObject, WindowControllerDelegate {
     }
 
     /// Convert a content frame (placeholder or occupant window) back into the zone frame.
-    private func zoneFrame(fromContentFrame frame: CGRect, in context: ScreenContext) -> CGRect {
-        var zoneFrame = frame.insetBy(dx: -zoneMargin, dy: -zoneMargin)
+    private func zoneFrame(fromContentFrame frame: CGRect, for zone: Zone, in context: ScreenContext) -> CGRect {
+        let margins = zoneMargins(for: zone, in: context.zoneController)
+
+        var zoneFrame = frame.standardized
+        zoneFrame.origin.x -= margins.left
+        zoneFrame.origin.y -= margins.top
+        zoneFrame.size.width += margins.left + margins.right
+        zoneFrame.size.height += margins.top + margins.bottom
         zoneFrame = clamp(frame: zoneFrame, to: context.zoneController.layoutBounds)
         return zoneFrame
     }
@@ -661,7 +780,11 @@ class AppController: NSObject, WindowControllerDelegate {
             return
         }
 
-        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame, in: context)
+        guard let zone = context.zoneController.zone(at: zoneKey.index) else {
+            return
+        }
+
+        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame, for: zone, in: context)
         guard context.zoneController.resizeZone(at: zoneKey.index, to: zoneFrame) else {
             return
         }
@@ -869,7 +992,12 @@ class AppController: NSObject, WindowControllerDelegate {
             return
         }
 
-        let zoneFrame = zoneFrame(fromContentFrame: frame, in: context)
+        guard let zone = context.zoneController.zone(at: zoneIndex) else {
+            Logger.debug("Zone \(zoneIndex) not found during resize for window \(windowId)")
+            return
+        }
+
+        let zoneFrame = zoneFrame(fromContentFrame: frame, for: zone, in: context)
         guard context.zoneController.resizeZone(at: zoneIndex, to: zoneFrame, allowOccupied: true) else {
             Logger.debug("Failed to resize zone \(zoneIndex) from window \(windowId)")
             return
