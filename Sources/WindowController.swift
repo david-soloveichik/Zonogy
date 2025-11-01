@@ -1033,6 +1033,46 @@ class WindowController {
         return removedWindowIds
     }
 
+    /// Remove all accessibility-backed managed windows for a terminated process.
+    /// - Parameter pid: The process identifier whose windows should be discarded.
+    /// - Returns: The window identifiers that were removed.
+    func removeAllWindows(forPid pid: pid_t) -> [Int] {
+        let windowIds = managedWindows.compactMap { entry -> Int? in
+            let (windowId, managed) = entry
+            guard case .accessibility(_, let windowPid, _) = managed.backing,
+                  windowPid == pid else {
+                return nil
+            }
+            return windowId
+        }
+
+        guard !windowIds.isEmpty else {
+            return []
+        }
+
+        for windowId in windowIds {
+            guard let managed = managedWindows[windowId] else {
+                continue
+            }
+
+            Logger.debug("Removing external window \(windowId) for terminated pid \(pid)")
+            removeAccessibilityTracking(for: managed)
+            if let identifier = managed.externalIdentifier {
+                externalWindows.removeValue(forKey: identifier)
+            }
+            managedWindows.removeValue(forKey: windowId)
+            programmaticUpdateWindowIds.remove(windowId)
+            if currentDraggingWindowId == windowId {
+                currentDraggingWindowId = nil
+            }
+            if resizingWindowId == windowId {
+                resizingWindowId = nil
+            }
+        }
+
+        return windowIds
+    }
+
     /// Query the window server for actual window numbers for a given PID.
     /// This is the ground truth source for which windows exist.
     private func getActualWindowNumbersFromWindowServer(forPid pid: pid_t) -> Set<Int> {

@@ -1530,15 +1530,22 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
         Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
 
-        // When an application terminates, prune all its windows immediately
-        let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(application.processIdentifier)
-        if !prunedWindowIds.isEmpty {
-            Logger.debug("Application terminated, pruned \(prunedWindowIds.count) windows")
-            for windowId in prunedWindowIds {
-                removeWindowFromAllZones(windowId: windowId)
-            }
-            syncWindowsToZones()
+        // When an application terminates, remove all of its managed windows immediately
+        let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)
+        if removedWindowIds.isEmpty {
+            Logger.debug("Application terminated, but no managed windows were associated with pid \(application.processIdentifier)")
+            return
         }
+
+        Logger.debug("Application terminated, pruned \(removedWindowIds.count) windows")
+        for windowId in removedWindowIds {
+            if dragSession?.windowId == windowId {
+                dragOverlayManager.tearDown()
+                dragSession = nil
+            }
+            removeWindowFromAllZones(windowId: windowId)
+        }
+        syncWindowsToZones()
     }
 
     private func validateWindowsForApplication(pid: pid_t) {
