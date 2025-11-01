@@ -66,16 +66,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let indicatorManager = ZoneIndicatorManager()
     private var targetedZoneKey: ZoneKey?
 
-    private struct ValidationRetryEntry {
-        var attempts: Int
-        var baseReason: String
-        var bundleId: String?  // Bundle ID to verify process identity
+    private struct ValidationRetry {
+        let pid: pid_t
+        let reason: String
+        let bundleId: String?
+        var attempt: Int = 0
         var workItem: DispatchWorkItem?
+
+        var isActive: Bool {
+            workItem != nil && !workItem!.isCancelled
+        }
     }
 
-    private var validationRetryEntries: [pid_t: ValidationRetryEntry] = [:]
-    private let validationRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
-    private var schedulingRetryForPids: Set<pid_t> = []  // Track PIDs currently being scheduled to prevent races
+    private var validationRetries: [pid_t: ValidationRetry] = [:]
+    private let retryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
 
     private var dragExcludedZones: Set<ZoneKey> {
         guard let dragSession else {
@@ -161,11 +165,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
         workspaceObservers.removeAll()
 
-        for entry in validationRetryEntries.values {
-            entry.workItem?.cancel()
+        for retry in validationRetries.values {
+            retry.workItem?.cancel()
         }
-        validationRetryEntries.removeAll()
-        schedulingRetryForPids.removeAll()
+        validationRetries.removeAll()
 
         for hotKeyRef in hotKeyRefs {
             UnregisterEventHotKey(hotKeyRef)
@@ -680,101 +683,89 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private func cancelValidationRetry(for pid: pid_t) {
-        guard let entry = validationRetryEntries.removeValue(forKey: pid) else {
+        guard let retry = validationRetries.removeValue(forKey: pid) else {
             return
         }
-        entry.workItem?.cancel()
+        retry.workItem?.cancel()
     }
 
     private func scheduleValidationRetry(for pid: pid_t, reason: String) {
-        // Prevent concurrent scheduling for the same PID
-        guard !schedulingRetryForPids.contains(pid) else {
-            Logger.debug("Already scheduling retry for pid \(pid), skipping concurrent call")
-            return
-        }
-
-        schedulingRetryForPids.insert(pid)
-        defer { schedulingRetryForPids.remove(pid) }
-
         guard hasManagedWindows(for: pid) else {
             cancelValidationRetry(for: pid)
             return
         }
 
-        // Get the bundle ID for PID verification (only for new entries)
-        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-
-        var entry: ValidationRetryEntry
-        if let existingEntry = validationRetryEntries[pid] {
-            // If a work item is already scheduled and not cancelled, don't schedule another
-            if existingEntry.workItem != nil && !existingEntry.workItem!.isCancelled {
-                Logger.debug("Validation retry already scheduled for pid \(pid), skipping duplicate schedule")
-                return
+        // Check for existing retry
+        if let existing = validationRetries[pid] {
+            if existing.isActive {
+                // Don't interrupt an active retry unless the reason changed
+                if existing.reason != reason {
+                    Logger.debug("Validation reason changed from '\(existing.reason)' to '\(reason)' for pid \(pid), restarting retry")
+                    cancelValidationRetry(for: pid)
+                    // Fall through to schedule new retry
+                } else {
+                    return // Already have an active retry
+                }
             }
-
-            // Preserve existing entry's bundle ID to maintain process identity tracking
-            entry = existingEntry
-            // Update bundleId only if it wasn't set before
-            if entry.bundleId == nil {
-                entry.bundleId = bundleId
-            }
-        } else {
-            entry = ValidationRetryEntry(
-                attempts: 0,
-                baseReason: reason,
-                bundleId: bundleId,
-                workItem: nil
-            )
         }
 
-        if entry.attempts >= validationRetryDelays.count {
-            Logger.debug("Validation retry for pid \(pid) exhausted after \(entry.attempts) attempts (reason: \(entry.baseReason))")
+        // Create or update retry entry
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        var retry = validationRetries[pid] ?? ValidationRetry(
+            pid: pid,
+            reason: reason,
+            bundleId: bundleId
+        )
+
+        // Check if exhausted
+        if retry.attempt >= retryDelays.count {
+            Logger.debug("Validation retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(retry.reason))")
             cancelValidationRetry(for: pid)
             return
         }
 
-        let delay = validationRetryDelays[entry.attempts]
-        entry.attempts += 1
+        // Schedule the retry
+        let delay = retryDelays[retry.attempt]
+        let nextAttempt = retry.attempt + 1
 
-        entry.workItem?.cancel()
+        Logger.debug("Scheduling retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (reason: \(retry.reason))")
 
-        // Log when scheduling a retry
-        Logger.debug("Scheduling validation retry #\(entry.attempts) for pid \(pid) in \(delay)s (reason: \(entry.baseReason))")
-
-        let baseReason = entry.baseReason
-        let attemptNumber = entry.attempts
-        let expectedBundleId = entry.bundleId
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
 
-            // Verify the PID still belongs to the same application
-            if let expectedBundleId = expectedBundleId {
-                let currentApp = NSRunningApplication(processIdentifier: pid)
-                let currentBundleId = currentApp?.bundleIdentifier
-
-                if currentBundleId != expectedBundleId {
-                    Logger.debug("PID \(pid) has been reused by different app (expected \(expectedBundleId), got \(currentBundleId ?? "nil")), cancelling retry")
-                    self.cancelValidationRetry(for: pid)
-                    return
-                }
+            // Verify PID hasn't been reused
+            if let expectedBundleId = bundleId,
+               let currentBundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+               currentBundleId != expectedBundleId {
+                Logger.debug("PID \(pid) reused (was \(expectedBundleId), now \(currentBundleId)), cancelling")
+                self.cancelValidationRetry(for: pid)
+                return
             }
 
-            Logger.debug("Executing validation retry #\(attemptNumber) for pid \(pid) (reason: \(baseReason))")
-            let pruned = self.validateWindowsForApplication(pid: pid, reason: "retry-\(baseReason)-\(attemptNumber)")
+            Logger.debug("Executing retry #\(nextAttempt) for pid \(pid) (reason: \(retry.reason))")
 
-            // Clear the work item reference only AFTER we're done, right before scheduling next or cancelling
-            self.validationRetryEntries[pid]?.workItem = nil
+            let destroyed = self.validateWindowsForApplication(pid: pid, reason: "retry-\(retry.reason)-\(nextAttempt)")
 
-            if pruned.isEmpty && self.hasManagedWindows(for: pid) {
-                self.scheduleValidationRetry(for: pid, reason: baseReason)
+            // Clear work item and decide next step
+            self.validationRetries[pid]?.workItem = nil
+            self.validationRetries[pid]?.attempt = nextAttempt
+
+            if destroyed.isEmpty && self.hasManagedWindows(for: pid) {
+                self.scheduleValidationRetry(for: pid, reason: retry.reason)
             } else {
+                let message = destroyed.isEmpty
+                    ? "All windows validated successfully"
+                    : "Pruned \(destroyed.count) destroyed window(s)"
+                Logger.debug("Retry complete for pid \(pid): \(message)")
                 self.cancelValidationRetry(for: pid)
             }
         }
 
-        entry.workItem = workItem
-        validationRetryEntries[pid] = entry
+        retry.workItem?.cancel()
+        retry.workItem = workItem
+        retry.attempt = nextAttempt - 1  // Will be incremented to nextAttempt when executed
 
+        validationRetries[pid] = retry
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
@@ -1754,52 +1745,52 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     @discardableResult
     private func validateWindowsForApplication(pid: pid_t, reason: String = "unspecified") -> [Int] {
-        let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(pid)
-        if prunedWindowIds.isEmpty {
-            let existingEntry = validationRetryEntries[pid]
-            let isRetry = reason.hasPrefix("retry")
+        let destroyedWindowIds = windowController.pruneDestroyedWindowsForPid(pid)
 
-            // Check for PID reuse - if the bundle ID doesn't match, clear the stale entry
-            if let existing = existingEntry, let expectedBundleId = existing.bundleId {
-                let currentBundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-                if currentBundleId != expectedBundleId {
-                    Logger.debug("PID \(pid) has been reused (was \(expectedBundleId), now \(currentBundleId ?? "nil")), clearing stale retry entry")
-                    cancelValidationRetry(for: pid)
-                    // Don't continue with validation for a reused PID
-                    return []
-                }
+        // Handle destroyed windows
+        if !destroyedWindowIds.isEmpty {
+            Logger.debug("Validated pid \(pid) (\(reason)): pruned \(destroyedWindowIds.count) destroyed window(s)")
+            cancelValidationRetry(for: pid)  // Success - no more retries needed
+
+            for windowId in destroyedWindowIds {
+                removeWindowFromAllZones(windowId: windowId, reason: "validate-application")
             }
+            syncWindowsToZones()
+            return destroyedWindowIds
+        }
 
-            // If this is a new event type (not a retry) with a different reason than the existing entry,
-            // cancel the existing retry cycle and start fresh
-            if !isRetry, let existing = existingEntry, existing.baseReason != reason {
-                Logger.debug("New validation event '\(reason)' for pid \(pid), cancelling existing '\(existing.baseReason)' retry cycle")
+        // No destroyed windows found
+        let isRetry = reason.hasPrefix("retry")
+
+        // Check PID hasn't been reused (for non-retry calls)
+        if !isRetry, let existing = validationRetries[pid], let expectedBundleId = existing.bundleId {
+            let currentBundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+            if currentBundleId != expectedBundleId {
+                Logger.debug("PID \(pid) reused (was \(expectedBundleId), now \(currentBundleId ?? "nil")), clearing stale entry")
                 cancelValidationRetry(for: pid)
+                return []
             }
+        }
 
-            // Use the current reason as baseReason for new events, or preserve existing baseReason for retries
-            let baseReason = !isRetry ? reason : (existingEntry?.baseReason ?? reason)
-
-            if !isRetry {
-                Logger.debug("Validated windows for pid \(pid) (\(reason)), no destroyed windows detected")
-            }
-            if hasManagedWindows(for: pid) {
-                scheduleValidationRetry(for: pid, reason: baseReason)
+        // Log non-retry validations
+        if !isRetry {
+            let hasWindows = hasManagedWindows(for: pid)
+            if hasWindows {
+                Logger.debug("Validated pid \(pid) (\(reason)): 0 destroyed, windows still managed, scheduling retry")
             } else {
-                cancelValidationRetry(for: pid)
+                Logger.debug("Validated pid \(pid) (\(reason)): no windows to manage")
             }
-            return []
         }
 
-        Logger.debug(
-            "Validated windows for pid \(pid) (\(reason)), pruned \(prunedWindowIds.count) destroyed windows: \(prunedWindowIds)"
-        )
-        cancelValidationRetry(for: pid)
-        for windowId in prunedWindowIds {
-            removeWindowFromAllZones(windowId: windowId, reason: "validate-application")
+        // Schedule retry if needed
+        if hasManagedWindows(for: pid) {
+            let retryReason = isRetry ? validationRetries[pid]?.reason ?? reason : reason
+            scheduleValidationRetry(for: pid, reason: retryReason)
+        } else {
+            cancelValidationRetry(for: pid)
         }
-        syncWindowsToZones()
-        return prunedWindowIds
+
+        return []
     }
 
     private func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
