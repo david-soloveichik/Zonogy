@@ -1363,6 +1363,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 continue
             }
 
+            let sortedWindows = windows.sorted { lhs, rhs in
+                let leftX = screenMinX(for: lhs, descriptor: context.descriptor)
+                let rightX = screenMinX(for: rhs, descriptor: context.descriptor)
+                if leftX == rightX {
+                    return lhs.windowId < rhs.windowId
+                }
+                return leftX < rightX
+            }
+
             let desiredZoneCount = max(1, min(windows.count, 3))
             let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
 
@@ -1373,8 +1382,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 }
             }
 
-            let managedCandidates = windows.prefix(desiredZoneCount)
-            let excessWindows = windows.dropFirst(desiredZoneCount)
+            let managedCandidates = sortedWindows.prefix(desiredZoneCount)
+            let excessWindows = sortedWindows.dropFirst(desiredZoneCount)
 
             for window in managedCandidates {
                 placeNewWindow(window, preferredScreenId: screenId)
@@ -1389,6 +1398,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         for (screenId, context) in screenContexts where windowsByScreen[screenId] == nil {
             context.zoneController.setZoneCount(to: 1)
         }
+    }
+
+    /// Compute the left edge of a window in screen coordinates for ordering.
+    private func screenMinX(for managed: ManagedWindow, descriptor: ScreenDescriptor) -> CGFloat {
+        guard let cocoaFrame = cocoaFrame(for: managed) else {
+            return .greatestFiniteMagnitude
+        }
+        return descriptor.cocoaToScreen(cocoaFrame).minX
     }
 
     private enum HotKeyID: UInt32 {

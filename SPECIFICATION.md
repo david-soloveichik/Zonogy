@@ -56,7 +56,7 @@ Each zone has an index (for example, if there are 3 zones, then the indexes are:
 
 ### Initial startup behavior
 
-When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
+When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
 
 ### Window placement for new windows
 
