@@ -100,6 +100,8 @@ There are two ways to remove a zone:
 - By pressing the blue "x" button on the placeholder window of an empty zone.
 - By pressing a keyboard shortcut Control-Cmd-[minus].
 
+When invoking Control-Cmd-[minus], never remove the zone containing the currently active window. Among the remaining zones, remove one using this priority: (1) prefer empty zones over occupied zones, (2) prefer non-targeted zones over the targeted zone, (3) break any remaining ties by choosing the zone with the highest index.
+
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
@@ -114,7 +116,7 @@ The resize affordances should only allow motions that can actually change the zo
 
 While the user is dragging an edge, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
-For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the target zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
 
 #### If a zone contains a window
 
@@ -184,7 +186,7 @@ Helpful optional commands (for faster debugging):
 
 - `list`: print the current zones, their frames, and which window (if any) they hold.
 - `layout`: force a recomputation of zone frames (useful after changing screen size in tests).
-- `window-info <window_id>`: display the target zone index, the zone’s desired frame, and the actual on-screen frame reported by AppKit so we can compare intended versus real geometry.
+- `window-info <window_id>`: display the zone index, the zone’s desired frame, and the actual on-screen frame reported by AppKit so we can compare intended versus real geometry.
 - `frames`: dump a quick summary of every managed window’s actual frame (including minimized placeholders) to make tiling issues easy to spot.
 - `resize-zone <index> <x> <y> <width> <height>`: resize an empty zone using screen coordinates.
 - `help`: describe available commands.

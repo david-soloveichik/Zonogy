@@ -1732,10 +1732,89 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 self.addZone()
             case .removeZone:
                 let screenId = self.activeScreenId()
-                guard let highestIndex = self.zoneController(for: screenId)?.highestIndexZone()?.index else { return }
-                _ = self.performRemoveZone(at: highestIndex, on: screenId, announce: true)
+                guard let removalIndex = self.zoneIndexForShortcutRemoval(on: screenId) else { return }
+                _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
             }
         }
+    }
+
+    private func zoneIndexForShortcutRemoval(on screenId: CGDirectDisplayID) -> Int? {
+        guard let context = screenContexts[screenId] else {
+            return nil
+        }
+
+        let zones = context.zoneController.allZones
+        guard zones.count > 1 else {
+            return nil
+        }
+
+        let activeIndices = activeZoneIndices(on: screenId)
+
+        let targetedIndex: Int?
+        if let targetedKey = targetedZoneKey, targetedKey.screenId == screenId {
+            targetedIndex = targetedKey.index
+        } else {
+            targetedIndex = nil
+        }
+
+        let candidates = zones.filter { zone in
+            return !activeIndices.contains(zone.index)
+        }
+
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        let selectedZone = candidates.sorted { lhs, rhs in
+            removalPriorityKey(for: lhs, targetedIndex: targetedIndex) <
+                removalPriorityKey(for: rhs, targetedIndex: targetedIndex)
+        }.first
+
+        return selectedZone?.index
+    }
+
+    private func removalPriorityKey(for zone: Zone, targetedIndex: Int?) -> (Int, Int, Int) {
+        let emptinessRank = zone.isEmpty ? 0 : 1
+        let targetedRank = (targetedIndex == zone.index) ? 1 : 0
+        let indexRank = -zone.index
+        return (emptinessRank, targetedRank, indexRank)
+    }
+
+    private func activeZoneIndices(on screenId: CGDirectDisplayID) -> Set<Int> {
+        if let managed = windowController.captureFrontmostWindow(),
+           !managed.isPlaceholder,
+           let zoneIndex = managed.zoneIndex,
+           let managedScreenId = managed.screenDisplayId,
+           managedScreenId == screenId {
+            return [zoneIndex]
+        }
+
+        guard let context = screenContexts[screenId],
+              let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            return []
+        }
+
+        var indices: Set<Int> = []
+        for zone in context.zoneController.allZones {
+            guard let windowId = zone.windowId,
+                  let managedWindow = windowController.window(withId: windowId),
+                  !managedWindow.isPlaceholder,
+                  managedWindow.screenDisplayId == screenId else {
+                continue
+            }
+
+            switch managedWindow.backing {
+            case .accessibility(_, let pid, _):
+                if pid == frontmostPid {
+                    indices.insert(zone.index)
+                }
+            case .appKit(let nsWindow):
+                if nsWindow.isKeyWindow {
+                    indices.insert(zone.index)
+                }
+            }
+        }
+        return indices
     }
 
     // MARK: - Inspection
