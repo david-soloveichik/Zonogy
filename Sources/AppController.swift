@@ -221,7 +221,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         if let removedWindowId = removalResult.removedWindowId,
            let managed = windowController.window(withId: removedWindowId) {
-            placeNewWindow(managed, preferredScreenId: screenId)
+            handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
         }
 
         syncWindowsToZones()
@@ -358,6 +358,61 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         placeWindowInTargetedZone(managed)
+    }
+
+    private func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
+        removeWindowFromAllZones(windowId: managed.windowId)
+        managed.zoneIndex = nil
+
+        if let (zone, context, descriptor) = findZoneAcceptingRemovedWindow(preferredScreenId: preferredScreenId) {
+            Logger.debug(
+                "Zone removal reassigning window \(managed.windowId) to zone \(zone.index) on \(context.descriptor.localizedName) [\(context.descriptor.displayId)]"
+            )
+            assignWindowToZone(managed, zone: zone, screenId: context.descriptor.displayId, descriptor: descriptor)
+            return
+        }
+
+        Logger.debug("Zone removal minimizing window \(managed.windowId); no available zone without displacement")
+        clearManagedWindowZone(managed)
+        windowController.minimizeWindow(managed)
+    }
+
+    private func findZoneAcceptingRemovedWindow(
+        preferredScreenId: CGDirectDisplayID
+    ) -> (zone: Zone, context: ScreenContext, descriptor: ScreenDescriptor)? {
+        let orderedScreens = screenOrderStarting(with: preferredScreenId)
+
+        for screenId in orderedScreens {
+            guard let context = screenContexts[screenId],
+                  let descriptor = descriptor(for: screenId) else {
+                continue
+            }
+
+            for zone in context.zoneController.allZones {
+                if zone.windowId == nil {
+                    return (zone, context, descriptor)
+                }
+
+                if let windowId = zone.windowId,
+                   let occupant = windowController.window(withId: windowId),
+                   occupant.isPlaceholder {
+                    return (zone, context, descriptor)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func screenOrderStarting(with preferred: CGDirectDisplayID) -> [CGDirectDisplayID] {
+        var ordered = screenOrder
+        if let index = ordered.firstIndex(of: preferred) {
+            let prefix = ordered.remove(at: index)
+            ordered.insert(prefix, at: 0)
+        } else {
+            ordered.insert(preferred, at: 0)
+        }
+        return ordered
     }
 
     private func placeWindowInTargetedZone(_ managed: ManagedWindow) {
@@ -1733,6 +1788,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             case .removeZone:
                 let screenId = self.activeScreenId()
                 guard let removalIndex = self.zoneIndexForShortcutRemoval(on: screenId) else { return }
+                if let context = self.screenContexts[screenId],
+                   let zone = context.zoneController.zone(at: removalIndex) {
+                    let targetedMatch = (self.targetedZoneKey?.screenId == screenId) && (self.targetedZoneKey?.index == removalIndex)
+                    Logger.debug(
+                        "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
+                        "[\(screenId)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.windowId.map(String.init) ?? "none"))"
+                    )
+                } else {
+                    Logger.debug("Shortcut remove selected zone \(removalIndex) on display \(screenId), but zone details unavailable")
+                }
                 _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
             }
         }
@@ -1749,6 +1814,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         let activeIndices = activeZoneIndices(on: screenId)
+        let activeList = activeIndices.sorted()
+        Logger.debug(
+            "Shortcut remove evaluating screen \(context.descriptor.localizedName) [\(screenId)] " +
+            "with active zone indices: \(activeList)"
+        )
 
         let targetedIndex: Int?
         if let targetedKey = targetedZoneKey, targetedKey.screenId == screenId {
@@ -1762,15 +1832,37 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         guard !candidates.isEmpty else {
+            Logger.debug(
+                "Shortcut remove found no removable zones on \(context.descriptor.localizedName) " +
+                "[\(screenId)] (active zones: \(activeList), total zones: \(zones.count))"
+            )
             return nil
         }
 
-        let selectedZone = candidates.sorted { lhs, rhs in
+        let orderedCandidates = candidates.sorted { lhs, rhs in
             removalPriorityKey(for: lhs, targetedIndex: targetedIndex) <
                 removalPriorityKey(for: rhs, targetedIndex: targetedIndex)
-        }.first
+        }
 
-        return selectedZone?.index
+        let description = orderedCandidates.map { zone -> String in
+            let priority = removalPriorityKey(for: zone, targetedIndex: targetedIndex)
+            let targetedFlag = (targetedIndex == zone.index)
+            return "zone \(zone.index){empty:\(zone.isEmpty), targeted:\(targetedFlag), window:\(zone.windowId.map(String.init) ?? "none"), priority:\(priority)}"
+        }.joined(separator: ", ")
+
+        if let selected = orderedCandidates.first {
+            Logger.debug(
+                "Shortcut remove selected zone \(selected.index) on \(context.descriptor.localizedName) " +
+                "[\(screenId)] from candidates [\(description)]"
+            )
+            return selected.index
+        } else {
+            Logger.debug(
+                "Shortcut remove unable to choose among candidates on \(context.descriptor.localizedName) " +
+                "[\(screenId)], descriptions: [\(description)]"
+            )
+            return nil
+        }
     }
 
     private func removalPriorityKey(for zone: Zone, targetedIndex: Int?) -> (Int, Int, Int) {
@@ -1781,17 +1873,45 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private func activeZoneIndices(on screenId: CGDirectDisplayID) -> Set<Int> {
-        if let managed = windowController.captureFrontmostWindow(),
+        let screenName = screenContexts[screenId]?.descriptor.localizedName ?? "Unknown Screen"
+
+        if let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           frontmostPid != getpid(),
+           let managed = windowController.focusedWindowIfTracked(pid: frontmostPid),
            !managed.isPlaceholder,
            let zoneIndex = managed.zoneIndex,
-           let managedScreenId = managed.screenDisplayId,
+           let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
            managedScreenId == screenId {
+            Logger.debug(
+                "activeZoneIndices: using frontmost pid \(frontmostPid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
+            )
             return [zoneIndex]
         }
 
-        guard let context = screenContexts[screenId],
-              let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+        if let lastPid = lastActiveApplicationPid,
+           let managed = windowController.focusedWindowIfTracked(pid: lastPid),
+           !managed.isPlaceholder,
+           let zoneIndex = managed.zoneIndex,
+           let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
+           managedScreenId == screenId {
+            Logger.debug(
+                "activeZoneIndices: using last active pid \(lastPid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
+            )
+            return [zoneIndex]
+        }
+
+        guard let context = screenContexts[screenId] else {
             return []
+        }
+
+        var candidatePids: Set<pid_t> = []
+        if let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           frontmostPid != getpid() {
+            candidatePids.insert(frontmostPid)
+        }
+        if let lastPid = lastActiveApplicationPid,
+           lastPid != getpid() {
+            candidatePids.insert(lastPid)
         }
 
         var indices: Set<Int> = []
@@ -1799,21 +1919,45 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             guard let windowId = zone.windowId,
                   let managedWindow = windowController.window(withId: windowId),
                   !managedWindow.isPlaceholder,
-                  managedWindow.screenDisplayId == screenId else {
+                  (managedWindow.screenDisplayId ?? detectScreenId(for: managedWindow)) == screenId else {
+                if let windowId = zone.windowId,
+                   let managedWindow = windowController.window(withId: windowId) {
+                    let hasScreen = (managedWindow.screenDisplayId ?? detectScreenId(for: managedWindow)) != nil
+                    Logger.debug(
+                        "activeZoneIndices: skipping zone \(zone.index) on \(screenName) [\(screenId)] " +
+                        "for window \(windowId) (placeholder: \(managedWindow.isPlaceholder), hasScreen: \(hasScreen))"
+                    )
+                } else if zone.windowId != nil {
+                    Logger.debug(
+                        "activeZoneIndices: no managed window for id \(zone.windowId!) in zone \(zone.index) on \(screenName) [\(screenId)]"
+                    )
+                }
                 continue
             }
 
             switch managedWindow.backing {
             case .accessibility(_, let pid, _):
-                if pid == frontmostPid {
+                if candidatePids.contains(pid) {
                     indices.insert(zone.index)
+                } else {
+                    Logger.debug(
+                        "activeZoneIndices: window \(windowId) pid \(pid) not in candidate pid set \(candidatePids) " +
+                        "for zone \(zone.index) on \(screenName) [\(screenId)]"
+                    )
                 }
             case .appKit(let nsWindow):
                 if nsWindow.isKeyWindow {
                     indices.insert(zone.index)
+                } else {
+                    Logger.debug(
+                        "activeZoneIndices: AppKit window \(windowId) in zone \(zone.index) is not key on \(screenName) [\(screenId)]"
+                    )
                 }
             }
         }
+        Logger.debug(
+            "activeZoneIndices: resolved indices \(indices.sorted()) for \(screenName) [\(screenId)] with candidate pids \(candidatePids)"
+        )
         return indices
     }
 

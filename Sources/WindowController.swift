@@ -313,25 +313,52 @@ class WindowController {
     /// Attempt to capture the frontmost standard window of the active application.
     /// Returns the managed wrapper if successful.
     func captureFrontmostWindow() -> ManagedWindow? {
-        guard ensureAccessibilityPermissions() else {
-            Logger.debug("Accessibility permissions missing; cannot capture frontmost window")
-            return nil
-        }
-
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
             Logger.debug("No frontmost application available to capture")
             return nil
         }
+        return captureFocusedWindow(application: frontmostApp, allowCreating: true)
+    }
 
-        if let bundleId = frontmostApp.bundleIdentifier,
+    /// Attempt to capture the focused window for the specified process identifier.
+    /// Returns the managed wrapper if successful.
+    func captureFocusedWindow(pid: pid_t, allowCreating: Bool = true) -> ManagedWindow? {
+        guard let application = NSRunningApplication(processIdentifier: pid) else {
+            Logger.debug("No running application for pid \(pid); cannot capture focused window")
+            return nil
+        }
+        return captureFocusedWindow(application: application, allowCreating: allowCreating)
+    }
+
+    /// Attempt to return the focused window for the specified pid if it is already tracked.
+    /// Does not create new ManagedWindow instances.
+    func focusedWindowIfTracked(pid: pid_t) -> ManagedWindow? {
+        let managed = captureFocusedWindow(pid: pid, allowCreating: false)
+        if let managed {
+            Logger.debug(
+                "focusedWindowIfTracked: pid \(pid) -> window \(managed.windowId) (zone: \(managed.zoneIndex.map(String.init) ?? "none"), screen: \(managed.screenDisplayId.map(String.init) ?? "unknown"))"
+            )
+        } else {
+            Logger.debug("focusedWindowIfTracked: pid \(pid) has no tracked focused window")
+        }
+        return managed
+    }
+
+    private func captureFocusedWindow(application: NSRunningApplication, allowCreating: Bool) -> ManagedWindow? {
+        guard ensureAccessibilityPermissions() else {
+            Logger.debug("Accessibility permissions missing; cannot capture focused window for pid \(application.processIdentifier)")
+            return nil
+        }
+
+        if let bundleId = application.bundleIdentifier,
            ignoredBundleIdentifiers.contains(bundleId) {
             Logger.debug("Skipping capture for ignored bundle \(bundleId)")
             return nil
         }
 
-        let pid = frontmostApp.processIdentifier
+        let pid = application.processIdentifier
         if pid == getpid() {
-            Logger.debug("Frontmost application is LatticeTopology; nothing to capture")
+            Logger.debug("Requested capture for LatticeTopology; nothing to capture")
             return nil
         }
 
@@ -351,13 +378,39 @@ class WindowController {
         }
 
         let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
+
+        if let existing = existingManagedWindow(for: windowElement) {
+            Logger.debug("captureFocusedWindow: returning existing managed window \(existing.windowId) for pid \(pid)")
+            return existing
+        }
+
+        guard allowCreating else {
+            Logger.debug("captureFocusedWindow: focused window for pid \(pid) is not yet tracked and allowCreating=false")
+            return nil
+        }
+
         return captureWindowIfNeeded(
             element: windowElement,
             pid: pid,
             appElement: appElement,
             allowReturningExisting: true,
-            notifyDelegate: false
+            notifyDelegate: true
         )
+    }
+
+    private func existingManagedWindow(for element: AXUIElement) -> ManagedWindow? {
+        let elementKey = AccessibilityElementKey(element: element)
+        if let existing = externalWindowsByElement[elementKey] {
+            return existing
+        }
+
+        if let identifier = externalIdentifier(for: element),
+           let existing = externalWindows[identifier] {
+            externalWindowsByElement[elementKey] = existing
+            return existing
+        }
+
+        return nil
     }
 
     /// Capture all top-level windows for the specified application.
@@ -449,18 +502,12 @@ class WindowController {
             return nil
         }
 
-        let elementKey = AccessibilityElementKey(element: element)
-        if let existing = externalWindowsByElement[elementKey] {
-            return allowReturningExisting ? existing : nil
-        }
-
-        if let identifier = externalIdentifier(for: element),
-           let existing = externalWindows[identifier] {
-            externalWindowsByElement[elementKey] = existing
+        if let existing = existingManagedWindow(for: element) {
             return allowReturningExisting ? existing : nil
         }
 
         let identifier = externalIdentifier(for: element)
+        let elementKey = AccessibilityElementKey(element: element)
         let managed = ManagedWindow(
             windowId: nextWindowId,
             backing: .accessibility(element: element, pid: pid, windowNumber: identifier?.windowNumber),

@@ -100,7 +100,7 @@ There are two ways to remove a zone:
 - By pressing the blue "x" button on the placeholder window of an empty zone.
 - By pressing a keyboard shortcut Control-Cmd-[minus].
 
-When invoking Control-Cmd-[minus], never remove the zone containing the currently active window. Among the remaining zones, remove one using this priority: (1) prefer empty zones over occupied zones, (2) prefer non-targeted zones over the targeted zone, (3) break any remaining ties by choosing the zone with the highest index.
+When invoking Control-Cmd-[minus], never remove the zone containing the currently active (aka key) window. Among the remaining zones, remove one using this priority: (1) prefer empty zones over occupied zones, (2) prefer non-targeted zones over the targeted zone, (3) break any remaining ties by choosing the zone with the highest index.
 
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
 
