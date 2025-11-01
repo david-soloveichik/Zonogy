@@ -1003,17 +1003,23 @@ class WindowController {
             }
         }
 
-        var stale: [(Int, ManagedWindow)] = []
+        var stale: [(Int, ManagedWindow, String)] = []
 
         for (windowId, managed) in managedWindows {
-            guard case .accessibility(_, let pid, let windowNumber?) = managed.backing else {
+            guard case .accessibility(_, let pid, let windowNumber) = managed.backing else {
                 continue
             }
 
-            let identifier = ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber)
-            // If the window is not in the actual windows from window server, it's been destroyed
-            if !actualWindows.contains(identifier) {
-                stale.append((windowId, managed))
+            if let windowNumber {
+                let identifier = ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber)
+                if !actualWindows.contains(identifier) {
+                    stale.append((windowId, managed, "missing-from-cgwindowlist"))
+                    continue
+                }
+            }
+
+            if !isAccessibilityElementAlive(managed) {
+                stale.append((windowId, managed, "ax-element-invalid"))
             }
         }
 
@@ -1022,8 +1028,8 @@ class WindowController {
         }
 
         var removedWindowIds: [Int] = []
-        for (windowId, managed) in stale {
-            Logger.debug("Detected destroyed external window \(windowId) (not in CGWindowList); pruning")
+        for (windowId, managed, reason) in stale {
+            Logger.debug("Detected destroyed external window \(windowId) (reason: \(reason)); pruning")
             removeAccessibilityTracking(for: managed)
             managedWindows.removeValue(forKey: windowId)
             if let identifier = managed.externalIdentifier {
@@ -1043,10 +1049,10 @@ class WindowController {
         // Get the ground truth from the window server
         let actualWindowNumbers = getActualWindowNumbersFromWindowServer(forPid: pid)
 
-        var stale: [(Int, ManagedWindow)] = []
+        var stale: [(Int, ManagedWindow, String)] = []
 
         for (windowId, managed) in managedWindows {
-            guard case .accessibility(_, let windowPid, let windowNumber?) = managed.backing else {
+            guard case .accessibility(_, let windowPid, let windowNumber) = managed.backing else {
                 continue
             }
 
@@ -1055,9 +1061,16 @@ class WindowController {
                 continue
             }
 
-            // If the window number is not in the actual windows from window server, it's been destroyed
-            if !actualWindowNumbers.contains(windowNumber) {
-                stale.append((windowId, managed))
+            if let windowNumber {
+                // If the window number is not in the actual windows from window server, it's been destroyed
+                if !actualWindowNumbers.contains(windowNumber) {
+                    stale.append((windowId, managed, "missing-from-cgwindowlist"))
+                    continue
+                }
+            }
+
+            if !isAccessibilityElementAlive(managed) {
+                stale.append((windowId, managed, "ax-element-invalid"))
             }
         }
 
@@ -1066,8 +1079,8 @@ class WindowController {
         }
 
         var removedWindowIds: [Int] = []
-        for (windowId, managed) in stale {
-            Logger.debug("Detected destroyed external window \(windowId) for pid \(pid) (not in CGWindowList); pruning")
+        for (windowId, managed, reason) in stale {
+            Logger.debug("Detected destroyed external window \(windowId) for pid \(pid) (reason: \(reason)); pruning")
             removeAccessibilityTracking(for: managed)
             managedWindows.removeValue(forKey: windowId)
             if let identifier = managed.externalIdentifier {
@@ -1138,6 +1151,42 @@ class WindowController {
         }
 
         return windowNumbers
+    }
+
+    private func isAccessibilityElementAlive(_ managed: ManagedWindow) -> Bool {
+        guard case .accessibility(let element, _, _) = managed.backing else {
+            return true
+        }
+
+        func statusIndicatesInvalid(_ status: AXError) -> Bool {
+            switch status {
+            case .invalidUIElement, .cannotComplete, .illegalArgument:
+                return true
+            default:
+                return false
+            }
+        }
+
+        func attributeAppearsValid(_ attribute: CFString) -> Bool {
+            var value: CFTypeRef?
+            let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+            if status == .success || status == .noValue || status == .attributeUnsupported {
+                return true
+            }
+            if statusIndicatesInvalid(status) {
+                Logger.debug("Accessibility attribute \(attribute as String) for window \(managed.windowId) returned AX error \(status.rawValue)")
+                return false
+            }
+            Logger.debug("Accessibility attribute \(attribute as String) for window \(managed.windowId) returned AX status \(status.rawValue); treating as still alive")
+            return true
+        }
+
+        let roleAlive = attributeAppearsValid(kAXRoleAttribute as CFString)
+        if !roleAlive {
+            return false
+        }
+
+        return attributeAppearsValid(kAXPositionAttribute as CFString)
     }
 
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {

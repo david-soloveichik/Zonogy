@@ -66,6 +66,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let indicatorManager = ZoneIndicatorManager()
     private var targetedZoneKey: ZoneKey?
 
+    private struct ValidationRetryEntry {
+        var attempts: Int
+        var baseReason: String
+        var workItem: DispatchWorkItem?
+    }
+
+    private var validationRetryEntries: [pid_t: ValidationRetryEntry] = [:]
+    private let validationRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+
     private var dragExcludedZones: Set<ZoneKey> {
         guard let dragSession else {
             return []
@@ -149,6 +158,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             workspaceCenter.removeObserver(observer)
         }
         workspaceObservers.removeAll()
+
+        for entry in validationRetryEntries.values {
+            entry.workItem?.cancel()
+        }
+        validationRetryEntries.removeAll()
 
         for hotKeyRef in hotKeyRefs {
             UnregisterEventHotKey(hotKeyRef)
@@ -280,7 +294,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         // Remove from zone
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "close-command")
 
         // Close the window
         windowController.closeWindow(managed)
@@ -300,7 +314,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         windowController.minimizeWindow(managed)
 
         // Remove from zone and sync (delegate may not fire in CLI environment)
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "minimize-command")
         syncWindowsToZones()
 
         print("Minimized window \(windowId)")
@@ -346,10 +360,19 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         print("Captured window \(managed.windowId)")
     }
 
+    func validateApplication(pid: pid_t) {
+        let pruned = validateWindowsForApplication(pid: pid, reason: "repl-command")
+        if pruned.isEmpty {
+            print("Validated pid \(pid): no destroyed windows detected")
+        } else {
+            print("Validated pid \(pid): pruned windows \(pruned)")
+        }
+    }
+
     // MARK: - Window Placement Logic
 
     private func placeNewWindow(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID? = nil) {
-        removeWindowFromAllZones(windowId: managed.windowId)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window")
         managed.zoneIndex = nil
 
         if let preferredScreenId {
@@ -361,7 +384,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
-        removeWindowFromAllZones(windowId: managed.windowId)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: "zone-removal-reassignment")
         managed.zoneIndex = nil
 
         if let (zone, context, descriptor) = findZoneAcceptingRemovedWindow(preferredScreenId: preferredScreenId) {
@@ -644,6 +667,60 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         indicatorManager.present(over: descriptors)
     }
 
+    private func hasManagedWindows(for pid: pid_t) -> Bool {
+        return windowController.allWindows.contains { window in
+            if case .accessibility(_, let windowPid, _) = window.backing {
+                return windowPid == pid
+            }
+            return false
+        }
+    }
+
+    private func cancelValidationRetry(for pid: pid_t) {
+        guard let entry = validationRetryEntries.removeValue(forKey: pid) else {
+            return
+        }
+        entry.workItem?.cancel()
+    }
+
+    private func scheduleValidationRetry(for pid: pid_t, reason: String) {
+        guard hasManagedWindows(for: pid) else {
+            cancelValidationRetry(for: pid)
+            return
+        }
+
+        var entry = validationRetryEntries[pid] ?? ValidationRetryEntry(attempts: 0, baseReason: reason, workItem: nil)
+
+        if entry.attempts >= validationRetryDelays.count {
+            Logger.debug("Validation retry for pid \(pid) exhausted after \(entry.attempts) attempts (reason: \(entry.baseReason))")
+            cancelValidationRetry(for: pid)
+            return
+        }
+
+        let delay = validationRetryDelays[entry.attempts]
+        entry.attempts += 1
+
+        entry.workItem?.cancel()
+
+        let baseReason = entry.baseReason
+        let attemptNumber = entry.attempts
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.validationRetryEntries[pid]?.workItem = nil
+            let pruned = self.validateWindowsForApplication(pid: pid, reason: "retry-\(baseReason)-\(attemptNumber)")
+            if pruned.isEmpty && self.hasManagedWindows(for: pid) {
+                self.scheduleValidationRetry(for: pid, reason: baseReason)
+            } else {
+                self.cancelValidationRetry(for: pid)
+            }
+        }
+
+        entry.workItem = workItem
+        validationRetryEntries[pid] = entry
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
     // MARK: - Synchronization
 
     /// Sync all windows to their zones, creating placeholders as needed
@@ -671,7 +748,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
         if !prunedWindowIds.isEmpty {
             for windowId in prunedWindowIds {
-                removeWindowFromAllZones(windowId: windowId)
+                removeWindowFromAllZones(windowId: windowId, reason: "sync-prune-destroyed")
             }
         }
 
@@ -1116,9 +1193,23 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         screenContexts[screenId]?.zoneController
     }
 
-    private func removeWindowFromAllZones(windowId: Int) {
-        for context in screenContexts.values {
-            context.zoneController.removeWindow(windowId: windowId)
+    private func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified") {
+        var removed = false
+
+        for (screenId, context) in screenContexts {
+            if let zone = context.zoneController.zoneForWindow(windowId: windowId) {
+                Logger.debug(
+                    "Removing window \(windowId) from zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] (reason: \(reason))"
+                )
+                context.zoneController.removeWindow(windowId: windowId)
+                removed = true
+            } else {
+                context.zoneController.removeWindow(windowId: windowId)
+            }
+        }
+
+        if !removed, reason != "place-new-window" {
+            Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
     }
 
@@ -1204,7 +1295,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     func windowFocusChanged(pid: pid_t) {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
-        validateWindowsForApplication(pid: pid)
+        validateWindowsForApplication(pid: pid, reason: "focus-changed")
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -1231,7 +1322,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             dragOverlayManager.tearDown()
             dragSession = nil
         }
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "delegate-will-close")
         syncWindowsToZones()
     }
 
@@ -1241,7 +1332,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             dragOverlayManager.tearDown()
             dragSession = nil
         }
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize")
         syncWindowsToZones()
     }
 
@@ -1492,7 +1583,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             // When switching applications, validate windows for the previously active app
             // This catches window closures that happened while the app was active
             if let previousPid = self.lastActiveApplicationPid {
-                self.validateWindowsForApplication(pid: previousPid)
+                self.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
             }
 
             if let application = application {
@@ -1569,7 +1660,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         // When an application changes state (deactivate/hide), validate all its windows
         // This catches window closures that didn't fire destroy notifications
-        validateWindowsForApplication(pid: application.processIdentifier)
+        validateWindowsForApplication(pid: application.processIdentifier, reason: "workspace-state-change")
     }
 
     private func handleApplicationTermination(_ application: NSRunningApplication?) {
@@ -1593,26 +1684,43 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         Logger.debug("Application terminated, pruned \(removedWindowIds.count) windows")
+        cancelValidationRetry(for: application.processIdentifier)
         for windowId in removedWindowIds {
             if dragSession?.windowId == windowId {
                 dragOverlayManager.tearDown()
                 dragSession = nil
             }
-            removeWindowFromAllZones(windowId: windowId)
+            removeWindowFromAllZones(windowId: windowId, reason: "application-termination")
         }
         syncWindowsToZones()
     }
 
-    private func validateWindowsForApplication(pid: pid_t) {
-        // Check if any managed windows from this application have been destroyed
+    @discardableResult
+    private func validateWindowsForApplication(pid: pid_t, reason: String = "unspecified") -> [Int] {
         let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(pid)
-        if !prunedWindowIds.isEmpty {
-            Logger.debug("Validated windows for pid \(pid), pruned \(prunedWindowIds.count) destroyed windows")
-            for windowId in prunedWindowIds {
-                    removeWindowFromAllZones(windowId: windowId)
+        if prunedWindowIds.isEmpty {
+            let baseReason = validationRetryEntries[pid]?.baseReason ?? reason
+            let isRetry = reason.hasPrefix("retry")
+            if !isRetry {
+                Logger.debug("Validated windows for pid \(pid) (\(reason)), no destroyed windows detected")
             }
-            syncWindowsToZones()
+            if hasManagedWindows(for: pid) {
+                scheduleValidationRetry(for: pid, reason: baseReason)
+            } else {
+                cancelValidationRetry(for: pid)
+            }
+            return []
         }
+
+        Logger.debug(
+            "Validated windows for pid \(pid) (\(reason)), pruned \(prunedWindowIds.count) destroyed windows: \(prunedWindowIds)"
+        )
+        cancelValidationRetry(for: pid)
+        for windowId in prunedWindowIds {
+            removeWindowFromAllZones(windowId: windowId, reason: "validate-application")
+        }
+        syncWindowsToZones()
+        return prunedWindowIds
     }
 
     private func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
@@ -1976,6 +2084,57 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         print("")
     }
 
+    func printManagedWindows() {
+        let windows = windowController.allWindows.sorted { $0.windowId < $1.windowId }
+        print("\nManaged windows:")
+        guard !windows.isEmpty else {
+            print("  (none)")
+            print("")
+            return
+        }
+
+        for window in windows {
+            let info = windowInfoJSON(windowId: window.windowId)
+            let type = info["type"] as? String ?? "unknown"
+            let zoneIndex = info["zone_index"] as? Int
+
+            let screenId: CGDirectDisplayID? = {
+                if let value = info["screen_display_id"] {
+                    if let intValue = value as? Int {
+                        return CGDirectDisplayID(intValue)
+                    } else if let uintValue = value as? UInt32 {
+                        return uintValue
+                    }
+                }
+                return window.screenDisplayId
+            }()
+
+            let screenName = screenId.flatMap { descriptor(for: $0)?.localizedName } ?? "unknown screen"
+            let pid = info["pid"] as? Int
+            let appName = info["application_name"] as? String ?? "<unknown>"
+            let bundleId = info["bundle_identifier"] as? String ?? "<unknown>"
+
+            let zoneDescription: String
+            if let zoneIndex, let screenId {
+                zoneDescription = "zone \(zoneIndex) on \(screenName) [\(Int(screenId))]"
+            } else if let zoneIndex {
+                zoneDescription = "zone \(zoneIndex)"
+            } else {
+                zoneDescription = "unassigned"
+            }
+
+            let pidDescription: String
+            if let pid {
+                pidDescription = "pid \(pid) (\(appName), \(bundleId))"
+            } else {
+                pidDescription = "(no pid)"
+            }
+
+            print("  Window \(window.windowId): \(type), \(pidDescription), \(zoneDescription)")
+        }
+        print("")
+    }
+
     func relayout() {
         for context in screenContexts.values {
             context.zoneController.relayout()
@@ -2017,6 +2176,26 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         print("\nWindow \(windowId):")
         print("  Type: \(type)")
+
+        var owningPid: pid_t?
+        switch managed.backing {
+        case .appKit:
+            owningPid = getpid()
+        case .accessibility(_, let pid, _):
+            owningPid = pid
+        }
+
+        if let pid = owningPid {
+            if let application = NSRunningApplication(processIdentifier: pid) ?? (pid == getpid() ? NSRunningApplication.current : nil) {
+                let name = application.localizedName ?? "<unknown>"
+                let bundle = application.bundleIdentifier ?? "<unknown>"
+                print("  PID: \(pid) (\(name), \(bundle))")
+            } else {
+                print("  PID: \(pid)")
+            }
+        } else {
+            print("  PID: unknown")
+        }
         if let screenId, let screenDescriptor {
             print("  Screen: \(screenDescriptor.localizedName) [\(screenId)]")
         } else {
@@ -2197,7 +2376,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return ["error": "Window \(windowId) not found"]
         }
 
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "socket-close-window")
         windowController.closeWindow(managed)
         syncWindowsToZones()
 
@@ -2210,7 +2389,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         windowController.minimizeWindow(managed)
-        removeWindowFromAllZones(windowId: windowId)
+        removeWindowFromAllZones(windowId: windowId, reason: "socket-minimize")
         syncWindowsToZones()
 
         return ["window_id": windowId]
@@ -2311,6 +2490,27 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             ]
         ]
 
+        var owningPid: pid_t?
+        switch managed.backing {
+        case .appKit:
+            owningPid = getpid()
+        case .accessibility(_, let pid, _):
+            owningPid = pid
+        }
+
+        if let pid = owningPid {
+            result["pid"] = Int(pid)
+
+            if let application = NSRunningApplication(processIdentifier: pid) ?? (pid == getpid() ? NSRunningApplication.current : nil) {
+                if let name = application.localizedName {
+                    result["application_name"] = name
+                }
+                if let bundleId = application.bundleIdentifier {
+                    result["bundle_identifier"] = bundleId
+                }
+            }
+        }
+
         if let screenId, let screenDescriptor {
             result["screen_display_id"] = screenId
             result["screen_name"] = screenDescriptor.localizedName
@@ -2327,7 +2527,43 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             ]
         }
 
+        switch managed.backing {
+        case .accessibility(_, _, let windowNumber?):
+            result["window_number"] = windowNumber
+        default:
+            break
+        }
+
         return result
+    }
+
+    func managedWindowsJSON() -> [String: Any] {
+        let windows = windowController.allWindows
+            .sorted { $0.windowId < $1.windowId }
+            .map { managed -> [String: Any] in
+                windowInfoJSON(windowId: managed.windowId)
+            }
+
+        var response: [String: Any] = ["windows": windows]
+
+        if let targeted = targetedZoneKey,
+           let descriptor = descriptor(for: targeted.screenId) {
+            response["targeted_zone"] = [
+                "screen_display_id": targeted.screenId,
+                "screen_name": descriptor.localizedName,
+                "index": targeted.index
+            ]
+        }
+
+        return response
+    }
+
+    func validateApplicationJSON(pid: pid_t) -> [String: Any] {
+        let prunedIds = validateWindowsForApplication(pid: pid, reason: "socket-request")
+        return [
+            "pid": Int(pid),
+            "pruned_window_ids": prunedIds
+        ]
     }
 
     func printFramesJSON() -> [String: Any] {

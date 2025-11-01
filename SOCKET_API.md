@@ -269,8 +269,13 @@ Get detailed information about a specific window.
   "success": true,
   "result": {
     "window_id": 2,
+    "pid": 15513,
+    "application_name": "Find My",
+    "bundle_identifier": "com.apple.findmy",
     "is_placeholder": false,
     "zone_index": 1,
+    "screen_display_id": 69734406,
+    "screen_name": "Built-in Display",
     "actual_frame": {
       "x": 44,
       "y": 0,
@@ -313,6 +318,78 @@ Get all window frames.
           "height": 944
         }
       }
+    ]
+  },
+  "error": null
+}
+```
+
+### managed-windows
+List every managed window with associated metadata (pid, bundle id, zone assignment, etc.).
+
+**Request:**
+```json
+{"method": "managed-windows", "id": 12}
+```
+
+**Response:**
+```json
+{
+  "id": 12,
+  "success": true,
+  "result": {
+    "windows": [
+      {
+        "window_id": 2,
+        "pid": 15513,
+        "application_name": "Find My",
+        "bundle_identifier": "com.apple.findmy",
+        "type": "external",
+        "is_placeholder": false,
+        "zone_index": 1,
+        "screen_display_id": 69734406,
+        "screen_name": "Built-in Display",
+        "actual_frame": {
+          "x": 52,
+          "y": 46,
+          "width": 1452,
+          "height": 928
+        },
+        "zone_frame": {
+          "x": 44,
+          "y": 38,
+          "width": 1468,
+          "height": 944
+        }
+      }
+    ],
+    "targeted_zone": {
+      "screen_display_id": 69734406,
+      "screen_name": "Built-in Display",
+      "index": 1
+    }
+  },
+  "error": null
+}
+```
+
+### validate-application
+Force a validation pass for an application's windows (prunes destroyed accessibility windows for the pid).
+
+**Request:**
+```json
+{"method": "validate-application", "id": 13, "params": {"pid": 15513}}
+```
+
+**Response:**
+```json
+{
+  "id": 13,
+  "success": true,
+  "result": {
+    "pid": 15513,
+    "pruned_window_ids": [
+      2
     ]
   },
   "error": null

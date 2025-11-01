@@ -161,6 +161,20 @@ class REPL {
         case "frames":
             appController.printFrames()
 
+        case "managed-windows":
+            appController.printManagedWindows()
+
+        case "validate-app":
+            if parts.count < 2 {
+                print("Usage: validate-app <pid>")
+                return
+            }
+            guard let pidValue = Int32(parts[1]) else {
+                print("Invalid pid: \(parts[1])")
+                return
+            }
+            appController.validateApplication(pid: pidValue)
+
         case "test-layout":
             _ = ZoneLayoutTests.run()
 
@@ -197,6 +211,8 @@ class REPL {
           capture-frontmost            - Capture the currently focused window from the active app
           window-info <window_id>      - Show detailed info for a window
           frames                       - Show all window frames
+          managed-windows              - List every tracked window with pid, assignment, and type
+          validate-app <pid>           - Force-detect destroyed accessibility windows for the given pid
           test-layout                  - Run ZoneLayout frame assertions
 
         Other:

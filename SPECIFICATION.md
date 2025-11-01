@@ -135,6 +135,10 @@ We manage a window if it passes **all** of the following conditions (see `winman
 - **isMovable: T** (window position can be modified)
 - **hasZoom: T** (window has a zoom button)
 
+## Destroyed window detection
+
+After events such as application termination, workspace focus changes, or accessibility notifications, `AppController` validates every affected PID. An external window is removed immediately when either the window server stops reporting its `CGWindowNumber` or the accessibility element returns an invalid-element error. If the initial pass finds no destroyed windows but the PID still owns managed windows, the controller schedules a short series of PID-scoped revalidations with exponential backoff (≈0.2 s → 3.2 s). Retries cancel as soon as every window disappears or the process exits; no global polling timer runs.
+
 ## External tools and code reference
 
 ### tool `winmanmon`

@@ -237,6 +237,26 @@ class SocketServer {
             case "frames":
                 return appController.printFramesJSON()
 
+            case "managed-windows":
+                return appController.managedWindowsJSON()
+
+            case "validate-application":
+                guard let pidParam = params["pid"] else {
+                    return ["error": "Missing required parameter: pid"]
+                }
+                let pidValue: Int?
+                if let number = pidParam as? Int {
+                    pidValue = number
+                } else if let string = pidParam as? String {
+                    pidValue = Int(string)
+                } else {
+                    pidValue = nil
+                }
+                guard let pidInt = pidValue else {
+                    return ["error": "Invalid pid parameter"]
+                }
+                return appController.validateApplicationJSON(pid: pid_t(pidInt))
+
             default:
                 return ["error": "Unknown command: \(method)"]
             }
