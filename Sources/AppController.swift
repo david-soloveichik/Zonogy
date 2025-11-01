@@ -1519,8 +1519,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     private func handleApplicationTermination(_ application: NSRunningApplication?) {
         guard let application else {
+            Logger.debug("NSWorkspace notification received: didTerminateApplication (no application payload)")
             return
         }
+
+        let name = application.localizedName ?? "Unknown App"
+        var details = "\(name), pid \(application.processIdentifier)"
+        if let bundleId = application.bundleIdentifier {
+            details += ", bundle \(bundleId)"
+        }
+        Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
 
         // When an application terminates, prune all its windows immediately
         let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(application.processIdentifier)
