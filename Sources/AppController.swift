@@ -69,11 +69,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private struct ValidationRetryEntry {
         var attempts: Int
         var baseReason: String
+        var bundleId: String?  // Bundle ID to verify process identity
         var workItem: DispatchWorkItem?
     }
 
     private var validationRetryEntries: [pid_t: ValidationRetryEntry] = [:]
     private let validationRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+    private var schedulingRetryForPids: Set<pid_t> = []  // Track PIDs currently being scheduled to prevent races
 
     private var dragExcludedZones: Set<ZoneKey> {
         guard let dragSession else {
@@ -163,6 +165,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             entry.workItem?.cancel()
         }
         validationRetryEntries.removeAll()
+        schedulingRetryForPids.removeAll()
 
         for hotKeyRef in hotKeyRefs {
             UnregisterEventHotKey(hotKeyRef)
@@ -684,12 +687,45 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private func scheduleValidationRetry(for pid: pid_t, reason: String) {
+        // Prevent concurrent scheduling for the same PID
+        guard !schedulingRetryForPids.contains(pid) else {
+            Logger.debug("Already scheduling retry for pid \(pid), skipping concurrent call")
+            return
+        }
+
+        schedulingRetryForPids.insert(pid)
+        defer { schedulingRetryForPids.remove(pid) }
+
         guard hasManagedWindows(for: pid) else {
             cancelValidationRetry(for: pid)
             return
         }
 
-        var entry = validationRetryEntries[pid] ?? ValidationRetryEntry(attempts: 0, baseReason: reason, workItem: nil)
+        // Get the bundle ID for PID verification (only for new entries)
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+
+        var entry: ValidationRetryEntry
+        if let existingEntry = validationRetryEntries[pid] {
+            // If a work item is already scheduled and not cancelled, don't schedule another
+            if existingEntry.workItem != nil && !existingEntry.workItem!.isCancelled {
+                Logger.debug("Validation retry already scheduled for pid \(pid), skipping duplicate schedule")
+                return
+            }
+
+            // Preserve existing entry's bundle ID to maintain process identity tracking
+            entry = existingEntry
+            // Update bundleId only if it wasn't set before
+            if entry.bundleId == nil {
+                entry.bundleId = bundleId
+            }
+        } else {
+            entry = ValidationRetryEntry(
+                attempts: 0,
+                baseReason: reason,
+                bundleId: bundleId,
+                workItem: nil
+            )
+        }
 
         if entry.attempts >= validationRetryDelays.count {
             Logger.debug("Validation retry for pid \(pid) exhausted after \(entry.attempts) attempts (reason: \(entry.baseReason))")
@@ -702,12 +738,33 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         entry.workItem?.cancel()
 
+        // Log when scheduling a retry
+        Logger.debug("Scheduling validation retry #\(entry.attempts) for pid \(pid) in \(delay)s (reason: \(entry.baseReason))")
+
         let baseReason = entry.baseReason
         let attemptNumber = entry.attempts
+        let expectedBundleId = entry.bundleId
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.validationRetryEntries[pid]?.workItem = nil
+
+            // Verify the PID still belongs to the same application
+            if let expectedBundleId = expectedBundleId {
+                let currentApp = NSRunningApplication(processIdentifier: pid)
+                let currentBundleId = currentApp?.bundleIdentifier
+
+                if currentBundleId != expectedBundleId {
+                    Logger.debug("PID \(pid) has been reused by different app (expected \(expectedBundleId), got \(currentBundleId ?? "nil")), cancelling retry")
+                    self.cancelValidationRetry(for: pid)
+                    return
+                }
+            }
+
+            Logger.debug("Executing validation retry #\(attemptNumber) for pid \(pid) (reason: \(baseReason))")
             let pruned = self.validateWindowsForApplication(pid: pid, reason: "retry-\(baseReason)-\(attemptNumber)")
+
+            // Clear the work item reference only AFTER we're done, right before scheduling next or cancelling
+            self.validationRetryEntries[pid]?.workItem = nil
+
             if pruned.isEmpty && self.hasManagedWindows(for: pid) {
                 self.scheduleValidationRetry(for: pid, reason: baseReason)
             } else {
@@ -1699,8 +1756,30 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private func validateWindowsForApplication(pid: pid_t, reason: String = "unspecified") -> [Int] {
         let prunedWindowIds = windowController.pruneDestroyedWindowsForPid(pid)
         if prunedWindowIds.isEmpty {
-            let baseReason = validationRetryEntries[pid]?.baseReason ?? reason
+            let existingEntry = validationRetryEntries[pid]
             let isRetry = reason.hasPrefix("retry")
+
+            // Check for PID reuse - if the bundle ID doesn't match, clear the stale entry
+            if let existing = existingEntry, let expectedBundleId = existing.bundleId {
+                let currentBundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+                if currentBundleId != expectedBundleId {
+                    Logger.debug("PID \(pid) has been reused (was \(expectedBundleId), now \(currentBundleId ?? "nil")), clearing stale retry entry")
+                    cancelValidationRetry(for: pid)
+                    // Don't continue with validation for a reused PID
+                    return []
+                }
+            }
+
+            // If this is a new event type (not a retry) with a different reason than the existing entry,
+            // cancel the existing retry cycle and start fresh
+            if !isRetry, let existing = existingEntry, existing.baseReason != reason {
+                Logger.debug("New validation event '\(reason)' for pid \(pid), cancelling existing '\(existing.baseReason)' retry cycle")
+                cancelValidationRetry(for: pid)
+            }
+
+            // Use the current reason as baseReason for new events, or preserve existing baseReason for retries
+            let baseReason = !isRetry ? reason : (existingEntry?.baseReason ?? reason)
+
             if !isRetry {
                 Logger.debug("Validated windows for pid \(pid) (\(reason)), no destroyed windows detected")
             }
@@ -1725,9 +1804,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     private func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
         let pid = application.processIdentifier
+        let originalBundleId = application.bundleIdentifier  // Capture bundle ID to verify identity
+
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
             guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else { return }
+
+            // Verify the PID still belongs to the same application
+            if let originalBundleId = originalBundleId,
+               let refreshedBundleId = refreshedApplication.bundleIdentifier,
+               originalBundleId != refreshedBundleId {
+                Logger.debug("PID \(pid) has been reused by different app (was \(originalBundleId), now \(refreshedBundleId)), aborting capture")
+                return
+            }
+
             guard self.shouldManage(application: refreshedApplication) else { return }
 
             let newWindows = self.windowController.captureWindows(for: refreshedApplication, notifyDelegate: false, allowExisting: false)
