@@ -37,3 +37,4 @@ Brewfile.lock.json
 .swiftpm-cache/
 
 PLANNING/
+log.txt

@@ -80,6 +80,19 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     private var validationRetries: [pid_t: ValidationRetry] = [:]
     private let retryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+    private struct CaptureRetry {
+        var pid: pid_t
+        var bundleId: String?
+        var attempt: Int = 0
+        var workItem: DispatchWorkItem?
+
+        mutating func cancelWorkItem() {
+            workItem?.cancel()
+            workItem = nil
+        }
+    }
+    private var captureRetries: [pid_t: CaptureRetry] = [:]
+    private let captureRetryDelays: [TimeInterval] = [1.0, 2.0, 4.0, 8.0]
 
     private var dragExcludedZones: Set<ZoneKey> {
         guard let dragSession else {
@@ -1527,8 +1540,112 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         placeNewWindow(window)
     }
 
+    func windowCreationFailedRetryNeeded(forPid pid: pid_t) {
+        // When AXWindowCreated fires but we can't capture the window (likely due to .cannotComplete errors),
+        // schedule a retry to attempt capturing windows for this PID again
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            Logger.debug("Scheduling capture retry for pid \(pid) due to failed AXWindowCreated capture")
+            scheduleCaptureRetry(forPid: pid, bundleId: app.bundleIdentifier)
+        }
+    }
+
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
         descriptor(for: screenId)
+    }
+
+    @discardableResult
+    private func captureWindowsAndHandleRetries(
+        for application: NSRunningApplication,
+        notifyDelegate: Bool,
+        allowExisting: Bool
+    ) -> [ManagedWindow] {
+        let result = windowController.captureWindows(
+            for: application,
+            notifyDelegate: notifyDelegate,
+            allowExisting: allowExisting
+        )
+
+        if result.needsRetry {
+            scheduleCaptureRetry(forPid: application.processIdentifier, bundleId: application.bundleIdentifier)
+        } else {
+            cancelCaptureRetry(forPid: application.processIdentifier)
+        }
+
+        return result.windows
+    }
+
+    private func scheduleCaptureRetry(forPid pid: pid_t, bundleId: String?) {
+        var retry = captureRetries[pid] ?? CaptureRetry(pid: pid, bundleId: bundleId)
+
+        if retry.bundleId == nil {
+            retry.bundleId = bundleId
+        } else if let bundleId, let existingBundle = retry.bundleId, existingBundle != bundleId {
+            retry.bundleId = bundleId
+            retry.attempt = 0
+            retry.cancelWorkItem()
+        }
+
+        if retry.attempt >= captureRetryDelays.count {
+            let bundleDescription = retry.bundleId ?? bundleId ?? "unknown-bundle-identifier"
+            Logger.debug("Capture retry exhausted for pid \(pid) (bundle \(bundleDescription))")
+            captureRetries.removeValue(forKey: pid)
+            return
+        }
+
+        if retry.workItem != nil {
+            captureRetries[pid] = retry
+            return
+        }
+
+        let delayIndex = min(retry.attempt, captureRetryDelays.count - 1)
+        let delay = captureRetryDelays[delayIndex]
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+
+            if var storedRetry = self.captureRetries[pid] {
+                storedRetry.workItem = nil
+                self.captureRetries[pid] = storedRetry
+            }
+
+            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
+                Logger.debug("Capture retry for pid \(pid) cancelled: application no longer running")
+                self.captureRetries.removeValue(forKey: pid)
+                return
+            }
+
+            if let expectedBundle = self.captureRetries[pid]?.bundleId,
+               let currentBundle = refreshedApplication.bundleIdentifier,
+               expectedBundle != currentBundle {
+                Logger.debug("Capture retry for pid \(pid) cancelled: bundle changed from \(expectedBundle) to \(currentBundle)")
+                self.captureRetries.removeValue(forKey: pid)
+                return
+            }
+
+            guard self.shouldManage(application: refreshedApplication) else {
+                self.captureRetries.removeValue(forKey: pid)
+                return
+            }
+
+            _ = self.captureWindowsAndHandleRetries(
+                for: refreshedApplication,
+                notifyDelegate: false,
+                allowExisting: false
+            )
+        }
+
+        retry.workItem = workItem
+        retry.attempt += 1
+        captureRetries[pid] = retry
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func cancelCaptureRetry(forPid pid: pid_t) {
+        guard var retry = captureRetries.removeValue(forKey: pid) else {
+            return
+        }
+        retry.cancelWorkItem()
     }
 
     // MARK: - Startup helpers
@@ -1542,7 +1659,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 continue
             }
 
-            let windows = windowController.captureWindows(for: application, notifyDelegate: false, allowExisting: false)
+            let windows = captureWindowsAndHandleRetries(for: application, notifyDelegate: false, allowExisting: false)
             for window in windows {
                 let resolvedScreenId = detectScreenId(for: window) ?? primaryScreenId
                 guard screenContexts[resolvedScreenId] != nil else {
@@ -1724,6 +1841,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
         Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
 
+        cancelCaptureRetry(forPid: application.processIdentifier)
+
         // When an application terminates, remove all of its managed windows immediately
         let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)
         if removedWindowIds.isEmpty {
@@ -1811,8 +1930,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
             guard self.shouldManage(application: refreshedApplication) else { return }
 
-            let newWindows = self.windowController.captureWindows(for: refreshedApplication, notifyDelegate: false, allowExisting: false)
-            for window in newWindows {
+            let captured = self.captureWindowsAndHandleRetries(
+                for: refreshedApplication,
+                notifyDelegate: false,
+                allowExisting: false
+            )
+            for window in captured {
                 self.placeNewWindow(window)
             }
         }

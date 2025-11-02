@@ -2,6 +2,10 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+// Bridge to private API for getting window ID
+@_silgen_name("_AXUIElementGetWindow")
+func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
+
 private func windowControllerObserverCallback(
     _ observer: AXObserver,
     _ element: AXUIElement,
@@ -95,6 +99,7 @@ class WindowController {
     private var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     private var accessibilityObservers: [pid_t: AXObserver] = [:]
     private var accessibilityApplications: [pid_t: AXUIElement] = [:]
+    private var pendingApplicationNotificationRegistrations: [pid_t: Set<String>] = [:]
     private var programmaticUpdateWindowIds: Set<Int> = []
     private var ignoredBundleIdentifiers: Set<String>
     private var accessibilityPermissionWarningShown = false
@@ -111,6 +116,7 @@ class WindowController {
         kAXMainWindowChangedNotification as CFString,
         kAXUIElementDestroyedNotification as CFString
     ]
+    private lazy var applicationAccessibilityNotificationNames: [String] = applicationAccessibilityNotifications.map { $0 as String }
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()
     }()
@@ -120,6 +126,17 @@ class WindowController {
     private var mouseUpGlobalMonitor: Any?
     private var resizingWindowId: Int?
     private let primaryScreenBounds: CGRect
+
+    struct CaptureResult {
+        let windows: [ManagedWindow]
+        let needsRetry: Bool
+    }
+
+    private struct ObserverSetupResult {
+        let observer: AXObserver
+        let pendingNotifications: Set<String>
+        let needsRetry: Bool
+    }
 
     init(ignoredBundleIdentifiers: Set<String> = [], primaryScreenBounds: CGRect) {
         self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
@@ -418,39 +435,52 @@ class WindowController {
     ///   - application: The running application whose windows should be managed.
     ///   - notifyDelegate: When true, the delegate is notified for each newly captured window.
     ///   - allowExisting: When true, existing managed windows are included in the result.
-    /// - Returns: Newly captured windows (and existing ones if requested).
+    /// - Returns: Newly captured windows (and existing ones if requested) along with retry guidance.
     func captureWindows(
         for application: NSRunningApplication,
         notifyDelegate: Bool,
         allowExisting: Bool = false
-    ) -> [ManagedWindow] {
+    ) -> CaptureResult {
         guard ensureAccessibilityPermissions() else {
-            return []
+            return CaptureResult(windows: [], needsRetry: false)
         }
 
         guard application.processIdentifier != getpid() else {
-            return []
+            return CaptureResult(windows: [], needsRetry: false)
         }
 
-        if let bundleId = application.bundleIdentifier,
+        let bundleIdentifier = application.bundleIdentifier
+        if let bundleId = bundleIdentifier,
            ignoredBundleIdentifiers.contains(bundleId) {
-            return []
+            return CaptureResult(windows: [], needsRetry: false)
         }
 
         let pid = application.processIdentifier
         let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
         accessibilityApplications[pid] = appElement
 
-        var windowsObject: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
-        guard status == .success, let windowsObject else {
-            if status != .success {
-                Logger.debug("Failed to enumerate windows for pid \(pid) (AX error \(status.rawValue))")
-            }
-            return []
+        var needsRetry = false
+        if let observerResult = ensureObserver(for: pid, appElement: appElement, bundleIdentifier: bundleIdentifier) {
+            needsRetry = observerResult.needsRetry
+        } else {
+            return CaptureResult(windows: [], needsRetry: true)
         }
 
-        _ = ensureObserver(for: pid, appElement: appElement)
+        var windowsObject: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        if status != .success {
+            let bundleDescription = bundleIdentifier ?? "unknown-bundle-identifier"
+            Logger.debug("Failed to enumerate windows for pid \(pid) (bundle \(bundleDescription)) (AX error \(status.rawValue))")
+            if status == .cannotComplete {
+                needsRetry = true
+            }
+            return CaptureResult(windows: [], needsRetry: needsRetry)
+        }
+        guard let windowsObject else {
+            let bundleDescription = bundleIdentifier ?? "unknown-bundle-identifier"
+            Logger.debug("AX windows attribute returned nil for pid \(pid) (bundle \(bundleDescription))")
+            return CaptureResult(windows: [], needsRetry: needsRetry)
+        }
 
         var captured: [ManagedWindow] = []
 
@@ -484,7 +514,7 @@ class WindowController {
             }
         }
 
-        return captured
+        return CaptureResult(windows: captured, needsRetry: needsRetry)
     }
 
     private func captureWindowIfNeeded(
@@ -494,15 +524,27 @@ class WindowController {
         allowReturningExisting: Bool,
         notifyDelegate: Bool
     ) -> ManagedWindow? {
+        // Try to get window number for debugging
+        var windowNumber: CGWindowID = 0
+        var windowNumStr = "unknown"
+        if _AXUIElementGetWindow(element, &windowNumber) == .success {
+            windowNumStr = String(windowNumber)
+        }
+
+        Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
+
         guard isStandardWindow(element) else {
+            Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")
             return nil
         }
 
         if isWindowMinimized(element) {
+            Logger.debug("captureWindowIfNeeded: Window is minimized for pid \(pid)")
             return nil
         }
 
         if let existing = existingManagedWindow(for: element) {
+            Logger.debug("captureWindowIfNeeded: Window already exists for pid \(pid), allowReturningExisting=\(allowReturningExisting)")
             return allowReturningExisting ? existing : nil
         }
 
@@ -527,9 +569,11 @@ class WindowController {
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 
         if notifyDelegate {
+            Logger.debug("captureWindowIfNeeded: Notifying delegate about captured window \(managed.windowId) for pid \(pid)")
             delegate?.windowController(self, didCaptureExternalWindow: managed)
         }
 
+        Logger.debug("captureWindowIfNeeded: Successfully captured window \(managed.windowId) for pid \(pid)")
         return managed
     }
 
@@ -709,6 +753,9 @@ class WindowController {
         var roleObject: AnyObject?
         let roleStatus = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
         guard roleStatus == .success, let role = roleObject as? String, role == kAXWindowRole as String else {
+            if roleStatus != .success {
+                Logger.debug("isStandardWindow: Failed to get role attribute, AX error \(roleStatus.rawValue)")
+            }
             return false
         }
 
@@ -716,27 +763,40 @@ class WindowController {
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
             guard subrole == kAXStandardWindowSubrole as String else {
+                Logger.debug("isStandardWindow: Window has non-standard subrole: \(subrole)")
                 return false
             }
+        } else if subroleStatus != .success {
+            Logger.debug("isStandardWindow: Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
         }
 
         // Check isMovable attribute (per SPECIFICATION.md)
-        var movableObject: AnyObject?
-        let movableStatus = AXUIElementCopyAttributeValue(element, "AXMovable" as CFString, &movableObject)
-        if movableStatus == .success {
-            if let movable = movableObject as? NSNumber, !movable.boolValue {
-                return false
-            } else if CFGetTypeID(movableObject!) == CFBooleanGetTypeID(),
-                      !CFBooleanGetValue(unsafeBitCast(movableObject, to: CFBoolean.self)) {
-                return false
+        // Use the same approach as winmanmon: check if position is settable
+        var isPositionSettable: DarwinBoolean = false
+        let settableStatus = AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &isPositionSettable)
+        if settableStatus != .success || !isPositionSettable.boolValue {
+            if settableStatus != .success {
+                Logger.debug("isStandardWindow: Failed to check if position is settable, AX error \(settableStatus.rawValue)")
+            } else {
+                Logger.debug("isStandardWindow: Window position is not settable (not movable)")
             }
+            return false
         }
 
         // Check for zoom button (hasZoom) attribute (per SPECIFICATION.md)
-        var actionNamesObject: AnyObject?
-        let actionStatus = AXUIElementCopyAttributeValue(element, kAXZoomButtonAttribute as CFString, &actionNamesObject)
-        if actionStatus != .success {
-            // No zoom button means this window shouldn't be managed
+        // Note: Some windows (like Adobe Illustrator) return kAXErrorNoValue (-25212) which means
+        // the zoom button exists but has no readable value. This should still count as having a zoom button.
+        var zoomButtonValue: CFTypeRef?
+        let zoomStatus = AXUIElementCopyAttributeValue(element, kAXZoomButtonAttribute as CFString, &zoomButtonValue)
+
+        // Consider the window to have a zoom button if:
+        // 1. We successfully read a value (zoomStatus == .success)
+        // 2. We get kAXErrorNoValue (-25212), meaning the attribute exists but has no value
+        let kAXErrorNoValue = AXError(rawValue: -25212)!
+        let hasZoomButton = (zoomStatus == .success && zoomButtonValue != nil) || (zoomStatus == kAXErrorNoValue)
+
+        if !hasZoomButton {
+            Logger.debug("isStandardWindow: Window has no zoom button (AX error \(zoomStatus.rawValue))")
             return false
         }
 
@@ -768,9 +828,11 @@ class WindowController {
             return
         }
 
-        guard let observer = ensureObserver(for: pid, appElement: appElement) else {
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        guard let observerResult = ensureObserver(for: pid, appElement: appElement, bundleIdentifier: bundleId) else {
             return
         }
+        let observer = observerResult.observer
 
         for notification in windowAccessibilityNotifications {
             let status = AXObserverAddNotification(observer, element, notification, observerRefcon)
@@ -782,34 +844,70 @@ class WindowController {
         }
     }
 
-    private func ensureObserver(for pid: pid_t, appElement: AXUIElement) -> AXObserver? {
-        if let observer = accessibilityObservers[pid] {
-            return observer
+    private func ensureObserver(
+        for pid: pid_t,
+        appElement: AXUIElement,
+        bundleIdentifier: String?
+    ) -> ObserverSetupResult? {
+        let observer: AXObserver
+        let isNewObserver: Bool
+
+        if let existing = accessibilityObservers[pid] {
+            observer = existing
+            isNewObserver = false
+        } else {
+            var createdObserver: AXObserver?
+            let status = AXObserverCreate(pid, windowControllerObserverCallback, &createdObserver)
+            guard status == .success, let createdObserver else {
+                Logger.debug("Unable to create AXObserver for pid \(pid): \(status.rawValue)")
+                return nil
+            }
+            observer = createdObserver
+            isNewObserver = true
+            accessibilityObservers[pid] = observer
+
+            let runLoopSource = AXObserverGetRunLoopSource(observer)
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, CFRunLoopMode.commonModes)
         }
 
-        var observer: AXObserver?
-        let status = AXObserverCreate(pid, windowControllerObserverCallback, &observer)
-        guard status == .success, let observer else {
-            Logger.debug("Unable to create AXObserver for pid \(pid): \(status.rawValue)")
-            return nil
-        }
-
-        accessibilityObservers[pid] = observer
         accessibilityApplications[pid] = appElement
 
-        let runLoopSource = AXObserverGetRunLoopSource(observer)
-        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, CFRunLoopMode.commonModes)
-
-        for notification in applicationAccessibilityNotifications {
-            let status = AXObserverAddNotification(observer, appElement, notification, observerRefcon)
-            if status == .success || status == .notificationAlreadyRegistered {
-                Logger.debug("Successfully registered application notification '\(notification as String)' for pid \(pid)")
-                continue
-            }
-            Logger.debug("Failed to register application notification \(notification) for pid \(pid), AX error \(status.rawValue)")
+        var notificationsToAttempt: Set<String>
+        if isNewObserver {
+            notificationsToAttempt = Set(applicationAccessibilityNotificationNames)
+        } else if let pending = pendingApplicationNotificationRegistrations[pid] {
+            notificationsToAttempt = pending
+        } else {
+            notificationsToAttempt = []
         }
 
-        return observer
+        var stillPending: Set<String> = []
+        var needsRetry = false
+
+        for notificationName in notificationsToAttempt {
+            let notification = notificationName as CFString
+            let status = AXObserverAddNotification(observer, appElement, notification, observerRefcon)
+            if status == .success || status == .notificationAlreadyRegistered {
+                Logger.debug("Successfully registered application notification '\(notificationName)' for pid \(pid)")
+                continue
+            }
+
+            Logger.debug("Failed to register application notification \(notificationName) for pid \(pid), AX error \(status.rawValue)")
+
+            if status == .cannotComplete {
+                stillPending.insert(notificationName)
+                needsRetry = true
+            }
+        }
+
+        if stillPending.isEmpty {
+            pendingApplicationNotificationRegistrations.removeValue(forKey: pid)
+        } else {
+            pendingApplicationNotificationRegistrations[pid] = stillPending
+            needsRetry = true
+        }
+
+        return ObserverSetupResult(observer: observer, pendingNotifications: stillPending, needsRetry: needsRetry)
     }
 
     private func managedWindow(matching element: AXUIElement) -> ManagedWindow? {
@@ -847,16 +945,33 @@ class WindowController {
                 return
             }
 
+            // Get window title for debugging
+            var titleValue: AnyObject?
+            var windowTitle = "unknown"
+            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue) == .success,
+               let title = titleValue as? String {
+                windowTitle = title.isEmpty ? "(empty title)" : title
+            }
+
+            Logger.debug("AXWindowCreated notification received for pid \(pid), window title: \(windowTitle)")
+
             let appElement = accessibilityApplications[pid] ?? AXUIElementCreateApplication(pid)
             accessibilityApplications[pid] = appElement
 
-            _ = captureWindowIfNeeded(
+            let capturedWindow = captureWindowIfNeeded(
                 element: element,
                 pid: pid,
                 appElement: appElement,
                 allowReturningExisting: false,
                 notifyDelegate: true
             )
+
+            if capturedWindow == nil {
+                Logger.debug("AXWindowCreated: Failed to capture window '\(windowTitle)' for pid \(pid), requesting capture retry")
+                // If the window couldn't be captured (likely due to .cannotComplete errors),
+                // notify delegate to schedule a retry
+                delegate?.windowCreationFailedRetryNeeded(forPid: pid)
+            }
             return
         }
 
@@ -983,6 +1098,7 @@ class WindowController {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), CFRunLoopMode.commonModes)
             accessibilityObservers.removeValue(forKey: pid)
             accessibilityApplications.removeValue(forKey: pid)
+            pendingApplicationNotificationRegistrations.removeValue(forKey: pid)
         }
     }
 
@@ -1336,6 +1452,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect)
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
+    func windowCreationFailedRetryNeeded(forPid pid: pid_t)
 }
 
 /// NSWindowDelegate for tracking window events
