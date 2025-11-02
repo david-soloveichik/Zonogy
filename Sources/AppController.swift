@@ -533,10 +533,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor
     ) {
+        // Track if this zone was empty (had a placeholder) before we fill it
+        var wasEmptyZone = false
         for window in windowController.allWindows where window.isPlaceholder {
             if window.zoneIndex == zone.index && window.screenDisplayId == screenId {
                 windowController.closeWindow(window)
                 forgetPlaceholder(windowId: window.windowId)
+                wasEmptyZone = true
             }
         }
 
@@ -548,6 +551,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         let displayFrame = frameWithMargin(for: zone, in: controller)
         windowController.showWindow(managed, at: displayFrame, on: descriptor)
+
+        // If we just filled an empty zone, check if there's another empty zone to target
+        if wasEmptyZone {
+            // Find all remaining empty zones
+            let emptyCandidates = collectZoneCandidates { $0.isEmpty }
+
+            // If there are other empty zones, target one (prefer higher index)
+            if let newTargetedZone = selectHighestIndexZone(from: emptyCandidates, preferredScreenId: nil) {
+                setTargetedZone(newTargetedZone, reason: "zone-filled-switch-to-empty")
+            }
+        }
     }
 
     // MARK: - Targeted Zone Management

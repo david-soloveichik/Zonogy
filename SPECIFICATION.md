@@ -40,6 +40,7 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 - When LatticeTopology launches, the first zone on the primary display becomes the targeted zone.
 - Creating a new zone immediately makes it the targeted zone.
 - Clicking anywhere on a placeholder window, or clicking the zone indicator described below, makes that zone the targeted zone.
+- When an empty zone (ie with placeholder window) is filled (ie window placed in it) and there is another empty zone, then the other empty zone becomes targeted. (Break any ties to prefer higher index zones.)
 - Removing the targeted zone promotes another zone: prefer empty zones on the same screen with the highest index; if none exist, choose empty zones on other screens by highest index (ties broken by screen order). If no empty zones exist, use the highest-index occupied zone with the same tie-breaking rules.
 
 **Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
