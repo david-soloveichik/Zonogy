@@ -103,19 +103,8 @@ class WindowController {
     private var programmaticUpdateWindowIds: Set<Int> = []
     private var ignoredBundleIdentifiers: Set<String>
     private var accessibilityPermissionWarningShown = false
-    private let windowAccessibilityNotifications: [CFString] = [
-        kAXUIElementDestroyedNotification as CFString,
-        kAXWindowMiniaturizedNotification as CFString,
-        kAXWindowDeminiaturizedNotification as CFString,
-        kAXMovedNotification as CFString,
-        kAXResizedNotification as CFString
-    ]
-    private let applicationAccessibilityNotifications: [CFString] = [
-        kAXWindowCreatedNotification as CFString,
-        kAXFocusedWindowChangedNotification as CFString,
-        kAXMainWindowChangedNotification as CFString,
-        kAXUIElementDestroyedNotification as CFString
-    ]
+    private let windowAccessibilityNotifications: [CFString] = AccessibilityNotificationCatalog.windowNotifications
+    private let applicationAccessibilityNotifications: [CFString] = AccessibilityNotificationCatalog.applicationNotifications
     private lazy var applicationAccessibilityNotificationNames: [String] = applicationAccessibilityNotifications.map { $0 as String }
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()

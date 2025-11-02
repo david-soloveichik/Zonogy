@@ -20,7 +20,7 @@ struct DropResult {
 protocol DragDropCoordinatorDelegate: AnyObject {
     // Window and zone management
     var windowController: WindowController { get }
-    var screenContexts: [CGDirectDisplayID: AppController.ScreenContext] { get }
+    var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func forgetPlaceholder(windowId: Int)

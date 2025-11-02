@@ -12,6 +12,11 @@ let socketPath = arguments.first(where: { $0.hasPrefix("--socket-path=") })
     .map { String($0.dropFirst("--socket-path=".count)) }
     ?? "/tmp/lattice-topology.sock"
 
+if arguments.contains("--self-test") {
+    let allPassed = GuardrailTests.runAll()
+    exit(allPassed ? 0 : 1)
+}
+
 // Create the NSApplication
 let app = NSApplication.shared
 

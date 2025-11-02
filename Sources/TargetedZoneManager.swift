@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 
 protocol TargetedZoneManagerDelegate: AnyObject {
-    var screenContexts: [CGDirectDisplayID: AppController.ScreenContext] { get }
+    var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenOrder: [CGDirectDisplayID] { get }
     var primaryScreenId: CGDirectDisplayID { get }
 

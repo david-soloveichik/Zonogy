@@ -1,23 +1,9 @@
 /// Primary coordination hub for zone management, window placement, and system integration
 import Foundation
 import AppKit
-import Carbon
 import ApplicationServices
 
-private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
-
-private func AppControllerHotKeyHandler(_ nextHandler: EventHandlerCallRef?, _ event: EventRef?, _ userData: UnsafeMutableRawPointer?) -> OSStatus {
-    guard let event, let userData else { return noErr }
-    let controller = Unmanaged<AppController>.fromOpaque(userData).takeUnretainedValue()
-    return controller.handleHotKeyEvent(event: event)
-}
-
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate {
-    internal struct ScreenContext {
-        var descriptor: ScreenDescriptor
-        let zoneController: ZoneController
-    }
-
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate {
     private struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -33,14 +19,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let targetedZoneManager = TargetedZoneManager()
     internal let windowPlacementManager = WindowPlacementManager()
     internal let dragDropCoordinator = DragDropCoordinator()
-    internal var screenContexts: [CGDirectDisplayID: ScreenContext] = [:]
-    internal var screenOrder: [CGDirectDisplayID] = []
+    private let screenContextStore: ScreenContextStore
+    private let hotkeyService = HotkeyService()
+    private let systemEventMonitor = SystemEventMonitor()
     let primaryScreenId: CGDirectDisplayID
     private let primaryScreenBounds: CGRect
-    private var eventMonitors: [Any] = []
-    private var workspaceObservers: [NSObjectProtocol] = []
-    private var hotKeyRefs: [EventHotKeyRef] = []
-    private var hotKeyEventHandler: EventHandlerRef?
     private let zoneMargin: CGFloat = 8
     private let edgeAlignmentTolerance: CGFloat = 0.5
     private var isSyncingWindows = false
@@ -54,6 +37,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
         targetedZoneManager.targetedZoneKey
+    }
+
+    internal var screenContexts: [CGDirectDisplayID: ScreenContext] {
+        screenContextStore.contexts
+    }
+
+    internal var screenOrder: [CGDirectDisplayID] {
+        screenContextStore.order
     }
 
     private struct CaptureRetry {
@@ -79,53 +70,31 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.configuration = configuration
 
         let screens = NSScreen.screens
-        guard let primaryScreen = screens.first,
-              let primaryId = AppController.displayId(for: primaryScreen) else {
+        guard let contextStore = ScreenContextStore(screens: screens) else {
             fatalError("No primary screen found")
         }
 
-        self.primaryScreenId = primaryId
-        self.primaryScreenBounds = primaryScreen.frame
+        self.screenContextStore = contextStore
+        self.primaryScreenId = contextStore.primaryDisplayId
+        self.primaryScreenBounds = contextStore.primaryScreenBounds
 
         self.windowController = WindowController(
             ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
-            primaryScreenBounds: primaryScreen.frame
+            primaryScreenBounds: contextStore.primaryScreenBounds
         )
-
-        var initialContexts: [CGDirectDisplayID: ScreenContext] = [:]
-        var order: [CGDirectDisplayID] = []
-
-        for screen in screens {
-            guard let displayId = AppController.displayId(for: screen) else {
-                continue
-            }
-
-            let descriptor = ScreenDescriptor(
-                displayId: displayId,
-                localizedName: screen.localizedName,
-                cocoaBounds: screen.frame,
-                visibleCocoaBounds: screen.visibleFrame,
-                primaryBounds: primaryScreen.frame
-            )
-            let zoneController = ZoneController(screenFrame: descriptor.visibleScreenBounds)
-            initialContexts[displayId] = ScreenContext(descriptor: descriptor, zoneController: zoneController)
-            order.append(displayId)
-        }
 
         super.init()
 
-        self.screenContexts = initialContexts
-        self.screenOrder = order
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
         self.validationRetryManager.delegate = self
         self.targetedZoneManager.delegate = self
-        self.targetedZoneManager.initialize(primaryScreenId: primaryId)
+        self.targetedZoneManager.initialize(primaryScreenId: primaryScreenId)
         self.windowPlacementManager.delegate = self
         self.dragDropCoordinator.delegate = self
         prepareExistingApplicationWindows()
-        setupKeyboardShortcuts()
-        setupApplicationMonitoring()
+        hotkeyService.start(delegate: self)
+        systemEventMonitor.start(delegate: self)
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
@@ -136,27 +105,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     deinit {
-        for monitor in eventMonitors {
-            NSEvent.removeMonitor(monitor)
-        }
-        eventMonitors.removeAll()
-
-        let workspaceCenter = NSWorkspace.shared.notificationCenter
-        for observer in workspaceObservers {
-            workspaceCenter.removeObserver(observer)
-        }
-        workspaceObservers.removeAll()
-
-        for hotKeyRef in hotKeyRefs {
-            UnregisterEventHotKey(hotKeyRef)
-        }
-        hotKeyRefs.removeAll()
-
-        if let handler = hotKeyEventHandler {
-            RemoveEventHandler(handler)
-            hotKeyEventHandler = nil
-        }
-
+        hotkeyService.stop()
+        systemEventMonitor.stop()
         indicatorManager.tearDown()
     }
 
@@ -522,6 +472,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             idlePlaceholders.append(placeholder)
         }
 
+        let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
+        Logger.debug(
+            "Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), excluded zones \(currentExcludedZones.count)"
+        )
+
         if !idlePlaceholders.isEmpty {
             Logger.debug("Parking \(idlePlaceholders.count) placeholder window(s) for reuse")
         }
@@ -697,10 +652,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private static func displayId(for screen: NSScreen) -> CGDirectDisplayID? {
-        guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return nil
-        }
-        return CGDirectDisplayID(screenNumber.uint32Value)
+        ScreenContextStore.displayId(for: screen)
     }
 
     internal func activeScreenId() -> CGDirectDisplayID {
@@ -714,6 +666,54 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
         screenContexts[screenId]?.descriptor
+    }
+
+    // MARK: - HotkeyServiceDelegate
+
+    func hotkeyService(_ service: HotkeyService, didTrigger action: HotkeyService.Action) {
+        switch action {
+        case .addZone:
+            Logger.debug("Hotkey add zone triggered")
+        case .removeZone:
+            Logger.debug("Hotkey remove zone triggered")
+        }
+        triggerShortcut(action)
+    }
+
+    // MARK: - SystemEventMonitorDelegate
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, handleKeyEvent event: NSEvent) -> Bool {
+        hotkeyService.handleLocalShortcut(event: event)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
+        if let previousPid = lastActiveApplicationPid {
+            validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
+        }
+        if let application {
+            lastActiveApplicationPid = application.processIdentifier
+        }
+        handleApplicationEvent(application)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
+        handleApplicationEvent(application)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didUnhide application: NSRunningApplication?) {
+        handleApplicationEvent(application)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?) {
+        handleApplicationStateChange(application)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?) {
+        handleApplicationStateChange(application)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?) {
+        handleApplicationTermination(application)
     }
 
     // MARK: - TargetedZoneManagerDelegate
@@ -972,20 +972,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
 
         let zoneCount = context.zoneController.allZones.count
-        switch zoneCount {
-        case 0, 1:
-            return []
-        case 2:
-            return [.horizontal]
-        case 3:
-            if zoneIndex == 1 {
-                return [.horizontal]
-            } else {
-                return [.horizontal, .vertical]
-            }
-        default:
-            return []
-        }
+        return PlaceholderResizePolicy.allowedAxes(
+            zoneIndex: zoneIndex,
+            zoneCount: zoneCount,
+            zoneIsEmpty: zone.isEmpty
+        )
     }
 
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {
@@ -1011,6 +1002,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         notifyDelegate: Bool,
         allowExisting: Bool
     ) -> [ManagedWindow] {
+        let bundleDescription = application.bundleIdentifier ?? application.localizedName ?? "unknown-app"
+        Logger.debug(
+            "Capturing windows for \(bundleDescription) (pid \(application.processIdentifier)), allowExisting: \(allowExisting)"
+        )
+
         let result = windowController.captureWindows(
             for: application,
             notifyDelegate: notifyDelegate,
@@ -1022,6 +1018,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         } else {
             cancelCaptureRetry(forPid: application.processIdentifier)
         }
+
+        Logger.debug(
+            "Capture complete for \(bundleDescription) (pid \(application.processIdentifier)): \(result.windows.count) window(s), needsRetry: \(result.needsRetry)"
+        )
 
         return result.windows
     }
@@ -1171,88 +1171,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         return descriptor.cocoaToScreen(cocoaFrame).minX
     }
 
-    private enum HotKeyID: UInt32 {
-        case addZone = 1
-        case removeZone = 2
-    }
-
-    private func setupKeyboardShortcuts() {
-        registerGlobalHotKeys()
-
-        if let localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            guard let self = self else { return event }
-            if self.handleLocalShortcut(event: event) {
-                return nil
-            }
-            return event
-        }) {
-            eventMonitors.append(localMonitor)
-        }
-    }
-
-    private func setupApplicationMonitoring() {
-        let center = NSWorkspace.shared.notificationCenter
-
-        let activationObserver = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-
-            // When switching applications, validate windows for the previously active app
-            // This catches window closures that happened while the app was active
-            if let previousPid = self.lastActiveApplicationPid {
-                self.validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
-            }
-
-            if let application = application {
-                self.lastActiveApplicationPid = application.processIdentifier
-            }
-
-            self.handleApplicationEvent(application)
-        }
-        workspaceObservers.append(activationObserver)
-
-        let launchObserver = center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.handleApplicationEvent(application)
-        }
-        workspaceObservers.append(launchObserver)
-
-        let unhideObserver = center.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.handleApplicationEvent(application)
-        }
-        workspaceObservers.append(unhideObserver)
-
-        // Listen to deactivation and hide events to detect window changes
-        let deactivationObserver = center.addObserver(forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.handleApplicationStateChange(application)
-        }
-        workspaceObservers.append(deactivationObserver)
-
-        let hideObserver = center.addObserver(forName: NSWorkspace.didHideApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.handleApplicationStateChange(application)
-        }
-        workspaceObservers.append(hideObserver)
-
-        let terminateObserver = center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
-            guard let self = self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.handleApplicationTermination(application)
-        }
-        workspaceObservers.append(terminateObserver)
-
-        if let frontmost = NSWorkspace.shared.frontmostApplication {
-            lastActiveApplicationPid = frontmost.processIdentifier
-            handleApplicationEvent(frontmost)
-        }
-    }
-
     private func handleApplicationEvent(_ application: NSRunningApplication?) {
         guard let application else {
             return
@@ -1396,103 +1314,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             path.contains(".xpc/")
     }
 
-    @discardableResult
-    private func handleLocalShortcut(event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.command),
-              event.modifierFlags.contains(.control) else {
-            return false
-        }
-
-        switch Int(event.keyCode) {
-        case kVK_ANSI_Equal:
-            Logger.debug("Local shortcut add zone triggered")
-            triggerShortcut(.addZone)
-            return true
-        case kVK_ANSI_Minus:
-            Logger.debug("Local shortcut remove zone triggered")
-            triggerShortcut(.removeZone)
-            return true
-        default:
-            return false
-        }
-    }
-
-    fileprivate func handleHotKeyEvent(event: EventRef) -> OSStatus {
-        var hotKeyID = EventHotKeyID()
-        let status = GetEventParameter(
-            event,
-            EventParamName(kEventParamDirectObject),
-            EventParamType(typeEventHotKeyID),
-            nil,
-            MemoryLayout<EventHotKeyID>.size,
-            nil,
-            &hotKeyID
-        )
-
-        guard status == noErr, hotKeyID.signature == hotKeySignature else {
-            return status
-        }
-
-        switch HotKeyID(rawValue: hotKeyID.id) {
-        case .addZone:
-            Logger.debug("Hotkey add zone triggered")
-            triggerShortcut(.addZone)
-        case .removeZone:
-            Logger.debug("Hotkey remove zone triggered")
-            triggerShortcut(.removeZone)
-        case .none:
-            break
-        }
-
-        return noErr
-    }
-
-    private func registerGlobalHotKeys() {
-        installHotKeyEventHandler()
-        registerHotKey(keyCode: UInt32(kVK_ANSI_Equal), id: HotKeyID.addZone.rawValue)
-        registerHotKey(keyCode: UInt32(kVK_ANSI_Minus), id: HotKeyID.removeZone.rawValue)
-    }
-
-    private func installHotKeyEventHandler() {
-        guard hotKeyEventHandler == nil else { return }
-
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let status = InstallEventHandler(
-            GetApplicationEventTarget(),
-            AppControllerHotKeyHandler,
-            1,
-            &eventType,
-            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-            &hotKeyEventHandler
-        )
-
-        if status != noErr {
-            Logger.debug("Failed to install hotkey handler with status \(status)")
-        }
-    }
-
-    private func registerHotKey(keyCode: UInt32, id: UInt32) {
-        var hotKeyRef: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: id)
-        let modifierFlags = UInt32(cmdKey | controlKey)
-        let status = RegisterEventHotKey(
-            keyCode,
-            modifierFlags,
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRef
-        )
-
-        if status == noErr, let hotKeyRef {
-            hotKeyRefs.append(hotKeyRef)
-            Logger.debug("Registered hotkey id \(id) keyCode \(keyCode)")
-        } else if status != noErr {
-            Logger.debug("Failed to register hotkey \(id) with status \(status)")
-        }
-    }
-
-    private func triggerShortcut(_ action: HotKeyID) {
+    private func triggerShortcut(_ action: HotkeyService.Action) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             switch action {

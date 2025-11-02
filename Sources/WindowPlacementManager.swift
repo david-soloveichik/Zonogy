@@ -7,7 +7,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     func removeWindowFromAllZones(windowId: Int, reason: String)
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
-    var screenContexts: [CGDirectDisplayID: AppController.ScreenContext] { get }
+    var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenOrder: [CGDirectDisplayID] { get }
 
     // Window management
@@ -181,7 +181,7 @@ class WindowPlacementManager {
 
     private func findZoneAcceptingRemovedWindow(
         preferredScreenId: CGDirectDisplayID
-    ) -> (zone: Zone, context: AppController.ScreenContext, descriptor: ScreenDescriptor)? {
+    ) -> (zone: Zone, context: ScreenContext, descriptor: ScreenDescriptor)? {
         guard let delegate = delegate else { return nil }
 
         let orderedScreens = screenOrderStarting(with: preferredScreenId)

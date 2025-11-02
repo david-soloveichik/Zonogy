@@ -54,11 +54,11 @@ enum ZoneLayoutTests {
                                       width: halfWidth,
                                       height: screen.height)
             let expectedTopRight = CGRect(x: screen.minX + halfWidth,
-                                          y: screen.minY + halfHeight,
+                                          y: screen.minY,
                                           width: halfWidth,
                                           height: halfHeight)
             let expectedBottomRight = CGRect(x: screen.minX + halfWidth,
-                                             y: screen.minY,
+                                             y: screen.minY + halfHeight,
                                              width: halfWidth,
                                              height: halfHeight)
             assertEqual(splitThree[0], expectedLeft, label: "3 zones (left)")
