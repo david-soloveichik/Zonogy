@@ -96,6 +96,17 @@ final class PlaceholderCoordinator {
         placeholderMappings[windowId]
     }
 
+    /// Clear all placeholder mappings for a specific screen
+    /// Used when zones are reorganized (added/removed) to prevent stale mappings
+    func clearMappingsForScreen(_ screenId: CGDirectDisplayID) {
+        let keysToRemove = placeholderMappings.compactMap { windowId, key in
+            key.screenId == screenId ? windowId : nil
+        }
+        for windowId in keysToRemove {
+            placeholderMappings.removeValue(forKey: windowId)
+        }
+    }
+
     func applyResize(zoneKey: ZoneKey, placeholderFrame: CGRect, context: PlaceholderCoordinatorScreenContext, finalize: Bool) {
         guard let zone = context.zoneController.zone(at: zoneKey.index) else { return }
         let zoneFrame = context.zoneFrame(fromPlaceholderFrame: placeholderFrame, zone: zone)

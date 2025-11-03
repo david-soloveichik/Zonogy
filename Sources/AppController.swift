@@ -144,6 +144,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return nil
         }
 
+        // Clear placeholder mappings for this screen since zones are being reindexed
+        // This prevents stale mappings from causing duplicate placeholders
+        placeholderCoordinator.clearMappingsForScreen(screenId)
+
         let currentTarget = targetedZoneKey
         var pendingTargetedKey: ZoneKey?
         if let currentTarget, currentTarget.screenId == screenId {
@@ -727,6 +731,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified") {
         var removed = false
+        var emptyZoneKey: ZoneKey?
 
         for (screenId, context) in screenContexts {
             if let zone = context.zoneController.zoneForWindow(windowId: windowId) {
@@ -735,9 +740,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 )
                 context.zoneController.removeWindow(windowId: windowId)
                 removed = true
+                // Per specification: When a previously filled zone becomes empty, it should become the targeted zone
+                emptyZoneKey = ZoneKey(screenId: screenId, index: zone.index)
             } else {
                 context.zoneController.removeWindow(windowId: windowId)
             }
+        }
+
+        // Set the newly empty zone as targeted (per specification)
+        if let emptyZoneKey = emptyZoneKey {
+            targetedZoneManager.setTargetedZone(emptyZoneKey, reason: "zone-became-empty")
         }
 
         if !removed, reason != "place-new-window" {
@@ -1044,6 +1056,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
             let desiredZoneCount = max(1, min(windows.count, 3))
             let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
+
+            // Clear placeholder mappings when zone count changes to prevent stale mappings
+            if !removedWindowIds.isEmpty {
+                placeholderCoordinator.clearMappingsForScreen(screenId)
+            }
 
             for removedId in removedWindowIds {
                 if let removedWindow = windowController.window(withId: removedId) {
