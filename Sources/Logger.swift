@@ -38,10 +38,10 @@ enum Logger {
 
     @discardableResult
     static func dumpRecentLogs(
-        window: TimeInterval = 5,
         destinationURL: URL? = nil,
         captureTimestamp: Date = Date()
     ) -> Bool {
+        let window = bufferRetentionWindow
         let cutoff = captureTimestamp.addingTimeInterval(-window)
         let entries = bufferQueue.sync {
             recentEntries.filter { entry in

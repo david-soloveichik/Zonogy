@@ -211,7 +211,7 @@ The REPL keeps running until the process is terminated so we can script scenario
 
 ## Time-travel debug logging
 
-When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 5 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
+When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
 ## Unix Domain Socket Interface for Agent Interaction
 

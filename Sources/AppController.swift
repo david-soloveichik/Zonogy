@@ -1293,7 +1293,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let destinationURL = URL(fileURLWithPath: cwd, isDirectory: true)
             .appendingPathComponent("time_travel_log.txt", isDirectory: false)
         let success = Logger.dumpRecentLogs(
-            window: 5,
             destinationURL: destinationURL,
             captureTimestamp: captureTime
         )
