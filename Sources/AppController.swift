@@ -311,13 +311,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var originX = zoneFrame.midX - clampedWidth / 2
         originX = max(bounds.minX, min(originX, bounds.maxX - clampedWidth))
 
-        let offset: CGFloat = 4
-        var originY = zoneFrame.maxY + offset
-        if originY + indicatorHeight > bounds.maxY {
-            originY = zoneFrame.maxY - indicatorHeight - offset
-        }
+        let offset: CGFloat = 2
+        // Always position the indicator inside the zone at the top with consistent offset
+        // This ensures all zones have the same visual treatment
+        var originY = zoneFrame.maxY - indicatorHeight - offset
+
+        // Ensure the indicator stays within bounds
         if originY < bounds.minY {
             originY = bounds.minY
+        }
+        if originY + indicatorHeight > bounds.maxY {
+            originY = bounds.maxY - indicatorHeight
         }
 
         return CGRect(x: originX, y: originY, width: clampedWidth, height: indicatorHeight)
