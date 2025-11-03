@@ -37,11 +37,12 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 
 **Targeted zone selection:**
 
-1. Principle "whenever a placeholder window appears in a zone, that zone automatically becomes the targeted zone." This unified rule covers the following scenarios: (a) Creating a new zone immediately makes it the targeted zone. (b) When a previously filled zone becomes empty (eg the window in it is minimized or closed), it becomes targeted. (c) When a window is moved from a zone to a previously empty zone, the window's previous zone becomes targeted.
-2. When LatticeTopology launches, the first zone on the primary display becomes the targeted zone.
-3. Clicking anywhere on a placeholder window, or clicking the zone indicator described below, makes that zone the targeted zone.
-4. When an empty zone (ie with placeholder window) is filled (ie window placed in it) and there is another empty zone, then the other empty zone becomes targeted. (Break any ties to prefer higher index zones.)
-5. Removing the targeted zone promotes another zone: prefer empty zones on the same screen with the highest index; if none exist, choose empty zones on other screens by highest index (ties broken by screen order). If no empty zones exist, use the highest-index occupied zone with the same tie-breaking rules.
+1. When LatticeTopology launches, the first zone on the primary display becomes the targeted zone.
+2. Clicking anywhere on a placeholder window, or clicking the zone indicator described below, makes that zone the targeted zone.
+3. Whenever a zone becomes empty (including the case that we make a new zone): If the currently targeted zone is filled, then make the newly empty zone targeted.
+4. When the targeted zone is empty and we fill it then: (a) If there are other empty zones, then the empty zone with the *lowest* index becomes targeted. (b) If there are no other empty zones, then the just-filled zone remains targeted.
+5. When the targeted zone is removed: promote another zone preferring empty zones with the *lowest* index; if no empty zone exist, use the *highest*-index occupied zone. (Conceptually, this is like (4) except in case (b) we can't keep this zone targeted so we have to promote some filled zone.)
+6. If we move a window from a filled zone to an empty targeted one (ie swapping them), then rule 4 kicks in: target the empty zone with the lowest index. After the swap, the zone you moved the window out of is now empty and usually becomes that lowest-index empty zone. Thus the newly emptied zone becomes targeted—unless another empty zone with an even lower index already exists, in which case that lower-index empty zone takes the target.
 
 **Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
 

@@ -149,6 +149,9 @@ class WindowPlacementManager {
     ) {
         guard let delegate = delegate else { return }
 
+        let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
+        let wasTargetedZone = delegate.targetedZoneManager.targetedZoneKey == filledZoneKey
+
         // Track if this zone was empty (had a placeholder) before we fill it
         var wasEmptyZone = false
         for window in delegate.windowController.allWindows where window.isPlaceholder {
@@ -168,13 +171,11 @@ class WindowPlacementManager {
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
 
-        // If we just filled an empty zone, check if there's another empty zone to target
-        if wasEmptyZone {
-            // Find all remaining empty zones
-            // Check if there are other empty zones to target
-            let newTargetedZone = delegate.targetedZoneManager.fallbackTargetedZone(preferredScreenId: nil)
-            if let newTargetedZone, delegate.targetedZoneManager.zoneExists(newTargetedZone) {
-                delegate.targetedZoneManager.setTargetedZone(newTargetedZone, reason: "zone-filled-switch-to-empty")
+        if wasEmptyZone && wasTargetedZone {
+            // Specification: filling the targeted zone promotes the lowest-index remaining empty zone (if any)
+            let nextEmpty = delegate.targetedZoneManager.lowestIndexEmptyZone(excluding: filledZoneKey)
+            if let nextEmpty {
+                delegate.targetedZoneManager.setTargetedZone(nextEmpty, reason: "zone-filled-switch-to-empty")
             }
         }
     }

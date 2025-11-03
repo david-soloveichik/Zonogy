@@ -112,7 +112,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return
         }
         syncWindowsToZones()
-        targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: newZone.index), reason: "zone-added")
+        let newZoneKey = zoneKey(for: screenId, index: newZone.index)
+        if shouldRetargetToNewlyEmptyZone() {
+            targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
+        } else {
+            targetedZoneManager.ensureTargetedZone(reason: "zone-added")
+        }
         print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
     }
 
@@ -694,9 +699,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         placeholder.screenDisplayId = descriptor.displayId
         if let zoneIndex = placeholder.zoneIndex {
             setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
-            // When a placeholder appears in a zone, that zone should become targeted
             let zoneKey = ZoneKey(screenId: descriptor.displayId, index: zoneIndex)
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "placeholder-shown")
+            if shouldRetargetToNewlyEmptyZone() {
+                targetedZoneManager.setTargetedZone(zoneKey, reason: "placeholder-shown")
+            }
         }
     }
 
@@ -750,14 +756,23 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
         }
 
-        // Set the newly empty zone as targeted (per specification)
-        if let emptyZoneKey = emptyZoneKey {
+        if let emptyZoneKey = emptyZoneKey, shouldRetargetToNewlyEmptyZone() {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: "zone-became-empty")
         }
 
         if !removed, reason != "place-new-window" {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
+    }
+
+    private func shouldRetargetToNewlyEmptyZone() -> Bool {
+        guard let currentKey = targetedZoneManager.targetedZoneKey else {
+            return true
+        }
+        if !targetedZoneManager.zoneExists(currentKey) {
+            return true
+        }
+        return !targetedZoneManager.isZoneEmpty(currentKey)
     }
 
     private func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {

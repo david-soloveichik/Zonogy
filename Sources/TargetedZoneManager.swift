@@ -54,13 +54,13 @@ class TargetedZoneManager {
     }
 
     func fallbackTargetedZone(preferredScreenId: CGDirectDisplayID?) -> ZoneKey? {
-        let emptyCandidates = collectZoneCandidates { $0.isEmpty }
-        if let selection = selectHighestIndexZone(from: emptyCandidates, preferredScreenId: preferredScreenId) {
+        let emptyCandidates = collectZoneCandidates(where: { $0.isEmpty })
+        if let selection = selectLowestIndexZone(from: emptyCandidates, preferredScreenId: preferredScreenId) {
             return selection
         }
 
-        let allCandidates = collectZoneCandidates { _ in true }
-        return selectHighestIndexZone(from: allCandidates, preferredScreenId: preferredScreenId)
+        let occupiedCandidates = collectZoneCandidates(where: { !$0.isEmpty })
+        return selectHighestIndexZone(from: occupiedCandidates, preferredScreenId: preferredScreenId)
     }
 
     func zoneExists(_ key: ZoneKey) -> Bool {
@@ -69,6 +69,23 @@ class TargetedZoneManager {
             return false
         }
         return controller.zone(at: key.index) != nil
+    }
+
+    func isZoneEmpty(_ key: ZoneKey) -> Bool {
+        guard let delegate = delegate,
+              let controller = delegate.zoneController(for: key.screenId),
+              let zone = controller.zone(at: key.index) else {
+            return false
+        }
+        return zone.isEmpty
+    }
+
+    func lowestIndexEmptyZone(
+        preferredScreenId: CGDirectDisplayID? = nil,
+        excluding excluded: ZoneKey? = nil
+    ) -> ZoneKey? {
+        let candidates = collectZoneCandidates(where: { $0.isEmpty }, excluding: excluded)
+        return selectLowestIndexZone(from: candidates, preferredScreenId: preferredScreenId)
     }
 
     func prefersCandidate(_ candidate: ZoneKey, over current: ZoneKey?) -> Bool {
@@ -85,17 +102,45 @@ class TargetedZoneManager {
 
     // MARK: - Private Implementation
 
-    private func collectZoneCandidates(where predicate: (Zone) -> Bool) -> [(ZoneKey, Int)] {
+    private func collectZoneCandidates(
+        where predicate: (Zone) -> Bool,
+        excluding excluded: ZoneKey? = nil
+    ) -> [(ZoneKey, Int)] {
         guard let delegate = delegate else { return [] }
 
         var result: [(ZoneKey, Int)] = []
         for (screenId, context) in delegate.screenContexts {
             for zone in context.zoneController.allZones where predicate(zone) {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
+                if let excluded, excluded == key {
+                    continue
+                }
                 result.append((key, zone.index))
             }
         }
         return result
+    }
+
+    func selectLowestIndexZone(
+        from candidates: [(ZoneKey, Int)],
+        preferredScreenId: CGDirectDisplayID?
+    ) -> ZoneKey? {
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        let minIndex = candidates.map { $0.1 }.min() ?? 0
+        let lowestCandidates = candidates.filter { $0.1 == minIndex }
+
+        if let preferredScreenId,
+           let preferred = lowestCandidates.first(where: { $0.0.screenId == preferredScreenId }) {
+            return preferred.0
+        }
+
+        let sorted = lowestCandidates.sorted { lhs, rhs in
+            screenOrderIndex(for: lhs.0.screenId) < screenOrderIndex(for: rhs.0.screenId)
+        }
+        return sorted.first?.0 ?? lowestCandidates.first?.0
     }
 
     func selectHighestIndexZone(
