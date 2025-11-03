@@ -31,8 +31,17 @@ final class PlaceholderCoordinator {
                 placeholdersByKey[key] = window
             } else if let screenId = window.screenDisplayId, let zoneIndex = window.zoneIndex {
                 let key = ZoneKey(screenId: screenId, index: zoneIndex)
-                record(placeholder: window, key: key)
-                placeholdersByKey[key] = window
+                // Defensive check: Only use this metadata if we don't already have a placeholder for this key
+                // This prevents stale metadata from overriding correct mappings
+                if placeholdersByKey[key] == nil {
+                    record(placeholder: window, key: key)
+                    placeholdersByKey[key] = window
+                } else {
+                    // Stale metadata - treat as unassigned and clear the metadata
+                    window.zoneIndex = nil
+                    window.screenDisplayId = nil
+                    unassignedPlaceholders.append(window)
+                }
             } else {
                 unassignedPlaceholders.append(window)
             }
@@ -104,6 +113,14 @@ final class PlaceholderCoordinator {
         }
         for windowId in keysToRemove {
             placeholderMappings.removeValue(forKey: windowId)
+
+            // CRITICAL: Also clear the metadata from the ManagedWindow
+            // This prevents stale zone assignments from being reused
+            if let placeholder = windowController.window(withId: windowId),
+               placeholder.isPlaceholder {
+                placeholder.zoneIndex = nil
+                placeholder.screenDisplayId = nil
+            }
         }
     }
 
