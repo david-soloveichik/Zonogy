@@ -29,7 +29,7 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
-### **Targeted zone & multi-screen support**
+### Targeted zone & multi-screen support
 
 **Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
 
@@ -46,7 +46,6 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 **Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
-
 
 **Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone’s indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
 
@@ -209,6 +208,10 @@ Helpful optional commands (for faster debugging):
 - Placeholder windows need an interactive blue “x” control that sends a callback to remove the zone.
 
 The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
+
+## Time-travel debug logging
+
+When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 5 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
 ## Unix Domain Socket Interface for Agent Interaction
 

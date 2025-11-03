@@ -635,6 +635,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             Logger.debug("Hotkey add zone triggered")
         case .removeZone:
             Logger.debug("Hotkey remove zone triggered")
+        case .captureTimeTravelLogs:
+            Logger.debug("Hotkey capture time-travel logs triggered")
         }
         triggerShortcut(action)
     }
@@ -1279,7 +1281,26 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                     Logger.debug("Shortcut remove selected zone \(removalIndex) on display \(screenId), but zone details unavailable")
                 }
                 _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
+            case .captureTimeTravelLogs:
+                self.captureTimeTravelLogs(triggerReason: "shortcut")
             }
+        }
+    }
+
+    private func captureTimeTravelLogs(triggerReason: String) {
+        let captureTime = Date()
+        let cwd = FileManager.default.currentDirectoryPath
+        let destinationURL = URL(fileURLWithPath: cwd, isDirectory: true)
+            .appendingPathComponent("time_travel_log.txt", isDirectory: false)
+        let success = Logger.dumpRecentLogs(
+            window: 5,
+            destinationURL: destinationURL,
+            captureTimestamp: captureTime
+        )
+        if success {
+            Logger.debug("Time-travel logs captured at \(destinationURL.path) (reason: \(triggerReason))")
+        } else {
+            Logger.debug("Time-travel log capture failed (reason: \(triggerReason))")
         }
     }
 
