@@ -37,19 +37,18 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 
 **Targeted zone selection:**
 
-1. When LatticeTopology launches, the first zone on the primary display becomes the targeted zone.
-2. Clicking anywhere on a placeholder window, or clicking the zone indicator described below, makes that zone the targeted zone.
-3. Whenever a zone becomes empty (including the case that we make a new zone): If the currently targeted zone is filled, then make the newly empty zone targeted.
-4. When the targeted zone is empty and we fill it then: (a) If there are other empty zones, then the empty zone with the *lowest* index becomes targeted. (b) If there are no other empty zones, then the just-filled zone remains targeted.
-5. When the targeted zone is removed: promote another zone preferring empty zones with the *lowest* index; if no empty zone exist, use the *highest*-index occupied zone. (Conceptually, this is like (4) except in case (b) we can't keep this zone targeted so we have to promote some filled zone.)
-6. If we move a window from a filled zone to an empty targeted one (ie swapping them), then rule 4 kicks in: target the empty zone with the lowest index. After the swap, the zone you moved the window out of is now empty and usually becomes that lowest-index empty zone. Thus the newly emptied zone becomes targeted—unless another empty zone with an even lower index already exists, in which case that lower-index empty zone takes the target.
+- Launching: target zone 1 on the primary display.
+- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
+- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
+- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
+- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
 
 **Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
 
 
-**Indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone’s indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
+**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone’s indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
 
 ### Zones abstraction
 
