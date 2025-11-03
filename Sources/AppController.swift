@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate {
     private struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -31,7 +31,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private var pendingSyncExcludedZones: Set<ZoneKey> = []
     private var liveResizingZoneKey: ZoneKey?
     private var lastActiveApplicationPid: pid_t?
-    private var placeholderIdToZoneKey: [Int: ZoneKey] = [:]
+    private let capturePipeline: WindowCapturePipeline
+    private let placeholderCoordinator: PlaceholderCoordinator
     private let indicatorManager = ZoneIndicatorManager()
 
     // Computed property for backward compatibility
@@ -46,20 +47,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var screenOrder: [CGDirectDisplayID] {
         screenContextStore.order
     }
-
-    private struct CaptureRetry {
-        var pid: pid_t
-        var bundleId: String?
-        var attempt: Int = 0
-        var workItem: DispatchWorkItem?
-
-        mutating func cancelWorkItem() {
-            workItem?.cancel()
-            workItem = nil
-        }
-    }
-    private var captureRetries: [pid_t: CaptureRetry] = [:]
-    private let captureRetryDelays: [TimeInterval] = [1.0, 2.0, 4.0, 8.0]
 
     private var dragExcludedZones: Set<ZoneKey> {
         dragDropCoordinator.dragExcludedZones
@@ -82,9 +69,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
             primaryScreenBounds: contextStore.primaryScreenBounds
         )
+        self.capturePipeline = WindowCapturePipeline(windowController: self.windowController)
+        self.placeholderCoordinator = PlaceholderCoordinator(windowController: self.windowController)
 
         super.init()
 
+        self.capturePipeline.delegate = self
+        self.placeholderCoordinator.delegate = self
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
         self.validationRetryManager.delegate = self
@@ -105,6 +96,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     deinit {
+        capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         systemEventMonitor.stop()
         indicatorManager.tearDown()
@@ -371,7 +363,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return
         }
         isSyncingWindows = true
-        let currentExcludedZones = effectiveExcludedZones
         defer {
             isSyncingWindows = false
             if pendingSync {
@@ -391,22 +382,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
         }
 
-        var placeholdersByKey: [ZoneKey: ManagedWindow] = [:]
-        var placeholdersWithoutKey: [ManagedWindow] = []
-        for window in windowController.allWindows where window.isPlaceholder {
-            if let key = placeholderIdToZoneKey[window.windowId] {
-                placeholdersByKey[key] = window
-            } else if let screenId = window.screenDisplayId,
-                      let zoneIndex = window.zoneIndex {
-                let key = ZoneKey(screenId: screenId, index: zoneIndex)
-                recordPlaceholder(window, key: key)
-                placeholdersByKey[key] = window
-            } else {
-                placeholdersWithoutKey.append(window)
-            }
-        }
-
-        var placeholdersToClose = placeholdersByKey
+        let existingWindows = windowController.allWindows
         var assignedWindowIds = Set<Int>()
 
         for screenId in screenOrder {
@@ -417,69 +393,41 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             let controller = context.zoneController
 
             for zone in controller.allZones {
-                let key = ZoneKey(screenId: screenId, index: zone.index)
-                let isExcluded = currentExcludedZones.contains(key)
-                let displayFrame = frameWithMargin(for: zone, in: controller)
-
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId) {
+                    let displayFrame = frameWithMargin(for: zone, in: controller)
                     windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                     assignedWindowIds.insert(windowId)
-
-                    if let placeholder = placeholdersToClose.removeValue(forKey: key) {
-                        windowController.closeWindow(placeholder)
-                        forgetPlaceholder(windowId: placeholder.windowId)
-                    }
-                } else {
-                    if let placeholder = placeholdersByKey[key] {
-                        recordPlaceholder(placeholder, key: key)
-                        if isExcluded {
-                            placeholder.appKitWindow?.orderFront(nil)
-                        } else {
-                            windowController.showWindow(placeholder, at: displayFrame, on: descriptor)
-                            windowController.moveWindow(placeholder, to: displayFrame, on: descriptor)
-                        }
-                        placeholdersToClose.removeValue(forKey: key)
-                    } else if let unassigned = placeholdersWithoutKey.popLast() {
-                        recordPlaceholder(unassigned, key: key)
-                        windowController.showWindow(unassigned, at: displayFrame, on: descriptor)
-                        windowController.moveWindow(unassigned, to: displayFrame, on: descriptor)
-                    } else {
-                        let placeholder = windowController.createPlaceholderWindow(
-                            frame: displayFrame,
-                            zoneIndex: zone.index,
-                            on: descriptor
-                        )
-                        recordPlaceholder(placeholder, key: key)
-                        windowController.showWindow(placeholder, at: displayFrame, on: descriptor)
-                    }
                 }
             }
         }
 
-        var idlePlaceholders: [ManagedWindow] = []
-
-        for placeholder in placeholdersToClose.values {
-            placeholder.appKitWindow?.orderOut(nil)
-            clearManagedWindowZone(placeholder)
-            forgetPlaceholder(windowId: placeholder.windowId)
-            idlePlaceholders.append(placeholder)
-        }
-        for placeholder in placeholdersWithoutKey {
-            placeholder.appKitWindow?.orderOut(nil)
-            clearManagedWindowZone(placeholder)
-            idlePlaceholders.append(placeholder)
-        }
-
-        let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
-        Logger.debug(
-            "Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), excluded zones \(currentExcludedZones.count)"
+        placeholderCoordinator.syncPlaceholders(
+            existingWindows: existingWindows,
+            screenOrder: screenOrder,
+            excludedZones: effectiveExcludedZones,
+            contextProvider: { screenId in
+                guard let context = self.screenContexts[screenId],
+                      let descriptor = self.descriptor(for: screenId) else {
+                    return nil
+                }
+                let zoneController = context.zoneController
+                return PlaceholderCoordinatorScreenContext(
+                    descriptor: descriptor,
+                    zoneController: zoneController,
+                    displayFrameForZone: { zone in
+                        self.frameWithMargin(for: zone, in: zoneController)
+                    },
+                    placeholderToZoneFrame: { frame, zone in
+                        self.zoneFrame(fromContentFrame: frame, for: zone, in: context)
+                    }
+                )
+            }
         )
 
-        if !idlePlaceholders.isEmpty {
-            Logger.debug("Parking \(idlePlaceholders.count) placeholder window(s) for reuse")
-        }
+        let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
+        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), excluded zones \(effectiveExcludedZones.count)")
 
         for window in windowController.allWindows where !window.isPlaceholder {
             if !assignedWindowIds.contains(window.windowId) {
@@ -615,25 +563,23 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private func applyPlaceholderResize(zoneKey: ZoneKey, placeholderFrame: CGRect, finalize: Bool) {
-        guard let context = screenContexts[zoneKey.screenId] else {
+        guard let context = screenContexts[zoneKey.screenId],
+              let descriptor = descriptor(for: zoneKey.screenId) else {
             return
         }
 
-        guard let zone = context.zoneController.zone(at: zoneKey.index) else {
-            return
-        }
+        let screenContext = PlaceholderCoordinatorScreenContext(
+            descriptor: descriptor,
+            zoneController: context.zoneController,
+            displayFrameForZone: { zone in
+                self.frameWithMargin(for: zone, in: context.zoneController)
+            },
+            placeholderToZoneFrame: { frame, zone in
+                self.zoneFrame(fromContentFrame: frame, for: zone, in: context)
+            }
+        )
 
-        let zoneFrame = zoneFrame(fromContentFrame: placeholderFrame, for: zone, in: context)
-        guard context.zoneController.resizeZone(at: zoneKey.index, to: zoneFrame) else {
-            return
-        }
-
-        if finalize {
-            Logger.debug("Placeholder for zone \(zoneKey.index) on display \(zoneKey.screenId) resize finalized")
-            syncWindowsToZones()
-        } else {
-            syncWindowsToZones(excluding: Set([zoneKey]))
-        }
+        placeholderCoordinator.applyResize(zoneKey: zoneKey, placeholderFrame: placeholderFrame, context: screenContext, finalize: finalize)
     }
 
     private func clamp(frame: CGRect, to bounds: CGRect) -> CGRect {
@@ -716,6 +662,59 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         handleApplicationTermination(application)
     }
 
+    // MARK: - WindowCapturePipelineDelegate
+
+    func capturePipeline(_ pipeline: WindowCapturePipeline, shouldManage application: NSRunningApplication) -> Bool {
+        shouldManage(application: application)
+    }
+
+    // MARK: - PlaceholderCoordinatorDelegate
+
+    func placeholderCoordinator(
+        _ coordinator: PlaceholderCoordinator,
+        prepareToShow placeholder: ManagedWindow,
+        at frame: CGRect,
+        on descriptor: ScreenDescriptor,
+        isExcluded: Bool
+    ) {
+        if isExcluded {
+            placeholder.appKitWindow?.orderFront(nil)
+        } else {
+            windowController.showWindow(placeholder, at: frame, on: descriptor)
+            windowController.moveWindow(placeholder, to: frame, on: descriptor)
+        }
+        placeholder.screenDisplayId = descriptor.displayId
+        if let zoneIndex = placeholder.zoneIndex {
+            setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
+        }
+    }
+
+    func placeholderCoordinator(
+        _ coordinator: PlaceholderCoordinator,
+        prepareToHide placeholder: ManagedWindow,
+        reason: PlaceholderCoordinator.HideReason
+    ) {
+        switch reason {
+        case .replacedByWindow:
+            windowController.closeWindow(placeholder)
+        case .idle:
+            placeholder.appKitWindow?.orderOut(nil)
+        }
+    }
+
+    func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, didResizeZone key: ZoneKey, finalize: Bool) {
+        if finalize {
+            Logger.debug("Placeholder for zone \(key.index) on display \(key.screenId) resize finalized")
+            syncWindowsToZones()
+        } else {
+            syncWindowsToZones(excluding: Set([key]))
+        }
+    }
+
+    func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, clearManagedZoneFor managed: ManagedWindow) {
+        clearManagedWindowZone(managed)
+    }
+
     // MARK: - TargetedZoneManagerDelegate
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController? {
@@ -756,13 +755,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         managed.screenDisplayId = nil
     }
 
-    private func recordPlaceholder(_ placeholder: ManagedWindow, key: ZoneKey) {
-        placeholderIdToZoneKey[placeholder.windowId] = key
-        windowController.refreshPlaceholderMetadata(placeholder, screenId: key.screenId, zoneIndex: key.index)
-    }
-
     internal func forgetPlaceholder(windowId: Int) {
-        placeholderIdToZoneKey.removeValue(forKey: windowId)
+        placeholderCoordinator.forget(windowId: windowId)
     }
 
     internal func detectScreenId(for managed: ManagedWindow) -> CGDirectDisplayID? {
@@ -860,7 +854,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     func windowWillClose(windowId: Int) {
         Logger.debug("Window \(windowId) will close")
         if let managed = windowController.window(withId: windowId), managed.isPlaceholder {
-            forgetPlaceholder(windowId: windowId)
+            placeholderCoordinator.forget(windowId: windowId)
         }
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
@@ -986,10 +980,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {
         // When AXWindowCreated fires but we can't capture the window (likely due to .cannotComplete errors),
         // schedule a retry to attempt capturing windows for this PID again
-        if let app = NSRunningApplication(processIdentifier: pid) {
-            Logger.debug("Scheduling capture retry for pid \(pid) due to failed AXWindowCreated capture")
-            scheduleCaptureRetry(forPid: pid, bundleId: app.bundleIdentifier)
-        }
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        Logger.debug("Scheduling capture retry for pid \(pid) due to failed AXWindowCreated capture")
+        capturePipeline.requestRetry(forPid: pid, bundleId: bundleId)
     }
 
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
@@ -997,107 +990,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     @discardableResult
-    private func captureWindowsAndHandleRetries(
+    private func captureWindows(
         for application: NSRunningApplication,
         notifyDelegate: Bool,
         allowExisting: Bool
     ) -> [ManagedWindow] {
-        let bundleDescription = application.bundleIdentifier ?? application.localizedName ?? "unknown-app"
-        Logger.debug(
-            "Capturing windows for \(bundleDescription) (pid \(application.processIdentifier)), allowExisting: \(allowExisting)"
-        )
-
-        let result = windowController.captureWindows(
-            for: application,
+        let request = WindowCapturePipeline.CaptureRequest(
+            application: application,
             notifyDelegate: notifyDelegate,
             allowExisting: allowExisting
         )
-
-        if result.needsRetry {
-            scheduleCaptureRetry(forPid: application.processIdentifier, bundleId: application.bundleIdentifier)
-        } else {
-            cancelCaptureRetry(forPid: application.processIdentifier)
-        }
-
-        Logger.debug(
-            "Capture complete for \(bundleDescription) (pid \(application.processIdentifier)): \(result.windows.count) window(s), needsRetry: \(result.needsRetry)"
-        )
-
-        return result.windows
-    }
-
-    private func scheduleCaptureRetry(forPid pid: pid_t, bundleId: String?) {
-        var retry = captureRetries[pid] ?? CaptureRetry(pid: pid, bundleId: bundleId)
-
-        if retry.bundleId == nil {
-            retry.bundleId = bundleId
-        } else if let bundleId, let existingBundle = retry.bundleId, existingBundle != bundleId {
-            retry.bundleId = bundleId
-            retry.attempt = 0
-            retry.cancelWorkItem()
-        }
-
-        if retry.attempt >= captureRetryDelays.count {
-            let bundleDescription = retry.bundleId ?? bundleId ?? "unknown-bundle-identifier"
-            Logger.debug("Capture retry exhausted for pid \(pid) (bundle \(bundleDescription))")
-            captureRetries.removeValue(forKey: pid)
-            return
-        }
-
-        if retry.workItem != nil {
-            captureRetries[pid] = retry
-            return
-        }
-
-        let delayIndex = min(retry.attempt, captureRetryDelays.count - 1)
-        let delay = captureRetryDelays[delayIndex]
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-
-            if var storedRetry = self.captureRetries[pid] {
-                storedRetry.workItem = nil
-                self.captureRetries[pid] = storedRetry
-            }
-
-            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
-                Logger.debug("Capture retry for pid \(pid) cancelled: application no longer running")
-                self.captureRetries.removeValue(forKey: pid)
-                return
-            }
-
-            if let expectedBundle = self.captureRetries[pid]?.bundleId,
-               let currentBundle = refreshedApplication.bundleIdentifier,
-               expectedBundle != currentBundle {
-                Logger.debug("Capture retry for pid \(pid) cancelled: bundle changed from \(expectedBundle) to \(currentBundle)")
-                self.captureRetries.removeValue(forKey: pid)
-                return
-            }
-
-            guard self.shouldManage(application: refreshedApplication) else {
-                self.captureRetries.removeValue(forKey: pid)
-                return
-            }
-
-            _ = self.captureWindowsAndHandleRetries(
-                for: refreshedApplication,
-                notifyDelegate: false,
-                allowExisting: false
-            )
-        }
-
-        retry.workItem = workItem
-        retry.attempt += 1
-        captureRetries[pid] = retry
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-
-    private func cancelCaptureRetry(forPid pid: pid_t) {
-        guard var retry = captureRetries.removeValue(forKey: pid) else {
-            return
-        }
-        retry.cancelWorkItem()
+        return capturePipeline.capture(request)
     }
 
     // MARK: - Startup helpers
@@ -1111,7 +1014,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 continue
             }
 
-            let windows = captureWindowsAndHandleRetries(for: application, notifyDelegate: false, allowExisting: false)
+            let windows = captureWindows(for: application, notifyDelegate: false, allowExisting: false)
             for window in windows {
                 let resolvedScreenId = detectScreenId(for: window) ?? primaryScreenId
                 guard screenContexts[resolvedScreenId] != nil else {
@@ -1211,7 +1114,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
         Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
 
-        cancelCaptureRetry(forPid: application.processIdentifier)
+        capturePipeline.cancelRetry(forPid: application.processIdentifier)
 
         // When an application terminates, remove all of its managed windows immediately
         let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)
@@ -1249,14 +1152,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
             guard self.shouldManage(application: refreshedApplication) else { return }
 
-            let captured = self.captureWindowsAndHandleRetries(
+            _ = self.captureWindows(
                 for: refreshedApplication,
-                notifyDelegate: false,
+                notifyDelegate: true,
                 allowExisting: false
             )
-            for window in captured {
-                self.windowPlacementManager.placeNewWindow(window)
-            }
         }
     }
 
