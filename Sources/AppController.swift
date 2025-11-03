@@ -694,6 +694,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         placeholder.screenDisplayId = descriptor.displayId
         if let zoneIndex = placeholder.zoneIndex {
             setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
+            // When a placeholder appears in a zone, that zone should become targeted
+            let zoneKey = ZoneKey(screenId: descriptor.displayId, index: zoneIndex)
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "placeholder-shown")
         }
     }
 
