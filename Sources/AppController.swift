@@ -802,20 +802,24 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return
         }
 
-        Logger.debug("Activation workaround: scheduling activation for pid \(pid) (reason: \(reason))")
-        DispatchQueue.global(qos: .userInitiated).async {
+        Logger.debug("Activation workaround: activation sequence queued for pid \(pid) (reason: \(reason))")
+
+        let performActivation = {
             if let latticeApplication {
                 let selfResult = latticeApplication.activate(options: [.activateIgnoringOtherApps])
                 Logger.debug("Activation workaround: activated LatticeTopology before pid \(pid) (result: \(selfResult))")
-                if selfResult {
-                    Thread.sleep(forTimeInterval: 0.05)
-                }
             } else {
                 Logger.debug("Activation workaround: unable to resolve LatticeTopology application for pre-activation")
             }
 
             let targetResult = targetApplication.activate(options: [.activateIgnoringOtherApps])
             Logger.debug("Activation workaround: reactivated pid \(pid) (result: \(targetResult))")
+        }
+
+        if Thread.isMainThread {
+            performActivation()
+        } else {
+            DispatchQueue.main.async(execute: performActivation)
         }
     }
 
