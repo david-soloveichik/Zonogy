@@ -767,6 +767,58 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
     }
 
+    /// Work around macOS missing focus notifications when an app's final managed window closes or minimizes.
+    private func triggerActivationWorkaroundIfNeeded(pid: pid_t, excludingWindowIds: Set<Int>, reason: String) {
+        guard pid != getpid() else {
+            return
+        }
+
+        let otherManagedExists = windowController.allWindows.contains { candidate in
+            guard case .accessibility(_, let otherPid, _) = candidate.backing,
+                  otherPid == pid else {
+                return false
+            }
+            if excludingWindowIds.contains(candidate.windowId) {
+                return false
+            }
+            if candidate.isPlaceholder {
+                return false
+            }
+            if candidate.isMinimized {
+                return false
+            }
+            return true
+        }
+
+        if otherManagedExists {
+            return
+        }
+
+        let targetApplication = NSRunningApplication(processIdentifier: pid)
+        let latticeApplication = NSRunningApplication(processIdentifier: getpid())
+
+        guard let targetApplication else {
+            Logger.debug("Activation workaround skipped: unable to resolve NSRunningApplication for pid \(pid)")
+            return
+        }
+
+        Logger.debug("Activation workaround: scheduling activation for pid \(pid) (reason: \(reason))")
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let latticeApplication {
+                let selfResult = latticeApplication.activate(options: [.activateIgnoringOtherApps])
+                Logger.debug("Activation workaround: activated LatticeTopology before pid \(pid) (result: \(selfResult))")
+                if selfResult {
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+            } else {
+                Logger.debug("Activation workaround: unable to resolve LatticeTopology application for pre-activation")
+            }
+
+            let targetResult = targetApplication.activate(options: [.activateIgnoringOtherApps])
+            Logger.debug("Activation workaround: reactivated pid \(pid) (result: \(targetResult))")
+        }
+    }
+
     private func shouldRetarget(to candidate: ZoneKey) -> Bool {
         guard let currentKey = targetedZoneManager.targetedZoneKey else {
             return true
@@ -870,6 +922,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         return windowController.pruneDestroyedWindowsForPid(pid)
     }
 
+    func activationWorkaroundIfNeeded(for pid: pid_t, excludingWindowIds: Set<Int>, reason: String) {
+        triggerActivationWorkaroundIfNeeded(pid: pid, excludingWindowIds: excludingWindowIds, reason: reason)
+    }
+
     // MARK: - WindowControllerDelegate
 
     func windowFocusChanged(pid: pid_t) {
@@ -895,7 +951,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     func windowWillClose(windowId: Int) {
         Logger.debug("Window \(windowId) will close")
-        if let managed = windowController.window(withId: windowId), managed.isPlaceholder {
+        let managed = windowController.window(withId: windowId)
+        if let managed, managed.isPlaceholder {
             placeholderCoordinator.forget(windowId: windowId)
         }
         if dragDropCoordinator.currentDragWindowId == windowId {
@@ -903,15 +960,32 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-will-close")
         syncWindowsToZones()
+        if let managed,
+           case .accessibility(_, let pid, _) = managed.backing {
+            triggerActivationWorkaroundIfNeeded(
+                pid: pid,
+                excludingWindowIds: Set([managed.windowId]),
+                reason: "close"
+            )
+        }
     }
 
     func windowDidMiniaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did miniaturize")
+        let managed = windowController.window(withId: windowId)
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize")
         syncWindowsToZones()
+        if let managed,
+           case .accessibility(_, let pid, _) = managed.backing {
+            triggerActivationWorkaroundIfNeeded(
+                pid: pid,
+                excludingWindowIds: Set([managed.windowId]),
+                reason: "miniaturize"
+            )
+        }
     }
 
     func windowDidDeminiaturize(windowId: Int) {

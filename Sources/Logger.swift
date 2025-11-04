@@ -73,6 +73,7 @@ enum Logger {
 
         do {
             try output.write(to: targetURL, atomically: true, encoding: .utf8)
+            clearEntries(through: captureTimestamp)
             return true
         } catch {
             fputs("Logger dump failed: \(error.localizedDescription)\n", stderr)
@@ -87,6 +88,12 @@ enum Logger {
             while let first = recentEntries.first, first.timestamp < retentionCutoff {
                 recentEntries.removeFirst()
             }
+        }
+    }
+
+    private static func clearEntries(through timestamp: Date) {
+        bufferQueue.sync {
+            recentEntries.removeAll { $0.timestamp <= timestamp }
         }
     }
 

@@ -213,6 +213,8 @@ The REPL keeps running until the process is terminated so we can script scenario
 
 When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
+After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
+
 ## Unix Domain Socket Interface for Agent Interaction
 
 To enable better AI Agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
@@ -281,3 +283,11 @@ The file schema:
 ```
 
 Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
+
+## Work-arounds in bugs in MacOS accessibility API
+
+### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
+
+`kAXWindowCreatedNotification` is not reliably generated, while `kAXFocusedWindowChangedNotification` is much more reliable. We subscribe to both for max reliability.
+
+Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on LatticeTopology and then on application A. Then when A later creates a window it considers it a focus change.
