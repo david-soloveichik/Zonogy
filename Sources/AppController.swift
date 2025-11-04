@@ -802,6 +802,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return
         }
 
+        // Check if the target application is frontmost (as per updated specification)
+        guard targetApplication.isActive else {
+            Logger.debug("Activation workaround skipped: pid \(pid) is not frontmost (reason: \(reason))")
+            return
+        }
+
         Logger.debug("Activation workaround: activation sequence queued for pid \(pid) (reason: \(reason))")
 
         let performActivation = {
@@ -812,8 +818,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 Logger.debug("Activation workaround: unable to resolve LatticeTopology application for pre-activation")
             }
 
-            let targetResult = targetApplication.activate(options: [.activateIgnoringOtherApps])
-            Logger.debug("Activation workaround: reactivated pid \(pid) (result: \(targetResult))")
+            // Add small delay to allow OS to process the first activation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                let targetResult = targetApplication.activate(options: [.activateIgnoringOtherApps])
+                Logger.debug("Activation workaround: reactivated pid \(pid) (result: \(targetResult))")
+            }
         }
 
         if Thread.isMainThread {
