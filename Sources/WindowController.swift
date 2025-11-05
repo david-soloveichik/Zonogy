@@ -762,6 +762,18 @@ class WindowController {
             return false
         }
 
+        // Check window height (must be >= 250px tall)
+        if let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) {
+            if size.height < 250 {
+                Logger.debug("isStandardWindow: Window height \(size.height) is less than 250px minimum")
+                return false
+            }
+        } else {
+            // If we can't get the size, we treat it as not meeting the criteria
+            Logger.debug("isStandardWindow: Unable to get window size for height check")
+            return false
+        }
+
         return true
     }
 
