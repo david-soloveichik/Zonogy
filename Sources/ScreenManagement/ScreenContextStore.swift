@@ -60,6 +60,7 @@ final class ScreenContextStore {
 
             if var existing = contexts[displayId] {
                 existing.descriptor = descriptor
+                existing.zoneController.updateScreenFrame(descriptor.visibleScreenBounds)
                 updatedContexts[displayId] = existing
             } else {
                 let zoneController = ZoneController(screenFrame: descriptor.visibleScreenBounds)
