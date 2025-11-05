@@ -34,7 +34,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let capturePipeline: WindowCapturePipeline
     private let placeholderCoordinator: PlaceholderCoordinator
     private let indicatorManager = ZoneIndicatorManager()
-    private var screenConfigurationObserver: NSObjectProtocol?
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
@@ -87,7 +86,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         prepareExistingApplicationWindows()
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
-        observeScreenConfigurationChanges()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
@@ -101,109 +99,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         systemEventMonitor.stop()
-        if let observer = screenConfigurationObserver {
-            NotificationCenter.default.removeObserver(observer)
-            screenConfigurationObserver = nil
-        }
         indicatorManager.tearDown()
-    }
-
-    // MARK: - Screen Configuration Changes
-
-    private func observeScreenConfigurationChanges() {
-        screenConfigurationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleScreenConfigurationChanged(reason: "notification")
-        }
-    }
-
-    private func handleScreenConfigurationChanged(reason: String) {
-        Logger.debug("Screen configuration changed due to \(reason)")
-
-        let previousContexts = screenContexts
-        let previousScreenIds = Set(previousContexts.keys)
-
-        let detectedScreens = NSScreen.screens
-        guard !detectedScreens.isEmpty else {
-            Logger.debug("Screen change ignored: no screens detected")
-            return
-        }
-
-        screenContextStore.rebuild(with: detectedScreens)
-
-        let currentContexts = screenContexts
-        let currentScreenIds = Set(currentContexts.keys)
-
-        let removedScreenIds = previousScreenIds.subtracting(currentScreenIds)
-        let addedScreenIds = currentScreenIds.subtracting(previousScreenIds)
-
-        if !removedScreenIds.isEmpty {
-            Logger.debug("Removed displays: \(removedScreenIds)")
-        }
-        if !addedScreenIds.isEmpty {
-            Logger.debug("Added displays: \(addedScreenIds)")
-        }
-
-        for removedId in removedScreenIds {
-            placeholderCoordinator.clearMappingsForScreen(removedId)
-        }
-
-        for (screenId, previousContext) in previousContexts {
-            guard let currentContext = currentContexts[screenId] else {
-                continue
-            }
-
-            if previousContext.descriptor.visibleScreenBounds != currentContext.descriptor.visibleScreenBounds {
-                placeholderCoordinator.clearMappingsForScreen(screenId)
-            }
-        }
-
-        var windowsNeedingPlacement: [ManagedWindow] = []
-        var seenWindowIds: Set<Int> = []
-
-        for managed in windowController.allWindows where !managed.isPlaceholder {
-            if let screenId = managed.screenDisplayId,
-               removedScreenIds.contains(screenId),
-               seenWindowIds.insert(managed.windowId).inserted {
-                removeWindowFromAllZones(windowId: managed.windowId, reason: "screen-change-removed-display")
-                clearManagedWindowZone(managed)
-                windowsNeedingPlacement.append(managed)
-                continue
-            }
-
-            if let recorded = managed.screenDisplayId,
-               let actual = actualScreenId(for: managed),
-               recorded != actual,
-               seenWindowIds.insert(managed.windowId).inserted {
-                removeWindowFromAllZones(windowId: managed.windowId, reason: "screen-change-rebalance")
-                clearManagedWindowZone(managed)
-                windowsNeedingPlacement.append(managed)
-                continue
-            }
-        }
-
-        syncWindowsToZones()
-
-        for managed in windowController.allWindows where !managed.isPlaceholder && managed.zoneIndex == nil {
-            if seenWindowIds.insert(managed.windowId).inserted {
-                windowsNeedingPlacement.append(managed)
-            }
-        }
-
-        for managed in windowsNeedingPlacement {
-            let preferredScreen = detectScreenId(for: managed) ?? activeScreenId()
-            windowPlacementManager.placeNewWindow(managed, preferredScreenId: preferredScreen)
-        }
-
-        if !windowsNeedingPlacement.isEmpty {
-            syncWindowsToZones()
-        }
-
-        targetedZoneManager.ensureTargetedZone(reason: "screen-change-final")
-        refreshIndicators()
     }
 
     // MARK: - Zone Management
@@ -975,39 +871,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             return existing
         }
 
-        guard let cocoaFrame = cocoaFrame(for: managed) else {
-            return nil
-        }
-
-        var bestId: CGDirectDisplayID?
-        var largestArea: CGFloat = 0
-
-        for (screenId, context) in screenContexts {
-            let intersection = cocoaFrame.intersection(context.descriptor.cocoaBounds)
-            if intersection.isNull {
-                continue
-            }
-            let area = intersection.width * intersection.height
-            if area > largestArea {
-                largestArea = area
-                bestId = screenId
-            }
-        }
-
-        if let bestId, largestArea > 0 {
-            return bestId
-        }
-
-        for (screenId, context) in screenContexts {
-            if context.descriptor.cocoaBounds.contains(cocoaFrame.origin) {
-                return screenId
-            }
-        }
-
-        return nil
-    }
-
-    internal func actualScreenId(for managed: ManagedWindow) -> CGDirectDisplayID? {
         guard let cocoaFrame = cocoaFrame(for: managed) else {
             return nil
         }

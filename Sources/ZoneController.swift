@@ -9,20 +9,11 @@ class ZoneController {
 
     private var zones: [Zone] = []
     private var layout = ZoneLayout()
-    private var screenFrame: CGRect
+    private let screenFrame: CGRect
 
     init(screenFrame: CGRect, initialZoneCount: Int = 1) {
         self.screenFrame = screenFrame
         initializeZones(count: initialZoneCount)
-    }
-
-    /// Update the underlying screen frame and recompute layout if it changed.
-    func updateScreenFrame(_ newFrame: CGRect) {
-        guard screenFrame != newFrame else {
-            return
-        }
-        screenFrame = newFrame
-        relayout()
     }
 
     private func initializeZones(count: Int) {
