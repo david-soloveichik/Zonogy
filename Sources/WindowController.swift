@@ -751,19 +751,43 @@ class WindowController {
         }
 
         // Check for zoom button (hasZoom) attribute (per SPECIFICATION.md)
-        // Note: Some windows (like Adobe Illustrator) return kAXErrorNoValue (-25212) which means
-        // the zoom button exists but has no readable value. This should still count as having a zoom button.
         var zoomButtonValue: CFTypeRef?
         let zoomStatus = AXUIElementCopyAttributeValue(element, kAXZoomButtonAttribute as CFString, &zoomButtonValue)
 
-        // Consider the window to have a zoom button if:
-        // 1. We successfully read a value (zoomStatus == .success)
-        // 2. We get kAXErrorNoValue (-25212), meaning the attribute exists but has no value
-        let kAXErrorNoValue = AXError(rawValue: -25212)!
-        let hasZoomButton = (zoomStatus == .success && zoomButtonValue != nil) || (zoomStatus == kAXErrorNoValue)
+        var hasZoomButton = false
+        if zoomStatus == .success {
+            if let zoomButtonValue {
+                let typeId = CFGetTypeID(zoomButtonValue)
+                if typeId == CFNullGetTypeID() {
+                    Logger.debug("isStandardWindow: Zoom button attribute returned CFNull (no zoom button)")
+                } else if typeId == AXValueGetTypeID() {
+                    let axValue = zoomButtonValue as! AXValue
+                    let valueType = AXValueGetType(axValue)
+                    let axErrorTypeRawValue: UInt32 = 5  // kAXValueAXErrorType
+                    if valueType.rawValue == axErrorTypeRawValue {
+                        var underlyingError = AXError.success
+                        if AXValueGetValue(axValue, valueType, &underlyingError) {
+                            Logger.debug("isStandardWindow: Zoom button attribute returned AX error \(underlyingError.rawValue)")
+                        } else {
+                            Logger.debug("isStandardWindow: Zoom button attribute returned AX error type value without readable code")
+                        }
+                    } else {
+                        hasZoomButton = true
+                    }
+                } else {
+                    hasZoomButton = true
+                }
+            } else {
+                Logger.debug("isStandardWindow: Zoom button attribute returned nil (no zoom button)")
+            }
+        } else if zoomStatus == .noValue {
+            Logger.debug("isStandardWindow: Zoom button attribute reports no value (no zoom button)")
+        } else {
+            Logger.debug("isStandardWindow: Failed to get zoom button attribute, AX error \(zoomStatus.rawValue)")
+        }
 
         if !hasZoomButton {
-            Logger.debug("isStandardWindow: Window has no zoom button (AX error \(zoomStatus.rawValue))")
+            Logger.debug("isStandardWindow: Window has no zoom button")
             return false
         }
 
