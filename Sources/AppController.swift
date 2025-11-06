@@ -678,13 +678,33 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
-        Logger.debug("System will sleep")
+        // Log current state before sleep
+        var managedWindowCount = 0
+        var placeholderCount = 0
+        for window in windowController.allWindows {
+            if window.isPlaceholder {
+                placeholderCount += 1
+            } else {
+                managedWindowCount += 1
+            }
+        }
+        Logger.debug("System will sleep - current state: \(managedWindowCount) managed windows, \(placeholderCount) placeholders")
     }
 
     func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
-        Logger.debug("System did wake - revalidating all windows")
+        // Log initial state after wake
+        var initialManagedCount = 0
+        var initialPlaceholderCount = 0
+        for window in windowController.allWindows {
+            if window.isPlaceholder {
+                initialPlaceholderCount += 1
+            } else {
+                initialManagedCount += 1
+            }
+        }
+        Logger.debug("System did wake - initial state: \(initialManagedCount) managed windows, \(initialPlaceholderCount) placeholders - scheduling delayed window recapture")
 
-        // Get unique PIDs from all external windows
+        // First, validate and prune any destroyed windows from existing managed windows
         var pidsToValidate = Set<pid_t>()
         for window in windowController.allWindows {
             if case .accessibility(_, let pid, _) = window.backing {
@@ -692,13 +712,79 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
         }
 
-        // Revalidate all managed windows after wake
+        Logger.debug("Validating \(pidsToValidate.count) PIDs from existing managed windows")
         for pid in pidsToValidate {
-            _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "system-wake")
+            let pruned = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "system-wake-validation")
+            if !pruned.isEmpty {
+                Logger.debug("Pruned \(pruned.count) destroyed windows for pid \(pid)")
+            }
         }
 
-        // Force zone sync to reposition windows
+        // Force immediate sync to ensure placeholders are shown
         syncWindowsToZones()
+
+        // Schedule window recapture after a delay to allow the Accessibility API to stabilize
+        // We use multiple attempts with increasing delays to handle different wake scenarios
+        scheduleWakeRecapture(delay: 0.5)
+        scheduleWakeRecapture(delay: 1.5)
+        scheduleWakeRecapture(delay: 3.0)
+    }
+
+    private func scheduleWakeRecapture(delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+
+            Logger.debug("Attempting wake recapture after \(delay) seconds")
+
+            // Count how many windows we currently have
+            var preCaptureManaged = 0
+            var prePlaceholders = 0
+            for window in self.windowController.allWindows {
+                if window.isPlaceholder {
+                    prePlaceholders += 1
+                } else {
+                    preCaptureManaged += 1
+                }
+            }
+
+            // Recapture windows from all running applications
+            let visibleBundleIds = self.bundleIdsWithVisibleWindows()
+            var capturedCount = 0
+            for application in NSWorkspace.shared.runningApplications {
+                guard self.shouldManage(application: application, visibleBundleIds: visibleBundleIds) else {
+                    continue
+                }
+
+                // Capture windows, allowing existing ones to be returned
+                let capturedWindows = self.captureWindows(
+                    for: application,
+                    notifyDelegate: true,
+                    allowExisting: true
+                )
+                if !capturedWindows.isEmpty {
+                    capturedCount += capturedWindows.count
+                    Logger.debug("Captured \(capturedWindows.count) windows for \(application.bundleIdentifier ?? "unknown") (pid \(application.processIdentifier))")
+                }
+            }
+
+            // Only sync if we captured new windows
+            if capturedCount > 0 {
+                self.syncWindowsToZones()
+
+                // Log the result
+                var postCaptureManaged = 0
+                var postPlaceholders = 0
+                for window in self.windowController.allWindows {
+                    if window.isPlaceholder {
+                        postPlaceholders += 1
+                    } else {
+                        postCaptureManaged += 1
+                    }
+                }
+
+                Logger.debug("Wake recapture after \(delay)s: captured \(capturedCount) windows, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
+            }
+        }
     }
 
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor) {
