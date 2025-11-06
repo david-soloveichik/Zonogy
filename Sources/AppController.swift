@@ -819,7 +819,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
 
             // Add small delay to allow OS to process the first activation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
                 let targetResult = targetApplication.activate(options: [.activateIgnoringOtherApps])
                 Logger.debug("Activation workaround: reactivated pid \(pid) (result: \(targetResult))")
             }
