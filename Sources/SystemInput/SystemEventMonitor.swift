@@ -45,6 +45,38 @@ final class SystemEventMonitor {
     private func installWorkspaceObservers() {
         let center = NSWorkspace.shared.notificationCenter
 
+        // Sleep/Wake notifications
+        let willSleep = center.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.systemEventMonitorWillSleep(self)
+        }
+        workspaceObservers.append(willSleep)
+
+        let didWake = center.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.systemEventMonitorDidWake(self)
+        }
+        workspaceObservers.append(didWake)
+
+        // Screen configuration changes
+        let screenChanged = center.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.systemEventMonitorScreensDidChange(self)
+        }
+        workspaceObservers.append(screenChanged)
+
         let activation = center.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
@@ -125,4 +157,7 @@ protocol SystemEventMonitorDelegate: AnyObject {
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?)
+    func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor)
+    func systemEventMonitorDidWake(_ monitor: SystemEventMonitor)
+    func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor)
 }

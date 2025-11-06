@@ -26,9 +26,11 @@ app.setActivationPolicy(.accessory)
 // Initialize the AppController singleton
 let appController = AppController.shared
 
+// Always enable file logging for debugging sleep/wake issues
+Logger.logToFile = true
+Logger.debug("LatticeTopology starting - logging to \(Logger.logPath)")
+
 if useSocket {
-    // Enable file logging in socket mode for debugging
-    Logger.logToFile = true
     Logger.debug("Starting socket server mode")
 
     // Start socket server mode

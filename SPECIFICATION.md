@@ -200,15 +200,18 @@ Helpful optional commands (for faster debugging):
 
 ## Additional implementation notes
 
-- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes. The REPL can expose the next ID in status messages when `create-window` succeeds.
-- Add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
-**Log monitoring tip:** To watch the live log output, run: 
-`stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`. 
-(`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
-- When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
 - Placeholder windows need an interactive blue “x” control that sends a callback to remove the zone.
+- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes. The REPL can expose the next ID in status messages when `create-window` succeeds.
+- When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
+- We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
+**Log monitoring tip:** To watch the live log output, run:
+`stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
+(`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
+- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
-The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
+## Debug log file
+
+LatticeTopology always writes debug logs to `/tmp/lattice-topology-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
 
 ## Time-travel debug logging
 

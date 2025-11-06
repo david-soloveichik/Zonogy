@@ -677,6 +677,50 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         handleApplicationTermination(application)
     }
 
+    func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
+        Logger.debug("System will sleep")
+    }
+
+    func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
+        Logger.debug("System did wake - revalidating all windows")
+
+        // Get unique PIDs from all external windows
+        var pidsToValidate = Set<pid_t>()
+        for window in windowController.allWindows {
+            if case .accessibility(_, let pid, _) = window.backing {
+                pidsToValidate.insert(pid)
+            }
+        }
+
+        // Revalidate all managed windows after wake
+        for pid in pidsToValidate {
+            _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "system-wake")
+        }
+
+        // Force zone sync to reposition windows
+        syncWindowsToZones()
+    }
+
+    func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor) {
+        Logger.debug("Screen configuration changed - recalculating zones and revalidating windows")
+
+        // Get unique PIDs from all external windows
+        var pidsToValidate = Set<pid_t>()
+        for window in windowController.allWindows {
+            if case .accessibility(_, let pid, _) = window.backing {
+                pidsToValidate.insert(pid)
+            }
+        }
+
+        // Revalidate all windows
+        for pid in pidsToValidate {
+            _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "screen-change")
+        }
+
+        // Force zone sync - this will recalculate frames as needed
+        syncWindowsToZones()
+    }
+
     // MARK: - WindowCapturePipelineDelegate
 
     func capturePipeline(_ pipeline: WindowCapturePipeline, shouldManage application: NSRunningApplication) -> Bool {
