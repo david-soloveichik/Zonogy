@@ -200,7 +200,8 @@ Helpful optional commands (for faster debugging):
 
 ## Additional implementation notes
 
-- Placeholder windows need an interactive blue “x” control that sends a callback to remove the zone.
+- **Sleep/wake recovery:** After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. LatticeTopology implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
+- Placeholder windows need an interactive blue "x" control that sends a callback to remove the zone.
 - `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes. The REPL can expose the next ID in status messages when `create-window` succeeds.
 - When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
 - We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
