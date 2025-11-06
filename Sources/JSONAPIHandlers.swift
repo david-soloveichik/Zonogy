@@ -5,6 +5,12 @@ import Cocoa
 
 extension AppController {
 
+    /// Convert internal CGDirectDisplayID to user-friendly index (0,1,2...)
+    /// Provides consistency with winmanmon's screen numbering
+    private func getScreenIndex(for displayId: CGDirectDisplayID) -> Int? {
+        return screenContextStore.screenIndex(for: displayId) ?? ScreenContextStore.screenIndex(for: displayId)
+    }
+
     func addZoneJSON() -> [String: Any] {
         let screenId = activeScreenId()
         guard let context = screenContexts[screenId],
@@ -14,6 +20,7 @@ extension AppController {
         syncWindowsToZones()
         return [
             "screen_display_id": screenId,
+            "screen": getScreenIndex(for: screenId) as Any,
             "screen_name": context.descriptor.localizedName,
             "zone_index": newZone.index,
             "zone_count": context.zoneController.allZones.count
@@ -29,6 +36,7 @@ extension AppController {
 
         var response: [String: Any] = [
             "screen_display_id": screenId,
+            "screen": getScreenIndex(for: screenId) as Any,
             "screen_name": context.descriptor.localizedName,
             "removed_index": index,
             "zone_count": context.zoneController.allZones.count,
@@ -40,6 +48,9 @@ extension AppController {
             response["reassigned_window_id"] = managed.windowId
             response["reassigned_zone_index"] = managed.zoneIndex as Any
             response["reassigned_screen_display_id"] = managed.screenDisplayId as Any
+            if let screenId = managed.screenDisplayId {
+                response["reassigned_screen"] = getScreenIndex(for: screenId)
+            }
         }
 
         return response
@@ -71,6 +82,7 @@ extension AppController {
 
         return [
             "screen_display_id": screenId,
+            "screen": getScreenIndex(for: screenId) as Any,
             "screen_name": context.descriptor.localizedName,
             "zone_index": updatedZone.index,
             "frame": [
@@ -86,11 +98,15 @@ extension AppController {
     func createWindowJSON() -> [String: Any] {
         let managed = windowController.createTestWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
         windowPlacementManager.placeNewWindow(managed)
-        return [
+        var result: [String: Any] = [
             "window_id": managed.windowId,
             "zone_index": managed.zoneIndex as Any,
             "screen_display_id": managed.screenDisplayId as Any
         ]
+        if let screenId = managed.screenDisplayId {
+            result["screen"] = getScreenIndex(for: screenId)
+        }
+        return result
     }
 
     func captureFrontmostWindowJSON() -> [String: Any] {
@@ -113,6 +129,7 @@ extension AppController {
                 "window_id": managed.windowId,
                 "zone_index": zoneIndex,
                 "screen_display_id": screenId,
+                "screen": getScreenIndex(for: screenId) as Any,
                 "screen_name": screenContexts[screenId]?.descriptor.localizedName as Any,
                 "message": "Already managed"
             ]
@@ -120,11 +137,15 @@ extension AppController {
 
         windowPlacementManager.placeNewWindow(managed)
 
-        return [
+        var result: [String: Any] = [
             "window_id": managed.windowId,
             "zone_index": managed.zoneIndex as Any,
             "screen_display_id": managed.screenDisplayId as Any
         ]
+        if let screenId = managed.screenDisplayId {
+            result["screen"] = getScreenIndex(for: screenId)
+        }
+        return result
     }
 
     func closeWindowJSON(withId windowId: Int) -> [String: Any] {
@@ -159,11 +180,15 @@ extension AppController {
         windowController.unminimizeWindow(managed)
         windowPlacementManager.placeNewWindow(managed)
 
-        return [
+        var result: [String: Any] = [
             "window_id": windowId,
             "zone_index": managed.zoneIndex as Any,
             "screen_display_id": managed.screenDisplayId as Any
         ]
+        if let screenId = managed.screenDisplayId {
+            result["screen"] = getScreenIndex(for: screenId)
+        }
+        return result
     }
 
     func listZonesJSON() -> [String: Any] {
@@ -172,6 +197,7 @@ extension AppController {
             return context.zoneController.allZones.map { zone in
                 [
                     "screen_display_id": screenId,
+                    "screen": getScreenIndex(for: screenId) as Any,
                     "screen_name": context.descriptor.localizedName,
                     "index": zone.index,
                     "window_id": zone.windowId as Any,
@@ -196,6 +222,7 @@ extension AppController {
             guard let context = screenContexts[screenId] else { return nil }
             return [
                 "screen_display_id": screenId,
+                "screen": getScreenIndex(for: screenId) as Any,
                 "screen_name": context.descriptor.localizedName,
                 "zone_count": context.zoneController.allZones.count
             ]
@@ -269,6 +296,7 @@ extension AppController {
 
         if let screenId, let screenDescriptor {
             result["screen_display_id"] = screenId
+            result["screen"] = getScreenIndex(for: screenId)
             result["screen_name"] = screenDescriptor.localizedName
         }
 
@@ -306,6 +334,7 @@ extension AppController {
            let descriptor = descriptor(for: targeted.screenId) {
             response["targeted_zone"] = [
                 "screen_display_id": targeted.screenId,
+                "screen": getScreenIndex(for: targeted.screenId) as Any,
                 "screen_name": descriptor.localizedName,
                 "index": targeted.index
             ]
@@ -347,7 +376,7 @@ extension AppController {
             } else {
                 actualFrame = .zero
             }
-            return [
+            var windowData: [String: Any] = [
                 "window_id": window.windowId,
                 "type": type,
                 "is_placeholder": window.isPlaceholder,
@@ -360,6 +389,10 @@ extension AppController {
                     "height": actualFrame.height
                 ]
             ]
+            if let screenId = screenId {
+                windowData["screen"] = getScreenIndex(for: screenId)
+            }
+            return windowData
         }
         return ["windows": frames]
     }

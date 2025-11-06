@@ -1,6 +1,10 @@
 import AppKit
 
 /// Maintains screen contexts and ordering across all connected displays
+///
+/// Uses dual screen identification:
+/// - CGDirectDisplayID: Internal tracking (stable across display changes)
+/// - Screen index (0,1,2...): User-facing display (matches winmanmon)
 final class ScreenContextStore {
     private(set) var contexts: [CGDirectDisplayID: ScreenContext] = [:]
     private(set) var order: [CGDirectDisplayID] = []
@@ -39,6 +43,23 @@ final class ScreenContextStore {
             return nil
         }
         return CGDirectDisplayID(screenNumber.uint32Value)
+    }
+
+    /// Convert CGDirectDisplayID to user-friendly screen index (0,1,2...)
+    /// Returns the index in NSScreen.screens array, or nil if displayId not found
+    func screenIndex(for displayId: CGDirectDisplayID) -> Int? {
+        return order.firstIndex(of: displayId)
+    }
+
+    /// Convert CGDirectDisplayID to user-friendly screen index (0,1,2...)
+    /// This uses a fresh scan of NSScreen.screens for accuracy
+    static func screenIndex(for displayId: CGDirectDisplayID) -> Int? {
+        for (index, screen) in NSScreen.screens.enumerated() {
+            if let screenId = ScreenContextStore.displayId(for: screen), screenId == displayId {
+                return index
+            }
+        }
+        return nil
     }
 
     private func rebuild(with screens: [NSScreen], primaryBounds: CGRect) {

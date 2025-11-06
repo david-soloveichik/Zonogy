@@ -19,10 +19,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let targetedZoneManager = TargetedZoneManager()
     internal let windowPlacementManager = WindowPlacementManager()
     internal let dragDropCoordinator = DragDropCoordinator()
-    private let screenContextStore: ScreenContextStore
+    internal let screenContextStore: ScreenContextStore
     private let hotkeyService = HotkeyService()
     private let systemEventMonitor = SystemEventMonitor()
-    let primaryScreenId: CGDirectDisplayID
+    let primaryScreenId: CGDirectDisplayID  // Internal tracking uses stable CGDirectDisplayID
     private let primaryScreenBounds: CGRect
     private let zoneMargin: CGFloat = 8
     private let edgeAlignmentTolerance: CGFloat = 0.5
@@ -1554,7 +1554,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         print("\nCurrent zones:")
         for screenId in screenOrder {
             guard let context = screenContexts[screenId] else { continue }
-            print("  Screen \(context.descriptor.localizedName) [\(screenId)]:")
+            // Convert internal display ID to user-friendly index for display
+            let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
+            let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+            print("  Screen \(context.descriptor.localizedName) [\(screenIdentifier)]:")
             for zone in context.zoneController.allZones {
                 let windowInfo = zone.windowId.map { "window \($0)" } ?? "empty"
                 print("    Zone \(zone.index): \(windowInfo), frame: \(zone.frame)")
@@ -1676,7 +1679,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             print("  PID: unknown")
         }
         if let screenId, let screenDescriptor {
-            print("  Screen: \(screenDescriptor.localizedName) [\(screenId)]")
+            let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
+            let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+            print("  Screen: \(screenDescriptor.localizedName) [\(screenIdentifier)]")
         } else {
             print("  Screen: unknown")
         }
@@ -1718,7 +1723,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 actualFrame = .zero
             }
             if let screenId, let screenDescriptor {
-                print("  Window \(window.windowId) (\(type)) on \(screenDescriptor.localizedName) [\(screenId)]: \(actualFrame)")
+                let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
+                let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+                print("  Window \(window.windowId) (\(type)) on \(screenDescriptor.localizedName) [\(screenIdentifier)]: \(actualFrame)")
             } else {
                 print("  Window \(window.windowId) (\(type)) on unknown screen: \(actualFrame)")
             }
