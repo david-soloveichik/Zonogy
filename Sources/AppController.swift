@@ -723,7 +723,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, didResizeZone key: ZoneKey, finalize: Bool) {
         if finalize {
-            Logger.debug("Placeholder for zone \(key.index) on display \(key.screenId) resize finalized")
+            let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+            Logger.debug("Placeholder for zone \(key.index) on screen \(screenIndex) resize finalized")
             syncWindowsToZones()
         } else {
             syncWindowsToZones(excluding: Set([key]))
@@ -948,17 +949,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        Logger.debug("Placeholder close requested for zone \(zoneIndex) on display \(screenId)")
+        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder close requested for zone \(zoneIndex) on screen \(screenIndex)")
         _ = performRemoveZone(at: zoneIndex, on: screenId, announce: false)
     }
 
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        Logger.debug("Placeholder activated for zone \(zoneIndex) on display \(screenId)")
+        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }
 
     func zoneIndicatorActivated(_ key: ZoneKey) {
-        Logger.debug("Zone indicator activated for zone \(key.index) on display \(key.screenId)")
+        let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+        Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
     }
 
@@ -1360,12 +1364,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 if let context = self.screenContexts[screenId],
                    let zone = context.zoneController.zone(at: removalIndex) {
                     let targetedMatch = (self.targetedZoneKey?.screenId == screenId) && (self.targetedZoneKey?.index == removalIndex)
+                    let screenIndex = self.screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
                     Logger.debug(
                         "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
-                        "[\(screenId)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.windowId.map(String.init) ?? "none"))"
+                        "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.windowId.map(String.init) ?? "none"))"
                     )
                 } else {
-                    Logger.debug("Shortcut remove selected zone \(removalIndex) on display \(screenId), but zone details unavailable")
+                    let screenIndex = self.screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+                    Logger.debug("Shortcut remove selected zone \(removalIndex) on screen \(screenIndex), but zone details unavailable")
                 }
                 _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
             case .captureTimeTravelLogs:

@@ -45,7 +45,9 @@ class TargetedZoneManager {
         targetedZoneKey = resolvedKey
 
         if let resolvedKey {
-            Logger.debug("Targeted zone set to \(resolvedKey.index) on display \(resolvedKey.screenId) due to \(reason)")
+            // Convert display ID to screen index for logging
+            let screenIndex = ScreenContextStore.screenIndex(for: resolvedKey.screenId) ?? Int(resolvedKey.screenId)
+            Logger.debug("Targeted zone set to \(resolvedKey.index) on screen \(screenIndex) due to \(reason)")
         } else {
             Logger.debug("Cleared targeted zone due to \(reason)")
         }

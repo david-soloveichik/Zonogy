@@ -249,7 +249,8 @@ class WindowController {
         managed.zoneIndex = zoneIndex
         windowRegistry.insert(managed)
 
-        Logger.debug("Created placeholder window \(windowId) for zone \(zoneIndex) on display \(screen.displayId)")
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        Logger.debug("Created placeholder window \(windowId) for zone \(zoneIndex) on screen \(screenIndex)")
         return managed
     }
 
@@ -272,7 +273,8 @@ class WindowController {
     }
 
     func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        Logger.debug("Placeholder activated for zone \(zoneIndex) on display \(screenId)")
+        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
     }
 
@@ -287,7 +289,8 @@ class WindowController {
             screenId = nil
         }
 
-        Logger.debug("Placeholder close button clicked for zone \(zoneIndex) on display \(screenId ?? 0)")
+        let screenIndex = screenId.flatMap { ScreenContextStore.screenIndex(for: $0) } ?? (screenId.map { Int($0) } ?? 0)
+        Logger.debug("Placeholder close button clicked for zone \(zoneIndex) on screen \(screenIndex)")
         if let screenId {
             delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
         }
@@ -591,7 +594,8 @@ class WindowController {
             }
             _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         }
-        Logger.debug("Showed window \(managedWindow.windowId) on display \(screen.displayId) at frame \(frame)")
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(frame)")
     }
 
     /// Minimize a window
@@ -650,7 +654,8 @@ class WindowController {
                 _ = setAccessibilityFrame(element: element, frame: accessibilityFrame)
             }
         }
-        Logger.debug("Moved window \(managedWindow.windowId) on display \(screen.displayId) to frame \(frame)")
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame)")
     }
 
     private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
