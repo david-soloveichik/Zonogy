@@ -109,8 +109,12 @@ class ZoneController {
             return
         }
 
+        let wasEmpty = zone.isEmpty
         zone.windowId = windowId
         Logger.debug("Assigned window \(windowId) to zone \(zoneIndex)")
+        if wasEmpty {
+            Logger.debug("Zone \(zoneIndex) is now occupied")
+        }
     }
 
     /// Remove a window from its zone
@@ -119,6 +123,7 @@ class ZoneController {
             if zone.windowId == windowId {
                 zone.windowId = nil
                 Logger.debug("Removed window \(windowId) from zone \(zone.index)")
+                Logger.debug("Zone \(zone.index) is now empty")
                 return
             }
         }

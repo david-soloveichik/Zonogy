@@ -586,6 +586,9 @@ class WindowController {
                 primaryScreenBounds: primaryScreenBounds
             )
             window.setFrame(cocoaFrame, display: true)
+            if managedWindow.isPlaceholder {
+                Logger.debug("Bringing placeholder window \(managedWindow.windowId) to front via orderFront")
+            }
             window.orderFront(nil)
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly

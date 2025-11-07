@@ -440,7 +440,21 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         )
 
         let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
-        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), excluded zones \(effectiveExcludedZones.count)")
+
+        // Calculate zone occupancy
+        var occupiedZones = 0
+        var emptyZones = 0
+        for context in screenContexts.values {
+            for zone in context.zoneController.allZones {
+                if zone.isEmpty {
+                    emptyZones += 1
+                } else {
+                    occupiedZones += 1
+                }
+            }
+        }
+
+        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty, excluded zones \(effectiveExcludedZones.count)")
 
         for window in windowController.allWindows where !window.isPlaceholder {
             if !assignedWindowIds.contains(window.windowId) {
@@ -822,9 +836,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         on descriptor: ScreenDescriptor,
         isExcluded: Bool
     ) {
+        let screenIndex = screenContextStore.screenIndex(for: descriptor.displayId) ?? ScreenContextStore.screenIndex(for: descriptor.displayId) ?? Int(descriptor.displayId)
+        Logger.debug("Preparing to show placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (excluded: \(isExcluded))")
+
         if isExcluded {
+            Logger.debug("Bringing excluded placeholder \(placeholder.windowId) to front using orderFront")
             placeholder.appKitWindow?.orderFront(nil)
         } else {
+            Logger.debug("Showing placeholder \(placeholder.windowId) using showWindow")
             windowController.showWindow(placeholder, at: frame, on: descriptor)
             windowController.moveWindow(placeholder, to: frame, on: descriptor)
         }
@@ -843,10 +862,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         prepareToHide placeholder: ManagedWindow,
         reason: PlaceholderCoordinator.HideReason
     ) {
+        let screenIndex = placeholder.screenDisplayId.map { screenContextStore.screenIndex(for: $0) ?? ScreenContextStore.screenIndex(for: $0) ?? Int($0) } ?? -1
+        Logger.debug("Preparing to hide placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (reason: \(reason))")
+
         switch reason {
         case .replacedByWindow:
+            Logger.debug("Closing placeholder \(placeholder.windowId) - replaced by actual window")
             windowController.closeWindow(placeholder)
         case .idle:
+            Logger.debug("Hiding idle placeholder \(placeholder.windowId) using orderOut")
             placeholder.appKitWindow?.orderOut(nil)
         }
     }

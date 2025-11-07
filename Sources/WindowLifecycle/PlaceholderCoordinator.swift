@@ -69,6 +69,7 @@ final class PlaceholderCoordinator {
                     delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
                     placeholdersToRetire.removeValue(forKey: key)
                 } else if let reusable = unassignedPlaceholders.popLast() {
+                    Logger.debug("Reusing placeholder window \(reusable.windowId) for zone \(zone.index) on screen \(context.descriptor.displayId)")
                     record(placeholder: reusable, key: key)
                     delegate?.placeholderCoordinator(self, prepareToShow: reusable, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
                 } else {
