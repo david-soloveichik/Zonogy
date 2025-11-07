@@ -231,6 +231,8 @@ class DragDropCoordinator {
             return nil
         }
 
+        let zoneWasEmpty = targetZone.windowId == nil
+
         if targetZone.windowId == session.windowId {
             Logger.debug("Window \(session.windowId) already assigned to target zone \(targetKey.index); no swap needed")
             delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
@@ -262,6 +264,10 @@ class DragDropCoordinator {
         delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
         Logger.debug("Window \(session.windowId) dropped into zone \(targetKey.index) on \(targetContext.descriptor.localizedName)")
 
+        if zoneWasEmpty {
+            closePlaceholders(for: targetKey)
+        }
+
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId],
            let displaced = displacedWindow {
@@ -284,5 +290,21 @@ class DragDropCoordinator {
         }
 
         return DropResult(displacedWindow: nil, preferredScreenId: nil)
+    }
+
+    private func closePlaceholders(for zoneKey: ZoneKey) {
+        guard let delegate = delegate else {
+            return
+        }
+        let placeholders = delegate.windowController.allWindows.filter { window in
+            window.isPlaceholder &&
+            window.screenDisplayId == zoneKey.screenId &&
+            window.zoneIndex == zoneKey.index
+        }
+
+        for placeholder in placeholders {
+            delegate.windowController.closeWindow(placeholder)
+            delegate.forgetPlaceholder(windowId: placeholder.windowId)
+        }
     }
 }

@@ -55,8 +55,13 @@ final class PlaceholderCoordinator {
 
             for zone in zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
-                guard zone.windowId == nil else {
-                    placeholdersToRetire.removeValue(forKey: key)
+                if zone.windowId != nil {
+                    if let placeholder = placeholdersByKey[key] {
+                        delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: .replacedByWindow)
+                        clearManagedZone(for: placeholder)
+                        forget(windowId: placeholder.windowId)
+                        placeholdersToRetire.removeValue(forKey: key)
+                    }
                     continue
                 }
 
