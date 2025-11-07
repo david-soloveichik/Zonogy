@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate {
     private struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -23,6 +23,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let hotkeyService = HotkeyService()
     private let systemEventMonitor = SystemEventMonitor()
     private let displayMonitor = DisplayReconfigurationMonitor()
+    private let zoneClickInterceptor = ZoneClickInterceptor()
     let primaryScreenId: CGDirectDisplayID  // Internal tracking uses stable CGDirectDisplayID
     private let primaryScreenBounds: CGRect
     private let zoneMargin: CGFloat = 8
@@ -96,6 +97,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
+        zoneClickInterceptor.start(delegate: self)
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
@@ -110,6 +112,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         hotkeyService.stop()
         systemEventMonitor.stop()
         displayMonitor.stop()
+        zoneClickInterceptor.stop()
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
@@ -1199,6 +1202,31 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         ZoneKey(screenId: screenId, index: index)
     }
 
+    private func zoneKey(containingScreenPoint location: CGPoint) -> ZoneKey? {
+        let locationRect = CGRect(origin: location, size: .zero)
+
+        for screenId in screenOrder {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+
+            let descriptor = context.descriptor
+            let accessibilityBounds = descriptor.screenToAccessibility(descriptor.visibleScreenBounds)
+            guard accessibilityBounds.contains(location) else {
+                continue
+            }
+
+            let screenPoint = descriptor.accessibilityToScreen(locationRect).origin
+            if let zone = context.zoneController.allZones.first(where: { $0.frame.contains(screenPoint) }) {
+                return ZoneKey(screenId: screenId, index: zone.index)
+            }
+
+            return nil
+        }
+
+        return nil
+    }
+
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
@@ -1265,6 +1293,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                 primaryScreenBounds: primaryScreenBounds
             )
         }
+    }
+
+    // MARK: - ZoneClickInterceptorDelegate
+
+    func zoneClickInterceptor(_ interceptor: ZoneClickInterceptor, shouldConsumeClickAt location: CGPoint) -> Bool {
+        guard let key = zoneKey(containingScreenPoint: location) else {
+            return false
+        }
+
+        targetedZoneManager.setTargetedZone(key, reason: "control-command-click")
+        return true
     }
 
     // MARK: - ValidationRetryManagerDelegate

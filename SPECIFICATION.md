@@ -39,6 +39,7 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 
 - Launching: target zone 1 on the primary display.
 - Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
+- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
 - Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
 - Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
 - If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
