@@ -47,7 +47,9 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
 
-**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone’s indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
+**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
+
+**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
 
 ### Zones abstraction
 

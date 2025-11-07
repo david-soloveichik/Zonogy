@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate {
     private struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -34,6 +34,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let capturePipeline: WindowCapturePipeline
     private let placeholderCoordinator: PlaceholderCoordinator
     private let indicatorManager = ZoneIndicatorManager()
+    private let addZoneIndicatorManager = AddZoneIndicatorManager()
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
@@ -78,6 +79,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.placeholderCoordinator.delegate = self
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
+        self.addZoneIndicatorManager.delegate = self
         self.validationRetryManager.delegate = self
         self.targetedZoneManager.delegate = self
         self.targetedZoneManager.initialize(primaryScreenId: primaryScreenId)
@@ -100,12 +102,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         hotkeyService.stop()
         systemEventMonitor.stop()
         indicatorManager.tearDown()
+        addZoneIndicatorManager.tearDown()
     }
 
     // MARK: - Zone Management
 
     func addZone() {
         let screenId = activeScreenId()
+        addZone(on: screenId)
+    }
+
+    private func addZone(on screenId: CGDirectDisplayID) {
         guard let context = screenContexts[screenId],
               let newZone = context.zoneController.addZone() else {
             print("Failed to add zone (max 3 zones)")
@@ -337,6 +344,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     internal func refreshIndicators() {
+        // Refresh zone indicators
         var descriptors: [ZoneIndicatorDescriptor] = []
 
         for (screenId, context) in screenContexts {
@@ -358,10 +366,51 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         if descriptors.isEmpty {
             indicatorManager.tearDown()
-            return
+        } else {
+            indicatorManager.present(over: descriptors)
         }
 
-        indicatorManager.present(over: descriptors)
+        // Refresh add-zone indicators
+        var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []
+
+        for (screenId, context) in screenContexts {
+            let zoneCount = context.zoneController.allZones.count
+            // Only show the indicator if there are fewer than 3 zones
+            guard zoneCount < 3 else { continue }
+
+            let screenDescriptor = context.descriptor
+            let frame = addZoneIndicatorFrame(for: screenDescriptor)
+            guard frame.width > 0, frame.height > 0 else {
+                continue
+            }
+            let descriptor = AddZoneIndicatorDescriptor(
+                screenId: screenId,
+                frame: frame
+            )
+            addZoneDescriptors.append(descriptor)
+        }
+
+        if addZoneDescriptors.isEmpty {
+            addZoneIndicatorManager.tearDown()
+        } else {
+            addZoneIndicatorManager.present(for: addZoneDescriptors)
+        }
+    }
+
+    private func addZoneIndicatorFrame(for descriptor: ScreenDescriptor) -> CGRect {
+        let bounds = descriptor.cocoaBounds.standardized
+
+        // Width: match the height of zone indicators (6px)
+        let indicatorWidth: CGFloat = 6
+
+        // Height: 1/3 of screen height
+        let indicatorHeight = bounds.height / 3
+
+        // Position on the right edge, vertically centered
+        let originX = bounds.maxX - indicatorWidth
+        let originY = bounds.midY - indicatorHeight / 2
+
+        return CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight)
     }
 
 
@@ -1118,6 +1167,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
+    }
+
+    // MARK: - AddZoneIndicatorManagerDelegate
+
+    func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID) {
+        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Add zone indicator clicked on screen \(screenIndex)")
+        addZone(on: screenId)
     }
 
     func windowWillClose(windowId: Int) {
