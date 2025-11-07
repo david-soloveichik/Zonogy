@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate {
     private struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -22,6 +22,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenContextStore: ScreenContextStore
     private let hotkeyService = HotkeyService()
     private let systemEventMonitor = SystemEventMonitor()
+    private let displayMonitor = DisplayReconfigurationMonitor()
     let primaryScreenId: CGDirectDisplayID  // Internal tracking uses stable CGDirectDisplayID
     private let primaryScreenBounds: CGRect
     private let zoneMargin: CGFloat = 8
@@ -35,6 +36,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private let placeholderCoordinator: PlaceholderCoordinator
     private let indicatorManager = ZoneIndicatorManager()
     private let addZoneIndicatorManager = AddZoneIndicatorManager()
+    private var pendingScreenChangeWorkItem: DispatchWorkItem?
+    private var pendingScreenChangeReason: String?
+    private var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []
+    private let screenChangeDebounceInterval: TimeInterval = 0.25
+    private let manualMoveSuppressionDuration: TimeInterval = 1.5
+    private var manualMoveSuppressionDeadline: Date?
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
@@ -88,6 +95,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         prepareExistingApplicationWindows()
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
+        displayMonitor.start(delegate: self)
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
@@ -101,6 +109,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         systemEventMonitor.stop()
+        displayMonitor.stop()
+        pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
     }
@@ -683,7 +693,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
            screenContexts[id] != nil {
             return id
         }
-        return primaryScreenId
+        if screenContexts[primaryScreenId] != nil {
+            return primaryScreenId
+        }
+        return screenOrder.first ?? primaryScreenId
     }
 
     internal func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
@@ -788,16 +801,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         // Schedule window recapture after a delay to allow the Accessibility API to stabilize
         // We use multiple attempts with increasing delays to handle different wake scenarios
-        scheduleWakeRecapture(delay: 0.5)
-        scheduleWakeRecapture(delay: 1.5)
-        scheduleWakeRecapture(delay: 3.0)
+        scheduleWindowRecapture(delay: 0.5, reason: "wake")
+        scheduleWindowRecapture(delay: 1.5, reason: "wake")
+        scheduleWindowRecapture(delay: 3.0, reason: "wake")
     }
 
-    private func scheduleWakeRecapture(delay: TimeInterval) {
+    private func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
 
-            Logger.debug("Attempting wake recapture after \(delay) seconds")
+            Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
 
             // Count how many windows we currently have
             var preCaptureManaged = 0
@@ -845,15 +858,107 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                     }
                 }
 
-                Logger.debug("Wake recapture after \(delay)s: captured \(capturedCount) windows, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
+                Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
             }
         }
     }
 
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor) {
-        Logger.debug("Screen configuration changed - recalculating zones and revalidating windows")
+        Logger.debug("Screen configuration change notification received from AppKit")
+        scheduleScreenTopologyRefresh(reason: "appkit-notification")
+    }
 
-        // Get unique PIDs from all external windows
+    // MARK: - DisplayReconfigurationMonitorDelegate
+
+    func displayMonitor(_ monitor: DisplayReconfigurationMonitor, didObserve event: DisplayReconfigurationMonitor.Event) {
+        var components: [String] = []
+        if event.isAdd { components.append("add") }
+        if event.isRemove { components.append("remove") }
+        if event.isMove { components.append("move") }
+        if event.isEnabled { components.append("enabled") }
+        if event.isDisabled { components.append("disabled") }
+        if event.isConfigurationChange { components.append("config-change") }
+        let description = components.isEmpty ? "unknown" : components.joined(separator: ",")
+        Logger.debug("CGDisplay callback for id \(event.displayId) flags: \(description)")
+        scheduleScreenTopologyRefresh(reason: "cgdisplay-\(description)", affectedDisplayIds: Set([event.displayId]))
+    }
+
+    private func suppressManualMoveHandling(for interval: TimeInterval, reason: String) {
+        let newDeadline = Date().addingTimeInterval(interval)
+        if manualMoveSuppressionDeadline == nil || newDeadline > manualMoveSuppressionDeadline! {
+            manualMoveSuppressionDeadline = newDeadline
+        }
+
+        if dragDropCoordinator.isDragging {
+            Logger.debug("Ending in-flight drag session due to manual move suppression (\(reason))")
+            dragDropCoordinator.tearDownDragSession()
+            syncWindowsToZones()
+        }
+
+        Logger.debug("Manual move handling suppressed for \(String(format: "%.2f", interval))s (reason: \(reason))")
+    }
+
+    private func shouldSuppressManualMoveHandling(windowId: Int, event: String) -> Bool {
+        guard let deadline = manualMoveSuppressionDeadline else {
+            return false
+        }
+        if Date() < deadline {
+            Logger.debug("Suppressed manual \(event) for window \(windowId) while displays stabilize")
+            return true
+        }
+        manualMoveSuppressionDeadline = nil
+        return false
+    }
+
+    private func scheduleScreenTopologyRefresh(reason: String, affectedDisplayIds: Set<CGDirectDisplayID> = []) {
+        suppressManualMoveHandling(for: manualMoveSuppressionDuration, reason: reason)
+        if let existingReason = pendingScreenChangeReason {
+            pendingScreenChangeReason = "\(existingReason),\(reason)"
+        } else {
+            pendingScreenChangeReason = reason
+        }
+
+        pendingScreenChangeDisplayIds.formUnion(affectedDisplayIds)
+
+        pendingScreenChangeWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let hintedIds = self.pendingScreenChangeDisplayIds
+            let resolvedReason = self.pendingScreenChangeReason ?? reason
+            self.pendingScreenChangeDisplayIds.removeAll()
+            self.pendingScreenChangeReason = nil
+            self.performScreenTopologyRefresh(reason: resolvedReason, hintedDisplayIds: hintedIds)
+        }
+        pendingScreenChangeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + screenChangeDebounceInterval, execute: workItem)
+    }
+
+    private func performScreenTopologyRefresh(reason: String, hintedDisplayIds: Set<CGDirectDisplayID>) {
+        Logger.debug("Performing screen topology refresh due to \(reason) (hinted display ids: \(hintedDisplayIds.count))")
+
+        let screens = NSScreen.screens
+        let rebuildResult = screenContextStore.rebuild(with: screens)
+
+        if rebuildResult.addedDisplayIds.isEmpty,
+           rebuildResult.removedContexts.isEmpty,
+           !rebuildResult.orderChanged {
+            Logger.debug("Screen topology unchanged after refresh request (\(reason))")
+        }
+
+        if !rebuildResult.addedDisplayIds.isEmpty {
+            Logger.debug("Detected new display ids: \(rebuildResult.addedDisplayIds)")
+        }
+
+        if !rebuildResult.removedContexts.isEmpty {
+            let removedIds = rebuildResult.removedContexts.map { $0.displayId }
+            Logger.debug("Detected removed display ids: \(removedIds)")
+        }
+
+        if !rebuildResult.removedContexts.isEmpty {
+            handleRemovedScreens(rebuildResult.removedContexts)
+        }
+
+        // Validate all external windows to drop stale references
         var pidsToValidate = Set<pid_t>()
         for window in windowController.allWindows {
             if case .accessibility(_, let pid, _) = window.backing {
@@ -861,13 +966,51 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
         }
 
-        // Revalidate all windows
         for pid in pidsToValidate {
             _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "screen-change")
         }
 
-        // Force zone sync - this will recalculate frames as needed
+        targetedZoneManager.ensureTargetedZone(reason: "screens-changed")
+
         syncWindowsToZones()
+
+        // Recapture after displays settle when meaningful changes occurred
+        if !rebuildResult.addedDisplayIds.isEmpty || !rebuildResult.removedContexts.isEmpty || rebuildResult.orderChanged {
+            scheduleWindowRecapture(delay: 0.5, reason: "screen-change")
+            scheduleWindowRecapture(delay: 1.5, reason: "screen-change")
+        }
+    }
+
+    private func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext]) {
+        for entry in removed {
+            placeholderCoordinator.clearMappingsForScreen(entry.displayId)
+            let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == entry.displayId }
+            for placeholder in placeholders {
+                Logger.debug("Closing placeholder \(placeholder.windowId) for removed screen \(entry.displayId)")
+                windowController.closeWindow(placeholder)
+                placeholderCoordinator.forget(windowId: placeholder.windowId)
+            }
+            let zoneCount = entry.context.zoneController.allZones.count
+            Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [\(entry.displayId)] with \(zoneCount) zone(s)")
+
+            for zone in entry.context.zoneController.allZones {
+                guard let windowId = zone.windowId,
+                      let managed = windowController.window(withId: windowId) else {
+                    continue
+                }
+
+                if managed.isPlaceholder {
+                    Logger.debug("Closing placeholder \(managed.windowId) tied to removed screen \(entry.displayId)")
+                    windowController.closeWindow(managed)
+                    placeholderCoordinator.forget(windowId: managed.windowId)
+                    continue
+                }
+
+                Logger.debug("Reassigning window \(managed.windowId) from removed screen \(entry.displayId)")
+                clearManagedWindowZone(managed)
+                windowPlacementManager.placeNewWindow(managed, preferredScreenId: activeScreenId())
+            }
+        }
     }
 
     // MARK: - WindowCapturePipelineDelegate
@@ -1245,6 +1388,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
+        if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
+            return
+        }
         guard let screenId,
               let context = screenContexts[screenId],
               let managed = windowController.window(withId: windowId),
@@ -1269,6 +1415,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
+        if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-begin") {
+            return
+        }
         guard let managed = windowController.window(withId: windowId), !managed.isPlaceholder else {
             return
         }
@@ -1290,10 +1439,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect) {
+        if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-update") {
+            return
+        }
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
     }
 
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect) {
+        if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
+            return
+        }
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
 
         if let displacedWindow = result.displacedWindow {

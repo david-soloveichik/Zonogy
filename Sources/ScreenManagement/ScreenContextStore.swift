@@ -6,6 +6,18 @@ import AppKit
 /// - CGDirectDisplayID: Internal tracking (stable across display changes)
 /// - Screen index (0,1,2...): User-facing display (matches winmanmon)
 final class ScreenContextStore {
+    struct RebuildResult {
+        struct RemovedContext {
+            let displayId: CGDirectDisplayID
+            let context: ScreenContext
+        }
+
+        let addedDisplayIds: [CGDirectDisplayID]
+        let removedContexts: [RemovedContext]
+        let updatedDisplayIds: [CGDirectDisplayID]
+        let orderChanged: Bool
+    }
+
     private(set) var contexts: [CGDirectDisplayID: ScreenContext] = [:]
     private(set) var order: [CGDirectDisplayID] = []
     let primaryDisplayId: CGDirectDisplayID
@@ -22,8 +34,9 @@ final class ScreenContextStore {
         rebuild(with: screens, primaryBounds: primaryScreen.frame)
     }
 
-    func rebuild(with screens: [NSScreen]) {
-        rebuild(with: screens, primaryBounds: primaryScreenBounds)
+    @discardableResult
+    func rebuild(with screens: [NSScreen]) -> RebuildResult {
+        return rebuild(with: screens, primaryBounds: primaryScreenBounds)
     }
 
     func context(for displayId: CGDirectDisplayID) -> ScreenContext? {
@@ -62,7 +75,13 @@ final class ScreenContextStore {
         return nil
     }
 
-    private func rebuild(with screens: [NSScreen], primaryBounds: CGRect) {
+    @discardableResult
+    private func rebuild(with screens: [NSScreen], primaryBounds: CGRect) -> RebuildResult {
+        let previousOrder = order
+        var addedDisplayIds: [CGDirectDisplayID] = []
+        var updatedDisplayIds: [CGDirectDisplayID] = []
+        var removedContexts: [RebuildResult.RemovedContext] = []
+
         var updatedContexts: [CGDirectDisplayID: ScreenContext] = [:]
         var updatedOrder: [CGDirectDisplayID] = []
 
@@ -81,15 +100,32 @@ final class ScreenContextStore {
 
             if var existing = contexts[displayId] {
                 existing.descriptor = descriptor
+                existing.zoneController.updateScreenFrame(descriptor.visibleScreenBounds)
                 updatedContexts[displayId] = existing
+                updatedDisplayIds.append(displayId)
             } else {
                 let zoneController = ZoneController(screenFrame: descriptor.visibleScreenBounds)
                 updatedContexts[displayId] = ScreenContext(descriptor: descriptor, zoneController: zoneController)
+                addedDisplayIds.append(displayId)
             }
             updatedOrder.append(displayId)
         }
 
+        let removedIds = Set(contexts.keys).subtracting(updatedContexts.keys)
+        for displayId in removedIds {
+            if let removedContext = contexts[displayId] {
+                removedContexts.append(RebuildResult.RemovedContext(displayId: displayId, context: removedContext))
+            }
+        }
+
         contexts = updatedContexts
         order = updatedOrder
+
+        return RebuildResult(
+            addedDisplayIds: addedDisplayIds,
+            removedContexts: removedContexts,
+            updatedDisplayIds: updatedDisplayIds,
+            orderChanged: updatedOrder != previousOrder
+        )
     }
 }

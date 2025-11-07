@@ -9,10 +9,10 @@ class ZoneController {
 
     private var zones: [Zone] = []
     private var layout = ZoneLayout()
-    private let screenFrame: CGRect
+    private var screenFrame: CGRect
 
     init(screenFrame: CGRect, initialZoneCount: Int = 1) {
-        self.screenFrame = screenFrame
+        self.screenFrame = screenFrame.standardized
         initializeZones(count: initialZoneCount)
     }
 
@@ -207,6 +207,18 @@ class ZoneController {
     /// Screen frame used for the layout. Useful for clamping zone adjustments.
     var layoutBounds: CGRect {
         return screenFrame
+    }
+
+    /// Update the screen frame (e.g., when a monitor is resized) and relayout existing zones.
+    func updateScreenFrame(_ newFrame: CGRect) {
+        let standardized = newFrame.standardized
+        guard !screenFrame.equalTo(standardized) else {
+            return
+        }
+
+        screenFrame = standardized
+        Logger.debug("ZoneController screen frame updated to \(standardized) - relayout \(zones.count) zone(s)")
+        relayout()
     }
 
     private func sanitizeFrame(_ frame: CGRect) -> CGRect {
