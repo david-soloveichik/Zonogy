@@ -212,32 +212,50 @@ extension AppController {
 
 
 
-    private func indicatorFrame(for zone: Zone, descriptor: ScreenDescriptor) -> CGRect {
-        let zoneFrame = descriptor.screenToCocoa(zone.frame).standardized
-        let bounds = descriptor.cocoaBounds.standardized
-
+    private func indicatorFrame(for zone: Zone, controller: ZoneController, descriptor: ScreenDescriptor) -> CGRect {
+        let screenBounds = descriptor.visibleScreenBounds.standardized
+        let contentFrame = frameWithMargin(for: zone, in: controller).standardized
         let indicatorHeight: CGFloat = 6
         let minWidth: CGFloat = 40
-        let targetWidth = max(minWidth, zoneFrame.width / 3)
-        let clampedWidth = min(targetWidth, zoneFrame.width)
+        let targetWidth = max(minWidth, contentFrame.width / 3)
+        let clampedWidth = min(targetWidth, contentFrame.width)
 
-        var originX = zoneFrame.midX - clampedWidth / 2
-        originX = max(bounds.minX, min(originX, bounds.maxX - clampedWidth))
+        var originX = contentFrame.midX - clampedWidth / 2
+        originX = max(screenBounds.minX, min(originX, screenBounds.maxX - clampedWidth))
 
         let offset: CGFloat = 2
-        // Always position the indicator inside the zone at the top with consistent offset
-        // This ensures all zones have the same visual treatment
-        var originY = zoneFrame.maxY - indicatorHeight - offset
+        let fallbackBottom = contentFrame.minY - offset
+        var originY = fallbackBottom - indicatorHeight
+        var usedGapPlacement = false
 
-        // Ensure the indicator stays within bounds
-        if originY < bounds.minY {
-            originY = bounds.minY
-        }
-        if originY + indicatorHeight > bounds.maxY {
-            originY = bounds.maxY - indicatorHeight
+        if zone.index > 1, let previousZone = controller.zone(at: zone.index - 1) {
+            let previousContentFrame = frameWithMargin(for: previousZone, in: controller).standardized
+            let gapTop = previousContentFrame.maxY
+            let gapBottom = contentFrame.minY
+
+            if gapBottom > gapTop {
+                let midpoint = (gapTop + gapBottom) / 2
+                originY = midpoint - indicatorHeight / 2
+                usedGapPlacement = true
+            }
         }
 
-        return CGRect(x: originX, y: originY, width: clampedWidth, height: indicatorHeight)
+        if originY < screenBounds.minY {
+            originY = screenBounds.minY
+        }
+        if originY + indicatorHeight > screenBounds.maxY {
+            originY = screenBounds.maxY - indicatorHeight
+        }
+
+        if !usedGapPlacement {
+            let maxIndicatorBottom = fallbackBottom
+            if originY + indicatorHeight > maxIndicatorBottom {
+                originY = max(screenBounds.minY, maxIndicatorBottom - indicatorHeight)
+            }
+        }
+
+        let indicatorFrame = CGRect(x: originX, y: originY, width: clampedWidth, height: indicatorHeight)
+        return descriptor.screenToCocoa(indicatorFrame).standardized
     }
 
     internal func refreshIndicators() {
@@ -248,7 +266,7 @@ extension AppController {
             let screenDescriptor = context.descriptor
             for zone in context.zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
-                let frame = indicatorFrame(for: zone, descriptor: screenDescriptor)
+                let frame = indicatorFrame(for: zone, controller: context.zoneController, descriptor: screenDescriptor)
                 guard frame.width > 0, frame.height > 0 else {
                     continue
                 }
