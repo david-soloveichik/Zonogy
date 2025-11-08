@@ -100,6 +100,8 @@ class WindowController {
     private var resizingWindowId: Int?
     private let primaryScreenBounds: CGRect
     private var dragCandidate: DragCandidate?
+    // Require at least a few pixels of movement (with the button still down)
+    // before turning an AXMoved burst into a real drag begin event.
     private let dragActivationDistance: CGFloat = 6
 
     struct CaptureResult {
@@ -1257,6 +1259,8 @@ class WindowController {
         delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
     }
 
+    // Returns true once the pointer has moved far enough (with button down) to
+    // consider the gesture a live drag; false keeps accumulating movement.
     private func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
         if currentDraggingWindowId == managed.windowId {
             return true
@@ -1289,6 +1293,8 @@ class WindowController {
     }
 
     private func handleMouseUp() {
+        // If the user never crossed the activation threshold, treat the gesture as a
+        // cancelled drag and trigger a manual move end so the window snaps back.
         let cancelledCandidate = dragCandidate
         dragCandidate = nil
 
