@@ -139,8 +139,6 @@ We manage a window if it passes **all** of the following conditions (see `winman
 - **hasZoom: T** (window has a zoom button)
 - **Height: >= 250px** (window must be at least 250 pixels tall)
 
-**Native fullscreen opt-out:** When a window reports `AXFullScreen = true`, leave it unmanaged until it exits fullscreen. Keep its zone assignment (no placeholder) but skip frame changes and destroyed-window pruning.
-
 ## Destroyed window detection
 
 Not all applications emit didTerminateApplication notification upon closing (eg Find My). So we need to also monitor other notifications. Specifically, we do the following:
