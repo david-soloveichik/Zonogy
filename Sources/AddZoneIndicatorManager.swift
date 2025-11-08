@@ -20,7 +20,8 @@ class AddZoneIndicatorWindow: NSPanel {
         self.isOpaque = false
         self.backgroundColor = .clear
         self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        // Follow the active space but avoid joining dedicated full-screen spaces.
+        self.collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
         self.ignoresMouseEvents = false
         self.hasShadow = false
     }
