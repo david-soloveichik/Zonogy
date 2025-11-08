@@ -31,12 +31,17 @@ class ManagedWindow {
     /// Identifier for the display this window is currently associated with.
     var screenDisplayId: CGDirectDisplayID?
 
+    /// Reports whether the window has opted into macOS native fullscreen.
+    /// When true we leave the window unmanaged so the system can control it.
+    var isNativeFullScreen: Bool
+
     init(windowId: Int, backing: ManagedWindowBacking, isPlaceholder: Bool) {
         self.windowId = windowId
         self.backing = backing
         self.isPlaceholder = isPlaceholder
         self.zoneIndex = nil
         self.screenDisplayId = nil
+        self.isNativeFullScreen = false
     }
 
     /// The underlying AppKit window, if any.

@@ -14,6 +14,7 @@ private let axMovedNotificationName = kAXMovedNotification as String
 private let axResizedNotificationName = kAXResizedNotification as String
 private let axWindowCreatedNotificationName = kAXWindowCreatedNotification as String
 private let axMainWindowChangedNotificationName = kAXMainWindowChangedNotification as String
+private let axFullScreenAttribute: CFString = "AXFullScreen" as CFString
 
 struct PlaceholderResizeAxes: OptionSet {
     let rawValue: Int
@@ -98,6 +99,11 @@ class WindowController {
     struct CaptureResult {
         let windows: [ManagedWindow]
         let needsRetry: Bool
+    }
+
+    struct NativeFullScreenStateDelta {
+        let entered: [Int]
+        let exited: [Int]
     }
 
     init(ignoredBundleIdentifiers: Set<String> = [], primaryScreenBounds: CGRect) {
@@ -524,6 +530,7 @@ class WindowController {
             isPlaceholder: false
         )
         windowRegistry.insert(managed)
+        _ = updateNativeFullScreenState(for: managed, fallback: false)
         externalWindowsByElement[elementKey] = managed
         if let identifier {
             externalWindows[identifier] = managed
@@ -568,6 +575,25 @@ class WindowController {
                 _ = AXUIElementSetAttributeValue(windowElement, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
             }
         }
+    }
+
+    /// Refresh native fullscreen state for all managed external windows.
+    /// Returns window identifiers that entered or exited fullscreen since the last refresh.
+    func refreshNativeFullScreenStates() -> NativeFullScreenStateDelta {
+        var entered: [Int] = []
+        var exited: [Int] = []
+
+        for managed in windowRegistry.allWindows where !managed.isPlaceholder {
+            if updateNativeFullScreenState(for: managed) {
+                if managed.isNativeFullScreen {
+                    entered.append(managed.windowId)
+                } else {
+                    exited.append(managed.windowId)
+                }
+            }
+        }
+
+        return NativeFullScreenStateDelta(entered: entered, exited: exited)
     }
 
     /// Get a managed window by ID
@@ -705,6 +731,49 @@ class WindowController {
         if let number = minimizedValue as? NSNumber {
             return number.boolValue
         }
+        return false
+    }
+
+    private func resolvedNativeFullScreenState(for element: AXUIElement, fallback: Bool) -> Bool {
+        var fullscreenValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, axFullScreenAttribute, &fullscreenValue)
+        switch status {
+        case .success:
+            if let boolValue = fullscreenValue as? Bool {
+                return boolValue
+            }
+            if let numberValue = fullscreenValue as? NSNumber {
+                return numberValue.boolValue
+            }
+            return fallback
+        case .attributeUnsupported, .noValue:
+            return false
+        case .cannotComplete, .invalidUIElement:
+            return fallback
+        default:
+            Logger.debug("Native fullscreen attribute fetch failed with AX error \(status.rawValue)")
+            return fallback
+        }
+    }
+
+    @discardableResult
+    private func updateNativeFullScreenState(for managed: ManagedWindow, fallback: Bool? = nil) -> Bool {
+        let baseline = fallback ?? managed.isNativeFullScreen
+        let previous = managed.isNativeFullScreen
+        let nextState: Bool
+
+        switch managed.backing {
+        case .appKit:
+            nextState = false
+        case .accessibility(let element, _, _):
+            nextState = resolvedNativeFullScreenState(for: element, fallback: baseline)
+        }
+
+        if nextState != previous {
+            managed.isNativeFullScreen = nextState
+            return true
+        }
+
         return false
     }
 
@@ -1190,6 +1259,10 @@ class WindowController {
 
     private func isAccessibilityElementAlive(_ managed: ManagedWindow) -> Bool {
         guard case .accessibility(let element, _, _) = managed.backing else {
+            return true
+        }
+
+        if managed.isNativeFullScreen {
             return true
         }
 

@@ -450,6 +450,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         Logger.debug("Syncing windows to zones")
 
+        let fullscreenDelta = windowController.refreshNativeFullScreenStates()
+        if !fullscreenDelta.entered.isEmpty {
+            Logger.debug("Windows entered native fullscreen: \(fullscreenDelta.entered)")
+        }
+        if !fullscreenDelta.exited.isEmpty {
+            Logger.debug("Windows exited native fullscreen: \(fullscreenDelta.exited)")
+        }
+
         let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
         if !prunedWindowIds.isEmpty {
             for windowId in prunedWindowIds {
@@ -470,6 +478,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             for zone in controller.allZones {
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId) {
+                    if managed.isNativeFullScreen {
+                        Logger.debug("Window \(windowId) is native fullscreen; skipping frame management for zone \(zone.index)")
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
                     let displayFrame = frameWithMargin(for: zone, in: controller)
                     windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
