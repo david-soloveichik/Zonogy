@@ -130,6 +130,8 @@ Also if the window is moved to another location and released, it should "snap" b
 
 When the user drags a managed window, LatticeTopology suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
 
+If a window is dragged and dropped over a screen's add-zone indicator, we immediately add the new zone and place the dragged window into it.
+
 ## Conditions for which windows are managed
 
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
