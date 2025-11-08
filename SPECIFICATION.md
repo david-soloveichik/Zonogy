@@ -292,7 +292,7 @@ The file schema:
 
 Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
 
-## Work-arounds in bugs in MacOS accessibility API
+## Workarounds in bugs in MacOS accessibility API
 
 ### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
 

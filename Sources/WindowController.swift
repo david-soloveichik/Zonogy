@@ -66,6 +66,11 @@ private final class PlaceholderContentView: NSView {
     }
 }
 
+private struct DragCandidate {
+    let windowId: Int
+    let originFrame: CGRect
+}
+
 private struct AccessibilityElementKey: Hashable {
     let element: AXUIElement
 
@@ -94,6 +99,8 @@ class WindowController {
     private var mouseUpGlobalMonitor: Any?
     private var resizingWindowId: Int?
     private let primaryScreenBounds: CGRect
+    private var dragCandidate: DragCandidate?
+    private let dragActivationDistance: CGFloat = 6
 
     struct CaptureResult {
         let windows: [ManagedWindow]
@@ -980,11 +987,9 @@ class WindowController {
             }
             Logger.debug("External window \(managed.windowId) moved by user")
             let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
-            if currentDraggingWindowId != managed.windowId {
-                currentDraggingWindowId = managed.windowId
-                delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: accessibilityFrame)
+            if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
+                delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
             }
-            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
 
         case axResizedNotificationName:
             guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
@@ -1245,19 +1250,70 @@ class WindowController {
         return size
     }
 
+    private func startManualDrag(for managed: ManagedWindow, with frame: CGRect) {
+        currentDraggingWindowId = managed.windowId
+        dragCandidate = nil
+        Logger.debug("User began dragging window \(managed.windowId)")
+        delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
+    }
+
+    private func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
+        if currentDraggingWindowId == managed.windowId {
+            return true
+        }
+
+        guard isLeftMouseButtonDown() else {
+            dragCandidate = nil
+            return false
+        }
+
+        if let candidate = dragCandidate, candidate.windowId == managed.windowId {
+            let deltaX = frame.midX - candidate.originFrame.midX
+            let deltaY = frame.midY - candidate.originFrame.midY
+            if hypot(deltaX, deltaY) >= dragActivationDistance {
+                startManualDrag(for: managed, with: candidate.originFrame)
+                return true
+            }
+            return false
+        }
+
+        dragCandidate = DragCandidate(windowId: managed.windowId, originFrame: frame)
+        return false
+    }
+
+    private func isLeftMouseButtonDown() -> Bool {
+        if NSEvent.pressedMouseButtons & 0x1 != 0 {
+            return true
+        }
+        return CGEventSource.buttonState(.combinedSessionState, button: .left)
+    }
+
     private func handleMouseUp() {
-        guard let windowId = currentDraggingWindowId else {
+        let cancelledCandidate = dragCandidate
+        dragCandidate = nil
+
+        if let windowId = currentDraggingWindowId {
+            currentDraggingWindowId = nil
+
+            guard let managed = windowRegistry.window(withId: windowId), !managed.isPlaceholder else {
+                return
+            }
+
+            Logger.debug("Finished dragging window \(windowId)")
+            let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+            delegate?.windowManualMoveDidEnd(windowId: windowId, finalFrame: accessibilityFrame)
             return
         }
-        currentDraggingWindowId = nil
 
-        guard let managed = windowRegistry.window(withId: windowId), !managed.isPlaceholder else {
+        guard let candidate = cancelledCandidate,
+              let managed = windowRegistry.window(withId: candidate.windowId),
+              !managed.isPlaceholder else {
             return
         }
 
-        Logger.debug("Finished dragging window \(windowId)")
+        Logger.debug("Cancelled drag candidate for window \(managed.windowId); re-syncing to zone")
         let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
-        delegate?.windowManualMoveDidEnd(windowId: windowId, finalFrame: accessibilityFrame)
+        delegate?.windowManualMoveDidEnd(windowId: managed.windowId, finalFrame: accessibilityFrame)
     }
 
     /// Get the actual frame of a window in screen-local coordinates
@@ -1488,10 +1544,8 @@ extension WindowController {
             return
         }
 
-        currentDraggingWindowId = windowId
-        Logger.debug("User began dragging window \(windowId)")
         let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
-        delegate?.windowManualMoveDidBegin(windowId: windowId, frame: accessibilityFrame)
+        startManualDrag(for: managed, with: accessibilityFrame)
     }
 
     func windowDidMove(windowId: Int) {
