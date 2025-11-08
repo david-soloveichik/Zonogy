@@ -6,14 +6,17 @@ import ApplicationServices
 extension AppController {
     func addZone() {
         let screenId = activeScreenId()
-        addZone(on: screenId)
+        _ = addZone(on: screenId)
     }
 
-    internal func addZone(on screenId: CGDirectDisplayID) {
+    @discardableResult
+    internal func addZone(on screenId: CGDirectDisplayID, announce: Bool = true) -> Zone? {
         guard let context = screenContexts[screenId],
               let newZone = context.zoneController.addZone() else {
-            print("Failed to add zone (max 3 zones)")
-            return
+            if announce {
+                print("Failed to add zone (max 3 zones)")
+            }
+            return nil
         }
         syncWindowsToZones()
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
@@ -22,7 +25,10 @@ extension AppController {
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "zone-added")
         }
-        print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
+        if announce {
+            print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
+        }
+        return newZone
     }
 
     func removeZone(at index: Int) {
@@ -287,6 +293,7 @@ extension AppController {
 
         // Refresh add-zone indicators
         var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []
+        var newAddZoneHitAreas: [CGDirectDisplayID: CGRect] = [:]
 
         for (screenId, context) in screenContexts {
             let zoneCount = context.zoneController.allZones.count
@@ -294,26 +301,32 @@ extension AppController {
             guard zoneCount < 3 else { continue }
 
             let screenDescriptor = context.descriptor
-            let frame = addZoneIndicatorFrame(for: screenDescriptor)
-            guard frame.width > 0, frame.height > 0 else {
+            guard let frames = addZoneIndicatorFrames(for: screenDescriptor) else {
                 continue
             }
             let descriptor = AddZoneIndicatorDescriptor(
                 screenId: screenId,
-                frame: frame
+                frame: frames.cocoa
             )
             addZoneDescriptors.append(descriptor)
+            newAddZoneHitAreas[screenId] = frames.accessibility
         }
 
+        currentAddZoneIndicatorHitAreas = newAddZoneHitAreas
+
         if addZoneDescriptors.isEmpty {
+            addZoneIndicatorManager.updateDragHighlight(screenId: nil)
             addZoneIndicatorManager.tearDown()
         } else {
             addZoneIndicatorManager.present(for: addZoneDescriptors)
         }
     }
 
-    private func addZoneIndicatorFrame(for descriptor: ScreenDescriptor) -> CGRect {
+    private func addZoneIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.cocoaBounds.standardized
+        guard bounds.width > 0, bounds.height > 0 else {
+            return nil
+        }
 
         // Width: match the height of zone indicators (6px)
         let indicatorWidth: CGFloat = 6
@@ -325,7 +338,18 @@ extension AppController {
         let originX = bounds.maxX - indicatorWidth
         let originY = bounds.midY - indicatorHeight / 2
 
-        return CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight)
+        let cocoaFrame = CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight).standardized
+        let screenFrame = descriptor.cocoaToScreen(cocoaFrame).standardized
+        let accessibilityFrame = descriptor.screenToAccessibility(screenFrame).standardized
+        return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
+    }
+
+    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
+        currentAddZoneIndicatorHitAreas
+    }
+
+    func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?) {
+        addZoneIndicatorManager.updateDragHighlight(screenId: screenId)
     }
 
 

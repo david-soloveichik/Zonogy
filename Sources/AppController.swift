@@ -43,6 +43,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenChangeDebounceInterval: TimeInterval = 0.25
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?
+    internal var currentAddZoneIndicatorHitAreas: [CGDirectDisplayID: CGRect] = [:]
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

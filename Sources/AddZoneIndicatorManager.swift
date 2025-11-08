@@ -1,5 +1,7 @@
 import Cocoa
 
+/// Renders the vertical "add zone" indicator per screen and routes interactions back to the controller.
+
 // MARK: - Delegate Protocol
 
 protocol AddZoneIndicatorManagerDelegate: AnyObject {
@@ -37,6 +39,13 @@ class AddZoneIndicatorView: NSView {
             }
         }
     }
+    var isDragHighlighted = false {
+        didSet {
+            if isDragHighlighted != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
 
     weak var delegate: AddZoneIndicatorManagerDelegate?
     var screenId: CGDirectDisplayID = 0
@@ -49,13 +58,21 @@ class AddZoneIndicatorView: NSView {
 
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
-        // Background color: white with semi-transparency (less transparent on hover)
-        let fillAlpha: CGFloat = isHovered ? 0.8 : 0.55
-        let fillColor = NSColor.white.withAlphaComponent(fillAlpha)
+        let fillColor: NSColor
+        let borderColor: NSColor
 
-        // Border color: white with consistent alpha
-        let borderAlpha: CGFloat = 0.7
-        let borderColor = NSColor.white.withAlphaComponent(borderAlpha)
+        if isDragHighlighted {
+            fillColor = NSColor.systemBlue.withAlphaComponent(0.35)
+            borderColor = NSColor.systemBlue.withAlphaComponent(0.65)
+        } else {
+            // Background color: white with semi-transparency (less transparent on hover)
+            let fillAlpha: CGFloat = isHovered ? 0.8 : 0.55
+            fillColor = NSColor.white.withAlphaComponent(fillAlpha)
+
+            // Border color: white with consistent alpha
+            let borderAlpha: CGFloat = 0.7
+            borderColor = NSColor.white.withAlphaComponent(borderAlpha)
+        }
 
         // Create rounded rectangle path
         let cornerRadius = bounds.width / 2
@@ -123,6 +140,7 @@ class AddZoneIndicatorManager {
 
     private var windows: [CGDirectDisplayID: AddZoneIndicatorWindow] = [:]
     private var views: [CGDirectDisplayID: AddZoneIndicatorView] = [:]
+    private var dragHighlightedScreenId: CGDirectDisplayID?
 
     func present(for descriptors: [AddZoneIndicatorDescriptor]) {
         // Track which screens should have indicators
@@ -143,6 +161,7 @@ class AddZoneIndicatorManager {
                 // Update existing indicator
                 existingWindow.setFrame(descriptor.frame, display: true)
                 existingView.frame = CGRect(origin: .zero, size: descriptor.frame.size)
+                existingView.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
             } else {
                 // Create new indicator
                 let window = AddZoneIndicatorWindow(contentRect: descriptor.frame)
@@ -151,6 +170,7 @@ class AddZoneIndicatorManager {
                 view.delegate = delegate
                 view.screenId = descriptor.screenId
                 view.manager = self
+                view.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
 
                 window.contentView = view
                 window.orderFront(nil)
@@ -161,11 +181,22 @@ class AddZoneIndicatorManager {
         }
     }
 
+    func updateDragHighlight(screenId: CGDirectDisplayID?) {
+        if dragHighlightedScreenId == screenId {
+            return
+        }
+        dragHighlightedScreenId = screenId
+        for (candidateId, view) in views {
+            view.isDragHighlighted = (candidateId == screenId)
+        }
+    }
+
     func tearDown() {
         for window in windows.values {
             window.close()
         }
         windows.removeAll()
         views.removeAll()
+        dragHighlightedScreenId = nil
     }
 }

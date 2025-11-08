@@ -13,11 +13,12 @@ extension AppController {
 
     func addZoneJSON() -> [String: Any] {
         let screenId = activeScreenId()
-        guard let context = screenContexts[screenId],
-              let newZone = context.zoneController.addZone() else {
+        guard let context = screenContexts[screenId] else {
+            return ["error": "Failed to add zone: active screen unavailable"]
+        }
+        guard let newZone = addZone(on: screenId, announce: false) else {
             return ["error": "Failed to add zone (max 3 zones)"]
         }
-        syncWindowsToZones()
         return [
             "screen_display_id": screenId,
             "screen": getScreenIndex(for: screenId) as Any,

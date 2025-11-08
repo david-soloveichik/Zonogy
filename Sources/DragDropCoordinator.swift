@@ -9,6 +9,7 @@ struct DragSession {
     let originFrame: CGRect
     var latestFrame: CGRect
     var hoveredZoneKey: ZoneKey?
+    var hoveredAddZoneScreenId: CGDirectDisplayID?
     let beganAt: Date
 }
 
@@ -38,6 +39,12 @@ protocol DragDropCoordinatorDelegate: AnyObject {
 
     // Synchronization
     func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>)
+
+    // Add-zone indicator support
+    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
+    func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
+    @discardableResult
+    func addZone(on screenId: CGDirectDisplayID, announce: Bool) -> Zone?
 }
 
 class DragDropCoordinator {
@@ -85,6 +92,7 @@ class DragDropCoordinator {
             originFrame: frame,
             latestFrame: frame,
             hoveredZoneKey: nil,
+            hoveredAddZoneScreenId: nil,
             beganAt: Date()
         )
         Logger.debug("Drag session began for window \(windowId)")
@@ -116,7 +124,14 @@ class DragDropCoordinator {
         var displacedPreferredScreen: CGDirectDisplayID?
         let cursorPoint = currentCursorAccessibilityPoint()
 
-        if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint) {
+        if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
+            if let result = performDropIntoNewZone(session: session, screenId: addZoneScreenId) {
+                displacedWindow = result.displacedWindow
+                displacedPreferredScreen = result.preferredScreenId
+            } else {
+                handleDropCancellation(session: session)
+            }
+        } else if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint) {
             if let result = performDrop(session: session, targetKey: targetKey) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
@@ -126,6 +141,7 @@ class DragDropCoordinator {
         }
 
         dragSession = nil
+        delegate.updateAddZoneIndicatorHighlight(screenId: nil)
 
         let preferredScreen = displacedPreferredScreen ?? session.originScreenId
         return (displacedWindow, preferredScreen)
@@ -134,6 +150,7 @@ class DragDropCoordinator {
     func tearDownDragSession() {
         dragOverlayManager.tearDown()
         dragSession = nil
+        delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
     }
 
     // MARK: - Private Methods
@@ -217,16 +234,36 @@ class DragDropCoordinator {
         descriptor.screenToAccessibility(zone.frame)
     }
 
+    private func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+        guard let cursorPoint,
+              let delegate = delegate else {
+            return nil
+        }
+        let hitAreas = delegate.addZoneIndicatorHitAreas()
+        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
+            return screenId
+        }
+        return nil
+    }
+
     private func recordDragUpdate(windowId: Int, frame: CGRect) {
         guard var session = dragSession, session.windowId == windowId else {
             return
         }
         session.latestFrame = frame
         let cursorPoint = currentCursorAccessibilityPoint()
-        let targetKey = resolveDropTarget(for: frame, cursorPoint: cursorPoint)
+        let addZoneScreenId = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
+        let targetKey: ZoneKey?
+        if addZoneScreenId == nil {
+            targetKey = resolveDropTarget(for: frame, cursorPoint: cursorPoint)
+        } else {
+            targetKey = nil
+        }
         session.hoveredZoneKey = targetKey
+        session.hoveredAddZoneScreenId = addZoneScreenId
         dragSession = session
         dragOverlayManager.updateHighlight(to: targetKey)
+        delegate?.updateAddZoneIndicatorHighlight(screenId: addZoneScreenId)
     }
 
     private func currentCursorAccessibilityPoint() -> CGPoint? {
@@ -245,6 +282,18 @@ class DragDropCoordinator {
 
     private func handleDropCancellation(session: DragSession) {
         Logger.debug("Drag cancelled for window \(session.windowId); reverting to original assignment if needed")
+    }
+
+    private func performDropIntoNewZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
+        guard let delegate = delegate else {
+            return nil
+        }
+        guard let newZone = delegate.addZone(on: screenId, announce: false) else {
+            Logger.debug("Failed to add zone on screen \(screenId) for drag-drop request")
+            return nil
+        }
+        let newKey = ZoneKey(screenId: screenId, index: newZone.index)
+        return performDrop(session: session, targetKey: newKey)
     }
 
     private func performDrop(session: DragSession, targetKey: ZoneKey) -> DropResult? {
