@@ -549,8 +549,66 @@ extension AppController {
         zoneFrame.origin.y -= margins.top
         zoneFrame.size.width += margins.left + margins.right
         zoneFrame.size.height += margins.top + margins.bottom
-        zoneFrame = clamp(frame: zoneFrame, to: context.zoneController.layoutBounds)
+        let layoutBounds = context.zoneController.layoutBounds.standardized
+        let pins = pinnedEdges(for: zone, in: context.zoneController)
+
+        if pins.contains(.left) {
+            let maxX = zoneFrame.maxX
+            zoneFrame.origin.x = layoutBounds.minX
+            zoneFrame.size.width = max(0, maxX - zoneFrame.origin.x)
+        }
+
+        if pins.contains(.right) {
+            let minX = zoneFrame.minX
+            zoneFrame.size.width = max(0, layoutBounds.maxX - minX)
+        }
+
+        if pins.contains(.top) {
+            let maxY = zoneFrame.maxY
+            zoneFrame.origin.y = layoutBounds.minY
+            zoneFrame.size.height = max(0, maxY - zoneFrame.origin.y)
+        }
+
+        if pins.contains(.bottom) {
+            let minY = zoneFrame.minY
+            zoneFrame.size.height = max(0, layoutBounds.maxY - minY)
+        }
+
+        zoneFrame = clamp(frame: zoneFrame, to: layoutBounds)
         return zoneFrame
+    }
+
+    private struct ZoneEdgePinOptions: OptionSet {
+        let rawValue: Int
+
+        static let top = ZoneEdgePinOptions(rawValue: 1 << 0)
+        static let bottom = ZoneEdgePinOptions(rawValue: 1 << 1)
+        static let left = ZoneEdgePinOptions(rawValue: 1 << 2)
+        static let right = ZoneEdgePinOptions(rawValue: 1 << 3)
+    }
+
+    private func pinnedEdges(for zone: Zone, in controller: ZoneController) -> ZoneEdgePinOptions {
+        var pins: ZoneEdgePinOptions = []
+        let zoneCount = controller.allZones.count
+
+        if zone.index == 1 {
+            pins.insert(.left)
+        }
+
+        if zoneCount >= 3 {
+            if zone.index == 2 {
+                pins.insert(.top)
+            }
+            if zone.index == 3 {
+                pins.insert(.bottom)
+            }
+        }
+
+        if zoneCount >= 2, zone.index >= 2 {
+            pins.insert(.right)
+        }
+
+        return pins
     }
 
     internal func applyPlaceholderResize(zoneKey: ZoneKey, placeholderFrame: CGRect, finalize: Bool) {
