@@ -61,6 +61,10 @@ class WindowController {
     internal var resizingWindowId: Int?
     internal let primaryScreenBounds: CGRect
     internal var dragCandidate: DragCandidate?
+    internal var placeholderLiveResizeDepth: Int = 0
+    internal var isPlaceholderLiveResizeActive: Bool {
+        placeholderLiveResizeDepth > 0
+    }
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.
     internal let dragActivationDistance: CGFloat = 6
@@ -409,6 +413,7 @@ protocol WindowControllerDelegate: AnyObject {
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
+    func debugTargetedZoneDescription() -> String?
 }
 
 /// NSWindowDelegate for tracking window events

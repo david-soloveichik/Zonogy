@@ -4,6 +4,11 @@ import ApplicationServices
 
 /// Manual drag/move/resize coordination for managed windows and placeholders.
 extension WindowController {
+    private enum ManualDragTrigger: String {
+        case accessibility = "ax-moved"
+        case appKit = "window-will-move"
+    }
+
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
         guard let managed = windowRegistry.window(withId: windowId),
               managed.isPlaceholder,
@@ -25,10 +30,13 @@ extension WindowController {
         return size
     }
 
-    private func startManualDrag(for managed: ManagedWindow, with frame: CGRect) {
+    private func startManualDrag(for managed: ManagedWindow, with frame: CGRect, trigger: ManualDragTrigger) {
         currentDraggingWindowId = managed.windowId
         dragCandidate = nil
-        Logger.debug("User began dragging window \(managed.windowId)")
+        let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
+        Logger.debug(
+            "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), placeholderResizeActive: \(isPlaceholderLiveResizeActive), targetedZone: \(targetDescription))"
+        )
         delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
     }
 
@@ -37,6 +45,11 @@ extension WindowController {
     internal func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
         if currentDraggingWindowId == managed.windowId {
             return true
+        }
+
+        if isPlaceholderLiveResizeActive {
+            dragCandidate = nil
+            return false
         }
 
         guard isLeftMouseButtonDown() else {
@@ -48,7 +61,7 @@ extension WindowController {
             let deltaX = frame.midX - candidate.originFrame.midX
             let deltaY = frame.midY - candidate.originFrame.midY
             if hypot(deltaX, deltaY) >= dragActivationDistance {
-                startManualDrag(for: managed, with: candidate.originFrame)
+                startManualDrag(for: managed, with: candidate.originFrame, trigger: .accessibility)
                 return true
             }
             return false
@@ -107,6 +120,7 @@ extension WindowController {
                   let screenId = managed.screenDisplayId else {
                 return
             }
+            placeholderLiveResizeDepth += 1
             delegate?.placeholderLiveResizeDidBegin(screenId: screenId, zoneIndex: zoneIndex)
         } else {
             resizingWindowId = windowId
@@ -134,6 +148,9 @@ extension WindowController {
         }
 
         if managed.isPlaceholder {
+            if placeholderLiveResizeDepth > 0 {
+                placeholderLiveResizeDepth -= 1
+            }
             guard let zoneIndex = managed.zoneIndex,
                   let screenId = managed.screenDisplayId,
                   let screenFrame = actualFrameInScreenCoordinates(for: managed) else {
@@ -160,7 +177,7 @@ extension WindowController {
         }
 
         let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
-        startManualDrag(for: managed, with: accessibilityFrame)
+        startManualDrag(for: managed, with: accessibilityFrame, trigger: .appKit)
     }
 
     func windowDidMove(windowId: Int) {

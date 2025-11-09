@@ -107,6 +107,8 @@ extension AppController {
 
     func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int) {
         liveResizingZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
+        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder live resize began for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth))")
     }
 
     func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect) {
@@ -123,6 +125,9 @@ extension AppController {
         if liveResizingZoneKey == key {
             liveResizingZoneKey = nil
         }
+
+        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder live resize ended for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth), finalFrame: \(frame))")
 
         applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: true)
     }
@@ -260,6 +265,22 @@ extension AppController {
             allowExisting: allowExisting
         )
         return capturePipeline.capture(request)
+    }
+
+    func debugTargetedZoneDescription() -> String? {
+        guard let key = targetedZoneManager.targetedZoneKey else {
+            return "none"
+        }
+
+        let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+
+        guard let context = screenContexts[key.screenId],
+              let zone = context.zoneController.zone(at: key.index) else {
+            return "screen \(screenIndex) zone \(key.index) (unavailable)"
+        }
+
+        let occupancy = zone.isEmpty ? "empty" : "occupied"
+        return "screen \(screenIndex) zone \(key.index) (\(occupancy))"
     }
 
 }
