@@ -222,7 +222,8 @@ extension AppController {
         guard keyFitSuppressedWindowIds.insert(windowId).inserted else {
             return
         }
-        keyFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: true, reason: "drag-begin")
+        // Leave the window exactly where the user grabbed it; we'll snap on drop.
+        keyFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "drag-begin")
         Logger.debug("KeyFit suspended for window \(windowId) during drag")
     }
 
