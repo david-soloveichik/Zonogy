@@ -88,6 +88,20 @@ Placeholder windows must stay anchored to their zone. Dragging their surface sho
 
 **Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
 
+### KeyFit: active overflow reveal for key (aka active) windows
+
+Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display’s visible bounds.
+
+Implementation requirements:
+
+1. KeyFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
+2. Determine whether KeyFit is needed by anchoring the window’s actual size to the zone’s content origin (after margins). If the resulting predicted frame would extend beyond the screen’s visible bounds (allow a ≤1 px tolerance), the window qualifies.
+3. When a qualifying window becomes the active/key window, shift it left and/or upward just enough for the full frame to sit inside the screen’s visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
+4. When that window loses key status, leaves its zone, is minimized, or closes, move it back to its normal zone-aligned position so other zones reclaim their space.
+5. KeyFit adjustments should not fight the main zone-sync loop. While a window is expanded via KeyFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
+
+This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **KeyFit**.
+
 ### Adding and removing zones
 
 When adding or removing zones, the remaining zones should be reindexed. For example, if there are zones 1, 2, 3, and I remove zone 1, then zone 2 should become zone 1, and zone 3 should become zone 2.

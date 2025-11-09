@@ -44,6 +44,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?
     internal var currentAddZoneIndicatorHitAreas: [CGDirectDisplayID: CGRect] = [:]
+    internal let keyFitOverflowTolerance: CGFloat = 1.0
+    internal var keyFitState: KeyFitState?
+    internal var keyFitSuppressedWindowIds: Set<Int> = []
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

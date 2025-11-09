@@ -396,6 +396,13 @@ extension AppController {
             for zone in controller.allZones {
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId) {
+                    let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
+                    if keyFitShouldSkipSync(for: zoneKey, windowId: windowId) {
+                        Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] due to active KeyFit window \(windowId)")
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
                     let displayFrame = frameWithMargin(for: zone, in: controller)
                     windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
