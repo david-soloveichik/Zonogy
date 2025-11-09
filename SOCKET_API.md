@@ -162,27 +162,6 @@ Resize an empty zone by providing a new frame. Coordinates are in screen space (
 }
 ```
 
-### create-window
-Create a new test window.
-
-**Request:**
-```json
-{"method": "create-window", "id": 4}
-```
-
-**Response:**
-```json
-{
-  "id": 4,
-  "success": true,
-  "result": {
-    "window_id": 2,
-    "zone_index": 1
-  },
-  "error": null
-}
-```
-
 ### capture-frontmost
 Adopt the currently focused window from the frontmost application. Requires Accessibility permission for LatticeTopology. If the window is already managed, the response includes a short message and retains the current zone assignment.
 
@@ -483,15 +462,6 @@ print(s.recv(4096).decode())
 s.close()
 "
 
-# Create a window
-python3 -c "
-import socket, json
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.connect('/tmp/lattice-topology.sock')
-s.sendall(b'{\"method\":\"create-window\",\"id\":2}\n')
-print(s.recv(4096).decode())
-s.close()
-"
 ```
 
 ## Error Handling

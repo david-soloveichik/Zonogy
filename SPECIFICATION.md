@@ -17,7 +17,7 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 1. All zone frames computed by `ZoneLayout` and stored in `ZoneController` must be in screen coordinates
 2. When obtaining screen bounds from `NSScreen.visibleFrame` or `NSScreen.frame`, **convert from Cocoa to screen coordinates**
-3. When positioning **AppKit windows** (test windows, placeholders), **convert from screen to Cocoa coordinates** before calling `setFrame()`
+3. When positioning **AppKit windows** (placeholder windows), **convert from screen to Cocoa coordinates** before calling `setFrame()`
 4. When positioning **external windows via Accessibility API**, use screen coordinates directly (no conversion needed)
 5. All logging, REPL output, and socket API responses must report frames in screen coordinates
 
@@ -192,10 +192,6 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
 
-## Test Windows for Debugging
-
-The window manager can create its own "test" windows that have title like "test `window_id`", and manage those in the way described above. These windows are always created and owned by our process so that we can exercise the tiling logic without touching real apps.
-
 ## Command-line REPL for debugging
 
 To allow an AI Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
@@ -206,8 +202,7 @@ Required commands:
 
 - `add-zone`: add a new zone (up to 3) and recompute layouts.
 - `remove-zone <index>`: remove the specified zone (cannot remove the last remaining zone). Reflow remaining zones and reassign any window that was in the removed zone using the normal placement rules.
-- `create-window`: spawn a new test window with the next `window_id`, place it in the lowest-index empty zone if available, or replace the highest-index zone’s window.
-- `close-window <window_id>`: close the specified test window and free its zone (placeholder appears).
+- `close-window <window_id>`: close the specified managed window and free its zone (placeholder appears).
 - `minimize <window_id>` / `unminimize <window_id>`: toggle minimized state. When unminimizing, reapply the standard placement rules.
 
 Helpful optional commands (for faster debugging):
@@ -223,13 +218,13 @@ Helpful optional commands (for faster debugging):
 
 - **Sleep/wake recovery:** After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. LatticeTopology implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
 - Placeholder windows need an interactive blue "x" control that sends a callback to remove the zone.
-- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes. The REPL can expose the next ID in status messages when `create-window` succeeds.
+- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.
 - When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
 - We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
 **Log monitoring tip:** To watch the live log output, run:
 `stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
 (`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
-- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\ncreate-window\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
+- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
 ## Debug log file
 
@@ -279,7 +274,6 @@ To enable better AI Agent integration and programmatic control, LatticeTopology 
 - `list`: Get all zones and their state
 - `add-zone`: Add a new zone
 - `remove-zone`: Remove a zone by index (requires `params: {"index": N}`)
-- `create-window`: Create a new test window
 - `close-window`: Close a window (requires `params: {"window_id": N}`)
 - `minimize` / `unminimize`: Toggle window minimization (requires `params: {"window_id": N}`)
 - `window-info`: Get detailed window information (requires `params: {"window_id": N}`)

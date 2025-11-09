@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Test-window utilities and placeholder window rendering for WindowController.
+/// Placeholder window rendering for WindowController.
 final class PlaceholderContentView: NSView {
     weak var controller: WindowController?
     private(set) var screenId: CGDirectDisplayID
@@ -43,35 +43,6 @@ final class PlaceholderContentView: NSView {
 }
 
 extension WindowController {
-    /// Create a new test window with a title
-    func createTestWindow(frame: CGRect) -> ManagedWindow {
-        let windowId = windowRegistry.allocateIdentifier()
-
-        let window = NSWindow(
-            contentRect: frame,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "test \(windowId)"
-        window.isReleasedWhenClosed = false
-
-        // Set up delegate to handle window events
-        let windowDelegate = ManagedWindowDelegate(windowId: windowId, controller: self)
-        window.delegate = windowDelegate
-        windowDelegates[windowId] = windowDelegate  // Retain the delegate
-
-        let managed = ManagedWindow(
-            windowId: windowId,
-            backing: .appKit(window),
-            isPlaceholder: false
-        )
-        windowRegistry.insert(managed)
-
-        Logger.debug("Created test window \(windowId)")
-        return managed
-    }
-
     /// Create a placeholder window for an empty zone
     func createPlaceholderWindow(frame: CGRect, zoneIndex: Int, on screen: ScreenDescriptor) -> ManagedWindow {
         let windowId = windowRegistry.allocateIdentifier()

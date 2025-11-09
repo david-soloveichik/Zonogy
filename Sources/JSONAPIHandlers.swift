@@ -96,20 +96,6 @@ extension AppController {
         ]
     }
 
-    func createWindowJSON() -> [String: Any] {
-        let managed = windowController.createTestWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
-        windowPlacementManager.placeNewWindow(managed)
-        var result: [String: Any] = [
-            "window_id": managed.windowId,
-            "zone_index": managed.zoneIndex as Any,
-            "screen_display_id": managed.screenDisplayId as Any
-        ]
-        if let screenId = managed.screenDisplayId {
-            result["screen"] = getScreenIndex(for: screenId)
-        }
-        return result
-    }
-
     func captureFrontmostWindowJSON() -> [String: Any] {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            let bundleId = frontmost.bundleIdentifier,
@@ -242,7 +228,7 @@ extension AppController {
         } else {
             switch managed.backing {
             case .appKit:
-                type = "test"
+                type = "internal"
             case .accessibility:
                 type = "external"
             }
@@ -360,7 +346,7 @@ extension AppController {
             } else {
                 switch window.backing {
                 case .appKit:
-                    type = "test"
+                    type = "internal"
                 case .accessibility:
                     type = "external"
                 }

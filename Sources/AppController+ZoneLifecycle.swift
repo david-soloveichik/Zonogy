@@ -127,12 +127,6 @@ extension AppController {
 
     // MARK: - Window Management
 
-    func createWindow() {
-        let managed = windowController.createTestWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
-        windowPlacementManager.placeNewWindow(managed)
-        print("Created window \(managed.windowId)")
-    }
-
     func closeWindow(withId windowId: Int) {
         guard let managed = windowController.window(withId: windowId) else {
             print("Window \(windowId) not found")

@@ -198,9 +198,6 @@ class SocketServer {
                 }
                 return appController.resizeZoneJSON(at: index, frame: frame)
 
-            case "create-window":
-                return appController.createWindowJSON()
-
             case "capture-frontmost":
                 return appController.captureFrontmostWindowJSON()
 

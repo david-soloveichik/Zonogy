@@ -102,9 +102,6 @@ class REPL {
             let frame = CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(width), height: CGFloat(height))
             appController.resizeZone(at: index, frame: frame)
 
-        case "create-window":
-            appController.createWindow()
-
         case "close-window":
             if parts.count < 2 {
                 print("Usage: close-window <window_id>")
@@ -204,7 +201,6 @@ class REPL {
           layout                       - Force a layout recalculation for all screens
 
         Window management:
-          create-window                - Create a new test window
           close-window <window_id>     - Close the specified window
           minimize <window_id>         - Minimize the specified window
           unminimize <window_id>       - Unminimize the specified window
