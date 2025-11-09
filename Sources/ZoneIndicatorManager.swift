@@ -24,10 +24,9 @@ final class ZoneIndicatorManager {
             isOpaque = false
             hasShadow = false
             backgroundColor = .clear
-            let floatingRaw = NSWindow.Level.floating.rawValue
-            let desiredRaw = floatingRaw > Int(CGWindowLevelForKey(.normalWindow)) ? floatingRaw - 1 : floatingRaw
-            let desiredLevel = NSWindow.Level(rawValue: desiredRaw)
-            level = desiredLevel
+            let normalRaw = Int(CGWindowLevelForKey(.normalWindow))
+            let belowNormal = NSWindow.Level(rawValue: normalRaw - 1)
+            level = belowNormal
             collectionBehavior = [
                 .moveToActiveSpace,
                 .transient
