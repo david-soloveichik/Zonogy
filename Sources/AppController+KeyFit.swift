@@ -244,6 +244,32 @@ extension AppController {
         keyFitSuppressedWindowIds.remove(windowId)
     }
 
+    /// Temporarily disables and immediately reevaluates KeyFit after structural zone changes.
+    /// This ensures oversized windows snap back to the new zone geometry and reapply KeyFit if still needed.
+    internal func keyFitRefreshAfterZoneTopologyChange(reason: String) {
+        guard let state = keyFitState,
+              let managed = windowController.window(withId: state.windowId) else {
+            return
+        }
+
+        let screenId = managed.screenDisplayId ?? state.zoneKey.screenId
+        let zoneIndex = managed.zoneIndex ?? state.zoneKey.index
+
+        keyFitDeactivate(reason: reason)
+
+        guard zoneIndex >= 2,
+              screenContexts[screenId]?.zoneController.zone(at: zoneIndex) != nil else {
+            return
+        }
+
+        handleAssignmentForPotentialKeyFit(
+            managed: managed,
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            reason: reason
+        )
+    }
+
     private func isKeyFitSuppressed(windowId: Int) -> Bool {
         keyFitSuppressedWindowIds.contains(windowId)
     }

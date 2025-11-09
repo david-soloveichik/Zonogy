@@ -19,6 +19,7 @@ extension AppController {
             return nil
         }
         syncWindowsToZones()
+        keyFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
         if shouldRetarget(to: newZoneKey) {
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
@@ -83,6 +84,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
+        keyFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
 
         if pendingTargetedKey == nil {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")
