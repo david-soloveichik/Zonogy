@@ -405,6 +405,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect)
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect)
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect)
+    func windowManualMoveDidAbort(windowId: Int)  // Drag died because the source window vanished mid-gesture.
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
@@ -460,5 +461,3 @@ class ManagedWindowDelegate: NSObject, NSWindowDelegate {
         ) ?? frameSize
     }
 }
-
-

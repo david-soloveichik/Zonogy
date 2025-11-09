@@ -130,7 +130,9 @@ Also if the window is moved to another location and released, it should "snap" b
 
 When the user drags a managed window, LatticeTopology suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
 
-If a window is dragged and dropped over a screen's add-zone indicator, we immediately add the new zone and place the dragged window into it.
+If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
+
+If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it. During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
 ## Conditions for which windows are managed
 

@@ -75,6 +75,8 @@ extension WindowController {
             currentDraggingWindowId = nil
 
             guard let managed = windowRegistry.window(withId: windowId), !managed.isPlaceholder else {
+                // Inform the delegate that the drag died because the backing window disappeared.
+                delegate?.windowManualMoveDidAbort(windowId: windowId)
                 return
             }
 

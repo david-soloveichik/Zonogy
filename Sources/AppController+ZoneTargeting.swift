@@ -12,6 +12,11 @@ extension AppController {
         var removed = false
         var emptyZoneKey: ZoneKey?
 
+        if dragDropCoordinator.currentDragWindowId == windowId {
+            // Ensure overlays go away when the dragged window disappears.
+            dragDropCoordinator.tearDownDragSession()
+        }
+
         for (screenId, context) in screenContexts {
             if let zone = context.zoneController.zoneForWindow(windowId: windowId) {
                 Logger.debug(

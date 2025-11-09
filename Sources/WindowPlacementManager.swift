@@ -24,6 +24,9 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // Targeted zone management
     var targetedZoneManager: TargetedZoneManager { get }
     var targetedZoneKey: ZoneKey? { get }
+
+    // Placement deferral
+    func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
 }
 
 class WindowPlacementManager {
@@ -44,7 +47,18 @@ class WindowPlacementManager {
             return
         }
 
-        placeWindowInTargetedZone(managed)
+        delegate.targetedZoneManager.ensureTargetedZone(reason: "placing-window")
+        let targetedKey = delegate.targetedZoneKey
+
+        // Keep the current zone occupant alive while the source app is mid tear-out.
+        if delegate.shouldDeferPlacementForNewWindow(managed, targetedZoneKey: targetedKey) {
+            let screenId = targetedKey?.screenId ?? delegate.detectScreenId(for: managed) ?? delegate.activeScreenId()
+            delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
+            Logger.debug("Deferring placement for window \(managed.windowId); awaiting drag/drop completion")
+            return
+        }
+
+        placeWindowInTargetedZone(managed, targetedKey: targetedKey)
     }
 
     func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
@@ -68,15 +82,21 @@ class WindowPlacementManager {
 
     // MARK: - Private Methods
 
-    private func placeWindowInTargetedZone(_ managed: ManagedWindow) {
+    private func placeWindowInTargetedZone(_ managed: ManagedWindow, targetedKey: ZoneKey?) {
         guard let delegate = delegate else { return }
 
-        delegate.targetedZoneManager.ensureTargetedZone(reason: "placing-window")
+        let resolvedTarget: ZoneKey?
+        if let targetedKey {
+            resolvedTarget = targetedKey
+        } else {
+            delegate.targetedZoneManager.ensureTargetedZone(reason: "placing-window")
+            resolvedTarget = delegate.targetedZoneKey
+        }
 
-        guard let targetedKey = delegate.targetedZoneKey,
-              let context = delegate.screenContexts[targetedKey.screenId],
-              let descriptor = delegate.descriptor(for: targetedKey.screenId),
-              let zone = context.zoneController.zone(at: targetedKey.index) else {
+        guard let targetKey = resolvedTarget,
+              let context = delegate.screenContexts[targetKey.screenId],
+              let descriptor = delegate.descriptor(for: targetKey.screenId),
+              let zone = context.zoneController.zone(at: targetKey.index) else {
             let fallbackScreen = delegate.detectScreenId(for: managed) ?? delegate.activeScreenId()
             placeWindow(managed, on: fallbackScreen)
             return
@@ -91,7 +111,7 @@ class WindowPlacementManager {
             displacedWindow = existingWindow
         }
 
-        assignWindowToZone(managed, zone: zone, screenId: targetedKey.screenId, descriptor: descriptor)
+        assignWindowToZone(managed, zone: zone, screenId: targetKey.screenId, descriptor: descriptor)
 
         if let displaced = displacedWindow {
             if displaced.isPlaceholder {

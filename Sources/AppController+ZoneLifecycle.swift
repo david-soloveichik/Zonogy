@@ -454,6 +454,37 @@ extension AppController {
         refreshIndicators()
     }
 
+    func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {
+        // Chrome merges kill the dragged window until the drop completes; avoid evicting the sibling.
+        guard let targetedZoneKey = targetedZoneKey else {
+            return false
+        }
+        guard case .accessibility(_, let pid, _) = managed.backing else {
+            return false
+        }
+        guard isLeftMouseButtonDown() else {
+            return false
+        }
+        guard let context = screenContexts[targetedZoneKey.screenId],
+              let zone = context.zoneController.zone(at: targetedZoneKey.index),
+              let occupantId = zone.windowId,
+              occupantId != managed.windowId,
+              let occupant = windowController.window(withId: occupantId),
+              !occupant.isPlaceholder,
+              case .accessibility(_, let occupantPid, _) = occupant.backing,
+              occupantPid == pid else {
+            return false
+        }
+        return true
+    }
+
+    private func isLeftMouseButtonDown() -> Bool {
+        if NSEvent.pressedMouseButtons & 0x1 != 0 {
+            return true
+        }
+        return CGEventSource.buttonState(.combinedSessionState, button: .left)
+    }
+
     /// Compute the frame used to render content inside a zone, honoring the spec margin
     internal func frameWithMargin(for zone: Zone, in controller: ZoneController) -> CGRect {
         let margins = zoneMargins(for: zone, in: controller)

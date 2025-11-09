@@ -191,6 +191,21 @@ extension AppController {
         }
 
         syncWindowsToZones()
+
+        if let managed = windowController.window(withId: windowId),
+           !managed.isPlaceholder,
+           managed.zoneIndex == nil {
+            // Window vanished mid-drag; snap it back into regular placement flow.
+            windowPlacementManager.placeNewWindow(managed, preferredScreenId: result.preferredScreenId)
+        }
+    }
+
+    func windowManualMoveDidAbort(windowId: Int) {
+        if dragDropCoordinator.currentDragWindowId == windowId {
+            // Tear down overlays when the OS/host app ends the drag without a mouse-up.
+            dragDropCoordinator.tearDownDragSession()
+            syncWindowsToZones()
+        }
     }
 
     func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {
