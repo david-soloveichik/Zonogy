@@ -53,6 +53,10 @@ extension AppController {
     }
 
     internal func keyFitHandleAssignmentChange(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
+        if dragDropCoordinator.currentDragWindowId == managed.windowId {
+            Logger.debug("KeyFit assignment change ignored for window \(managed.windowId); drag in progress")
+            return
+        }
         guard let state = keyFitState, state.windowId == managed.windowId else {
             if let zoneIndex {
                 handleAssignmentForPotentialKeyFit(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
@@ -241,6 +245,10 @@ extension AppController {
     }
 
     internal func keyFitClearSuppressionForWindow(_ windowId: Int) {
+        if dragDropCoordinator.currentDragWindowId == windowId {
+            Logger.debug("KeyFit suppression retained for window \(windowId) while drag is active")
+            return
+        }
         keyFitSuppressedWindowIds.remove(windowId)
     }
 
