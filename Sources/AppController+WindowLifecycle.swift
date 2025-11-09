@@ -199,7 +199,17 @@ extension AppController {
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
 
         if let displacedWindow = result.displacedWindow {
-            windowPlacementManager.placeNewWindow(displacedWindow, preferredScreenId: result.preferredScreenId)
+            // If every zone is occupied, park the displaced window immediately
+            let hasEmptyZone = screenContexts.values.contains { context in
+                context.zoneController.allZones.contains { $0.isEmpty }
+            }
+
+            if hasEmptyZone {
+                windowPlacementManager.placeNewWindow(displacedWindow, preferredScreenId: result.preferredScreenId)
+            } else {
+                clearManagedWindowZone(displacedWindow)
+                windowController.minimizeWindow(displacedWindow)
+            }
         }
 
         syncWindowsToZones()
