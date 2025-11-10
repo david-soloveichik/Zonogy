@@ -186,10 +186,9 @@ class WindowPlacementManager {
             return
         }
         controller.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
-        delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
-
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
+        delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
         if wasEmptyZone && wasTargetedZone {
             // Specification: filling the targeted zone promotes the lowest-index remaining empty zone (if any)
