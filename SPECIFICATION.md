@@ -90,7 +90,9 @@ Both normal windows and placeholder windows should preserve an 8 pixel buffer at
 
 Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
 
-**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
+**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window.
+
+After handling any placeholder interaction (clicking the pane, pressing the blue "x", or dragging/resizing the placeholder window), immediately reactivate the application that currently owns the menu bar (`NSWorkspace.shared.menuBarOwningApplication?.activate(options: [.activateIgnoringOtherApps])`) so LatticeTopology itself does not remain key.
 
 ### KeyFit: active overflow reveal for key (aka active) windows
 
