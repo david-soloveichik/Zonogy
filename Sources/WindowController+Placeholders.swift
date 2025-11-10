@@ -2,6 +2,18 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+/// Placeholder windows should never steal keyboard focus from real apps.
+/// Use a non-activating panel subclass so clicks don't bring LatticeTopology forward.
+final class PlaceholderPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        // Panels can be ordered front for visibility without becoming key.
+        orderFront(sender)
+    }
+}
+
 /// Placeholder window rendering for WindowController.
 final class PlaceholderContentView: NSView {
     weak var controller: WindowController?
@@ -48,12 +60,14 @@ extension WindowController {
         let windowId = windowRegistry.allocateIdentifier()
 
         let cocoaFrame = screen.screenToCocoa(frame)
-        let window = NSWindow(
+        let window = PlaceholderPanel(
             contentRect: cocoaFrame,
-            styleMask: [.titled, .resizable],
+            styleMask: [.titled, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
+        window.isFloatingPanel = false
+        window.becomesKeyOnlyIfNeeded = false
         window.styleMask.insert(.fullSizeContentView)
         window.isReleasedWhenClosed = false
         // AltTab filters out any window whose CoreGraphics level is not `CGWindowLevelForKey(.normalWindow)`. 
