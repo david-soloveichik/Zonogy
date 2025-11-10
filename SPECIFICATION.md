@@ -57,6 +57,10 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 A zone can either contain an (unminimized) window or be empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
 Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
 
+### Window identifiers
+
+Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
+
 ### Initial startup behavior
 
 When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
