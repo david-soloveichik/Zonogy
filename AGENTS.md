@@ -11,3 +11,4 @@
   - If you encounter path errors, the path should be correct in zsh (rather than bash).
   - Tools requiring accessibility APIs should also be run with elevated privileges in zsh. Without it, tools like `winmanmon` will misleadingly err saying "Please grant accessibility access in System Preferences". Note: `winmanmon` is in the zsh path.
 - Agent should prefer each code file to have a single responsibility ensuring that code files don't get too large. Each code file should have a concise description header of its responsibility that is maintained up to date
+- Agent should not worry about preserving backward compatibility
