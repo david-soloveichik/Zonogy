@@ -166,7 +166,6 @@ extension WindowController {
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
-        reactivateMenuBarOwningApplicationIfNeeded(reason: "placeholder-activation")
     }
 
     @objc func handlePlaceholderClose(_ sender: NSButton) {
@@ -184,34 +183,6 @@ extension WindowController {
         Logger.debug("Placeholder close button clicked for zone \(zoneIndex) on screen \(screenIndex)")
         if let screenId {
             delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
-        }
-        reactivateMenuBarOwningApplicationIfNeeded(reason: "placeholder-close")
-    }
-
-    /// Ensure that focus returns to the app currently holding the menu bar so LatticeTopology stays backgrounded.
-    func reactivateMenuBarOwningApplicationIfNeeded(reason: String) {
-        guard let menuBarOwner = NSWorkspace.shared.menuBarOwningApplication else {
-            Logger.debug("Menu bar owning application unavailable; skipping activation (reason: \(reason))")
-            return
-        }
-
-        let latticePid = getpid()
-        guard menuBarOwner.processIdentifier != latticePid else {
-            Logger.debug("Menu bar owning application is already LatticeTopology; no activation needed (reason: \(reason))")
-            return
-        }
-
-        let targetPid = menuBarOwner.processIdentifier
-        let localizedName = menuBarOwner.localizedName ?? "unknown"
-        Logger.debug("Queueing activation for menu bar owning application \(localizedName) [pid \(targetPid)] (reason: \(reason))")
-
-        DispatchQueue.main.async {
-            guard let application = NSRunningApplication(processIdentifier: targetPid) else {
-                Logger.debug("Menu bar owning application vanished before activation (reason: \(reason))")
-                return
-            }
-            let result = application.activate(options: [.activateIgnoringOtherApps])
-            Logger.debug("Activated menu bar owning application \(localizedName) [pid \(targetPid)] (reason: \(reason)), result=\(result)")
         }
     }
 }

@@ -122,7 +122,6 @@ extension WindowController {
             }
             placeholderLiveResizeDepth += 1
             delegate?.placeholderLiveResizeDidBegin(screenId: screenId, zoneIndex: zoneIndex)
-            reactivateMenuBarOwningApplicationIfNeeded(reason: "placeholder-live-resize-begin")
         } else {
             resizingWindowId = windowId
         }
@@ -158,7 +157,6 @@ extension WindowController {
                 return
             }
             delegate?.placeholderLiveResizeDidEnd(screenId: screenId, zoneIndex: zoneIndex, to: screenFrame)
-            reactivateMenuBarOwningApplicationIfNeeded(reason: "placeholder-live-resize-end")
         } else {
             guard resizingWindowId == windowId else {
                 return
