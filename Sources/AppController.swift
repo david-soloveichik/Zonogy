@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate {
     struct ZoneEdgeMargins {
         var top: CGFloat
         var left: CGFloat
@@ -37,6 +37,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let placeholderCoordinator: PlaceholderCoordinator
     internal let indicatorManager = ZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
+    internal let menuBarManager = MenuBarManager()
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     internal var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []
@@ -97,6 +98,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.targetedZoneManager.initialize(primaryScreenId: primaryScreenId)
         self.windowPlacementManager.delegate = self
         self.dragDropCoordinator.delegate = self
+        self.menuBarManager.delegate = self
         prepareExistingApplicationWindows()
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
@@ -120,6 +122,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
+        menuBarManager.tearDown()
     }
 
     private static func displayId(for screen: NSScreen) -> CGDirectDisplayID? {
