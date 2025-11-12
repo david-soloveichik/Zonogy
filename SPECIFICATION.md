@@ -1,61 +1,10 @@
 # LatticeTopology Window Manager for MacOS
 
-LatticeTopology is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing "reserving" space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
+## 1. Overview
 
-## Zones
+LatticeTopology is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing reserving space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
 
-### Zones abstraction basics
-
-A zone can either contain an (unminimized) window or be considered empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
-Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
-
-### Zone visual representation
-
-If a zone contains a window, then that window simply "represents" the zone and there is no placeholder window. (Note that the size of the window may not match the size of the zone. For example, certain windows cannot be resized arbitrarily.)
-
-Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (ie minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
-
-Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
-
-**Important**: All frames are in screen coordinates (see the "CRITICAL: Coordinate System" section above). In the 3-zone layout, zone 2 is at the top of the right column (y:0) and zone 3 is below it (starting at y:screenHeight/2).
-
-Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
-
-**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
-
-### Window identifiers
-
-Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
-
-### Initial startup behavior
-
-When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
-
-### Targeted zone
-
-Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
-
-**Targeted zone selection:**
-
-- Launching: target zone 1 on the primary display.
-- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
-- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
-- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
-- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
-
-**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
-
-**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
-
-### Screen management
-
-**Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
-
-**Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
-
-**Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
-
+## 2. Core Concepts
 
 ### **CRITICAL: Coordinate System**
 
@@ -82,34 +31,72 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
-### Repositioning and resizing window to zone
+### Window Management Criteria
 
-When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
-Important: When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant KeyFit feature.
+We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
 
-### KeyFit: active overflow reveal for key (aka active) windows
+- **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole)
+- **isMovable: T** (window position can be modified)
+- **hasZoom: T** (window has a zoom button)
+- **Height: >= 250px** (window must be at least 250 pixels tall)
 
-Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display’s visible bounds.
+### Window Identifiers
 
-Implementation requirements:
+Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
 
-1. KeyFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
-2. Determine whether KeyFit is needed by anchoring the window’s actual size to the zone’s content origin (after margins). If the resulting predicted frame would extend beyond the screen’s visible bounds (allow a ≤1 px tolerance), the window qualifies.
-3. When a qualifying window becomes the active/key window, shift it left and/or upward just enough for the full frame to sit inside the screen’s visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
-4. When that window loses key status, leaves its zone, is minimized, or closes, move it back to its normal zone-aligned position so other zones reclaim their space.
-5. KeyFit adjustments should not fight the main zone-sync loop. While a window is expanded via KeyFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
+## 3. Zones
 
-This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **KeyFit**.
+### Zone Abstraction Basics
 
-### Adding and removing zones
+A zone can either contain an (unminimized) window or be considered empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
+Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
 
-When adding or removing zones, the remaining zones should be reindexed. For example, if there are zones 1, 2, 3, and I remove zone 1, then zone 2 should become zone 1, and zone 3 should become zone 2.
+### Zone Visual Representation
+
+If a zone contains a window, then that window simply "represents" the zone and there is no placeholder window. (Note that the size of the window may not match the size of the zone. For example, certain windows cannot be resized arbitrarily.)
+
+Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (i.e., minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
+
+Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
+
+Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
+
+**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
+
+### Layout Rules
 
 Whenever zones are added or removed on a screen, the dimensions of the remaining zones on that screen should be adjusted. Intuitively, they should be re-"tiled" to split the screen. The tiling is as follows:
 
 - 1 zone: full screen (zone 1)
 - 2 zones: split the screen into left (zone 1) and right (zone 2)
 - 3 zones: split the screen into left (zone 1) and right/top (zone 2), right/bottom (zone 3)
+
+### Targeted Zone
+
+Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
+
+**Targeted zone selection:**
+
+- Launching: target zone 1 on the primary display.
+- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
+- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
+- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
+- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
+- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
+
+**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
+
+**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
+
+### Initial Startup Behavior
+
+When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
+
+## 4. User Interactions
+
+### Adding and Removing Zones
+
+When adding or removing zones, the remaining zones should be reindexed. For example, if there are zones 1, 2, 3, and I remove zone 1, then zone 2 should become zone 1, and zone 3 should become zone 2.
 
 There are two ways to remove a zone:
 
@@ -122,7 +109,7 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
-### Resizing zones
+### Resizing Zones
 
 #### If a zone is empty (contains a placeholder window)
 
@@ -139,7 +126,12 @@ For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y>
 Resizing the window should resize the zone to the best of our ability. Unlike for the placeholder window, we don't want a "live update".
 Also if the window is moved to another location and released, it should "snap" back to its proper location in its zone.
 
-### Dragging windows between zones
+### Repositioning and Resizing Window to Zone
+
+When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
+**Important:** When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant KeyFit feature.
+
+### Dragging Windows Between Zones
 
 When the user drags a managed window, LatticeTopology suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
 
@@ -147,51 +139,56 @@ If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merg
 
 If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it. During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
-## Conditions for which windows are managed
+## 5. Special Features
 
-We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
+### KeyFit: Active Overflow Reveal for Key Windows
 
-- **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole)
-- **isMovable: T** (window position can be modified)
-- **hasZoom: T** (window has a zoom button)
-- **Height: >= 250px** (window must be at least 250 pixels tall)
+Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
 
-## Destroyed window detection
+**Implementation requirements:**
+
+1. KeyFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
+2. Determine whether KeyFit is needed by anchoring the window's actual size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
+3. When a qualifying window becomes the active/key window, shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
+4. When that window loses key status, leaves its zone, is minimized, or closes, move it back to its normal zone-aligned position so other zones reclaim their space.
+5. KeyFit adjustments should not fight the main zone-sync loop. While a window is expanded via KeyFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
+
+This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **KeyFit**.
+
+### Screen Management
+
+**Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
+
+**Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
+
+**Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
+
+### Destroyed Window Detection
 
 Not all applications emit didTerminateApplication notification upon closing (eg Find My). So we need to also monitor other notifications. Specifically, we do the following:
 
-After events such as application termination, workspace focus changes, or accessibility notifications, `AppController` validates every affected PID. An external window is removed immediately when either the window server stops reporting its `CGWindowNumber` or the accessibility element returns an invalid-element error. If the initial pass finds no destroyed windows but the PID still owns managed windows, the controller schedules a short series of PID-scoped revalidations with exponential backoff (≈0.2 s → 3.2 s). Retries cancel as soon as every window disappears or the process exits; no global polling timer runs.
+After events such as application termination, workspace focus changes, or accessibility notifications, `AppController` validates every affected PID. An external window is removed immediately when either the window server stops reporting its `CGWindowNumber` or the accessibility element returns an invalid-element error. If the initial pass finds no destroyed windows but the PID still owns managed windows, the controller schedules a short series of PID-scoped revalidations with exponential backoff (≈0.2 s → 3.2 s). Retries cancel as soon as every window disappears or the process exits; no global polling timer runs.
 
-## External tools and code reference
+## 6. Implementation Details
 
-### tool `winmanmon`
+### Sleep/Wake Recovery
 
-For debugging purposes, it may be useful to see where all the windows are, whether they are minimized or not, and obtain other information about them. This can help us debug, for example, whether the window was successfully moved to its zone location. This is enabled by the following `winmanmon` command line tool, which displays for each window:
-    - Application bundle identifier (e.g., "com.apple.Dictionary")
-    - Window ID
-    - Title (may be empty)
-    - Screen
-    - Dimensions (x, y, width, height)
-    - Is minimized? (T/F)
-    - Subrole (e.g., kAXStandardWindowSubrole, kAXDialogSubrole)
-    - isMovable (T/F) - whether window position can be modified
-    - hasZoom (T/F) - whether window has a zoom button
+After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. LatticeTopology implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
 
-(Certain applications and types of windows that we don't care about are excluded.)
+### Additional Notes
 
-The tool is available in the shell path.
+- Placeholder windows need an interactive blue "x" control that sends a callback to remove the zone.
+- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.
+- When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
+- We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
+**Log monitoring tip:** To watch the live log output, run:
+`stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
+(`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
+- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
-The `--help` argument explains the functionality.
+## 7. Developer Tools
 
-### source code of `winmanmon`
-
-The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiently read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
-
-### Amethyst and Silica
-
-The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
-
-## Command-line REPL for debugging
+### Command-line REPL for Debugging
 
 To allow an AI Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
 
@@ -208,34 +205,12 @@ Helpful optional commands (for faster debugging):
 
 - `list`: print the current zones, their frames, and which window (if any) they hold.
 - `layout`: force a recomputation of zone frames (useful after changing screen size in tests).
-- `window-info <window_id>`: display the zone index, the zone’s desired frame, and the actual on-screen frame reported by AppKit so we can compare intended versus real geometry.
-- `frames`: dump a quick summary of every managed window’s actual frame (including minimized placeholders) to make tiling issues easy to spot.
+- `window-info <window_id>`: display the zone index, the zone's desired frame, and the actual on-screen frame reported by AppKit so we can compare intended versus real geometry.
+- `frames`: dump a quick summary of every managed window's actual frame (including minimized placeholders) to make tiling issues easy to spot.
 - `resize-zone <index> <x> <y> <width> <height>`: resize an empty zone using screen coordinates.
 - `help`: describe available commands.
 
-## Additional implementation notes
-
-- **Sleep/wake recovery:** After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. LatticeTopology implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
-- Placeholder windows need an interactive blue "x" control that sends a callback to remove the zone.
-- `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.
-- When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
-- We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
-**Log monitoring tip:** To watch the live log output, run:
-`stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
-(`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
-- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
-
-## Debug log file
-
-LatticeTopology always writes debug logs to `/tmp/lattice-topology-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
-
-## Time-travel debug logging
-
-When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
-
-After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
-
-## Unix Domain Socket Interface for Agent Interaction
+### Unix Domain Socket Interface for Agent Interaction
 
 To enable better AI Agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
 
@@ -281,7 +256,42 @@ To enable better AI Agent integration and programmatic control, LatticeTopology 
 
 For complete API documentation, examples, and error handling details, see **[SOCKET_API.md](SOCKET_API.md)**.
 
-## Configuration
+### Debug Log File
+
+LatticeTopology always writes debug logs to `/tmp/lattice-topology-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
+
+### Time-travel Debug Logging
+
+When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
+
+After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
+
+### External Tool: `winmanmon`
+
+For debugging purposes, it may be useful to see where all the windows are, whether they are minimized or not, and obtain other information about them. This can help us debug, for example, whether the window was successfully moved to its zone location. This is enabled by the following `winmanmon` command line tool, which displays for each window:
+    - Application bundle identifier (e.g., "com.apple.Dictionary")
+    - Window ID
+    - Title (may be empty)
+    - Screen
+    - Dimensions (x, y, width, height)
+    - Is minimized? (T/F)
+    - Subrole (e.g., kAXStandardWindowSubrole, kAXDialogSubrole)
+    - isMovable (T/F) - whether window position can be modified
+    - hasZoom (T/F) - whether window has a zoom button
+
+(Certain applications and types of windows that we don't care about are excluded.)
+
+The tool is available in the shell path.
+
+The `--help` argument explains the functionality.
+
+The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiently read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
+
+### Reference Implementations
+
+The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
+
+## 8. Configuration
 
 An optional `config.json` file lets users specify bundle identifiers that the window manager should ignore. When present, it is discovered using the following search order:
 
@@ -303,7 +313,7 @@ The file schema:
 
 Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
 
-## Workarounds in bugs in MacOS accessibility API
+## 9. Accessibility API Workarounds
 
 ### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
 
