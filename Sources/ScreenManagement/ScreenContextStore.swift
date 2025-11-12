@@ -75,6 +75,22 @@ final class ScreenContextStore {
         return nil
     }
 
+    /// Returns a user-facing screen index for logging, with multiple fallbacks.
+    func loggingIndex(for displayId: CGDirectDisplayID) -> Int {
+        if let index = screenIndex(for: displayId) {
+            return index
+        }
+        return ScreenContextStore.loggingIndex(for: displayId)
+    }
+
+    /// Static variant for contexts where the instance store is unavailable.
+    static func loggingIndex(for displayId: CGDirectDisplayID) -> Int {
+        if let index = screenIndex(for: displayId) {
+            return index
+        }
+        return Int(displayId)
+    }
+
     @discardableResult
     private func rebuild(with screens: [NSScreen], primaryBounds: CGRect) -> RebuildResult {
         let previousOrder = order

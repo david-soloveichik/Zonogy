@@ -102,109 +102,14 @@ class WindowController {
     }
 
     func pruneDestroyedExternalWindows() -> [Int] {
-        // Get all actual windows from the window server (ground truth)
-        guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-            return []
-        }
-
-        var actualWindows = Set<ExternalWindowIdentifier>()
-        for windowInfo in windowList {
-            if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
-               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
-                actualWindows.insert(ExternalWindowIdentifier(pid: ownerPID, windowNumber: windowNumber))
-            }
-        }
-
-        var stale: [(Int, ManagedWindow, String)] = []
-
-        for managed in windowRegistry.allWindows {
-            let windowId = managed.windowId
-            guard case .accessibility(_, let pid, let windowNumber) = managed.backing else {
-                continue
-            }
-
-            if let windowNumber {
-                let identifier = ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber)
-                if !actualWindows.contains(identifier) {
-                    stale.append((windowId, managed, "missing-from-cgwindowlist"))
-                    continue
-                }
-            }
-
-            if !isAccessibilityElementAlive(managed) {
-                stale.append((windowId, managed, "ax-element-invalid"))
-            }
-        }
-
-        if stale.isEmpty {
-            return []
-        }
-
-        var removedWindowIds: [Int] = []
-        for (windowId, managed, reason) in stale {
-            Logger.debug("Detected destroyed external window \(windowId) (reason: \(reason)); pruning")
-            removeAccessibilityTracking(for: managed)
-            windowRegistry.removeWindow(withId: windowId)
-            if let identifier = managed.externalIdentifier {
-                externalWindows.removeValue(forKey: identifier)
-            }
-            removedWindowIds.append(windowId)
-            Logger.debug("Pruned destroyed external window \(windowId)")
-        }
-
-        return removedWindowIds
+        pruneDestroyedWindows(pidFilter: nil)
     }
 
     /// Detect and prune external windows for a specific PID whose accessibility elements have been destroyed.
     /// - Parameter pid: The process identifier to check windows for.
     /// - Returns: The window identifiers that were removed.
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int] {
-        // Get the ground truth from the window server
-        let actualWindowNumbers = getActualWindowNumbersFromWindowServer(forPid: pid)
-
-        var stale: [(Int, ManagedWindow, String)] = []
-
-        for managed in windowRegistry.allWindows {
-            let windowId = managed.windowId
-            guard case .accessibility(_, let windowPid, let windowNumber) = managed.backing else {
-                continue
-            }
-
-            // Only check windows for this specific PID
-            guard windowPid == pid else {
-                continue
-            }
-
-            if let windowNumber {
-                // If the window number is not in the actual windows from window server, it's been destroyed
-                if !actualWindowNumbers.contains(windowNumber) {
-                    stale.append((windowId, managed, "missing-from-cgwindowlist"))
-                    continue
-                }
-            }
-
-            if !isAccessibilityElementAlive(managed) {
-                stale.append((windowId, managed, "ax-element-invalid"))
-            }
-        }
-
-        if stale.isEmpty {
-            return []
-        }
-
-        var removedWindowIds: [Int] = []
-        for (windowId, managed, reason) in stale {
-            Logger.debug("Detected destroyed external window \(windowId) for pid \(pid) (reason: \(reason)); pruning")
-            removeAccessibilityTracking(for: managed)
-            windowRegistry.removeWindow(withId: windowId)
-            if let identifier = managed.externalIdentifier {
-                externalWindows.removeValue(forKey: identifier)
-            }
-            removedWindowIds.append(windowId)
-            Logger.debug("Pruned destroyed external window \(windowId)")
-        }
-
-        return removedWindowIds
+        return pruneDestroyedWindows(pidFilter: pid)
     }
 
     /// Remove all accessibility-backed managed windows for a terminated process.
@@ -242,6 +147,96 @@ class WindowController {
         }
 
         return windowIds
+    }
+
+    private func pruneDestroyedWindows(pidFilter: pid_t?) -> [Int] {
+        guard let snapshot = makeWindowServerSnapshot(pidFilter: pidFilter) else {
+            return []
+        }
+
+        var stale: [(Int, ManagedWindow, String)] = []
+
+        for managed in windowRegistry.allWindows {
+            let windowId = managed.windowId
+            guard case .accessibility(_, let windowPid, let windowNumber) = managed.backing else {
+                continue
+            }
+
+            if let pidFilter, windowPid != pidFilter {
+                continue
+            }
+
+            if let windowNumber, !snapshot.contains(pid: windowPid, windowNumber: windowNumber) {
+                stale.append((windowId, managed, "missing-from-cgwindowlist"))
+                continue
+            }
+
+            if !isAccessibilityElementAlive(managed) {
+                stale.append((windowId, managed, "ax-element-invalid"))
+            }
+        }
+
+        guard !stale.isEmpty else {
+            return []
+        }
+
+        var removedWindowIds: [Int] = []
+        for (windowId, managed, reason) in stale {
+            let pidContext: String
+            if case .accessibility(_, let pid, _) = managed.backing {
+                pidContext = " pid \(pid)"
+            } else {
+                pidContext = ""
+            }
+            Logger.debug("Detected destroyed external window \(windowId)\(pidContext) (reason: \(reason)); pruning")
+            removeAccessibilityTracking(for: managed)
+            windowRegistry.removeWindow(withId: windowId)
+            if let identifier = managed.externalIdentifier {
+                externalWindows.removeValue(forKey: identifier)
+            }
+            removedWindowIds.append(windowId)
+            Logger.debug("Pruned destroyed external window \(windowId)")
+        }
+
+        return removedWindowIds
+    }
+
+    private enum WindowServerSnapshot {
+        case global(Set<ExternalWindowIdentifier>)
+        case pid(pid_t, Set<Int>)
+
+        func contains(pid: pid_t, windowNumber: Int) -> Bool {
+            switch self {
+            case .global(let identifiers):
+                return identifiers.contains(ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber))
+            case .pid(let filterPid, let numbers):
+                guard pid == filterPid else {
+                    return false
+                }
+                return numbers.contains(windowNumber)
+            }
+        }
+    }
+
+    private func makeWindowServerSnapshot(pidFilter: pid_t?) -> WindowServerSnapshot? {
+        if let pidFilter {
+            let numbers = getActualWindowNumbersFromWindowServer(forPid: pidFilter)
+            return .pid(pidFilter, numbers)
+        }
+
+        guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        var identifiers = Set<ExternalWindowIdentifier>()
+        for windowInfo in windowList {
+            if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
+                identifiers.insert(ExternalWindowIdentifier(pid: ownerPID, windowNumber: windowNumber))
+            }
+        }
+
+        return .global(identifiers)
     }
 
     /// Query the window server for actual window numbers for a given PID.

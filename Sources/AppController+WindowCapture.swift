@@ -17,7 +17,7 @@ extension AppController {
         on descriptor: ScreenDescriptor,
         isExcluded: Bool
     ) {
-        let screenIndex = screenContextStore.screenIndex(for: descriptor.displayId) ?? ScreenContextStore.screenIndex(for: descriptor.displayId) ?? Int(descriptor.displayId)
+        let screenIndex = screenContextStore.loggingIndex(for: descriptor.displayId)
         Logger.debug("Preparing to show placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (excluded: \(isExcluded))")
 
         if isExcluded {
@@ -43,7 +43,7 @@ extension AppController {
         prepareToHide placeholder: ManagedWindow,
         reason: PlaceholderCoordinator.HideReason
     ) {
-        let screenIndex = placeholder.screenDisplayId.map { screenContextStore.screenIndex(for: $0) ?? ScreenContextStore.screenIndex(for: $0) ?? Int($0) } ?? -1
+        let screenIndex = placeholder.screenDisplayId.map { screenContextStore.loggingIndex(for: $0) } ?? -1
         Logger.debug("Preparing to hide placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (reason: \(reason))")
 
         switch reason {
@@ -58,7 +58,7 @@ extension AppController {
 
     func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, didResizeZone key: ZoneKey, finalize: Bool) {
         if finalize {
-            let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+            let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
             Logger.debug("Placeholder for zone \(key.index) on screen \(screenIndex) resize finalized")
             syncWindowsToZones()
         } else {

@@ -9,8 +9,7 @@ extension AppController {
         for screenId in screenOrder {
             guard let context = screenContexts[screenId] else { continue }
             // Convert internal display ID to user-friendly index for display
-            let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
-            let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+            let screenIdentifier = String(screenContextStore.loggingIndex(for: screenId))
             print("  Screen \(context.descriptor.localizedName) [\(screenIdentifier)]:")
             for zone in context.zoneController.allZones {
                 let windowInfo = zone.windowId.map { "window \($0)" } ?? "empty"
@@ -133,8 +132,7 @@ extension AppController {
             print("  PID: unknown")
         }
         if let screenId, let screenDescriptor {
-            let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
-            let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+            let screenIdentifier = String(screenContextStore.loggingIndex(for: screenId))
             print("  Screen: \(screenDescriptor.localizedName) [\(screenIdentifier)]")
         } else {
             print("  Screen: unknown")
@@ -177,8 +175,7 @@ extension AppController {
                 actualFrame = .zero
             }
             if let screenId, let screenDescriptor {
-                let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId)
-                let screenIdentifier = screenIndex.map { String($0) } ?? String(screenId)
+                let screenIdentifier = String(screenContextStore.loggingIndex(for: screenId))
                 print("  Window \(window.windowId) (\(type)) on \(screenDescriptor.localizedName) [\(screenIdentifier)]: \(actualFrame)")
             } else {
                 print("  Window \(window.windowId) (\(type)) on unknown screen: \(actualFrame)")

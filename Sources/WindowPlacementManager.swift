@@ -31,6 +31,9 @@ protocol WindowPlacementManagerDelegate: AnyObject {
 
 class WindowPlacementManager {
     weak var delegate: WindowPlacementManagerDelegate?
+    struct DragAssignmentResult {
+        let displacedWindow: ManagedWindow?
+    }
 
     init() {}
 
@@ -222,6 +225,28 @@ class WindowPlacementManager {
                 delegate.targetedZoneManager.setTargetedZone(nextEmpty, reason: "zone-filled-switch-to-empty")
             }
         }
+    }
+
+    /// Assigns a dragged window into the specified zone, returning its displaced occupant if any.
+    func assignWindowFromDrag(
+        _ managed: ManagedWindow,
+        to targetKey: ZoneKey
+    ) -> DragAssignmentResult? {
+        guard let delegate = delegate,
+              let context = delegate.screenContexts[targetKey.screenId],
+              let descriptor = delegate.descriptor(for: targetKey.screenId),
+              let zone = context.zoneController.zone(at: targetKey.index) else {
+            return nil
+        }
+
+        let displacedWindow = removeOccupantIfNeeded(
+            in: zone,
+            controller: context.zoneController,
+            excluding: managed.windowId
+        )
+
+        assignWindowToZone(managed, zone: zone, screenId: targetKey.screenId, descriptor: descriptor)
+        return DragAssignmentResult(displacedWindow: displacedWindow)
     }
 
     /// Finds the first zone that can accept a window displaced by zone removal.

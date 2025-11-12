@@ -307,8 +307,6 @@ class DragDropCoordinator {
             return nil
         }
 
-        let zoneWasEmpty = targetZone.windowId == nil
-
         if targetZone.windowId == session.windowId {
             Logger.debug("Window \(session.windowId) already assigned to target zone \(targetKey.index); no swap needed")
             delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
@@ -328,21 +326,13 @@ class DragDropCoordinator {
             sourceContext.zoneController.removeWindow(windowId: session.windowId)
         }
 
-        var displacedWindow: ManagedWindow?
-        if let displacedWindowId = targetZone.windowId,
-           displacedWindowId != session.windowId,
-           let occupant = delegate.windowController.window(withId: displacedWindowId) {
-            targetContext.zoneController.removeWindow(windowId: displacedWindowId)
-            displacedWindow = occupant
+        guard let assignment = delegate.windowPlacementManager.assignWindowFromDrag(managed, to: targetKey) else {
+            Logger.debug("Drag drop failed: unable to assign window \(session.windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
+            return nil
         }
 
-        targetContext.zoneController.assignWindow(windowId: session.windowId, toZoneIndex: targetKey.index)
-        delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
+        let displacedWindow = assignment.displacedWindow
         Logger.debug("Window \(session.windowId) dropped into zone \(targetKey.index) on \(targetContext.descriptor.localizedName)")
-
-        if zoneWasEmpty {
-            closePlaceholders(for: targetKey)
-        }
 
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId],
@@ -366,21 +356,5 @@ class DragDropCoordinator {
         }
 
         return DropResult(displacedWindow: nil, preferredScreenId: nil)
-    }
-
-    private func closePlaceholders(for zoneKey: ZoneKey) {
-        guard let delegate = delegate else {
-            return
-        }
-        let placeholders = delegate.windowController.allWindows.filter { window in
-            window.isPlaceholder &&
-            window.screenDisplayId == zoneKey.screenId &&
-            window.zoneIndex == zoneKey.index
-        }
-
-        for placeholder in placeholders {
-            delegate.windowController.closeWindow(placeholder)
-            delegate.forgetPlaceholder(windowId: placeholder.windowId)
-        }
     }
 }

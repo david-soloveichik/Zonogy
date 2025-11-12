@@ -31,19 +31,19 @@ extension AppController {
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder close requested for zone \(zoneIndex) on screen \(screenIndex)")
         _ = performRemoveZone(at: zoneIndex, on: screenId, announce: false)
     }
 
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }
 
     func zoneIndicatorActivated(_ key: ZoneKey) {
-        let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
     }
@@ -51,7 +51,7 @@ extension AppController {
     // MARK: - AddZoneIndicatorManagerDelegate
 
     func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID) {
-        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Add zone indicator clicked on screen \(screenIndex)")
         addZone(on: screenId)
     }
@@ -107,7 +107,7 @@ extension AppController {
 
     func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int) {
         liveResizingZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder live resize began for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth))")
     }
 
@@ -126,7 +126,7 @@ extension AppController {
             liveResizingZoneKey = nil
         }
 
-        let screenIndex = screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder live resize ended for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth), finalFrame: \(frame))")
 
         applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: true)
@@ -282,7 +282,7 @@ extension AppController {
             return "none"
         }
 
-        let screenIndex = screenContextStore.screenIndex(for: key.screenId) ?? ScreenContextStore.screenIndex(for: key.screenId) ?? Int(key.screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
 
         guard let context = screenContexts[key.screenId],
               let zone = context.zoneController.zone(at: key.index) else {

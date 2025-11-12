@@ -230,13 +230,13 @@ extension AppController {
                 if let context = self.screenContexts[screenId],
                    let zone = context.zoneController.zone(at: removalIndex) {
                     let targetedMatch = (self.targetedZoneKey?.screenId == screenId) && (self.targetedZoneKey?.index == removalIndex)
-                    let screenIndex = self.screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+                    let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
                     Logger.debug(
                         "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
                         "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.windowId.map(String.init) ?? "none"))"
                     )
                 } else {
-                    let screenIndex = self.screenContextStore.screenIndex(for: screenId) ?? ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+                    let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
                     Logger.debug("Shortcut remove selected zone \(removalIndex) on screen \(screenIndex), but zone details unavailable")
                 }
                 _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
