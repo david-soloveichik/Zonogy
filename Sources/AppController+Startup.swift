@@ -242,6 +242,8 @@ extension AppController {
                 _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
             case .captureTimeTravelLogs:
                 self.captureTimeTravelLogs(triggerReason: "shortcut")
+            case .flipKeyWindow:
+                self.flipKeyWindowToAnotherScreen()
             }
         }
     }

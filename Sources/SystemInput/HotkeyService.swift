@@ -7,6 +7,7 @@ final class HotkeyService {
         case addZone = 1
         case removeZone = 2
         case captureTimeTravelLogs = 3
+        case flipKeyWindow = 4
     }
 
     weak var delegate: HotkeyServiceDelegate?
@@ -48,6 +49,9 @@ final class HotkeyService {
             return true
         case kVK_ANSI_Z:
             delegate?.hotkeyService(self, didTrigger: .captureTimeTravelLogs)
+            return true
+        case kVK_Return:
+            delegate?.hotkeyService(self, didTrigger: .flipKeyWindow)
             return true
         default:
             return false
@@ -99,6 +103,7 @@ final class HotkeyService {
         registerHotKey(keyCode: UInt32(kVK_ANSI_Equal), action: .addZone)
         registerHotKey(keyCode: UInt32(kVK_ANSI_Minus), action: .removeZone)
         registerHotKey(keyCode: UInt32(kVK_ANSI_Z), action: .captureTimeTravelLogs)
+        registerHotKey(keyCode: UInt32(kVK_Return), action: .flipKeyWindow)
     }
 
     private func registerHotKey(keyCode: UInt32, action: Action) {

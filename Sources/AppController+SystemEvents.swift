@@ -12,6 +12,8 @@ extension AppController {
             Logger.debug("Hotkey remove zone triggered")
         case .captureTimeTravelLogs:
             Logger.debug("Hotkey capture time-travel logs triggered")
+        case .flipKeyWindow:
+            Logger.debug("Hotkey flip key window triggered")
         }
         triggerShortcut(action)
     }

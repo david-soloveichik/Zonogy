@@ -139,6 +139,16 @@ If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merg
 
 If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it. During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
+### Flip the Key Window to Another Screen
+
+Pressing shortcut Control-Cmd-Enter moves the currently active/key window to another screen (if there is more than one screen).
+
+If the targeted zone is on another screen, then immediately move the key window into it, minimize any displaced window.
+
+If the targeted zone is on the same screen as the active/key window then: We pick the first `NSScreen` that is not the key window's current screen; all behavior below refers to that destination screen. Choose the lowest-index empty zone on the destination screen, or if none exist, the highest-index occupied zone. Make that zone be target, and perform the move described above.
+
+In either case, since the original zone of the window is now empty, it should become targeted after this.
+
 ## 5. Special Features
 
 ### KeyFit: Active Overflow Reveal for Key Windows
