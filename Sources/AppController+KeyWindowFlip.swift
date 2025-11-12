@@ -31,15 +31,11 @@ extension AppController {
             return
         }
 
-        if originKey.screenId == destinationKey.screenId {
-            Logger.debug("Flip key window aborted: destination screen matches origin unexpectedly")
-            targetedZoneManager.setTargetedZone(originKey, reason: "flip-key-window-invalid-destination")
-            return
+        if destinationKey != currentTarget {
+            targetedZoneManager.setTargetedZone(destinationKey, reason: "flip-key-window-select-destination")
         }
 
-        targetedZoneManager.setTargetedZone(destinationKey, reason: "flip-key-window-select-destination")
-
-        guard performFlip(for: managed, originKey: originKey, destinationKey: destinationKey) else {
+        guard windowPlacementManager.moveWindow(managed, from: originKey, to: destinationKey) else {
             let failureReason = "flip-key-window-failure"
             if targetedZoneManager.zoneExists(originKey) {
                 targetedZoneManager.setTargetedZone(originKey, reason: failureReason)
@@ -150,69 +146,4 @@ extension AppController {
         return zones.filter { !$0.isEmpty }.max(by: { $0.index < $1.index })?.index
     }
 
-    /// Reassigns the window between controllers, handles displacement, and moves the Accessibility frame.
-    private func performFlip(for managed: ManagedWindow, originKey: ZoneKey, destinationKey: ZoneKey) -> Bool {
-        guard let originContext = screenContexts[originKey.screenId],
-              let destinationContext = screenContexts[destinationKey.screenId],
-              let descriptor = descriptor(for: destinationKey.screenId),
-              let destinationZone = destinationContext.zoneController.zone(at: destinationKey.index) else {
-            Logger.debug("Flip key window aborted: missing origin/destination context")
-            return false
-        }
-
-        originContext.zoneController.removeWindow(windowId: managed.windowId)
-        clearManagedWindowZone(managed)
-        closePlaceholders(for: destinationKey)
-
-        var displacedWindow: ManagedWindow?
-        if let occupantId = destinationZone.windowId,
-           occupantId != managed.windowId,
-           let occupant = windowController.window(withId: occupantId) {
-            destinationContext.zoneController.removeWindow(windowId: occupantId)
-            displacedWindow = occupant
-        }
-
-        destinationContext.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: destinationKey.index)
-        let frame = frameWithMargin(for: destinationZone, in: destinationContext.zoneController)
-        windowController.showWindow(managed, at: frame, on: descriptor)
-        setManagedWindow(managed, screenId: destinationKey.screenId, zoneIndex: destinationKey.index)
-
-        handleDisplacedWindow(displacedWindow)
-
-        let originScreenIndex = screenContextStore.screenIndex(for: originKey.screenId) ?? Int(originKey.screenId)
-        let destinationScreenIndex = screenContextStore.screenIndex(for: destinationKey.screenId) ?? Int(destinationKey.screenId)
-        Logger.debug(
-            "Flipped window \(managed.windowId) from screen \(originScreenIndex) zone \(originKey.index) to screen \(destinationScreenIndex) zone \(destinationKey.index)"
-        )
-        return true
-    }
-
-    /// Closes any placeholder windows occupying the destination zone before the flip lands.
-    private func closePlaceholders(for zoneKey: ZoneKey) {
-        let placeholders = windowController.allWindows.filter { window in
-            window.isPlaceholder &&
-            window.screenDisplayId == zoneKey.screenId &&
-            window.zoneIndex == zoneKey.index
-        }
-
-        for placeholder in placeholders {
-            windowController.closeWindow(placeholder)
-            forgetPlaceholder(windowId: placeholder.windowId)
-        }
-    }
-
-    /// Applies the "minimize displaced window" rule when the destination zone was occupied.
-    private func handleDisplacedWindow(_ displaced: ManagedWindow?) {
-        guard let displaced else { return }
-
-        if displaced.isPlaceholder {
-            windowController.closeWindow(displaced)
-            forgetPlaceholder(windowId: displaced.windowId)
-            return
-        }
-
-        clearManagedWindowZone(displaced)
-        windowController.minimizeWindow(displaced)
-        Logger.debug("Minimized displaced window \(displaced.windowId) after flip")
-    }
 }
