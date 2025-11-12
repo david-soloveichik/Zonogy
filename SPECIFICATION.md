@@ -4,6 +4,59 @@ LatticeTopology is a variation on a tiling window manager. In particular, it use
 
 ## Zones
 
+### Zones abstraction basics
+
+A zone can either contain an (unminimized) window or be considered empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
+Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
+
+### Zone visual representation
+
+If a zone contains a window, then that window simply "represents" the zone and there is no placeholder window. (Note that the size of the window may not match the size of the zone. For example, certain windows cannot be resized arbitrarily.)
+
+Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (ie minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
+
+Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
+
+**Important**: All frames are in screen coordinates (see the "CRITICAL: Coordinate System" section above). In the 3-zone layout, zone 2 is at the top of the right column (y:0) and zone 3 is below it (starting at y:screenHeight/2).
+
+Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
+
+**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
+
+### Window identifiers
+
+Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
+
+### Initial startup behavior
+
+When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
+
+### Targeted zone
+
+Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
+
+**Targeted zone selection:**
+
+- Launching: target zone 1 on the primary display.
+- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
+- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
+- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
+- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
+- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
+
+**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
+
+**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
+
+### Screen management
+
+**Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
+
+**Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
+
+**Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
+
+
 ### **CRITICAL: Coordinate System**
 
 **All zone frames, window positions, and dimensions MUST use screen coordinates with y:0 at the top-left corner of the screen.**
@@ -29,68 +82,10 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
-### Targeted zone & multi-screen support
-
-**Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.
-
-**Targeted zone concept:** Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are always placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule.
-
-**Targeted zone selection:**
-
-- Launching: target zone 1 on the primary display.
-- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
-- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
-- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
-- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
-
-**Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
-
-**Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
-
-**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
-
-**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
-
-### Zones abstraction
-
-A zone can either contain an (unminimized) window or be empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
-Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
-
-### Window identifiers
-
-Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
-
-### Initial startup behavior
-
-When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For reference on how to enumerate all application windows efficiently you can look at the source code of `winmanmon`.)
-
-### Window placement for new windows
-
-If a new window is created by an application or an existing window is unminimized:
-
-- If there is an empty zone it should be placed there. If multiple zones are empty, preference should be given to the zone with a lower index.
-- If there is no empty zone, then the new window should replace the existing window in the zone with the highest index. The old window in that zone should be minimized. (For the smoothest UI effect, we want to first move the new window to the right location, and only then minimize the old window.)
-
 ### Repositioning and resizing window to zone
 
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
-Important: When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should _not_ keep on trying to resize them in an infinite loop.
-After any programmatic move/resize, suppress handling of that window's Accessibility move/resize notifications for 0.5 seconds to avoid feedback loops during zone updates.
-
-### Zone visual representation
-
-If a zone contains a window, then that window simply "represents" the zone and there is no placeholder window. (Note that the size of the window may not match the size of the zone. For example, certain windows cannot be resized arbitrarily.)
-
-Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (ie minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
-
-Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
-
-**Important**: All frames are in screen coordinates (see the "CRITICAL: Coordinate System" section above). In the 3-zone layout, zone 2 is at the top of the right column (y:0) and zone 3 is below it (starting at y:screenHeight/2).
-
-Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
-
-**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
+Important: When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant KeyFit feature.
 
 ### KeyFit: active overflow reveal for key (aka active) windows
 
