@@ -186,7 +186,15 @@ After waking from sleep, the Accessibility API isn't immediately ready, causing 
 (`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
 - The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
-## 7. Developer Tools
+## 7. Accessibility API Workarounds
+
+### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
+
+`kAXWindowCreatedNotification` is not reliably generated, while `kAXFocusedWindowChangedNotification` is much more reliable. We subscribe to both for max reliability.
+
+Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on LatticeTopology and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
+
+## 8. Developer Tools
 
 ### Command-line REPL for Debugging
 
@@ -291,7 +299,7 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
 
-## 8. Configuration
+## 9. Configuration
 
 An optional `config.json` file lets users specify bundle identifiers that the window manager should ignore. When present, it is discovered using the following search order:
 
@@ -312,11 +320,3 @@ The file schema:
 ```
 
 Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
-
-## 9. Accessibility API Workarounds
-
-### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
-
-`kAXWindowCreatedNotification` is not reliably generated, while `kAXFocusedWindowChangedNotification` is much more reliable. We subscribe to both for max reliability.
-
-Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on LatticeTopology and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
