@@ -55,7 +55,7 @@ class MenuBarManager {
 
     private func createIconImage() -> NSImage? {
         // Try to locate the SVG icon file
-        let iconFileName = "LatticeTopology_CA110_regularized.svg"
+        let iconFileName = "icon_menubar.svg"
 
         // Search in multiple locations
         let searchPaths = [

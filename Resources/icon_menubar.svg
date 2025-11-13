@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -3 28 28" width="22" height="22">
+  <!-- Vertical Split with Reserved Space -->
+  <!-- Left full column -->
+  <rect x="1" y="1" width="9" height="20" fill="#000"/>
+  <!-- Top right window -->
+  <rect x="12" y="1" width="9" height="9" fill="#000"/>
+  <!-- Bottom right reserved space -->
+  <rect x="12" y="12" width="9" height="9" fill="none" stroke="#000" stroke-width="2"/>
+</svg>
