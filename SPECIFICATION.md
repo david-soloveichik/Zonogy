@@ -129,7 +129,7 @@ Also if the window is moved to another location and released, it should "snap" b
 ### Repositioning and Resizing Window to Zone
 
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
-**Important:** When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant KeyFit feature.
+**Important:** When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant ActiveFit feature.
 
 ### Dragging Windows Between Zones
 
@@ -161,19 +161,19 @@ In either case, since the original zone of the window is now empty, it should be
 
 ## 5. Special Features
 
-### KeyFit: Active Overflow Reveal for Key Windows
+### ActiveFit: Active Overflow Reveal for Key Windows
 
 Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
 
 **Implementation requirements:**
 
-1. KeyFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
-2. Determine whether KeyFit is needed by anchoring the window's actual size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
+1. ActiveFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
+2. Determine whether ActiveFit is needed by anchoring the window's actual size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
 3. When a qualifying window becomes the active/key window, shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
 4. When that window loses key status, leaves its zone, is minimized, or closes, move it back to its normal zone-aligned position so other zones reclaim their space.
-5. KeyFit adjustments should not fight the main zone-sync loop. While a window is expanded via KeyFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
+5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is expanded via ActiveFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
 
-This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **KeyFit**.
+This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
 
 ### Screen Management
 

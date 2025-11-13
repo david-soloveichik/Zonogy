@@ -32,7 +32,7 @@ extension AppController {
             lastActiveApplicationPid = application.processIdentifier
         }
         handleApplicationEvent(application)
-        handleKeyFitActivationCandidate(pid: application?.processIdentifier)
+        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {

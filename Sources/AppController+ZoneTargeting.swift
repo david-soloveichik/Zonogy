@@ -153,14 +153,14 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
-        keyFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+        activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }
 
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
-        keyFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "assignment-cleared")
-        keyFitClearSuppressionForWindow(managed.windowId)
+        activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "assignment-cleared")
+        activeFitClearSuppressionForWindow(managed.windowId)
     }
 
     internal func forgetPlaceholder(windowId: Int) {

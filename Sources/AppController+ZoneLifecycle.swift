@@ -19,7 +19,7 @@ extension AppController {
             return nil
         }
         syncWindowsToZones()
-        keyFitRefreshAfterZoneTopologyChange(reason: "zone-added")
+        activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
         if shouldRetarget(to: newZoneKey) {
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
@@ -84,7 +84,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
-        keyFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
+        activeFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
 
         if pendingTargetedKey == nil {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")
@@ -393,8 +393,8 @@ extension AppController {
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId) {
                     let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
-                    if keyFitShouldSkipSync(for: zoneKey, windowId: windowId) {
-                        Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] due to active KeyFit window \(windowId)")
+                    if activeFitShouldSkipSync(for: zoneKey, windowId: windowId) {
+                        Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] due to active ActiveFit window \(windowId)")
                         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                         assignedWindowIds.insert(windowId)
                         continue

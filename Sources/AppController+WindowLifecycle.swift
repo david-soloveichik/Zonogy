@@ -27,7 +27,7 @@ extension AppController {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")
-        handleKeyFitFocusChange(pid: pid)
+        handleActiveFitFocusChange(pid: pid)
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -67,8 +67,8 @@ extension AppController {
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-will-close")
         syncWindowsToZones()
-        keyFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "close")
-        keyFitClearSuppressionForWindow(windowId)
+        activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "close")
+        activeFitClearSuppressionForWindow(windowId)
         if let managed,
            case .accessibility(_, let pid, _) = managed.backing {
             triggerActivationWorkaroundIfNeeded(
@@ -87,8 +87,8 @@ extension AppController {
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize")
         syncWindowsToZones()
-        keyFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "miniaturize")
-        keyFitClearSuppressionForWindow(windowId)
+        activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "miniaturize")
+        activeFitClearSuppressionForWindow(windowId)
         if let managed,
            case .accessibility(_, let pid, _) = managed.backing {
             triggerActivationWorkaroundIfNeeded(
@@ -174,7 +174,7 @@ extension AppController {
             originZoneKey = nil
         }
 
-        keyFitSuspendForDrag(windowId: windowId)
+        activeFitSuspendForDrag(windowId: windowId)
 
         let originScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
         dragDropCoordinator.beginDragSession(
@@ -221,7 +221,7 @@ extension AppController {
             windowPlacementManager.placeNewWindow(managed, preferredScreenId: result.preferredScreenId)
         }
 
-        keyFitResumeAfterDrag(windowId: windowId)
+        activeFitResumeAfterDrag(windowId: windowId)
     }
 
     func windowManualMoveDidAbort(windowId: Int) {
@@ -230,7 +230,7 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
             syncWindowsToZones()
         }
-        keyFitResumeAfterDrag(windowId: windowId)
+        activeFitResumeAfterDrag(windowId: windowId)
     }
 
     func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {

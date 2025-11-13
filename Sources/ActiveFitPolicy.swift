@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// Computes whether an oversized zone occupant should be translated so its full frame fits on screen.
-enum KeyFitPolicy {
+enum ActiveFitPolicy {
     /// Returns a frame that keeps the window wholly inside the screen, or `nil` if no translation is required.
     static func revealFrameIfNeeded(
         zoneIndex: Int,
