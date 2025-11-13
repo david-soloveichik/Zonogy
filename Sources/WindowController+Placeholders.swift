@@ -183,7 +183,6 @@ extension WindowController {
         closeButton.attributedAlternateTitle = attributedTitle
         closeButton.target = self
         closeButton.action = #selector(handlePlaceholderClose(_:))
-        closeButton.tag = zoneIndex
         closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
 
         contentView.addSubview(closeButton)
@@ -218,10 +217,6 @@ extension WindowController {
         placeholder.screenDisplayId = screenId
         placeholder.zoneIndex = zoneIndex
 
-        if let closeButton = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
-            closeButton.tag = zoneIndex
-        }
-
         if let contentView = window.contentView as? PlaceholderContentView {
             contentView.update(screenId: screenId, zoneIndex: zoneIndex)
         }
@@ -234,21 +229,19 @@ extension WindowController {
     }
 
     @objc func handlePlaceholderClose(_ sender: NSButton) {
-        let zoneIndex = sender.tag
-        let screenId: CGDirectDisplayID?
-        if let window = sender.window {
-            screenId = windowRegistry.first(where: { managed in
-                managed.isPlaceholder && managed.appKitWindow === window
-            })?.screenDisplayId
-        } else {
-            screenId = nil
+        // Get the zone information from the PlaceholderContentView which stores it directly
+        guard let window = sender.window,
+              let contentView = window.contentView as? PlaceholderContentView else {
+            Logger.debug("Could not find PlaceholderContentView for close button")
+            return
         }
 
-        let screenIndex = screenId.flatMap { ScreenContextStore.screenIndex(for: $0) } ?? (screenId.map { Int($0) } ?? 0)
+        let screenId = contentView.screenId
+        let zoneIndex = contentView.zoneIndex
+
+        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Placeholder close button clicked for zone \(zoneIndex) on screen \(screenIndex)")
-        if let screenId {
-            delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
-        }
+        delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     func handlePlaceholderExternalDrop(
