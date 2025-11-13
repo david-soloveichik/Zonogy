@@ -392,6 +392,7 @@ extension ManagedWindow {
 protocol WindowControllerDelegate: AnyObject {
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int)
+    func placeholderReceivedExternalDrop(screenId: CGDirectDisplayID, zoneIndex: Int, items: [ExternalDropItem])
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)

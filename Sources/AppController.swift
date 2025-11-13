@@ -18,6 +18,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let validationRetryManager = ValidationRetryManager()
     internal let targetedZoneManager = TargetedZoneManager()
     internal let windowPlacementManager = WindowPlacementManager()
+    internal let browserLaunchController = BrowserLaunchController()
     internal let dragDropCoordinator = DragDropCoordinator()
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()

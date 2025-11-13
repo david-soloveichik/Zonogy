@@ -19,6 +19,15 @@ final class PlaceholderContentView: NSView {
     weak var controller: WindowController?
     private(set) var screenId: CGDirectDisplayID
     private(set) var zoneIndex: Int
+    private var isDropHighlighted = false {
+        didSet {
+            if isDropHighlighted != oldValue {
+                updateBorderAppearance()
+            }
+        }
+    }
+    private let normalBorderColor = NSColor.white.withAlphaComponent(0.35).cgColor
+    private let highlightedBorderColor = NSColor.systemBlue.withAlphaComponent(0.65).cgColor
 
     init(frame: NSRect, controller: WindowController, screenId: CGDirectDisplayID, zoneIndex: Int) {
         self.controller = controller
@@ -26,6 +35,8 @@ final class PlaceholderContentView: NSView {
         self.zoneIndex = zoneIndex
         super.init(frame: frame)
         wantsLayer = true
+        registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+        updateBorderAppearance()
     }
 
     required init?(coder: NSCoder) {
@@ -50,7 +61,47 @@ final class PlaceholderContentView: NSView {
         super.layout()
         if let layer = layer {
             layer.cornerRadius = 12
+            updateBorderAppearance()
         }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard ExternalDropParser.canAccept(sender) else {
+            return []
+        }
+        isDropHighlighted = true
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return isDropHighlighted ? .copy : []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        isDropHighlighted = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        isDropHighlighted = false
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        return ExternalDropParser.canAccept(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        isDropHighlighted = false
+        return controller?.handlePlaceholderExternalDrop(
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            draggingInfo: sender
+        ) ?? false
+    }
+
+    private func updateBorderAppearance() {
+        guard let layer = layer else { return }
+        layer.borderWidth = isDropHighlighted ? 3 : 2
+        layer.borderColor = isDropHighlighted ? highlightedBorderColor : normalBorderColor
     }
 }
 
@@ -198,5 +249,21 @@ extension WindowController {
         if let screenId {
             delegate?.placeholderCloseRequested(screenId: screenId, zoneIndex: zoneIndex)
         }
+    }
+
+    func handlePlaceholderExternalDrop(
+        screenId: CGDirectDisplayID,
+        zoneIndex: Int,
+        draggingInfo: NSDraggingInfo
+    ) -> Bool {
+        guard let payload = ExternalDropParser.payload(from: draggingInfo) else {
+            return false
+        }
+        delegate?.placeholderReceivedExternalDrop(
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            items: payload.items
+        )
+        return true
     }
 }

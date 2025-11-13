@@ -6,6 +6,11 @@ import Cocoa
 
 protocol AddZoneIndicatorManagerDelegate: AnyObject {
     func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID)
+    func addZoneIndicatorManager(
+        _ manager: AddZoneIndicatorManager,
+        didReceiveExternalDrop items: [ExternalDropItem],
+        for screenId: CGDirectDisplayID
+    )
 }
 
 // MARK: - Indicator Window
@@ -46,6 +51,13 @@ class AddZoneIndicatorView: NSView {
             }
         }
     }
+    private var isExternalDropHover = false {
+        didSet {
+            if isExternalDropHover != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
 
     weak var delegate: AddZoneIndicatorManagerDelegate?
     var screenId: CGDirectDisplayID = 0
@@ -61,7 +73,7 @@ class AddZoneIndicatorView: NSView {
         let fillColor: NSColor
         let borderColor: NSColor
 
-        if isDragHighlighted {
+        if isDragHighlighted || isExternalDropHover {
             fillColor = NSColor.systemBlue.withAlphaComponent(0.35)
             borderColor = NSColor.systemBlue.withAlphaComponent(0.65)
         } else {
@@ -118,6 +130,45 @@ class AddZoneIndicatorView: NSView {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard ExternalDropParser.canAccept(sender) else {
+            return []
+        }
+        isExternalDropHover = true
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return isExternalDropHover ? .copy : []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        isExternalDropHover = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        isExternalDropHover = false
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        return ExternalDropParser.canAccept(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        isExternalDropHover = false
+        return manager?.handleExternalDrop(from: sender, on: screenId) ?? false
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+    }
+
+    required init?(coder decoder: NSCoder) {
+        super.init(coder: decoder)
+        registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
     }
 }
 
@@ -189,6 +240,18 @@ class AddZoneIndicatorManager {
         for (candidateId, view) in views {
             view.isDragHighlighted = (candidateId == screenId)
         }
+    }
+
+    func handleExternalDrop(from draggingInfo: NSDraggingInfo, on screenId: CGDirectDisplayID) -> Bool {
+        guard let payload = ExternalDropParser.payload(from: draggingInfo) else {
+            return false
+        }
+        delegate?.addZoneIndicatorManager(
+            self,
+            didReceiveExternalDrop: payload.items,
+            for: screenId
+        )
+        return true
     }
 
     func tearDown() {

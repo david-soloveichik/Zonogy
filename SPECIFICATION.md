@@ -139,6 +139,16 @@ If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merg
 
 If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it. During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
+### Drag and Drop on Placeholder Windows and the Add-Zone Indicator
+
+Placeholder windows and the add-zone indicator accept external drops so the user can route content directly into a zone.
+
+**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone (which automatically sets it as the target), and then opens the file the same way.
+
+**URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
+
+**Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
+
 ### Flip the Key Window to Another Screen
 
 Pressing shortcut Control-Cmd-Enter moves the currently active/key window to another screen (if there is more than one screen).
