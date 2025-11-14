@@ -9,7 +9,7 @@ class SocketServer {
     private let appController: AppController
     private var acceptTimer: Timer?
 
-    init(socketPath: String = "/tmp/lattice-topology.sock", appController: AppController) {
+    init(socketPath: String = "/tmp/zonogy.sock", appController: AppController) {
         self.socketPath = socketPath
         self.appController = appController
     }

@@ -52,7 +52,7 @@ extension WindowController {
 
         let pid = application.processIdentifier
         if pid == getpid() {
-            Logger.debug("Requested capture for LatticeTopology; nothing to capture")
+            Logger.debug("Requested capture for Zonogy; nothing to capture")
             return nil
         }
 
@@ -422,7 +422,7 @@ extension WindowController {
         }
         if !accessibilityPermissionWarningShown {
             accessibilityPermissionWarningShown = true
-            print("LatticeTopology requires Accessibility access. Enable it in System Settings ▸ Privacy & Security ▸ Accessibility.")
+            print("Zonogy requires Accessibility access. Enable it in System Settings ▸ Privacy & Security ▸ Accessibility.")
         }
         return false
     }

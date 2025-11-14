@@ -1,20 +1,20 @@
-# LatticeTopology Unix Socket API
+# Zonogy Unix Socket API
 
 ## Overview
 
-LatticeTopology exposes a Unix domain socket interface for programmatic control and agent interaction. This allows AI agents and other clients to interact with the window manager via structured JSON commands.
+Zonogy exposes a Unix domain socket interface for programmatic control and agent interaction. This allows AI agents and other clients to interact with the window manager via structured JSON commands.
 
 ## Starting the Socket Server
 
 ```bash
 # Start in socket mode
-.build/debug/LatticeTopology --socket
+.build/debug/Zonogy --socket
 
 # Or specify a custom socket path
-.build/debug/LatticeTopology --socket --socket-path=/tmp/custom.sock
+.build/debug/Zonogy --socket --socket-path=/tmp/custom.sock
 ```
 
-**Default socket path:** `/tmp/lattice-topology.sock`
+**Default socket path:** `/tmp/zonogy.sock`
 
 ## Protocol
 
@@ -163,7 +163,7 @@ Resize an empty zone by providing a new frame. Coordinates are in screen space (
 ```
 
 ### capture-frontmost
-Adopt the currently focused window from the frontmost application. Requires Accessibility permission for LatticeTopology. If the window is already managed, the response includes a short message and retains the current zone assignment.
+Adopt the currently focused window from the frontmost application. Requires Accessibility permission for Zonogy. If the window is already managed, the response includes a short message and retains the current zone assignment.
 
 **Request:**
 ```json
@@ -423,7 +423,7 @@ def send_command(sock_path, command):
     return json.loads(response.decode('utf-8'))
 
 # Usage
-result = send_command("/tmp/lattice-topology.sock", {
+result = send_command("/tmp/zonogy.sock", {
     "method": "list",
     "id": 1
 })
@@ -434,13 +434,13 @@ print(result)
 
 ```bash
 # Using nc (netcat)
-echo '{"method":"list","id":1}' | nc -U /tmp/lattice-topology.sock
+echo '{"method":"list","id":1}' | nc -U /tmp/zonogy.sock
 
 # Or using a Python one-liner
 python3 -c "
 import socket, json
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.connect('/tmp/lattice-topology.sock')
+s.connect('/tmp/zonogy.sock')
 s.sendall(b'{\"method\":\"list\",\"id\":1}\n')
 print(s.recv(4096).decode())
 s.close()
@@ -456,7 +456,7 @@ Claude Code can interact with the socket using the Bash tool:
 python3 -c "
 import socket, json
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.connect('/tmp/lattice-topology.sock')
+s.connect('/tmp/zonogy.sock')
 s.sendall(b'{\"method\":\"list\",\"id\":1}\n')
 print(s.recv(4096).decode())
 s.close()
@@ -493,4 +493,4 @@ All commands are automatically dispatched to the main thread, so AppKit operatio
 - The socket is created with permissions `0o666` so any local user can connect
 - Each client connection is handled independently
 - The socket file is automatically cleaned up on exit
-- Logging is written to `/tmp/lattice-topology-debug.log` in socket mode
+- Logging is written to `/tmp/zonogy-debug.log` in socket mode

@@ -1,8 +1,8 @@
-# LatticeTopology Window Manager for MacOS
+# Zonogy Window Manager for MacOS
 
 ## 1. Overview
 
-LatticeTopology is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing reserving space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
+Zonogy is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing reserving space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
 
 ## 2. Core Concepts
 
@@ -90,7 +90,7 @@ Exactly one zone across all screens is the *targeted zone* at any moment. Newly 
 
 ### Initial Startup Behavior
 
-When LatticeTopology starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
+When Zonogy starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
 
 ## 4. User Interactions
 
@@ -133,7 +133,7 @@ When our window manager assigns a window to a zone, the window should be moved a
 
 ### Dragging Windows Between Zones
 
-When the user drags a managed window, LatticeTopology suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
+When the user drags a managed window, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
 
 If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
 
@@ -187,7 +187,7 @@ This behavior makes oversized right-column windows usable without permanently di
 
 ### Sleep/Wake Recovery
 
-After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. LatticeTopology implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
+After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. Zonogy implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
 
 ### Destroyed Window Detection
 
@@ -204,7 +204,7 @@ After events such as application termination, workspace focus changes, or access
 **Log monitoring tip:** To watch the live log output, run:
 `stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
 (`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
-- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./LatticeTopology`). Retain this interface in later stages for regression testing even once real-window integration is added.
+- The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./Zonogy`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
 ## 7. Accessibility API Workarounds
 
@@ -218,7 +218,7 @@ Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotifi
 
 ### Command-line REPL for Debugging
 
-To allow an AI Agent to test the functionality of LatticeTopology, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
+To allow an AI Agent to test the functionality of Zonogy, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
 
 **Note:** Zone manipulation commands (`add-zone`, `remove-zone`, `resize-zone`) operate on the currently active screen.
 
@@ -240,24 +240,24 @@ Helpful optional commands (for faster debugging):
 
 ### Unix Domain Socket Interface for Agent Interaction
 
-To enable better AI Agent integration and programmatic control, LatticeTopology also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
+To enable better AI Agent integration and programmatic control, Zonogy also exposes a Unix domain socket interface. This allows external clients (including AI agents like Claude Code) to interact with the window manager using structured JSON commands over a socket connection.
 
 **Starting the socket server:**
 
 ```bash
-.build/debug/LatticeTopology --socket
+.build/debug/Zonogy --socket
 # Or with custom socket path:
-.build/debug/LatticeTopology --socket --socket-path=/tmp/custom.sock
+.build/debug/Zonogy --socket --socket-path=/tmp/custom.sock
 ```
 
 **Key features:**
 
 - **JSON-RPC style protocol**: Commands and responses use structured JSON format
 - **Newline-delimited**: Each request/response is a single JSON object followed by a newline
-- **Default socket path**: `/tmp/lattice-topology.sock`
+- **Default socket path**: `/tmp/zonogy.sock`
 - **Non-blocking accept**: Uses a timer-based polling approach to accept connections
 - **Thread-safe**: All commands are dispatched to the main thread for AppKit safety
-- **Debug logging**: Writes to `/tmp/lattice-topology-debug.log` when in socket mode
+- **Debug logging**: Writes to `/tmp/zonogy-debug.log` when in socket mode
 
 **Request format:**
 
@@ -286,11 +286,11 @@ For complete API documentation, examples, and error handling details, see **[SOC
 
 ### Debug Log File
 
-LatticeTopology always writes debug logs to `/tmp/lattice-topology-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
+Zonogy always writes debug logs to `/tmp/zonogy-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
 
 ### Time-travel Debug Logging
 
-When I am running LatticeTopology (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by LatticeTopology and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
+When I am running Zonogy (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
 After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
 
@@ -325,8 +325,8 @@ An optional `config.json` file lets users specify bundle identifiers that the wi
 
 1. The executable directory (sibling to the built binary)
 2. The current working directory
-3. `~/Library/Application Support/LatticeTopology/config.json`
-4. `~/.latticetopology/config.json`
+3. `~/Library/Application Support/Zonogy/config.json`
+4. `~/.zonogy/config.json`
 
 The file schema:
 
@@ -339,4 +339,4 @@ The file schema:
 }
 ```
 
-Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. LatticeTopology always ignores its own bundle identifier automatically.
+Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. Zonogy always ignores its own bundle identifier automatically.

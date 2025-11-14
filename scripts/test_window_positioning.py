@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Automated regression script for LatticeTopology window positioning.
+Automated regression script for Zonogy window positioning.
 
 The script exercises the window manager through its Unix domain socket while
 observing actual AppKit window geometry via ``winmanmon``. It launches
@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DELAY = 1.0
-SOCKET_PATH = Path("/tmp/lattice-topology-test.sock")
+SOCKET_PATH = Path("/tmp/zonogy-test.sock")
 REQUEST_COUNTER = itertools.count(1)
 
 
@@ -201,7 +201,7 @@ def format_deltas(zone_frame: Dict[str, Any], actual_frame: Dict[str, Any]) -> s
 
 
 def print_report(stages: List[Dict[str, Any]]) -> None:
-    print("=== LatticeTopology Window Positioning ===")
+    print("=== Zonogy Window Positioning ===")
     for stage in stages:
         print(f"\nStage: {stage['label']}")
         for entry in stage["zones"]:
@@ -233,7 +233,7 @@ def print_report(stages: List[Dict[str, Any]]) -> None:
 
 
 def cleanup(process: Optional[subprocess.Popen[Any]]) -> None:
-    """Stop LatticeTopology, remove socket, and shut down TextEdit."""
+    """Stop Zonogy, remove socket, and shut down TextEdit."""
     try:
         run_osascript('tell application "TextEdit" to quit saving no')
     except subprocess.CalledProcessError:
@@ -253,12 +253,12 @@ def main() -> int:
     if SOCKET_PATH.exists():
         SOCKET_PATH.unlink()
 
-    print("Building LatticeTopology…")
+    print("Building Zonogy…")
     run_command(["swift", "build"], capture=False)
 
-    print("Starting LatticeTopology (socket mode)…")
+    print("Starting Zonogy (socket mode)…")
     process = subprocess.Popen(
-        ["./.build/debug/LatticeTopology", "--socket", f"--socket-path={SOCKET_PATH}"],
+        ["./.build/debug/Zonogy", "--socket", f"--socket-path={SOCKET_PATH}"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         preexec_fn=os.setsid,

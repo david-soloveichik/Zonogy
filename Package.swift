@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "LatticeTopology",
+    name: "Zonogy",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(
-            name: "LatticeTopology",
-            targets: ["LatticeTopology"]
+            name: "Zonogy",
+            targets: ["Zonogy"]
         )
     ],
     targets: [
         .executableTarget(
-            name: "LatticeTopology",
+            name: "Zonogy",
             path: "Sources"
         )
     ]

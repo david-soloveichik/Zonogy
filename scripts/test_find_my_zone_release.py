@@ -2,7 +2,7 @@
 """
 Troubleshooting script for investigating Find My window teardown handling.
 
-The script launches LatticeTopology in socket mode, brings the Find My
+The script launches Zonogy in socket mode, brings the Find My
 application to the front, captures its window, and then quits Find My while
 recording zone assignments, socket metadata, and winmanmon output. The goal is
 to highlight cases where a zone continues to reference a window that has been
@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 DELAY = 1.0
 FIND_MY_BUNDLE_ID = "com.apple.findmy"
-SOCKET_PATH = Path("/tmp/lattice-topology-findmy.sock")
+SOCKET_PATH = Path("/tmp/zonogy-findmy.sock")
 FIND_MY_APP_PATH = "/System/Applications/FindMy.app"
 REQUEST_COUNTER = itertools.count(1)
 MODULE_CACHE_DIR = Path("/tmp/lattice-swift-modulecache")
@@ -239,7 +239,7 @@ def extract_pid_from_stage(stage: Dict[str, Any], bundle_id: str) -> Optional[in
 
 
 def print_report(stages: List[Dict[str, Any]]) -> None:
-    print("=== LatticeTopology Find My Closure Debug ===")
+    print("=== Zonogy Find My Closure Debug ===")
     for stage in stages:
         print(f"\nStage: {stage['label']}")
         for entry in stage["zones"]:
@@ -332,7 +332,7 @@ def print_report(stages: List[Dict[str, Any]]) -> None:
 
 
 def cleanup(process: Optional[subprocess.Popen[Any]]) -> None:
-    """Terminate LatticeTopology and ensure Find My is closed."""
+    """Terminate Zonogy and ensure Find My is closed."""
     ensure_find_my_closed()
 
     if process and process.poll() is None:
@@ -351,12 +351,12 @@ def main() -> int:
 
     ensure_find_my_closed()
 
-    print("Building LatticeTopology…")
+    print("Building Zonogy…")
     run_command(["swift", "build"], capture=False)
 
-    print("Starting LatticeTopology (socket mode)…")
+    print("Starting Zonogy (socket mode)…")
     process = subprocess.Popen(
-        ["./.build/debug/LatticeTopology", "--socket", f"--socket-path={SOCKET_PATH}"],
+        ["./.build/debug/Zonogy", "--socket", f"--socket-path={SOCKET_PATH}"],
         stdout=None if CAPTURE_LOGS else subprocess.DEVNULL,
         stderr=None if CAPTURE_LOGS else subprocess.DEVNULL,
         preexec_fn=os.setsid,

@@ -3,7 +3,7 @@ import AppKit
 import ApplicationServices
 
 /// Placeholder windows should never steal keyboard focus from real apps.
-/// Use a non-activating panel subclass so clicks don't bring LatticeTopology forward.
+/// Use a non-activating panel subclass so clicks don't bring Zonogy forward.
 final class PlaceholderPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }

@@ -10,7 +10,7 @@ let arguments = CommandLine.arguments
 let useSocket = arguments.contains("--socket")
 let socketPath = arguments.first(where: { $0.hasPrefix("--socket-path=") })
     .map { String($0.dropFirst("--socket-path=".count)) }
-    ?? "/tmp/lattice-topology.sock"
+    ?? "/tmp/zonogy.sock"
 
 if arguments.contains("--self-test") {
     let allPassed = GuardrailTests.runAll()
@@ -28,7 +28,7 @@ let appController = AppController.shared
 
 // Always enable file logging for debugging sleep/wake issues
 Logger.logToFile = true
-Logger.debug("LatticeTopology starting - logging to \(Logger.logPath)")
+Logger.debug("Zonogy starting - logging to \(Logger.logPath)")
 
 if useSocket {
     Logger.debug("Starting socket server mode")
@@ -37,7 +37,7 @@ if useSocket {
     let socketServer = SocketServer(socketPath: socketPath, appController: appController)
     socketServer.start()
     activeSocketServer = socketServer
-    Logger.debug("LatticeTopology started in socket mode on \(socketPath)")
+    Logger.debug("Zonogy started in socket mode on \(socketPath)")
 
     // Clean up socket on exit
     atexit {
@@ -50,7 +50,7 @@ if useSocket {
     let repl = REPL(appController: appController)
     repl.start()
     activeREPL = repl
-    Logger.debug("LatticeTopology started in REPL mode")
+    Logger.debug("Zonogy started in REPL mode")
 }
 
 // Run the AppKit run loop

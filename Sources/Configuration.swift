@@ -12,7 +12,7 @@ struct Configuration: Decodable {
     static func load(fileManager: FileManager = .default) -> Configuration {
         let candidateURLs = configurationFileCandidates(fileManager: fileManager)
 
-        // Always ignore LatticeTopology's own bundle identifier to prevent managing our own windows
+        // Always ignore Zonogy's own bundle identifier to prevent managing our own windows
         var finalIgnoredBundles = defaultIgnoredBundles
         if let ownBundleId = Bundle.main.bundleIdentifier {
             finalIgnoredBundles.insert(ownBundleId)
@@ -44,11 +44,11 @@ struct Configuration: Decodable {
         candidates.append(workingDirectory.appendingPathComponent("config.json"))
 
         let applicationSupport = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/LatticeTopology/config.json")
+            .appendingPathComponent("Library/Application Support/Zonogy/config.json")
         candidates.append(applicationSupport)
 
         let homeConfig = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent(".latticetopology/config.json")
+            .appendingPathComponent(".zonogy/config.json")
         candidates.append(homeConfig)
 
         return candidates

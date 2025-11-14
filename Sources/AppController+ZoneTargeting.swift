@@ -86,9 +86,9 @@ extension AppController {
         let performActivation = {
             if let latticeApplication {
                 let selfResult = latticeApplication.activate(options: [.activateIgnoringOtherApps])
-                Logger.debug("Activation workaround: activated LatticeTopology before pid \(pid) (result: \(selfResult))")
+                Logger.debug("Activation workaround: activated Zonogy before pid \(pid) (result: \(selfResult))")
             } else {
-                Logger.debug("Activation workaround: unable to resolve LatticeTopology application for pre-activation")
+                Logger.debug("Activation workaround: unable to resolve Zonogy application for pre-activation")
             }
 
             // Add small delay to allow OS to process the first activation

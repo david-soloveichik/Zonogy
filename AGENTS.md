@@ -1,4 +1,4 @@
-# Rules for AI Agents working on LatticeTopology
+# Rules for AI Agents working on Zonogy
 
 - Claude should not read or modify files in ./PLANNING/ unless explicitly told to.
 - Unless otherwise told, Agent should read the SPECIFICATION.md file since it gives the big-picture perspective on the project.

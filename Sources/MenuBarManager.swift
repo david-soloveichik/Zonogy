@@ -41,7 +41,7 @@ class MenuBarManager {
         let menu = NSMenu()
 
         let quitItem = NSMenuItem(
-            title: "Quit LatticeTopology",
+            title: "Quit Zonogy",
             action: #selector(handleQuit),
             keyEquivalent: "q"
         )

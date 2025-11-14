@@ -3,10 +3,10 @@ import Foundation
 /// Simple logging utility for debugging
 enum Logger {
     static var logToFile = false
-    static let logPath = "/tmp/lattice-topology-debug.log"
+    static let logPath = "/tmp/zonogy-debug.log"
     private static let timeTravelLogFilename = "time_travel_log.txt"
     private static let bufferRetentionWindow: TimeInterval = 10
-    private static let bufferQueue = DispatchQueue(label: "com.latticetopology.logger.buffer", qos: .utility)
+    private static let bufferQueue = DispatchQueue(label: "com.zonogy.logger.buffer", qos: .utility)
     private static var recentEntries: [LogEntry] = []
 
     static func debug(_ message: String) {

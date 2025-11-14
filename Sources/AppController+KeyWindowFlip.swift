@@ -62,7 +62,7 @@ extension AppController {
 
         let pid = application.processIdentifier
         guard pid != getpid() else {
-            Logger.debug("Flip key window aborted: LatticeTopology is the frontmost application")
+            Logger.debug("Flip key window aborted: Zonogy is the frontmost application")
             return nil
         }
 

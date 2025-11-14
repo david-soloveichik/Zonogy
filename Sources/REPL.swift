@@ -17,7 +17,7 @@ class REPL {
     }
 
     private func printWelcome() {
-        print("=== LatticeTopology REPL ===")
+        print("=== Zonogy REPL ===")
         print("Type 'help' for available commands")
         print("")
     }

@@ -4,7 +4,7 @@ import AppKit
 /// Opens HTTP(S) links in a fresh window of the user's default browser.
 final class BrowserLaunchController {
     private let workspace = NSWorkspace.shared
-    private let automationQueue = DispatchQueue(label: "com.latticetopology.browser-automation", qos: .userInitiated)
+    private let automationQueue = DispatchQueue(label: "com.zonogy.browser-automation", qos: .userInitiated)
 
     private static let safariBundleId = "com.apple.Safari"
     private static let chromeBundleId = "com.google.Chrome"
