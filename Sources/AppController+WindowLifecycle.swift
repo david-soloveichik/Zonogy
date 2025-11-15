@@ -167,12 +167,7 @@ extension AppController {
             return
         }
 
-        let originZoneKey: ZoneKey?
-        if let screenId = managed.screenDisplayId, let zoneIndex = managed.zoneIndex {
-            originZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        } else {
-            originZoneKey = nil
-        }
+        let originZoneKey = zoneKey(forManagedWindow: managed)
 
         activeFitSuspendForDrag(windowId: windowId)
 

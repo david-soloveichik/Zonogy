@@ -45,13 +45,12 @@ extension AppController {
         ]
 
         if let removedWindowId = removalResult.removedWindowId,
-           let managed = windowController.window(withId: removedWindowId) {
+           let managed = windowController.window(withId: removedWindowId),
+           let key = zoneKey(forManagedWindow: managed) {
             response["reassigned_window_id"] = managed.windowId
-            response["reassigned_zone_index"] = managed.zoneIndex as Any
-            response["reassigned_screen_display_id"] = managed.screenDisplayId as Any
-            if let screenId = managed.screenDisplayId {
-                response["reassigned_screen"] = getScreenIndex(for: screenId)
-            }
+            response["reassigned_zone_index"] = key.index
+            response["reassigned_screen_display_id"] = key.screenId
+            response["reassigned_screen"] = getScreenIndex(for: key.screenId)
         }
 
         return response
@@ -107,30 +106,37 @@ extension AppController {
             return ["error": "No frontmost window available or Accessibility permissions missing"]
         }
 
-        if let zoneIndex = managed.zoneIndex,
-           let screenId = managed.screenDisplayId,
-           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex),
+        if let key = zoneKey(forManagedWindow: managed),
+           let context = screenContexts[key.screenId],
+           let zone = context.zoneController.zone(at: key.index),
            zone.windowId == managed.windowId {
             syncWindowsToZones()
             return [
                 "window_id": managed.windowId,
-                "zone_index": zoneIndex,
-                "screen_display_id": screenId,
-                "screen": getScreenIndex(for: screenId) as Any,
-                "screen_name": screenContexts[screenId]?.descriptor.localizedName as Any,
+                "zone_index": key.index,
+                "screen_display_id": key.screenId,
+                "screen": getScreenIndex(for: key.screenId) as Any,
+                "screen_name": context.descriptor.localizedName,
                 "message": "Already managed"
             ]
         }
 
         windowPlacementManager.placeNewWindow(managed)
 
-        var result: [String: Any] = [
-            "window_id": managed.windowId,
-            "zone_index": managed.zoneIndex as Any,
-            "screen_display_id": managed.screenDisplayId as Any
-        ]
-        if let screenId = managed.screenDisplayId {
-            result["screen"] = getScreenIndex(for: screenId)
+        var result: [String: Any] = ["window_id": managed.windowId]
+        if let key = zoneKey(forManagedWindow: managed),
+           let context = screenContexts[key.screenId] {
+            result["zone_index"] = key.index
+            result["screen_display_id"] = key.screenId
+            result["screen"] = getScreenIndex(for: key.screenId)
+            result["screen_name"] = context.descriptor.localizedName
+        } else {
+            result["zone_index"] = managed.zoneIndex as Any
+            result["screen_display_id"] = managed.screenDisplayId as Any
+            if let screenId = managed.screenDisplayId {
+                result["screen"] = getScreenIndex(for: screenId)
+                result["screen_name"] = screenContexts[screenId]?.descriptor.localizedName
+            }
         }
         return result
     }
@@ -167,13 +173,21 @@ extension AppController {
         windowController.unminimizeWindow(managed)
         windowPlacementManager.placeNewWindow(managed)
 
-        var result: [String: Any] = [
-            "window_id": windowId,
-            "zone_index": managed.zoneIndex as Any,
-            "screen_display_id": managed.screenDisplayId as Any
-        ]
-        if let screenId = managed.screenDisplayId {
-            result["screen"] = getScreenIndex(for: screenId)
+        var result: [String: Any] = ["window_id": windowId]
+        if let key = zoneKey(forManagedWindow: managed),
+           let context = screenContexts[key.screenId] {
+            result["zone_index"] = key.index
+            result["screen_display_id"] = key.screenId
+            result["screen"] = getScreenIndex(for: key.screenId)
+            result["screen_name"] = context.descriptor.localizedName
+        } else {
+            result["zone_index"] = managed.zoneIndex as Any
+            result["screen_display_id"] = managed.screenDisplayId as Any
+            if let screenId = managed.screenDisplayId,
+               let context = screenContexts[screenId] {
+                result["screen"] = getScreenIndex(for: screenId)
+                result["screen_name"] = context.descriptor.localizedName
+            }
         }
         return result
     }
@@ -234,7 +248,9 @@ extension AppController {
             }
         }
 
-        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        let resolvedKey = zoneKey(forManagedWindow: managed)
+        let fallbackScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        let screenId = resolvedKey?.screenId ?? fallbackScreenId
         let screenDescriptor = screenId.flatMap { (id: CGDirectDisplayID) -> ScreenDescriptor? in
             descriptor(for: id)
         }
@@ -251,7 +267,6 @@ extension AppController {
             "window_id": windowId,
             "type": type,
             "is_placeholder": managed.isPlaceholder,
-            "zone_index": managed.zoneIndex as Any,
             "actual_frame": [
                 "x": actualFrame.origin.x,
                 "y": actualFrame.origin.y,
@@ -259,6 +274,11 @@ extension AppController {
                 "height": actualFrame.height
             ]
         ]
+        if let resolvedKey {
+            result["zone_index"] = resolvedKey.index
+        } else {
+            result["zone_index"] = managed.zoneIndex as Any
+        }
 
         var owningPid: pid_t?
         switch managed.backing {
@@ -287,9 +307,9 @@ extension AppController {
             result["screen_name"] = screenDescriptor.localizedName
         }
 
-        if let zoneIndex = managed.zoneIndex,
-           let screenId = managed.screenDisplayId,
-           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex) {
+        if let resolvedKey,
+           let context = screenContexts[resolvedKey.screenId],
+           let zone = context.zoneController.zone(at: resolvedKey.index) {
             result["zone_frame"] = [
                 "x": zone.frame.origin.x,
                 "y": zone.frame.origin.y,

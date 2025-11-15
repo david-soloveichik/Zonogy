@@ -187,12 +187,12 @@ extension AppController {
             return
         }
 
-        if let zoneIndex = managed.zoneIndex,
-           let screenId = managed.screenDisplayId,
-           let zone = screenContexts[screenId]?.zoneController.zone(at: zoneIndex),
+        if let key = zoneKey(forManagedWindow: managed),
+           let context = screenContexts[key.screenId],
+           let zone = context.zoneController.zone(at: key.index),
            zone.windowId == managed.windowId {
             syncWindowsToZones()
-            print("Window \(managed.windowId) is already managed in zone \(zoneIndex)")
+            print("Window \(managed.windowId) is already managed in zone \(key.index)")
             return
         }
 
