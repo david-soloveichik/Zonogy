@@ -396,7 +396,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
-    func windowFocusChanged(pid: pid_t)
+    func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)
     func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int)
     func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
     func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)

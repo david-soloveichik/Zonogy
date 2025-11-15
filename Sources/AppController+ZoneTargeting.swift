@@ -35,6 +35,8 @@ extension AppController {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: "zone-became-empty")
         }
 
+        clearTemporaryZone(for: windowId, minimize: false, reason: reason)
+
         if !removed, reason != "place-new-window" {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
@@ -153,6 +155,9 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
+        if zoneIndex != nil {
+            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
+        }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }
 

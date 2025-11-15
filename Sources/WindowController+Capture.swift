@@ -637,18 +637,22 @@ extension WindowController {
             Logger.debug("AX main window changed for pid \(targetPid)")
 
             let appElement = accessibilityWatcher.applicationElement(for: targetPid)
+            var focusedWindowId: Int?
 
             if status == .success {
-                _ = captureWindowIfNeeded(
+                let captured = captureWindowIfNeeded(
                     element: element,
                     pid: targetPid,
                     appElement: appElement,
                     allowReturningExisting: true,
                     notifyDelegate: true
                 )
+                focusedWindowId = captured?.windowId
+            } else if let managed = managedWindow(matching: element) {
+                focusedWindowId = managed.windowId
             }
 
-            delegate?.windowFocusChanged(pid: targetPid)
+            delegate?.windowFocusChanged(pid: targetPid, focusedWindowId: focusedWindowId)
             return
         }
 
@@ -659,7 +663,21 @@ extension WindowController {
             let status = AXUIElementGetPid(element, &pid)
             if status == .success, pid != getpid() {
                 Logger.debug("Focus changed in app pid \(pid), validating windows")
-                delegate?.windowFocusChanged(pid: pid)
+                var focusedWindowId: Int?
+                let appElement = accessibilityWatcher.applicationElement(for: pid)
+                let captured = captureWindowIfNeeded(
+                    element: element,
+                    pid: pid,
+                    appElement: appElement,
+                    allowReturningExisting: true,
+                    notifyDelegate: true
+                )
+                if let captured {
+                    focusedWindowId = captured.windowId
+                } else if let managed = managedWindow(matching: element) {
+                    focusedWindowId = managed.windowId
+                }
+                delegate?.windowFocusChanged(pid: pid, focusedWindowId: focusedWindowId)
             }
             return
         }

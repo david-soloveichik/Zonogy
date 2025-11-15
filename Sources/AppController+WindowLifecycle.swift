@@ -23,11 +23,12 @@ extension AppController {
 
     // MARK: - WindowControllerDelegate
 
-    func windowFocusChanged(pid: pid_t) {
+    func windowFocusChanged(pid: pid_t, focusedWindowId: Int?) {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")
         handleActiveFitFocusChange(pid: pid)
+        handleTemporaryZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -39,6 +40,7 @@ extension AppController {
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
+        minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }
 
@@ -46,6 +48,12 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
+    }
+
+    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID) {
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Temporary zone indicator activated on screen \(screenIndex)")
+        targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-indicator-clicked")
     }
 
     // MARK: - AddZoneIndicatorManagerDelegate
@@ -167,6 +175,12 @@ extension AppController {
             return
         }
 
+        if isWindowInTemporaryZone(windowId) && !isControlCommandDragActive() {
+            floatingTemporaryDragState = FloatingTemporaryDragState(windowId: windowId)
+            Logger.debug("Floating temporary zone drag began for window \(windowId)")
+            return
+        }
+
         let originZoneKey = zoneKey(forManagedWindow: managed)
 
         activeFitSuspendForDrag(windowId: windowId)
@@ -184,6 +198,12 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-update") {
             return
         }
+        if let state = floatingTemporaryDragState, state.windowId == windowId {
+            if isControlCommandDragActive() {
+                promoteFloatingDragToTiledDrag(windowId: windowId, frame: frame)
+            }
+            return
+        }
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
     }
 
@@ -191,21 +211,15 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
             return
         }
+        if floatingTemporaryDragState?.windowId == windowId {
+            floatingTemporaryDragState = nil
+            handleFloatingTemporaryDragEnd(windowId: windowId, finalFrame: finalFrame)
+            activeFitResumeAfterDrag(windowId: windowId)
+            return
+        }
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
 
-        if let displacedWindow = result.displacedWindow {
-            // If every zone is occupied, park the displaced window immediately
-            let hasEmptyZone = screenContexts.values.contains { context in
-                context.zoneController.allZones.contains { $0.isEmpty }
-            }
-
-            if hasEmptyZone {
-                windowPlacementManager.placeNewWindow(displacedWindow, preferredScreenId: result.preferredScreenId)
-            } else {
-                clearManagedWindowZone(displacedWindow)
-                windowController.minimizeWindow(displacedWindow)
-            }
-        }
+        resolveDisplacedWindow(result.displacedWindow, preferredScreenId: result.preferredScreenId)
 
         syncWindowsToZones()
 
@@ -220,12 +234,49 @@ extension AppController {
     }
 
     func windowManualMoveDidAbort(windowId: Int) {
+        if floatingTemporaryDragState?.windowId == windowId {
+            floatingTemporaryDragState = nil
+            return
+        }
         if dragDropCoordinator.currentDragWindowId == windowId {
             // Tear down overlays when the OS/host app ends the drag without a mouse-up.
             dragDropCoordinator.tearDownDragSession()
             syncWindowsToZones()
         }
         activeFitResumeAfterDrag(windowId: windowId)
+    }
+
+    internal func resolveDisplacedWindow(_ displacedWindow: ManagedWindow?, preferredScreenId: CGDirectDisplayID?) {
+        guard let displacedWindow else { return }
+        if hasAvailableTiledZone() {
+            windowPlacementManager.placeNewWindow(displacedWindow, preferredScreenId: preferredScreenId)
+        } else {
+            let screenId = targetedTemporaryScreenId ?? preferredScreenId ?? activeScreenId()
+            assignWindowToTemporaryZone(
+                displacedWindow,
+                on: screenId,
+                centerWindow: true,
+                reason: "displaced-no-empty-zones"
+            )
+        }
+    }
+
+    private func promoteFloatingDragToTiledDrag(windowId: Int, frame: CGRect) {
+        guard let managed = windowController.window(withId: windowId) else {
+            floatingTemporaryDragState = nil
+            return
+        }
+        floatingTemporaryDragState = nil
+        clearTemporaryZone(for: windowId, minimize: false, reason: "control-command-drag")
+        activeFitSuspendForDrag(windowId: windowId)
+        let originScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        dragDropCoordinator.beginDragSession(
+            windowId: windowId,
+            frame: frame,
+            originZoneKey: nil,
+            originScreenId: originScreenId
+        )
+        dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
     }
 
     func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {
@@ -273,6 +324,10 @@ extension AppController {
     }
 
     func debugTargetedZoneDescription() -> String? {
+        if let temporaryScreenId = targetedTemporaryScreenId {
+            let screenIndex = screenContextStore.loggingIndex(for: temporaryScreenId)
+            return "temporary zone on screen \(screenIndex)"
+        }
         guard let key = targetedZoneManager.targetedZoneKey else {
             return "none"
         }
@@ -286,6 +341,11 @@ extension AppController {
 
         let occupancy = zone.isEmpty ? "empty" : "occupied"
         return "screen \(screenIndex) zone \(key.index) (\(occupancy))"
+    }
+
+    private func isControlCommandDragActive() -> Bool {
+        let flags = NSEvent.modifierFlags
+        return flags.contains(.command) && flags.contains(.control)
     }
 
 }

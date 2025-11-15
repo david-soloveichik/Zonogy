@@ -342,6 +342,15 @@ extension AppController {
                 "screen_name": descriptor.localizedName,
                 "index": targeted.index
             ]
+            response["targeted_zone_type"] = "tiled"
+        } else if let temporaryScreenId = targetedTemporaryScreenId,
+                  let descriptor = descriptor(for: temporaryScreenId) {
+            response["targeted_temporary_zone"] = [
+                "screen_display_id": temporaryScreenId,
+                "screen": getScreenIndex(for: temporaryScreenId) as Any,
+                "screen_name": descriptor.localizedName
+            ]
+            response["targeted_zone_type"] = "temporary"
         }
 
         return response

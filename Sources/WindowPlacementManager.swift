@@ -24,9 +24,19 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // Targeted zone management
     var targetedZoneManager: TargetedZoneManager { get }
     var targetedZoneKey: ZoneKey? { get }
+    var targetedTemporaryScreenId: CGDirectDisplayID? { get }
 
     // Placement deferral
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
+
+    // Temporary zone management
+    func assignWindowToTemporaryZone(
+        _ managed: ManagedWindow,
+        on screenId: CGDirectDisplayID,
+        centerWindow: Bool,
+        reason: String
+    )
+    func updateTemporaryZoneTargeting(reason: String)
 }
 
 class WindowPlacementManager {
@@ -48,6 +58,16 @@ class WindowPlacementManager {
 
         if let preferredScreenId {
             placeWindow(managed, on: preferredScreenId)
+            return
+        }
+
+        if let temporaryScreenId = delegate.targetedTemporaryScreenId {
+            delegate.assignWindowToTemporaryZone(
+                managed,
+                on: temporaryScreenId,
+                centerWindow: true,
+                reason: "place-new-window-targeted-temporary"
+            )
             return
         }
 
@@ -77,6 +97,16 @@ class WindowPlacementManager {
                 "Zone removal reassigning window \(managed.windowId) to zone \(zone.index) on \(context.descriptor.localizedName) [\(context.descriptor.displayId)]"
             )
             assignWindowToZone(managed, zone: zone, screenId: context.descriptor.displayId, descriptor: descriptor)
+            return
+        }
+
+        if let temporaryScreenId = delegate.targetedTemporaryScreenId {
+            delegate.assignWindowToTemporaryZone(
+                managed,
+                on: temporaryScreenId,
+                centerWindow: true,
+                reason: "zone-removal-temporary"
+            )
             return
         }
 
@@ -217,6 +247,7 @@ class WindowPlacementManager {
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+        delegate.updateTemporaryZoneTargeting(reason: "zone-assignment")
 
         if wasEmptyZone && wasTargetedZone {
             // Specification: filling the targeted zone promotes the lowest-index remaining empty zone (if any)

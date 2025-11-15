@@ -12,18 +12,44 @@ protocol TargetedZoneManagerDelegate: AnyObject {
 }
 
 class TargetedZoneManager {
+    enum TargetedDestination: Equatable {
+        case tiled(ZoneKey)
+        case temporary(screenId: CGDirectDisplayID)
+    }
+
     weak var delegate: TargetedZoneManagerDelegate?
-    private(set) var targetedZoneKey: ZoneKey?
+    private(set) var targetedDestination: TargetedDestination?
+
+    var targetedZoneKey: ZoneKey? {
+        if case .tiled(let key) = targetedDestination {
+            return key
+        }
+        return nil
+    }
+
+    var targetedTemporaryScreenId: CGDirectDisplayID? {
+        if case .temporary(let screenId) = targetedDestination {
+            return screenId
+        }
+        return nil
+    }
 
     // MARK: - Public Interface
 
     func initialize(primaryScreenId: CGDirectDisplayID) {
-        targetedZoneKey = ZoneKey(screenId: primaryScreenId, index: 1)
+        targetedDestination = .tiled(ZoneKey(screenId: primaryScreenId, index: 1))
     }
 
     func ensureTargetedZone(reason: String) {
-        if let current = targetedZoneKey, zoneExists(current) {
-            return
+        if let destination = targetedDestination {
+            switch destination {
+            case .tiled(let current) where zoneExists(current):
+                return
+            case .temporary(let screenId) where screenExists(screenId):
+                return
+            default:
+                break
+            }
         }
 
         let preferredScreen = targetedZoneKey?.screenId ?? delegate?.primaryScreenId ?? 0
@@ -37,12 +63,13 @@ class TargetedZoneManager {
             resolvedKey = fallbackTargetedZone(preferredScreenId: candidate.screenId)
         }
 
-        if targetedZoneKey == resolvedKey {
+        if let resolvedKey,
+           targetedDestination == .tiled(resolvedKey) {
             delegate?.refreshIndicators()
             return
         }
 
-        targetedZoneKey = resolvedKey
+        targetedDestination = resolvedKey.map { .tiled($0) }
 
         if let resolvedKey {
             // Convert display ID to screen index for logging
@@ -52,6 +79,24 @@ class TargetedZoneManager {
             Logger.debug("Cleared targeted zone due to \(reason)")
         }
 
+        delegate?.refreshIndicators()
+    }
+
+    func setTemporaryTarget(on screenId: CGDirectDisplayID, reason: String) {
+        guard screenExists(screenId) else {
+            delegate?.refreshIndicators()
+            return
+        }
+
+        let destination = TargetedDestination.temporary(screenId: screenId)
+        if targetedDestination == destination {
+            delegate?.refreshIndicators()
+            return
+        }
+
+        targetedDestination = destination
+        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Targeted temporary zone set on screen \(screenIndex) due to \(reason)")
         delegate?.refreshIndicators()
     }
 
@@ -71,6 +116,10 @@ class TargetedZoneManager {
             return false
         }
         return controller.zone(at: key.index) != nil
+    }
+
+    private func screenExists(_ screenId: CGDirectDisplayID) -> Bool {
+        delegate?.screenContexts[screenId] != nil
     }
 
     func isZoneEmpty(_ key: ZoneKey) -> Bool {

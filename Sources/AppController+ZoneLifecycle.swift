@@ -316,6 +316,26 @@ extension AppController {
         } else {
             addZoneIndicatorManager.present(for: addZoneDescriptors)
         }
+
+        var temporaryDescriptors: [TemporaryZoneIndicatorDescriptor] = []
+        for (screenId, context) in screenContexts {
+            guard let cocoaFrame = temporaryIndicatorFrame(for: context.descriptor) else {
+                continue
+            }
+            let descriptor = TemporaryZoneIndicatorDescriptor(
+                screenId: screenId,
+                cocoaFrame: cocoaFrame,
+                isTargeted: targetedTemporaryScreenId == screenId,
+                isOccupied: temporaryZoneOccupants[screenId] != nil
+            )
+            temporaryDescriptors.append(descriptor)
+        }
+
+        if temporaryDescriptors.isEmpty {
+            temporaryIndicatorManager.tearDown()
+        } else {
+            temporaryIndicatorManager.present(over: temporaryDescriptors)
+        }
     }
 
     private func addZoneIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
@@ -338,6 +358,21 @@ extension AppController {
         let screenFrame = descriptor.cocoaToScreen(cocoaFrame).standardized
         let accessibilityFrame = descriptor.screenToAccessibility(screenFrame).standardized
         return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
+    }
+
+    private func temporaryIndicatorFrame(for descriptor: ScreenDescriptor) -> CGRect? {
+        let bounds = descriptor.visibleScreenBounds.standardized
+        guard bounds.width > 0, bounds.height > 0 else {
+            return nil
+        }
+
+        let width = min(max(bounds.width * 0.25, 80), 180)
+        let height: CGFloat = 6
+        var originX = bounds.midX - width / 2
+        originX = max(bounds.minX, min(originX, bounds.maxX - width))
+        let originY = bounds.maxY - height
+        let screenFrame = CGRect(x: originX, y: originY, width: width, height: height).standardized
+        return descriptor.screenToCocoa(screenFrame).standardized
     }
 
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
@@ -448,12 +483,17 @@ extension AppController {
         Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty, excluded zones \(effectiveExcludedZones.count)")
 
         for window in windowController.allWindows where !window.isPlaceholder {
-            if !assignedWindowIds.contains(window.windowId) {
-                clearManagedWindowZone(window)
+            if assignedWindowIds.contains(window.windowId) {
+                continue
             }
+            if isWindowInTemporaryZone(window.windowId) {
+                continue
+            }
+            clearManagedWindowZone(window)
         }
 
         targetedZoneManager.ensureTargetedZone(reason: "sync")
+        updateTemporaryZoneTargeting(reason: "sync")
         refreshIndicators()
     }
 

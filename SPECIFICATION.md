@@ -181,6 +181,17 @@ Some applications refuse to shrink below their minimum width/height, which means
 
 This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
 
+### Temporary Zones (another kind of zone)
+
+The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other (tiled) zones. It is temporary in the sense that whenever the focus moves away from the window in the temporary zone, the temporary zone is cleared (window minimized). More details:
+
+- Holds at most one managed window (no placeholder). When placed into a temporary zone, a window is centered once; after that the user may freely move/resize it without changing any tiled frames.
+- Placing another window into the temporary zone minimizes the previous occupant. Losing focus/key status for any reason (clicking a tiled zone, activating another app, clicking a placeholder) immediately minimizes the current occupant as well.
+- Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator, a new zone should be created and it should be placed in it as normal.
+- Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline.
+- Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
+- When every tiled zone is occupied the temporary zone auto-targets; once any tiled zone becomes empty or a new one is created, normal targeting rules resume. Emptying the temporary zone never forces retargeting.
+
 ### Screen Management
 
 **Active screen determination:** The active screen is determined using `NSScreen.main`, which returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.

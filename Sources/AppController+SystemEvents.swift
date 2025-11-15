@@ -33,6 +33,7 @@ extension AppController {
         }
         handleApplicationEvent(application)
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
+        handleTemporaryZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
