@@ -10,7 +10,7 @@ extension AppController {
             return
         }
 
-        guard let managed = managedWindowForFrontmostApplication(logPrefix: "Flip key window aborted") else {
+        guard let (managed, _) = managedWindowForFrontmostApplication(logPrefix: "Flip key window aborted") else {
             Logger.debug("Flip key window aborted: no managed key window available")
             return
         }

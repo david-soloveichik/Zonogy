@@ -5,7 +5,9 @@ import AppKit
 extension AppController {
     /// Returns the currently focused managed window for the frontmost application when it is eligible for automation.
     /// - Parameter logPrefix: Text prepended to debug logs when lookup fails so callers can retain their context.
-    internal func managedWindowForFrontmostApplication(logPrefix: String = "Managed window lookup failed") -> ManagedWindow? {
+    internal func managedWindowForFrontmostApplication(
+        logPrefix: String = "Managed window lookup failed"
+    ) -> (window: ManagedWindow, pid: pid_t)? {
         let prefix = logPrefix.isEmpty ? "" : "\(logPrefix): "
 
         guard let application = NSWorkspace.shared.frontmostApplication else {
@@ -29,7 +31,7 @@ extension AppController {
             return nil
         }
 
-        return managed
+        return (managed, pid)
     }
 
     /// Resolves the current zone assignment for a managed window, consulting cached metadata if needed.

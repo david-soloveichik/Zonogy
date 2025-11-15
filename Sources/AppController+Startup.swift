@@ -432,15 +432,12 @@ extension AppController {
     private func activeZoneIndices(on screenId: CGDirectDisplayID) -> Set<Int> {
         let screenName = screenContexts[screenId]?.descriptor.localizedName ?? "Unknown Screen"
 
-        if let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-           frontmostPid != getpid(),
-           let managed = windowController.focusedWindowIfTracked(pid: frontmostPid),
-           !managed.isPlaceholder,
+        if let (managed, pid) = managedWindowForFrontmostApplication(logPrefix: "activeZoneIndices frontmost"),
            let zoneIndex = managed.zoneIndex,
            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
            managedScreenId == screenId {
             Logger.debug(
-                "activeZoneIndices: using frontmost pid \(frontmostPid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
+                "activeZoneIndices: using frontmost pid \(pid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
             )
             return [zoneIndex]
         }
