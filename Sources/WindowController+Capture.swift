@@ -199,12 +199,9 @@ extension WindowController {
         allowReturningExisting: Bool,
         notifyDelegate: Bool
     ) -> ManagedWindow? {
-        // Try to get window number for debugging
-        var windowNumber: CGWindowID = 0
-        var windowNumStr = "unknown"
-        if _AXUIElementGetWindow(element, &windowNumber) == .success {
-            windowNumStr = String(windowNumber)
-        }
+        // Try to get CGWindowID for debugging
+        let cgWindowId = cgWindowId(for: element, pid: pid, context: "captureWindowIfNeeded-debug")
+        let windowNumStr = cgWindowId.map { String($0) } ?? "unknown"
 
         Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
 
@@ -228,16 +225,16 @@ extension WindowController {
         let windowId = windowRegistry.allocateIdentifier()
         let managed = ManagedWindow(
             windowId: windowId,
-            backing: .accessibility(element: element, pid: pid, windowNumber: identifier?.windowNumber),
+            backing: .accessibility(element: element, pid: pid, cgWindowId: identifier?.cgWindowId),
             isPlaceholder: false
         )
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
         if let identifier {
             externalWindows[identifier] = managed
-            Logger.debug("Captured external window \(identifier.windowNumber) from pid \(pid) as managed id \(managed.windowId)")
+            Logger.debug("Captured external window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId)")
         } else {
-            Logger.debug("Captured external window with unknown window number from pid \(pid) as managed id \(managed.windowId)")
+            Logger.debug("Captured external window with unknown CGWindowID from pid \(pid) as managed id \(managed.windowId)")
         }
 
         registerAccessibilityNotifications(for: managed, appElement: appElement)
@@ -524,17 +521,25 @@ extension WindowController {
             return nil
         }
 
-        var numberObject: CFTypeRef?
-        let numberStatus = AXUIElementCopyAttributeValue(element, axWindowNumberAttribute, &numberObject)
-        guard numberStatus == .success, let numberObject else {
+        guard let cgWindowId = cgWindowId(for: element, pid: pid, context: "externalIdentifier") else {
             return nil
         }
 
-        if let number = numberObject as? NSNumber {
-            return ExternalWindowIdentifier(pid: pid, windowNumber: number.intValue)
-        }
+        return ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
+    }
 
-        return nil
+    private func cgWindowId(for element: AXUIElement, pid: pid_t, context: String) -> CGWindowID? {
+        var cgWindowId: CGWindowID = 0
+        let status = _AXUIElementGetWindow(element, &cgWindowId)
+        guard status == .success else {
+            Logger.debug("cgWindowId(\(context)): _AXUIElementGetWindow failed for pid \(pid) with AXError \(status.rawValue)")
+            return nil
+        }
+        guard cgWindowId != 0 else {
+            Logger.debug("cgWindowId(\(context)): Received CGWindowID 0 for pid \(pid); treating as missing")
+            return nil
+        }
+        return cgWindowId
     }
 
     private func registerAccessibilityNotifications(for managed: ManagedWindow, appElement: AXUIElement) {

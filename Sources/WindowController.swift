@@ -2,10 +2,10 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-// Bridge to private API for getting window ID
+// Bridge to the private AX API that reveals a window's CGWindowID. There is no public
+// Accessibility attribute that exposes this identifier, so we must rely on this symbol.
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
-let axWindowNumberAttribute: CFString = "AXWindowNumber" as CFString
 let axCloseAction: CFString = "AXClose" as CFString
 let axDestroyedNotification = kAXUIElementDestroyedNotification as String
 let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as String
@@ -158,7 +158,7 @@ class WindowController {
 
         for managed in windowRegistry.allWindows {
             let windowId = managed.windowId
-            guard case .accessibility(_, let windowPid, let windowNumber) = managed.backing else {
+            guard case .accessibility(_, let windowPid, let cgWindowId) = managed.backing else {
                 continue
             }
 
@@ -166,7 +166,7 @@ class WindowController {
                 continue
             }
 
-            if let windowNumber, !snapshot.contains(pid: windowPid, windowNumber: windowNumber) {
+            if let cgWindowId, !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
                 stale.append((windowId, managed, "missing-from-cgwindowlist"))
                 continue
             }
@@ -205,22 +205,22 @@ class WindowController {
         case global(Set<ExternalWindowIdentifier>)
         case pid(pid_t, Set<Int>)
 
-        func contains(pid: pid_t, windowNumber: Int) -> Bool {
+        func contains(pid: pid_t, cgWindowId: Int) -> Bool {
             switch self {
             case .global(let identifiers):
-                return identifiers.contains(ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber))
-            case .pid(let filterPid, let numbers):
+                return identifiers.contains(ExternalWindowIdentifier(pid: pid, cgWindowId: cgWindowId))
+            case .pid(let filterPid, let cgWindowIds):
                 guard pid == filterPid else {
                     return false
                 }
-                return numbers.contains(windowNumber)
+                return cgWindowIds.contains(cgWindowId)
             }
         }
     }
 
     private func makeWindowServerSnapshot(pidFilter: pid_t?) -> WindowServerSnapshot? {
         if let pidFilter {
-            let numbers = getActualWindowNumbersFromWindowServer(forPid: pidFilter)
+            let numbers = getCGWindowIdsFromWindowServer(forPid: pidFilter)
             return .pid(pidFilter, numbers)
         }
 
@@ -231,32 +231,32 @@ class WindowController {
         var identifiers = Set<ExternalWindowIdentifier>()
         for windowInfo in windowList {
             if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
-               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
-                identifiers.insert(ExternalWindowIdentifier(pid: ownerPID, windowNumber: windowNumber))
+               let cgWindowId = windowInfo[kCGWindowNumber as String] as? Int {
+                identifiers.insert(ExternalWindowIdentifier(pid: ownerPID, cgWindowId: cgWindowId))
             }
         }
 
         return .global(identifiers)
     }
 
-    /// Query the window server for actual window numbers for a given PID.
+    /// Query the window server for actual CGWindowIDs for a given PID.
     /// This is the ground truth source for which windows exist.
-    private func getActualWindowNumbersFromWindowServer(forPid pid: pid_t) -> Set<Int> {
-        var windowNumbers = Set<Int>()
+    private func getCGWindowIdsFromWindowServer(forPid pid: pid_t) -> Set<Int> {
+        var cgWindowIds = Set<Int>()
 
         guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-            return windowNumbers
+            return cgWindowIds
         }
 
         for windowInfo in windowList {
             if let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                ownerPID == pid,
-               let windowNumber = windowInfo[kCGWindowNumber as String] as? Int {
-                windowNumbers.insert(windowNumber)
+               let cgWindowId = windowInfo[kCGWindowNumber as String] as? Int {
+                cgWindowIds.insert(cgWindowId)
             }
         }
 
-        return windowNumbers
+        return cgWindowIds
     }
 
     private func isAccessibilityElementAlive(_ managed: ManagedWindow) -> Bool {

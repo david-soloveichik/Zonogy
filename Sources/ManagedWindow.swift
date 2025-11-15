@@ -2,16 +2,20 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Stable identifier for an external (Accessibility) window.
+/// Stable identifier for an external (Accessibility) window. Derived from
+/// `_AXUIElementGetWindow`, since no public Accessibility attribute exposes a
+/// Core Graphics window number.
 struct ExternalWindowIdentifier: Hashable {
     let pid: pid_t
-    let windowNumber: Int
+    let cgWindowId: Int  // CGWindowID from the window server
 }
 
 /// Backing for a managed window. Placeholders use `.appKit`, external windows use `.accessibility`.
 enum ManagedWindowBacking {
     case appKit(NSWindow)
-    case accessibility(element: AXUIElement, pid: pid_t, windowNumber: Int?)
+    // CGWindowID is optional because `_AXUIElementGetWindow` can legitimately fail or the
+    // window server may not have an entry yet when we first capture the element.
+    case accessibility(element: AXUIElement, pid: pid_t, cgWindowId: Int?)  // CGWindowID from window server
 }
 
 /// Represents a window managed by the window manager.
@@ -55,10 +59,10 @@ class ManagedWindow {
         return nil
     }
 
-    /// Stable identifier for an external window (pid + window number).
+    /// Stable identifier for an external window (pid + CGWindowID).
     var externalIdentifier: ExternalWindowIdentifier? {
-        if case .accessibility(_, let pid, let windowNumber?) = backing {
-            return ExternalWindowIdentifier(pid: pid, windowNumber: windowNumber)
+        if case .accessibility(_, let pid, let cgWindowId?) = backing {
+            return ExternalWindowIdentifier(pid: pid, cgWindowId: cgWindowId)
         }
         return nil
     }
