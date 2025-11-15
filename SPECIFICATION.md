@@ -39,6 +39,7 @@ We manage a window if it passes **all** of the following conditions (see `winman
 - **isMovable: T** (window position can be modified)
 - **hasZoom: T** (window has a zoom button)
 - **Height: >= 250px** (window must be at least 250 pixels tall)
+- **_AXUIElementGetWindow** returns a valid `CGWindowID` for the window
 
 ### Window Identifiers
 

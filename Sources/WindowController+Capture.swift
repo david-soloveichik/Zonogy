@@ -199,9 +199,12 @@ extension WindowController {
         allowReturningExisting: Bool,
         notifyDelegate: Bool
     ) -> ManagedWindow? {
-        // Try to get CGWindowID for debugging
-        let cgWindowId = cgWindowId(for: element, pid: pid, context: "captureWindowIfNeeded-debug")
-        let windowNumStr = cgWindowId.map { String($0) } ?? "unknown"
+        guard let cgWindowId = cgWindowId(for: element, pid: pid, context: "captureWindowIfNeeded") else {
+            Logger.debug("captureWindowIfNeeded: Skipping window because CGWindowID is unavailable for pid \(pid)")
+            return nil
+        }
+
+        let windowNumStr = String(cgWindowId)
 
         Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
 
@@ -220,22 +223,18 @@ extension WindowController {
             return allowReturningExisting ? existing : nil
         }
 
-        let identifier = externalIdentifier(for: element)
+        let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
         let elementKey = AccessibilityElementKey(element: element)
         let windowId = windowRegistry.allocateIdentifier()
         let managed = ManagedWindow(
             windowId: windowId,
-            backing: .accessibility(element: element, pid: pid, cgWindowId: identifier?.cgWindowId),
+            backing: .accessibility(element: element, pid: pid, cgWindowId: identifier.cgWindowId),
             isPlaceholder: false
         )
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
-        if let identifier {
-            externalWindows[identifier] = managed
-            Logger.debug("Captured external window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId)")
-        } else {
-            Logger.debug("Captured external window with unknown CGWindowID from pid \(pid) as managed id \(managed.windowId)")
-        }
+        externalWindows[identifier] = managed
+        Logger.debug("Captured external window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId)")
 
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 

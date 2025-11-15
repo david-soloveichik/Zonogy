@@ -13,9 +13,9 @@ struct ExternalWindowIdentifier: Hashable {
 /// Backing for a managed window. Placeholders use `.appKit`, external windows use `.accessibility`.
 enum ManagedWindowBacking {
     case appKit(NSWindow)
-    // CGWindowID is optional because `_AXUIElementGetWindow` can legitimately fail or the
-    // window server may not have an entry yet when we first capture the element.
-    case accessibility(element: AXUIElement, pid: pid_t, cgWindowId: Int?)  // CGWindowID from window server
+    // CGWindowID is captured up front via `_AXUIElementGetWindow`; we refuse to manage the
+    // window if it cannot be obtained, so this value is always present once tracked.
+    case accessibility(element: AXUIElement, pid: pid_t, cgWindowId: Int)  // CGWindowID from window server
 }
 
 /// Represents a window managed by the window manager.
@@ -61,7 +61,7 @@ class ManagedWindow {
 
     /// Stable identifier for an external window (pid + CGWindowID).
     var externalIdentifier: ExternalWindowIdentifier? {
-        if case .accessibility(_, let pid, let cgWindowId?) = backing {
+        if case .accessibility(_, let pid, let cgWindowId) = backing {
             return ExternalWindowIdentifier(pid: pid, cgWindowId: cgWindowId)
         }
         return nil

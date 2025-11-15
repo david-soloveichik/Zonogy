@@ -166,7 +166,7 @@ class WindowController {
                 continue
             }
 
-            if let cgWindowId, !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
+            if !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
                 stale.append((windowId, managed, "missing-from-cgwindowlist"))
                 continue
             }
