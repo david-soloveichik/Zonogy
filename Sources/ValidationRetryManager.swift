@@ -27,10 +27,15 @@ class ValidationRetryManager {
 
     private var validationRetries: [pid_t: ValidationRetry] = [:]
     private let retryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+    private var isSuspended = false
 
     // MARK: - Public Interface
 
     func validateWindowsForApplication(pid: pid_t, reason: String = "unspecified") -> [Int] {
+        if isSuspended {
+            Logger.debug("Validation skipped for pid \(pid) (\(reason)) while validation manager is suspended")
+            return []
+        }
         guard let delegate = delegate else { return [] }
 
         let destroyedWindowIds = delegate.pruneDestroyedWindowsForPid(pid)
@@ -93,10 +98,29 @@ class ValidationRetryManager {
         retry.workItem?.cancel()
     }
 
+    func cancelAllValidationRetries() {
+        for (_, retry) in validationRetries {
+            retry.workItem?.cancel()
+        }
+        validationRetries.removeAll()
+    }
+
+    func setSuspended(_ suspended: Bool) {
+        guard isSuspended != suspended else { return }
+        isSuspended = suspended
+        if isSuspended {
+            Logger.debug("Validation retry manager suspended; cancelling pending retries")
+            cancelAllValidationRetries()
+        } else {
+            Logger.debug("Validation retry manager resumed")
+        }
+    }
+
     // MARK: - Private Implementation
 
     private func scheduleValidationRetry(for pid: pid_t, reason: String) {
-        guard let delegate = delegate,
+        guard !isSuspended,
+              let delegate = delegate,
               delegate.hasManagedWindows(for: pid) else {
             cancelValidationRetry(for: pid)
             return
@@ -139,6 +163,12 @@ class ValidationRetryManager {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
+
+            if self.isSuspended {
+                Logger.debug("Validation retry for pid \(pid) skipped; manager remains suspended")
+                self.cancelValidationRetry(for: pid)
+                return
+            }
 
             // Verify PID hasn't been reused
             if let expectedBundleId = bundleId,

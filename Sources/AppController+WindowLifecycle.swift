@@ -80,6 +80,10 @@ extension AppController {
     }
 
     func windowDidMiniaturize(windowId: Int) {
+        if isWakeRecoveryMinimizing {
+            Logger.debug("Wake recovery suppressing windowDidMiniaturize for window \(windowId)")
+            return
+        }
         Logger.debug("Window \(windowId) did miniaturize")
         let managed = windowController.window(withId: windowId)
         if dragDropCoordinator.currentDragWindowId == windowId {

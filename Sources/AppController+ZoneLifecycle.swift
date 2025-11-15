@@ -354,6 +354,11 @@ extension AppController {
     /// Sync all windows to their zones, creating placeholders as needed
     internal func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = []) {
         let effectiveExcludedZones = excludedZones.union(dragExcludedZones)
+        if isWindowManagementSuspended {
+            Logger.debug("Sync skipped while window management is suspended (excluded zones: \(effectiveExcludedZones.count))")
+            suspendedSyncExcludedZones.formUnion(effectiveExcludedZones)
+            return
+        }
         if isSyncingWindows {
             pendingSync = true
             pendingSyncExcludedZones.formUnion(effectiveExcludedZones)

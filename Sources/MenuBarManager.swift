@@ -9,6 +9,7 @@ protocol MenuBarManagerDelegate: AnyObject {
 class MenuBarManager {
     private var statusItem: NSStatusItem?
     weak var delegate: MenuBarManagerDelegate?
+    private var isDimmed = false
 
     init() {
         setupMenuBar()
@@ -86,6 +87,19 @@ class MenuBarManager {
         Logger.debug("Quit requested from menu bar")
         delegate?.menuBarManagerDidRequestQuit()
         NSApplication.shared.terminate(nil)
+    }
+
+    func setSuspendedAppearance(_ suspended: Bool) {
+        guard isDimmed != suspended else { return }
+        isDimmed = suspended
+        guard let button = statusItem?.button else { return }
+        if suspended {
+            button.contentTintColor = NSColor.disabledControlTextColor
+            button.alphaValue = 0.7
+        } else {
+            button.contentTintColor = nil
+            button.alphaValue = 1.0
+        }
     }
 
     func tearDown() {

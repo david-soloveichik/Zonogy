@@ -162,6 +162,20 @@ In either case, since the original zone of the window is now empty, it should be
 
 ## 5. Special Features
 
+### Recovery from sleep
+
+Wake recovery runs once per `NSWorkspace.didWakeNotification`. After computer wakes from sleep, we:
+
+1. Suspend normal window management rules
+2. Gray the menu bar icon
+3. Remove zones from screens that aren't there any more
+4. Enumerate all windows in the same manner as during Zonogy startup (make sure to reuse code). During enumeration we collect windows satisfying all of the following conditions: (1) eligible for management, (2) not minimized, and (3) not placed in any zone. Note: windows from zones removed in step 3 would satisfy condition (3).
+5. Minimize windows collected in the previous step
+6. Restart normal window management rules (queue post-wake notifications until this completes). Make sure the windows assigned to zones are aligned to their zones, and immediately reapply ActiveFit to the current key window when applicable.
+7. Restore normal menu bar icon
+
+**Note:** The Accessibility API might not be immediately ready, causing calls to it to fail. Zonogy implements a delayed retry strategy with retry attempts at 0.5s, 1s, 1.5s, 2s, and every second thereafter (up to 5s). If we still fail after that, we print an error in the log, and proceed with subsequent steps (including restoring normal menu bar icon).
+
 ### ActiveFit: Active Overflow Reveal for Key Windows
 
 Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
