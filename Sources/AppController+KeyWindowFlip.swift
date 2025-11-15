@@ -10,7 +10,7 @@ extension AppController {
             return
         }
 
-        guard let managed = frontmostManagedKeyWindow() else {
+        guard let managed = managedWindowForFrontmostApplication(logPrefix: "Flip key window aborted") else {
             Logger.debug("Flip key window aborted: no managed key window available")
             return
         }
@@ -53,48 +53,6 @@ extension AppController {
         syncWindowsToZones()
     }
 
-    /// Returns the focused managed window for the current frontmost app, if it is eligible to flip.
-    private func frontmostManagedKeyWindow() -> ManagedWindow? {
-        guard let application = NSWorkspace.shared.frontmostApplication else {
-            Logger.debug("Flip key window aborted: unable to determine frontmost application")
-            return nil
-        }
-
-        let pid = application.processIdentifier
-        guard pid != getpid() else {
-            Logger.debug("Flip key window aborted: Zonogy is the frontmost application")
-            return nil
-        }
-
-        guard let managed = windowController.focusedWindowIfTracked(pid: pid) else {
-            Logger.debug("Flip key window aborted: pid \(pid) has no tracked focused window")
-            return nil
-        }
-
-        if managed.isPlaceholder {
-            Logger.debug("Flip key window aborted: focused managed window \(managed.windowId) is a placeholder")
-            return nil
-        }
-
-        return managed
-    }
-
-    /// Resolves the current zone assignment for a managed window, consulting cached metadata if needed.
-    private func zoneKey(forManagedWindow managed: ManagedWindow) -> ZoneKey? {
-        if let screenId = managed.screenDisplayId,
-           let index = managed.zoneIndex {
-            return ZoneKey(screenId: screenId, index: index)
-        }
-
-        for (screenId, context) in screenContexts {
-            if let zone = context.zoneController.zoneForWindow(windowId: managed.windowId) {
-                return ZoneKey(screenId: screenId, index: zone.index)
-            }
-        }
-
-        return nil
-    }
-
     /// Selects the destination zone per specification rules (targeted zone if off-screen, otherwise new screen selection).
     private func resolveFlipDestination(originKey: ZoneKey, targetedKey: ZoneKey) -> ZoneKey? {
         if targetedKey.screenId != originKey.screenId {
@@ -111,39 +69,22 @@ extension AppController {
             return nil
         }
 
-        guard let destinationZoneIndex = selectZoneIndex(on: destinationScreenId) else {
+        guard let destinationKey = preferredZoneKey(on: destinationScreenId) else {
             Logger.debug("Flip key window aborted: destination screen \(destinationScreenId) has no zones")
             return nil
         }
 
-        return ZoneKey(screenId: destinationScreenId, index: destinationZoneIndex)
+        return destinationKey
     }
 
     /// Returns the first available display that is different from the given origin screen.
     private func firstAlternateScreenId(excluding screenId: CGDirectDisplayID) -> CGDirectDisplayID? {
-        for screen in NSScreen.screens {
-            guard let candidateId = ScreenContextStore.displayId(for: screen),
-                  candidateId != screenId,
-                  screenContexts[candidateId] != nil else {
-                continue
+        for candidateId in screenOrder where candidateId != screenId {
+            if screenContexts[candidateId] != nil {
+                return candidateId
             }
-            return candidateId
         }
         return nil
-    }
-
-    /// Picks the lowest empty zone on the screen, or the highest occupied one when no zones are empty.
-    private func selectZoneIndex(on screenId: CGDirectDisplayID) -> Int? {
-        guard let context = screenContexts[screenId] else {
-            return nil
-        }
-
-        let zones = context.zoneController.allZones
-        if let emptyIndex = zones.filter({ $0.isEmpty }).min(by: { $0.index < $1.index })?.index {
-            return emptyIndex
-        }
-
-        return zones.filter { !$0.isEmpty }.max(by: { $0.index < $1.index })?.index
     }
 
 }
