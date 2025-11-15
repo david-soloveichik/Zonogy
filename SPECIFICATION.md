@@ -42,7 +42,7 @@ We manage a window if it passes **all** of the following conditions (see `winman
 
 ### Window Identifiers
 
-Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has an Accessibility ID (`pid` + `kAXWindowNumber`). Placeholder panes never receive an Accessibility ID and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the AX value exists.
+Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder panes never receive a `CGWindowID` and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the CGWindow value exists.
 
 ## 3. Zones
 
@@ -185,10 +185,6 @@ This behavior makes oversized right-column windows usable without permanently di
 
 ## 6. Implementation Details
 
-### Sleep/Wake Recovery
-
-After waking from sleep, the Accessibility API isn't immediately ready, causing window lookups to fail. Zonogy implements a delayed recapture strategy with retry attempts at 0.5s, 1.5s, and 3.0s after wake to ensure windows are properly recaptured and placeholders are replaced once the API stabilizes.
-
 ### Destroyed Window Detection
 
 Not all applications emit didTerminateApplication notification upon closing (eg Find My). So we need to also monitor other notifications. Specifically, we do the following:
@@ -298,7 +294,7 @@ After the time travel log file is written, the log buffer should be cleared. Thi
 
 For debugging purposes, it may be useful to see where all the windows are, whether they are minimized or not, and obtain other information about them. This can help us debug, for example, whether the window was successfully moved to its zone location. This is enabled by the following `winmanmon` command line tool, which displays for each window:
     - Application bundle identifier (e.g., "com.apple.Dictionary")
-    - Window ID
+    - Accessibility Window ID (`CGWindowID`)
     - Title (may be empty)
     - Screen
     - Dimensions (x, y, width, height)

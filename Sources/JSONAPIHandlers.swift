@@ -299,8 +299,8 @@ extension AppController {
         }
 
         switch managed.backing {
-        case .accessibility(_, _, let windowNumber?):
-            result["window_number"] = windowNumber
+        case .accessibility(_, _, let cgWindowId?):
+            result["CGWindowID"] = cgWindowId
         default:
             break
         }
