@@ -23,20 +23,13 @@ extension AppController {
             }
         }
 
-        for (screenId, windows) in windowsByScreen {
+        let orderedScreenIds = startupScreenProcessingOrder()
+        for screenId in orderedScreenIds {
             guard let context = screenContexts[screenId] else {
                 continue
             }
 
-            let sortedWindows = windows.sorted { lhs, rhs in
-                let leftX = screenMinX(for: lhs, descriptor: context.descriptor)
-                let rightX = screenMinX(for: rhs, descriptor: context.descriptor)
-                if leftX == rightX {
-                    return lhs.windowId < rhs.windowId
-                }
-                return leftX < rightX
-            }
-
+            let windows = windowsByScreen[screenId] ?? []
             let desiredZoneCount = max(1, min(windows.count, 3))
             let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
 
@@ -52,21 +45,30 @@ extension AppController {
                 }
             }
 
-            let managedCandidates = sortedWindows.prefix(desiredZoneCount)
-            let excessWindows = sortedWindows.dropFirst(desiredZoneCount)
+            var unassignedWindows = windows
+            let zoneOrder = context.zoneController.allZones.sorted { $0.index < $1.index }
+            let screenFrames = startupScreenFrames(for: windows, descriptor: context.descriptor)
 
-            for window in managedCandidates {
-                windowPlacementManager.placeNewWindow(window, preferredScreenId: screenId)
+            for zone in zoneOrder {
+                guard !unassignedWindows.isEmpty else {
+                    break
+                }
+
+                let selectedIndex = selectStartupWindowIndex(
+                    for: zone,
+                    from: unassignedWindows,
+                    screenFrames: screenFrames,
+                    descriptor: context.descriptor
+                )
+
+                let selectedWindow = unassignedWindows.remove(at: selectedIndex)
+                windowPlacementManager.placeNewWindow(selectedWindow, preferredScreenId: screenId)
             }
 
-            for window in excessWindows {
+            for window in unassignedWindows {
                 clearManagedWindowZone(window)
                 windowController.minimizeWindow(window)
             }
-        }
-
-        for (screenId, context) in screenContexts where windowsByScreen[screenId] == nil {
-            context.zoneController.setZoneCount(to: 1)
         }
     }
 
@@ -76,6 +78,100 @@ extension AppController {
             return .greatestFiniteMagnitude
         }
         return descriptor.cocoaToScreen(cocoaFrame).minX
+    }
+
+    /// Ensure we iterate screens deterministically, covering every known context.
+    private func startupScreenProcessingOrder() -> [CGDirectDisplayID] {
+        var ordered = screenOrder
+        for screenId in screenContexts.keys where !ordered.contains(screenId) {
+            ordered.append(screenId)
+        }
+        return ordered
+    }
+
+    /// Cache window frames expressed in screen coordinates for startup ordering.
+    private func startupScreenFrames(for windows: [ManagedWindow], descriptor: ScreenDescriptor) -> [Int: CGRect] {
+        var frames: [Int: CGRect] = [:]
+        for window in windows {
+            guard let cocoaFrame = cocoaFrame(for: window) else {
+                continue
+            }
+            frames[window.windowId] = descriptor.cocoaToScreen(cocoaFrame)
+        }
+        return frames
+    }
+
+    /// Choose a window for the specified zone based on overlap-first ordering.
+    private func selectStartupWindowIndex(
+        for zone: Zone,
+        from windows: [ManagedWindow],
+        screenFrames: [Int: CGRect],
+        descriptor: ScreenDescriptor
+    ) -> Int {
+        var bestIndex = 0
+        var bestArea: CGFloat = -1
+        var bestLeft: CGFloat = .greatestFiniteMagnitude
+        var bestWindowId = Int.max
+
+        for (index, window) in windows.enumerated() {
+            let area = startupOverlapArea(for: window.windowId, zone: zone, screenFrames: screenFrames)
+            if area > bestArea {
+                bestArea = area
+                bestIndex = index
+                bestLeft = screenFrames[window.windowId]?.minX ?? screenMinX(for: window, descriptor: descriptor)
+                bestWindowId = window.windowId
+                continue
+            }
+
+            if area == bestArea && area > 0 {
+                let candidateLeft = screenFrames[window.windowId]?.minX ?? screenMinX(for: window, descriptor: descriptor)
+                if candidateLeft < bestLeft || (candidateLeft == bestLeft && window.windowId < bestWindowId) {
+                    bestIndex = index
+                    bestLeft = candidateLeft
+                    bestWindowId = window.windowId
+                }
+            }
+        }
+
+        if bestArea > 0 {
+            return bestIndex
+        }
+
+        return leftMostStartupWindowIndex(from: windows, descriptor: descriptor)
+    }
+
+    /// Compute overlap area between a window and zone in screen coordinates.
+    private func startupOverlapArea(
+        for windowId: Int,
+        zone: Zone,
+        screenFrames: [Int: CGRect]
+    ) -> CGFloat {
+        guard let frame = screenFrames[windowId] else {
+            return 0
+        }
+        let intersection = frame.intersection(zone.frame)
+        if intersection.isNull || intersection.isEmpty {
+            return 0
+        }
+        return intersection.width * intersection.height
+    }
+
+    /// Return the index of the left-most window among the provided list.
+    private func leftMostStartupWindowIndex(from windows: [ManagedWindow], descriptor: ScreenDescriptor) -> Int {
+        var bestIndex = 0
+        var bestLeft = CGFloat.greatestFiniteMagnitude
+        var bestWindowId = Int.max
+
+        for (index, window) in windows.enumerated() {
+            let leftX = screenMinX(for: window, descriptor: descriptor)
+            if leftX < bestLeft || (leftX == bestLeft && window.windowId < bestWindowId) {
+                bestIndex = index
+                bestLeft = leftX
+                bestWindowId = window.windowId
+            }
+        }
+
+        return bestIndex
     }
 
     internal func handleApplicationEvent(_ application: NSRunningApplication?) {

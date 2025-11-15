@@ -91,7 +91,12 @@ Exactly one zone across all screens is the *targeted zone* at any moment. Newly 
 
 ### Initial Startup Behavior
 
-When Zonogy starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). When assigning these startup windows to zones on a screen, order them by ascending screen-space x coordinate so zone 1 receives the left-most window, zone 2 the next, and so on. There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
+When Zonogy starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). Run the following seeding flow independently per screen:
+
+1. For each zone in order of its index, pick the remaining window whose bounds overlap the zone the most; when nothing overlaps, fall back to the left-most remaining window.
+2. Send that window through the standard placement flow, remove it from the pool, and repeat until every zone is seeded or no eligible windows remain.
+
+There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
 
 ## 4. User Interactions
 
