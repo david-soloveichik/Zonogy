@@ -49,10 +49,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let activeFitOverflowTolerance: CGFloat = 1.0
     internal var activeFitState: ActiveFitState?
     internal var activeFitSuppressedWindowIds: Set<Int> = []
-    internal var wakeRecoveryState: WakeRecoveryState?
-    internal var isWakeRecoveryMinimizing = false
-    internal var isWindowManagementSuspended = false
-    internal var suspendedSyncExcludedZones: Set<ZoneKey> = []
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
@@ -148,29 +144,5 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {
         screenContexts[screenId]?.descriptor
-    }
-
-    internal func suspendWindowManagement(reason: String) {
-        guard !isWindowManagementSuspended else {
-            Logger.debug("Window management already suspended (reason: \(reason))")
-            return
-        }
-        Logger.debug("Suspending window management (reason: \(reason))")
-        isWindowManagementSuspended = true
-        validationRetryManager.setSuspended(true)
-        validationRetryManager.cancelAllValidationRetries()
-    }
-
-    @discardableResult
-    internal func resumeWindowManagement(reason: String) -> Set<ZoneKey> {
-        guard isWindowManagementSuspended else {
-            return []
-        }
-        Logger.debug("Resuming window management (reason: \(reason))")
-        isWindowManagementSuspended = false
-        validationRetryManager.setSuspended(false)
-        let pending = suspendedSyncExcludedZones
-        suspendedSyncExcludedZones.removeAll()
-        return pending
     }
 }

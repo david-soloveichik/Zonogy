@@ -25,69 +25,34 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.processWorkspaceActivationNotification(application: application)
+        if let previousPid = lastActiveApplicationPid {
+            _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
         }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didActivate", handler: handler) {
-            return
+        if let application {
+            lastActiveApplicationPid = application.processIdentifier
         }
-        handler()
+        handleApplicationEvent(application)
+        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.handleApplicationEvent(application)
-        }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didLaunch", handler: handler) {
-            return
-        }
-        handler()
+        handleApplicationEvent(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didUnhide application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.handleApplicationEvent(application)
-        }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didUnhide", handler: handler) {
-            return
-        }
-        handler()
+        handleApplicationEvent(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.handleApplicationStateChange(application)
-        }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didDeactivate", handler: handler) {
-            return
-        }
-        handler()
+        handleApplicationStateChange(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.handleApplicationStateChange(application)
-        }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didHide", handler: handler) {
-            return
-        }
-        handler()
+        handleApplicationStateChange(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?) {
-        let handler: () -> Void = { [weak self, application] in
-            guard let self = self else { return }
-            self.handleApplicationTermination(application)
-        }
-        if queueWorkspaceNotificationIfSuspended(eventDescription: "workspace-didTerminate", handler: handler) {
-            return
-        }
-        handler()
+        handleApplicationTermination(application)
     }
 
     func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
@@ -102,22 +67,45 @@ extension AppController {
             }
         }
         Logger.debug("System will sleep - current state: \(managedWindowCount) managed windows, \(placeholderCount) placeholders")
-        suspendWindowManagement(reason: "system-will-sleep")
     }
 
     func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
-        startWakeRecovery()
-    }
+        // Log initial state after wake
+        var initialManagedCount = 0
+        var initialPlaceholderCount = 0
+        for window in windowController.allWindows {
+            if window.isPlaceholder {
+                initialPlaceholderCount += 1
+            } else {
+                initialManagedCount += 1
+            }
+        }
+        Logger.debug("System did wake - initial state: \(initialManagedCount) managed windows, \(initialPlaceholderCount) placeholders - scheduling delayed window recapture")
 
-    private func processWorkspaceActivationNotification(application: NSRunningApplication?) {
-        if let previousPid = lastActiveApplicationPid {
-            _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
+        // First, validate and prune any destroyed windows from existing managed windows
+        var pidsToValidate = Set<pid_t>()
+        for window in windowController.allWindows {
+            if case .accessibility(_, let pid, _) = window.backing {
+                pidsToValidate.insert(pid)
+            }
         }
-        if let application {
-            lastActiveApplicationPid = application.processIdentifier
+
+        Logger.debug("Validating \(pidsToValidate.count) PIDs from existing managed windows")
+        for pid in pidsToValidate {
+            let pruned = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "system-wake-validation")
+            if !pruned.isEmpty {
+                Logger.debug("Pruned \(pruned.count) destroyed windows for pid \(pid)")
+            }
         }
-        handleApplicationEvent(application)
-        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
+
+        // Force immediate sync to ensure placeholders are shown
+        syncWindowsToZones()
+
+        // Schedule window recapture after a delay to allow the Accessibility API to stabilize
+        // We use multiple attempts with increasing delays to handle different wake scenarios
+        scheduleWindowRecapture(delay: 0.5, reason: "wake")
+        scheduleWindowRecapture(delay: 1.5, reason: "wake")
+        scheduleWindowRecapture(delay: 3.0, reason: "wake")
     }
 
     private func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
@@ -295,7 +283,7 @@ extension AppController {
         }
     }
 
-    internal func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext], reassignWindows: Bool = true) {
+    private func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext]) {
         for entry in removed {
             placeholderCoordinator.clearMappingsForScreen(entry.displayId)
             let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == entry.displayId }
@@ -320,13 +308,9 @@ extension AppController {
                     continue
                 }
 
+                Logger.debug("Reassigning window \(managed.windowId) from removed screen \(entry.displayId)")
                 clearManagedWindowZone(managed)
-                if reassignWindows {
-                    Logger.debug("Reassigning window \(managed.windowId) from removed screen \(entry.displayId)")
-                    windowPlacementManager.placeNewWindow(managed, preferredScreenId: activeScreenId())
-                } else {
-                    Logger.debug("Wake recovery cleared window \(managed.windowId) from removed screen \(entry.displayId) without reassignment")
-                }
+                windowPlacementManager.placeNewWindow(managed, preferredScreenId: activeScreenId())
             }
         }
     }
