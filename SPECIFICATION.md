@@ -139,7 +139,7 @@ When our window manager assigns a window to a zone, the window should be moved a
 
 ### Dragging Windows Between Zones
 
-When the user drags a managed window, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted and releasing the mouse cancels the move. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed), and anything dropped outside a zone cancels with no layout changes.
+When the user drags a managed window, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed). If the system cannot determine a drop target—either because the cursor is outside every zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
 
 If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
 
