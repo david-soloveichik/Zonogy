@@ -58,4 +58,14 @@ extension AppController {
         )
         tiledToTemporaryDragContexts.removeValue(forKey: windowId)
     }
+
+    func emptyTemporaryZoneForNewTiledPlacement(on screenId: CGDirectDisplayID, excluding windowId: Int, reason: String) {
+        guard let occupant = temporaryZoneOccupant(on: screenId) else {
+            return
+        }
+        guard occupant.windowId != windowId else {
+            return
+        }
+        minimizeTemporaryZoneOccupant(on: screenId, reason: reason)
+    }
 }

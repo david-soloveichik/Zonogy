@@ -37,6 +37,11 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         reason: String
     )
     func updateTemporaryZoneTargeting(reason: String)
+    func emptyTemporaryZoneForNewTiledPlacement(
+        on screenId: CGDirectDisplayID,
+        excluding windowId: Int,
+        reason: String
+    )
 }
 
 class WindowPlacementManager {
@@ -58,6 +63,7 @@ class WindowPlacementManager {
 
         if let preferredScreenId {
             placeWindow(managed, on: preferredScreenId)
+            emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             return
         }
 
@@ -83,6 +89,7 @@ class WindowPlacementManager {
         }
 
         placeWindowInTargetedZone(managed, targetedKey: targetedKey)
+        emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
     }
 
     /// Reassigns or minimizes a window after its zone was deleted.
@@ -401,5 +408,14 @@ class WindowPlacementManager {
             delegate.clearManagedWindowZone(displaced)
             delegate.windowController.minimizeWindow(displaced)
         }
+    }
+
+    private func emptyTemporaryZoneAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {
+        guard let delegate = delegate,
+              managed.zoneIndex != nil,
+              let screenId = managed.screenDisplayId else {
+            return
+        }
+        delegate.emptyTemporaryZoneForNewTiledPlacement(on: screenId, excluding: managed.windowId, reason: reason)
     }
 }
