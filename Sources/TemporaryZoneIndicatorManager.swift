@@ -27,9 +27,8 @@ final class TemporaryZoneIndicatorManager {
             isOpaque = false
             hasShadow = false
             backgroundColor = .clear
-            let normalRaw = Int(CGWindowLevelForKey(.normalWindow))
-            level = NSWindow.Level(rawValue: normalRaw - 1)
-            collectionBehavior = [.moveToActiveSpace, .transient]
+            level = .floating
+            collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
         }
 
         override var canBecomeKey: Bool { false }
@@ -43,12 +42,14 @@ final class TemporaryZoneIndicatorManager {
         var isOccupied: Bool { didSet { applyStyle() } }
         var isDragHighlighted: Bool { didSet { applyStyle() } }
 
-        private let targetedColor = NSColor.systemBlue.withAlphaComponent(0.55)
-        private let targetedBorder = NSColor.systemBlue.withAlphaComponent(0.75)
-        private let occupiedColor = NSColor.systemBlue.withAlphaComponent(0.3)
-        private let occupiedBorder = NSColor.systemBlue.withAlphaComponent(0.5)
-        private let untargetedColor = NSColor.systemBlue.withAlphaComponent(0.18)
-        private let untargetedBorder = NSColor.systemBlue.withAlphaComponent(0.35)
+        private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
+        private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
+        private let targetedFillColor = NSColor.systemBlue.withAlphaComponent(0.3)
+        private let targetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.58)
+        private let occupiedFillColor = NSColor.systemBlue.withAlphaComponent(0.22)
+        private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
+        private let idleFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
+        private let idleBorderColor = NSColor.systemBlue.withAlphaComponent(0.25)
 
         init(frame frameRect: NSRect, screenId: CGDirectDisplayID, targeted: Bool, occupied: Bool, dragHighlighted: Bool) {
             self.screenId = screenId
@@ -77,25 +78,33 @@ final class TemporaryZoneIndicatorManager {
             let background: NSColor
             let border: NSColor
 
-            let active = isTargeted || isDragHighlighted
-            if active {
-                background = targetedColor
-                border = targetedBorder
+            if isDragHighlighted {
+                background = highlightFillColor
+                border = highlightBorderColor
+            } else if isTargeted {
+                background = targetedFillColor
+                border = targetedBorderColor
             } else if isOccupied {
-                background = occupiedColor
-                border = occupiedBorder
+                background = occupiedFillColor
+                border = occupiedBorderColor
             } else {
-                background = untargetedColor
-                border = untargetedBorder
+                background = idleFillColor
+                border = idleBorderColor
             }
 
             layer.backgroundColor = background.cgColor
-            layer.borderWidth = 1.2
+            layer.borderWidth = isDragHighlighted ? 1.9 : 1.2
             layer.borderColor = border.cgColor
-            layer.shadowColor = NSColor.systemBlue.withAlphaComponent(isTargeted ? 0.6 : 0.0).cgColor
-            layer.shadowOpacity = isTargeted ? 0.6 : 0.0
-            layer.shadowRadius = isTargeted ? 6 : 0
+            let glowOpacity: Float = isDragHighlighted ? 1.0 : (isTargeted ? 0.75 : 0.0)
+            layer.shadowColor = NSColor.systemBlue.withAlphaComponent(0.95).cgColor
+            layer.shadowOpacity = glowOpacity
+            layer.shadowRadius = isDragHighlighted ? 9 : (isTargeted ? 6 : 0)
             layer.shadowOffset = .zero
+            if isDragHighlighted {
+                layer.setAffineTransform(CGAffineTransform(scaleX: 1.12, y: 1.12))
+            } else {
+                layer.setAffineTransform(.identity)
+            }
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -129,6 +138,9 @@ final class TemporaryZoneIndicatorManager {
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
                 handle.view.delegate = delegate
+                if descriptor.isTargeted || descriptor.isDragHighlighted {
+                    handle.window.orderFrontRegardless()
+                }
                 pendingRemoval.remove(descriptor.screenId)
                 continue
             }
@@ -173,6 +185,9 @@ final class TemporaryZoneIndicatorManager {
         dragHighlightedScreenId = screenId
         for (candidate, handle) in handles {
             handle.view.isDragHighlighted = (candidate == screenId)
+            if candidate == screenId {
+                handle.window.orderFrontRegardless()
+            }
         }
     }
 }
