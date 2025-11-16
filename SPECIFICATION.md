@@ -115,7 +115,8 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
-Pressing Control-Cmd-Space clears all zones on the active screen. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). More specifically:
+Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). More specifically:
+- Empty the temporary zone on the active screen (minimize the window in it if there is one).
 - If all zones on the active screen are already empty, reduce the zone count to 1.
 - Otherwise, minimize all windows on the active screen (making all zones empty).
 

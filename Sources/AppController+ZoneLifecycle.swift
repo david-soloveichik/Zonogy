@@ -778,6 +778,9 @@ extension AppController {
         let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
+        // Also empty the temporary zone on the active screen
+        temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
+
         if allEmpty {
             // All zones are empty, reset to one zone
             Logger.debug("Clear/reset zones: all zones empty on screen \(screenIndex), resetting to 1 zone")
