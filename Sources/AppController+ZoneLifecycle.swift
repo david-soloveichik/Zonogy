@@ -764,4 +764,64 @@ extension AppController {
         return normalized
     }
 
+    // MARK: - Keyboard Shortcuts
+
+    /// Clear all zones on active screen. If zones are already empty, go to one-zone configuration.
+    internal func clearOrResetZones() {
+        let screenId = activeScreenId()
+        guard let context = screenContexts[screenId] else {
+            Logger.debug("Clear/reset zones: active screen not available")
+            return
+        }
+
+        let zones = context.zoneController.allZones
+        let allEmpty = zones.allSatisfy { $0.isEmpty }
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+
+        if allEmpty {
+            // All zones are empty, reset to one zone
+            Logger.debug("Clear/reset zones: all zones empty on screen \(screenIndex), resetting to 1 zone")
+            let removedWindowIds = context.zoneController.setZoneCount(to: 1)
+
+            // Handle any removed windows
+            for windowId in removedWindowIds {
+                if let managed = windowController.window(withId: windowId) {
+                    windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
+                }
+            }
+
+            // Clear placeholder mappings since zones are being reindexed
+            placeholderCoordinator.clearMappingsForScreen(screenId)
+
+            syncWindowsToZones()
+            activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
+            targetedZoneManager.ensureTargetedZone(reason: "reset-to-one-zone")
+        } else {
+            // Minimize all non-placeholder windows on this screen
+            Logger.debug("Clear/reset zones: minimizing all windows on screen \(screenIndex)")
+            var minimizedCount = 0
+
+            for zone in zones {
+                if let windowId = zone.windowId,
+                   let managed = windowController.window(withId: windowId),
+                   !managed.isPlaceholder {
+                    windowController.minimizeWindow(managed)
+                    removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut")
+                    minimizedCount += 1
+                }
+            }
+
+            Logger.debug("Clear/reset zones: minimized \(minimizedCount) window(s) on screen \(screenIndex)")
+            syncWindowsToZones()
+        }
+    }
+
+    /// Target the temporary zone on the active screen
+    internal func targetTemporaryZone() {
+        let screenId = activeScreenId()
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Target temporary zone: setting temporary zone on screen \(screenIndex) as target")
+        targetedZoneManager.setTemporaryTarget(on: screenId, reason: "shortcut-target-temporary")
+    }
+
 }

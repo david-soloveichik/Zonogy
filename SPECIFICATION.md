@@ -115,6 +115,10 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
+Pressing Control-Cmd-Space clears all zones on the active screen. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). More specifically:
+- If all zones on the active screen are already empty, reduce the zone count to 1.
+- Otherwise, minimize all windows on the active screen (making all zones empty).
+
 ### Resizing Zones
 
 #### If a zone is empty (contains a placeholder window)
@@ -193,6 +197,7 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline; however, unlike the usual replace pipeline, the displaced window should be minimized (now swapped into the temporary zone). We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
 - When dragging a window from a normal (tiled zoned), dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
 - Control-Command-drag can also be used to place a tiled window (ie normal zone) into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
+- Pressing Control-Cmd-DownArrow sets the temporary zone on the active screen as the targeted zone. This allows users to quickly target the temporary zone without clicking the pill indicator.
 
 ### Screen Management
 

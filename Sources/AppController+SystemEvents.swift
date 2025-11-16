@@ -27,6 +27,10 @@ extension AppController {
             Logger.debug("Hotkey capture time-travel logs triggered")
         case .flipKeyWindow:
             Logger.debug("Hotkey flip key window triggered")
+        case .clearOrResetZones:
+            Logger.debug("Hotkey clear or reset zones triggered")
+        case .targetTemporaryZone:
+            Logger.debug("Hotkey target temporary zone triggered")
         }
         triggerShortcut(action)
     }
