@@ -76,13 +76,13 @@ Whenever zones are added or removed on a screen, the dimensions of the remaining
 
 Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
 
-**Targeted zone selection:**
+**Targeted zone selection:** (logic describes normal, not-temporary zones only; see below for temporary zones)
 
 - Launching: target zone 1 on the primary display.
 - Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
 - Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
 - Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
-- Whenever the targeted zone is filled: if another empty zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
+- Whenever the targeted zone is filled: if another empty (normal, not-temporary) zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
 - If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
 
 **Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
@@ -186,7 +186,7 @@ This behavior makes oversized right-column windows usable without permanently di
 The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other (tiled) zones. It is temporary in the sense that as soon as the user directs focus to a tiled zone window, the floating occupant is cleared (window minimized). More details:
 
 - Holds at most one managed window (no placeholder). This is also called the "floating window". When placed into a temporary zone, a window is centered and resized once; after that the user may freely move/resize it without changing any tiled frames.
-- Placing another window into the temporary zone minimizes the previous occupant. Focus loss is now conservative: we only minimize the floating window when another **tiled zone occupant** (non-placeholder) becomes active/front-most. Activating system overlays, launchers (e.g., LaunchBar), or other unmanaged panels leaves the temporary occupant alone unless some other action (like clicking a placeholder) explicitly clears it.
+- Placing another window into the temporary zone minimizes the previous occupant. We minimize the floating window when another (non-placeholder managed) window becomes active/front-most.
 - Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
 - At the point when we fill the last previously empty tiled (normal) zone the temporary zone auto-targets; once any tiled zone becomes empty or a new one is created, normal targeting rules resume. Emptying the temporary zone never forces retargeting.
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.

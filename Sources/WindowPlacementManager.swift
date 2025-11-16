@@ -96,7 +96,14 @@ class WindowPlacementManager {
             Logger.debug(
                 "Zone removal reassigning window \(managed.windowId) to zone \(zone.index) on \(context.descriptor.localizedName) [\(context.descriptor.displayId)]"
             )
-            assignWindowToZone(managed, zone: zone, screenId: context.descriptor.displayId, descriptor: descriptor)
+            let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
+            assignWindowToZone(
+                managed,
+                zone: zone,
+                screenId: context.descriptor.displayId,
+                descriptor: descriptor,
+                zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+            )
             return
         }
 
@@ -143,13 +150,20 @@ class WindowPlacementManager {
         originContext.zoneController.removeWindow(windowId: managed.windowId)
         delegate.clearManagedWindowZone(managed)
 
+        let destinationWasEmpty = zoneWasEmptyBeforePlacement(destinationZone)
         let displacedWindow = removeOccupantIfNeeded(
             in: destinationZone,
             controller: destinationContext.zoneController,
             excluding: managed.windowId
         )
 
-        assignWindowToZone(managed, zone: destinationZone, screenId: destinationKey.screenId, descriptor: descriptor)
+        assignWindowToZone(
+            managed,
+            zone: destinationZone,
+            screenId: destinationKey.screenId,
+            descriptor: descriptor,
+            zoneWasEmptyBeforeAssignment: destinationWasEmpty
+        )
 
         if minimizeDisplacedWindows {
             minimizeOrCloseDisplacedWindow(displacedWindow)
@@ -187,9 +201,16 @@ class WindowPlacementManager {
         }
 
         let controller = context.zoneController
+        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
         let displacedWindow = removeOccupantIfNeeded(in: zone, controller: controller, excluding: managed.windowId)
 
-        assignWindowToZone(managed, zone: zone, screenId: targetKey.screenId, descriptor: descriptor)
+        assignWindowToZone(
+            managed,
+            zone: zone,
+            screenId: targetKey.screenId,
+            descriptor: descriptor,
+            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+        )
 
         minimizeOrCloseDisplacedWindow(displacedWindow)
     }
@@ -203,7 +224,14 @@ class WindowPlacementManager {
         }
 
         if let emptyZone = controller.findEmptyZone() {
-            assignWindowToZone(managed, zone: emptyZone, screenId: screenId, descriptor: descriptor)
+            let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(emptyZone)
+            assignWindowToZone(
+                managed,
+                zone: emptyZone,
+                screenId: screenId,
+                descriptor: descriptor,
+                zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+            )
             return
         }
 
@@ -211,9 +239,16 @@ class WindowPlacementManager {
             return
         }
 
+        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(highestZone)
         let displacedWindow = removeOccupantIfNeeded(in: highestZone, controller: controller, excluding: managed.windowId)
 
-        assignWindowToZone(managed, zone: highestZone, screenId: screenId, descriptor: descriptor)
+        assignWindowToZone(
+            managed,
+            zone: highestZone,
+            screenId: screenId,
+            descriptor: descriptor,
+            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+        )
 
         minimizeOrCloseDisplacedWindow(displacedWindow)
     }
@@ -223,20 +258,18 @@ class WindowPlacementManager {
         _ managed: ManagedWindow,
         zone: Zone,
         screenId: CGDirectDisplayID,
-        descriptor: ScreenDescriptor
+        descriptor: ScreenDescriptor,
+        zoneWasEmptyBeforeAssignment: Bool
     ) {
         guard let delegate = delegate else { return }
 
         let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
         let wasTargetedZone = delegate.targetedZoneManager.targetedZoneKey == filledZoneKey
 
-        // Track if this zone was empty (had a placeholder) before we fill it
-        var wasEmptyZone = false
         for window in delegate.windowController.allWindows where window.isPlaceholder {
             if window.zoneIndex == zone.index && window.screenDisplayId == screenId {
                 delegate.windowController.closeWindow(window)
                 delegate.forgetPlaceholder(windowId: window.windowId)
-                wasEmptyZone = true
             }
         }
 
@@ -249,7 +282,7 @@ class WindowPlacementManager {
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
         delegate.updateTemporaryZoneTargeting(reason: "zone-assignment")
 
-        if wasEmptyZone && wasTargetedZone {
+        if zoneWasEmptyBeforeAssignment && wasTargetedZone {
             // Specification: filling the targeted zone promotes the lowest-index remaining empty zone (if any)
             let nextEmpty = delegate.targetedZoneManager.lowestIndexEmptyZone(excluding: filledZoneKey)
             if let nextEmpty {
@@ -270,14 +303,32 @@ class WindowPlacementManager {
             return nil
         }
 
+        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
         let displacedWindow = removeOccupantIfNeeded(
             in: zone,
             controller: context.zoneController,
             excluding: managed.windowId
         )
 
-        assignWindowToZone(managed, zone: zone, screenId: targetKey.screenId, descriptor: descriptor)
+        assignWindowToZone(
+            managed,
+            zone: zone,
+            screenId: targetKey.screenId,
+            descriptor: descriptor,
+            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+        )
         return DragAssignmentResult(displacedWindow: displacedWindow)
+    }
+
+    private func zoneWasEmptyBeforePlacement(_ zone: Zone) -> Bool {
+        guard let occupantId = zone.windowId else {
+            return true
+        }
+        guard let delegate = delegate,
+              let occupant = delegate.windowController.window(withId: occupantId) else {
+            return false
+        }
+        return occupant.isPlaceholder
     }
 
     /// Finds the first zone that can accept a window displaced by zone removal.

@@ -24,6 +24,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
 final class TemporaryZoneCoordinator {
     weak var host: TemporaryZoneCoordinatorHost?
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
+    private var lastEmptyZoneCount: Int?
 
     init(host: TemporaryZoneCoordinatorHost) {
         self.host = host
@@ -148,7 +149,12 @@ final class TemporaryZoneCoordinator {
 
     func refreshTargeting(reason: String) {
         guard let host else { return }
-        if hasAvailableTiledZone(in: host.screenContexts) {
+
+        let emptyCount = emptyZoneCount(in: host.screenContexts)
+        let previousCount = lastEmptyZoneCount ?? emptyCount
+        defer { lastEmptyZoneCount = emptyCount }
+
+        if emptyCount > 0 {
             if host.targetedZoneManager.targetedTemporaryScreenId != nil {
                 let preferred = host.targetedZoneManager.targetedZoneKey?.screenId ?? host.activeScreenId()
                 let fallback = host.targetedZoneManager.fallbackTargetedZone(preferredScreenId: preferred)
@@ -157,10 +163,12 @@ final class TemporaryZoneCoordinator {
             return
         }
 
-        let preferredScreen = host.targetedZoneManager.targetedZoneKey?.screenId
-            ?? host.targetedZoneManager.targetedTemporaryScreenId
-            ?? host.activeScreenId()
-        host.targetedZoneManager.setTemporaryTarget(on: preferredScreen, reason: reason)
+        if previousCount > 0 {
+            let preferredScreen = host.targetedZoneManager.targetedZoneKey?.screenId
+                ?? host.targetedZoneManager.targetedTemporaryScreenId
+                ?? host.activeScreenId()
+            host.targetedZoneManager.setTemporaryTarget(on: preferredScreen, reason: reason)
+        }
     }
 
     func finalizeFloatingDrop(
@@ -228,16 +236,17 @@ final class TemporaryZoneCoordinator {
 
     func hasAvailableTiledZone() -> Bool {
         guard let host else { return false }
-        return hasAvailableTiledZone(in: host.screenContexts)
+        return emptyZoneCount(in: host.screenContexts) > 0
     }
 
-    private func hasAvailableTiledZone(in contexts: [CGDirectDisplayID: ScreenContext]) -> Bool {
+    private func emptyZoneCount(in contexts: [CGDirectDisplayID: ScreenContext]) -> Int {
+        var count = 0
         for context in contexts.values {
-            if context.zoneController.findEmptyZone() != nil {
-                return true
+            for zone in context.zoneController.allZones where zone.isEmpty {
+                count += 1
             }
         }
-        return false
+        return count
     }
 
     private func tiledFocusContext(pid: pid_t, focusedWindowId: Int?) -> (window: ManagedWindow, pid: pid_t)? {
