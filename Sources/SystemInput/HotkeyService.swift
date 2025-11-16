@@ -125,7 +125,7 @@ final class HotkeyService {
             modifierFlags,
             hotKeyID,
             GetApplicationEventTarget(),
-            0,
+            OptionBits(kEventHotKeyExclusive),
             &hotKeyRef
         )
 
