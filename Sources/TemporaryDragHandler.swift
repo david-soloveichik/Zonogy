@@ -8,7 +8,12 @@ protocol TemporaryDragHandlerHost: AnyObject {
     func resolveTemporaryDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
-    func finalizeFloatingTemporaryDrop(windowId: Int, finalFrame: CGRect, hoveredAddZoneScreenId: CGDirectDisplayID?)
+    func finalizeFloatingTemporaryDrop(
+        windowId: Int,
+        finalFrame: CGRect,
+        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        finalCursorPoint: CGPoint?
+    )
 }
 
 /// Encapsulates floating temporary-zone drag behaviour so AppController stays lean.
@@ -18,6 +23,7 @@ final class TemporaryDragHandler {
         let originScreenId: CGDirectDisplayID?
         var hoveredAddZoneScreenId: CGDirectDisplayID?
         var hoveredTemporaryScreenId: CGDirectDisplayID?
+        var lastCursorPoint: CGPoint?
     }
 
     weak var host: TemporaryDragHandlerHost?
@@ -32,7 +38,8 @@ final class TemporaryDragHandler {
             windowId: windowId,
             originScreenId: originScreenId,
             hoveredAddZoneScreenId: nil,
-            hoveredTemporaryScreenId: nil
+            hoveredTemporaryScreenId: nil,
+            lastCursorPoint: nil
         )
     }
 
@@ -48,6 +55,7 @@ final class TemporaryDragHandler {
         }
 
         let cursorPoint = host.currentCursorAccessibilityPoint()
+        current.lastCursorPoint = cursorPoint
         let addZoneTarget = host.resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         if current.hoveredAddZoneScreenId != addZoneTarget {
             current.hoveredAddZoneScreenId = addZoneTarget
@@ -68,10 +76,12 @@ final class TemporaryDragHandler {
             return
         }
         state = nil
+        let finalCursorPoint = current.lastCursorPoint ?? host.currentCursorAccessibilityPoint()
         host.finalizeFloatingTemporaryDrop(
             windowId: current.windowId,
             finalFrame: finalFrame,
-            hoveredAddZoneScreenId: current.hoveredAddZoneScreenId
+            hoveredAddZoneScreenId: current.hoveredAddZoneScreenId,
+            finalCursorPoint: finalCursorPoint
         )
         host.updateAddZoneIndicatorHighlight(screenId: nil)
         host.updateTemporaryIndicatorHighlight(screenId: nil)

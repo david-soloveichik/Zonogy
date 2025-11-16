@@ -12,6 +12,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func addZone(on screenId: CGDirectDisplayID, announce: Bool) -> Zone?
+    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func refreshIndicators()
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     func activeScreenId() -> CGDirectDisplayID
@@ -154,54 +155,38 @@ final class TemporaryZoneCoordinator {
 
     func finalizeFloatingDrop(
         windowId: Int,
-        finalFrame: CGRect,
-        hoveredAddZoneScreenId: CGDirectDisplayID?
+        _ finalFrame: CGRect,
+        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        finalCursorPoint: CGPoint?
     ) {
         guard let host,
               let managed = host.windowController.window(withId: windowId) else {
             return
         }
 
-        if let hoveredAddZoneScreenId,
-           let newZone = host.addZone(on: hoveredAddZoneScreenId, announce: false) {
+        let addZoneScreenId = hoveredAddZoneScreenId ??
+            addZoneDropTarget(for: finalCursorPoint)
+
+        if let addZoneScreenId,
+           let newZone = host.addZone(on: addZoneScreenId, announce: false) {
             clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
             if let result = host.windowPlacementManager.assignWindowFromDrag(
                 managed,
-                to: ZoneKey(screenId: hoveredAddZoneScreenId, index: newZone.index)
+                to: ZoneKey(screenId: addZoneScreenId, index: newZone.index)
             ) {
-                host.resolveDisplacedWindow(result.displacedWindow, preferredScreenId: hoveredAddZoneScreenId)
+                host.resolveDisplacedWindow(result.displacedWindow, preferredScreenId: addZoneScreenId)
             }
             return
         }
 
-        // If the user dragged to the add-zone pillar, fall back to auto-add detection
-        guard let dropScreenId = addZoneDropTarget(for: finalFrame) else {
-            return
-        }
-
-        guard let newZone = host.addZone(on: dropScreenId, announce: false) else {
-            Logger.debug("Unable to add zone on screen \(host.screenContextStore.loggingIndex(for: dropScreenId)) for floating drag drop")
-            return
-        }
-
-        clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
-        if let result = host.windowPlacementManager.assignWindowFromDrag(
-            managed,
-            to: ZoneKey(screenId: dropScreenId, index: newZone.index)
-        ) {
-            host.resolveDisplacedWindow(result.displacedWindow, preferredScreenId: dropScreenId)
-        }
+        // Otherwise, leaving the temporary zone simply keeps the window floating.
     }
-
-    private func addZoneDropTarget(for accessibilityFrame: CGRect) -> CGDirectDisplayID? {
-        guard let host else { return nil }
-        let frame = accessibilityFrame.standardized
-        for (screenId, context) in host.screenContexts {
-            let descriptor = context.descriptor
-            let zoneFrame = descriptor.screenToAccessibility(descriptor.visibleScreenBounds)
-            if zoneFrame.intersects(frame) {
-                return screenId
-            }
+    
+    private func addZoneDropTarget(for cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+        guard let host, let cursorPoint else { return nil }
+        let hitAreas = host.addZoneIndicatorHitAreas()
+        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
+            return screenId
         }
         return nil
     }

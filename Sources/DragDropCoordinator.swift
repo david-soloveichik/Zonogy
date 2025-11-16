@@ -269,16 +269,20 @@ class DragDropCoordinator {
 
     private func resolveTemporaryDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
         guard let cursorPoint,
-              let delegate = delegate,
-              delegate.isControlCommandDragActive(),
-              let targetScreen = delegate.targetedZoneManager.targetedTemporaryScreenId else {
+              let delegate = delegate else {
             return nil
         }
+
         let hitAreas = delegate.temporaryIndicatorHitAreas()
-        guard let frame = hitAreas[targetScreen], frame.contains(cursorPoint) else {
-            return nil
+        if let targeted = delegate.targetedZoneManager.targetedTemporaryScreenId,
+           let targetedFrame = hitAreas[targeted], targetedFrame.contains(cursorPoint) {
+            return targeted
         }
-        return targetScreen
+
+        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
+            return screenId
+        }
+        return nil
     }
 
     private func recordDragUpdate(windowId: Int, frame: CGRect) {

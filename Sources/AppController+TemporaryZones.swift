@@ -44,11 +44,17 @@ extension AppController {
         temporaryZoneCoordinator.hasAvailableTiledZone()
     }
 
-    func finalizeFloatingTemporaryDrop(windowId: Int, finalFrame: CGRect, hoveredAddZoneScreenId: CGDirectDisplayID?) {
+    func finalizeFloatingTemporaryDrop(
+        windowId: Int,
+        finalFrame: CGRect,
+        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        finalCursorPoint: CGPoint?
+    ) {
         temporaryZoneCoordinator.finalizeFloatingDrop(
             windowId: windowId,
-            finalFrame: finalFrame,
-            hoveredAddZoneScreenId: hoveredAddZoneScreenId
+            finalFrame,
+            hoveredAddZoneScreenId: hoveredAddZoneScreenId,
+            finalCursorPoint: finalCursorPoint
         )
     }
 }

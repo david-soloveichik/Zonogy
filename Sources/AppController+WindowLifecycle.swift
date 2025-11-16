@@ -223,7 +223,8 @@ extension AppController {
 
         if let managed = windowController.window(withId: windowId),
            !managed.isPlaceholder,
-           managed.zoneIndex == nil {
+           managed.zoneIndex == nil,
+           !isWindowInTemporaryZone(windowId) {
             // Window vanished mid-drag; snap it back into regular placement flow.
             windowPlacementManager.placeNewWindow(managed, preferredScreenId: result.preferredScreenId)
         }
@@ -379,12 +380,18 @@ extension AppController {
     }
 
     internal func resolveTemporaryDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
-        guard let cursorPoint,
-              let targetScreen = targetedTemporaryScreenId,
-              let frame = temporaryIndicatorTracker.hitAreas[targetScreen] else {
-            return nil
+        guard let cursorPoint else { return nil }
+
+        let hitAreas = temporaryIndicatorTracker.hitAreas
+        if let targeted = targetedTemporaryScreenId,
+           let targetedFrame = hitAreas[targeted], targetedFrame.contains(cursorPoint) {
+            return targeted
         }
-        return frame.contains(cursorPoint) ? targetScreen : nil
+
+        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
+            return screenId
+        }
+        return nil
     }
 
 }
