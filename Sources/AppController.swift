@@ -143,6 +143,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         // Create initial placeholder for the first empty zone
         syncWindowsToZones()
         targetedZoneManager.ensureTargetedZone(reason: "startup")
+        if !hasAvailableTiledZone() {
+            targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
+        }
         refreshIndicators()
     }
 
