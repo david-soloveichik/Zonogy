@@ -235,6 +235,7 @@ extension AppController {
     func windowManualMoveDidAbort(windowId: Int) {
         if temporaryDragHandler.isActive {
             temporaryDragHandler.abortDrag()
+            cancelTiledTemporaryConversionIfNeeded(windowId: windowId, reason: "temporary-drag-abort")
             return
         }
         if dragDropCoordinator.currentDragWindowId == windowId {
@@ -288,6 +289,88 @@ extension AppController {
             originZoneKey: nil,
             originScreenId: originScreenId,
             originatedFromTemporary: true
+        )
+        dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
+    }
+
+    internal func promoteTiledDragToTemporary(
+        windowId: Int,
+        frame: CGRect,
+        originZoneKey: ZoneKey?,
+        originScreenId: CGDirectDisplayID?,
+        preferredTemporaryScreenId: CGDirectDisplayID?
+    ) -> Bool {
+        guard let managed = windowController.window(withId: windowId),
+              !temporaryDragHandler.isActive else {
+            return false
+        }
+
+        let destinationScreenId = preferredTemporaryScreenId
+            ?? targetedTemporaryScreenId
+            ?? originZoneKey?.screenId
+            ?? originScreenId
+            ?? detectScreenId(for: managed)
+            ?? activeScreenId()
+
+        let displaced = temporaryZoneOccupant(on: destinationScreenId)
+        let displacedFrame = displaced.flatMap { captureTemporaryScreenFrame(for: $0, on: destinationScreenId) }
+
+        if let originKey = originZoneKey,
+           let originContext = screenContexts[originKey.screenId] {
+            originContext.zoneController.removeWindow(windowId: windowId)
+        }
+        clearManagedWindowZone(managed)
+
+        assignWindowToTemporaryZone(
+            managed,
+            on: destinationScreenId,
+            centerWindow: true,
+            reason: "control-command-drag-to-temporary"
+        )
+
+        temporaryDragHandler.beginDrag(
+            windowId: windowId,
+            originScreenId: destinationScreenId,
+            originZoneKey: originZoneKey,
+            requiresControlCommand: true
+        )
+        temporaryDragHandler.updateDrag(frame: frame)
+
+        tiledToTemporaryDragContexts[windowId] = TiledToTemporaryDragContext(
+            originZoneKey: originZoneKey,
+            originScreenId: originScreenId,
+            temporaryScreenId: destinationScreenId,
+            displacedWindowId: displaced?.windowId,
+            displacedWindowFrame: displacedFrame
+        )
+
+        return true
+    }
+
+    func revertTemporaryDragToTiled(
+        windowId: Int,
+        frame: CGRect,
+        originZoneKey: ZoneKey?,
+        originScreenId: CGDirectDisplayID?
+    ) {
+        guard let context = tiledToTemporaryDragContexts.removeValue(forKey: windowId),
+              let managed = windowController.window(withId: windowId) else {
+            return
+        }
+
+        reinstateWindowFromTemporaryContext(
+            windowId: windowId,
+            context: context,
+            managed: managed,
+            reason: "control-command-release"
+        )
+
+        dragDropCoordinator.beginDragSession(
+            windowId: windowId,
+            frame: frame,
+            originZoneKey: context.originZoneKey,
+            originScreenId: context.originScreenId,
+            originatedFromTemporary: false
         )
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
     }
@@ -412,5 +495,68 @@ extension AppController {
         )
         temporaryDragHandler.beginDrag(windowId: windowId, originScreenId: screenId)
         temporaryDragHandler.updateDrag(frame: frame)
+    }
+
+    private func captureTemporaryScreenFrame(for window: ManagedWindow, on screenId: CGDirectDisplayID) -> CGRect? {
+        guard let descriptor = descriptor(for: screenId) else {
+            return nil
+        }
+        let actualFrame = window.actualFrame
+        let accessibilityFrame: CGRect
+        switch window.backing {
+        case .appKit:
+            accessibilityFrame = CoordinateConversion.cocoaToAccessibility(
+                cocoaFrame: actualFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
+        case .accessibility:
+            accessibilityFrame = actualFrame
+        }
+        return descriptor.accessibilityToScreen(accessibilityFrame)
+    }
+
+    private func restoreTemporaryOccupant(from context: TiledToTemporaryDragContext) {
+        guard let displacedId = context.displacedWindowId,
+              let displaced = windowController.window(withId: displacedId) else {
+            return
+        }
+        windowController.unminimizeWindow(displaced)
+        assignWindowToTemporaryZone(
+            displaced,
+            on: context.temporaryScreenId,
+            centerWindow: false,
+            reason: "temporary-drag-revert"
+        )
+        if let frame = context.displacedWindowFrame,
+           let descriptor = descriptor(for: context.temporaryScreenId) {
+            windowController.showWindow(displaced, at: frame, on: descriptor)
+        }
+    }
+
+    private func reinstateWindowFromTemporaryContext(
+        windowId: Int,
+        context: TiledToTemporaryDragContext,
+        managed: ManagedWindow,
+        reason: String
+    ) {
+        clearTemporaryZone(for: windowId, minimize: false, reason: reason)
+        restoreTemporaryOccupant(from: context)
+
+        if let originKey = context.originZoneKey,
+           let originContext = screenContexts[originKey.screenId] {
+            originContext.zoneController.assignWindow(windowId: windowId, toZoneIndex: originKey.index)
+            setManagedWindow(managed, screenId: originKey.screenId, zoneIndex: originKey.index)
+        } else if let screenId = context.originScreenId {
+            setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
+        }
+    }
+
+    internal func cancelTiledTemporaryConversionIfNeeded(windowId: Int, reason: String) {
+        guard let context = tiledToTemporaryDragContexts.removeValue(forKey: windowId),
+              let managed = windowController.window(withId: windowId) else {
+            return
+        }
+        reinstateWindowFromTemporaryContext(windowId: windowId, context: context, managed: managed, reason: reason)
+        syncWindowsToZones()
     }
 }

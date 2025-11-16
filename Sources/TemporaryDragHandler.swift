@@ -8,6 +8,12 @@ protocol TemporaryDragHandlerHost: AnyObject {
     func resolveTemporaryDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
+    func revertTemporaryDragToTiled(
+        windowId: Int,
+        frame: CGRect,
+        originZoneKey: ZoneKey?,
+        originScreenId: CGDirectDisplayID?
+    )
     func finalizeFloatingTemporaryDrop(
         windowId: Int,
         finalFrame: CGRect,
@@ -21,6 +27,8 @@ final class TemporaryDragHandler {
     private struct State {
         let windowId: Int
         let originScreenId: CGDirectDisplayID?
+        let originZoneKey: ZoneKey?
+        let requiresControlCommand: Bool
         var hoveredAddZoneScreenId: CGDirectDisplayID?
         var hoveredTemporaryScreenId: CGDirectDisplayID?
         var lastCursorPoint: CGPoint?
@@ -33,10 +41,17 @@ final class TemporaryDragHandler {
         self.host = host
     }
 
-    func beginDrag(windowId: Int, originScreenId: CGDirectDisplayID?) {
+    func beginDrag(
+        windowId: Int,
+        originScreenId: CGDirectDisplayID?,
+        originZoneKey: ZoneKey? = nil,
+        requiresControlCommand: Bool = false
+    ) {
         state = State(
             windowId: windowId,
             originScreenId: originScreenId,
+            originZoneKey: originZoneKey,
+            requiresControlCommand: requiresControlCommand,
             hoveredAddZoneScreenId: nil,
             hoveredTemporaryScreenId: nil,
             lastCursorPoint: nil
@@ -48,7 +63,18 @@ final class TemporaryDragHandler {
             return
         }
 
-        if host.isControlCommandDragActive() {
+        if current.requiresControlCommand {
+            if !host.isControlCommandDragActive() {
+                state = nil
+                host.revertTemporaryDragToTiled(
+                    windowId: current.windowId,
+                    frame: frame,
+                    originZoneKey: current.originZoneKey,
+                    originScreenId: current.originScreenId
+                )
+                return
+            }
+        } else if host.isControlCommandDragActive() {
             host.promoteFloatingDragToZone(windowId: current.windowId, frame: frame, originScreenId: current.originScreenId)
             state = nil
             return

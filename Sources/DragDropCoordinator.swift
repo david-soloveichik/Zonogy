@@ -54,6 +54,13 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func dropWindowIntoTemporaryZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
     func isControlCommandDragActive() -> Bool
     func resumeTemporaryDrag(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
+    func promoteTiledDragToTemporary(
+        windowId: Int,
+        frame: CGRect,
+        originZoneKey: ZoneKey?,
+        originScreenId: CGDirectDisplayID?,
+        preferredTemporaryScreenId: CGDirectDisplayID?
+    ) -> Bool
 }
 
 class DragDropCoordinator {
@@ -309,6 +316,24 @@ class DragDropCoordinator {
         var temporaryScreenId: CGDirectDisplayID?
         if addZoneScreenId == nil {
             temporaryScreenId = resolveTemporaryDropTarget(cursorPoint: cursorPoint)
+        }
+        if !session.originatedFromTemporary,
+           let delegate,
+           delegate.isControlCommandDragActive(),
+           delegate.promoteTiledDragToTemporary(
+               windowId: session.windowId,
+               frame: frame,
+               originZoneKey: session.originZoneKey,
+               originScreenId: session.originScreenId,
+               preferredTemporaryScreenId: temporaryScreenId
+                   ?? session.hoveredTemporaryScreenId
+                   ?? delegate.targetedZoneManager.targetedTemporaryScreenId
+           ) {
+            dragOverlayManager.tearDown()
+            dragSession = nil
+            delegate.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate.updateTemporaryIndicatorHighlight(screenId: nil)
+            return
         }
         session.hoveredZoneKey = targetKey
         session.hoveredAddZoneScreenId = addZoneScreenId

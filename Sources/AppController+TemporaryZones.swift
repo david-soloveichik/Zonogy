@@ -56,5 +56,6 @@ extension AppController {
             hoveredAddZoneScreenId: hoveredAddZoneScreenId,
             finalCursorPoint: finalCursorPoint
         )
+        tiledToTemporaryDragContexts.removeValue(forKey: windowId)
     }
 }

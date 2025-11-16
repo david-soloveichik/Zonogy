@@ -15,6 +15,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var bottom: CGFloat
         var right: CGFloat
     }
+    struct TiledToTemporaryDragContext {
+        let originZoneKey: ZoneKey?
+        let originScreenId: CGDirectDisplayID?
+        let temporaryScreenId: CGDirectDisplayID
+        let displacedWindowId: Int?
+        let displacedWindowFrame: CGRect?
+    }
 
     static let shared = AppController()
 
@@ -46,6 +53,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
     internal lazy var temporaryZoneCoordinator = TemporaryZoneCoordinator(host: self)
     internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
+    internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()

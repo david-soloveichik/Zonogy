@@ -192,6 +192,7 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.
 - Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline. We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
 - When dragging a window from a normal (tiled zoned), dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
+- Control-Command-drag can also be used to place a tiled window (ie normal zone) into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
 
 ### Screen Management
 
