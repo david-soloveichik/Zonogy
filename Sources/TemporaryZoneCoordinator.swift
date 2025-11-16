@@ -98,7 +98,11 @@ final class TemporaryZoneCoordinator {
     }
 
     func handleFocusChange(pid: pid_t, focusedWindowId: Int?) {
-        guard let host else { return }
+        guard let host,
+              let focusContext = tiledFocusContext(pid: pid, focusedWindowId: focusedWindowId) else {
+            return
+        }
+
         let entries = occupants
         for (screenId, occupantId) in entries {
             guard let window = host.windowController.window(withId: occupantId),
@@ -107,8 +111,8 @@ final class TemporaryZoneCoordinator {
                 continue
             }
 
-            if occupantPid == pid {
-                if focusedWindowId == occupantId {
+            if occupantPid == focusContext.pid {
+                if focusContext.window.windowId == occupantId {
                     continue
                 }
                 minimizeOccupant(on: screenId, reason: "focus-shift-same-app")
@@ -119,7 +123,12 @@ final class TemporaryZoneCoordinator {
     }
 
     func handleActivationChange(focusedPid: pid_t?, reason: String) {
-        guard let host else { return }
+        guard let host,
+              let focusedPid,
+              let focusContext = tiledFocusContext(pid: focusedPid, focusedWindowId: nil) else {
+            return
+        }
+
         let entries = occupants
         for (screenId, occupantId) in entries {
             guard let window = host.windowController.window(withId: occupantId),
@@ -128,7 +137,8 @@ final class TemporaryZoneCoordinator {
                 continue
             }
 
-            if let focusedPid, occupantPid == focusedPid {
+            if occupantPid == focusContext.pid,
+               focusContext.window.windowId == occupantId {
                 continue
             }
 
@@ -228,5 +238,42 @@ final class TemporaryZoneCoordinator {
             }
         }
         return false
+    }
+
+    private func tiledFocusContext(pid: pid_t, focusedWindowId: Int?) -> (window: ManagedWindow, pid: pid_t)? {
+        guard let host,
+              let managed = resolvedFocusedWindow(host: host, pid: pid, focusedWindowId: focusedWindowId),
+              isTiledWindow(managed) else {
+            return nil
+        }
+
+        let resolvedPid = accessibilityPid(for: managed) ?? pid
+        return (managed, resolvedPid)
+    }
+
+    private func resolvedFocusedWindow(
+        host: TemporaryZoneCoordinatorHost,
+        pid: pid_t,
+        focusedWindowId: Int?
+    ) -> ManagedWindow? {
+        if let focusedWindowId,
+           let window = host.windowController.window(withId: focusedWindowId) {
+            return window
+        }
+        return host.windowController.focusedWindowIfTracked(pid: pid)
+    }
+
+    private func isTiledWindow(_ window: ManagedWindow) -> Bool {
+        guard !window.isPlaceholder else {
+            return false
+        }
+        return window.zoneIndex != nil
+    }
+
+    private func accessibilityPid(for window: ManagedWindow) -> pid_t? {
+        if case .accessibility(_, let pid, _) = window.backing {
+            return pid
+        }
+        return nil
     }
 }

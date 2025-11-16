@@ -183,10 +183,10 @@ This behavior makes oversized right-column windows usable without permanently di
 
 ### Temporary Zones (another kind of zone)
 
-The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other (tiled) zones. It is temporary in the sense that whenever the focus moves away from the window in the temporary zone, the temporary zone is cleared (window minimized). More details:
+The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other (tiled) zones. It is temporary in the sense that as soon as the user directs focus to a tiled zone window, the floating occupant is cleared (window minimized). More details:
 
 - Holds at most one managed window (no placeholder). This is also called the "floating window". When placed into a temporary zone, a window is centered and resized once; after that the user may freely move/resize it without changing any tiled frames.
-- Placing another window into the temporary zone minimizes the previous occupant. Losing focus/key status for any reason (clicking a tiled zone, activating another app, clicking a placeholder) immediately minimizes the current occupant as well.
+- Placing another window into the temporary zone minimizes the previous occupant. Focus loss is now conservative: we only minimize the floating window when another **tiled zone occupant** (non-placeholder) becomes active/front-most. Activating system overlays, launchers (e.g., LaunchBar), or other unmanaged panels leaves the temporary occupant alone unless some other action (like clicking a placeholder) explicitly clears it.
 - Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
 - At the point when we fill the last previously empty tiled (normal) zone the temporary zone auto-targets; once any tiled zone becomes empty or a new one is created, normal targeting rules resume. Emptying the temporary zone never forces retargeting.
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.
