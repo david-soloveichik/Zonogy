@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost {
     struct FloatingTemporaryDragState {
         let windowId: Int
         var hoveredAddZoneScreenId: CGDirectDisplayID?
@@ -56,7 +56,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let indicatorManager = ZoneIndicatorManager()
     internal let temporaryIndicatorManager = TemporaryZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
-    internal lazy var temporaryZoneCoordinator = TemporaryZoneCoordinator(host: self)
+    internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
+    internal lazy var temporaryZoneCoordinator = TemporaryZoneCoordinator(
+        host: self,
+        displacedWindowCoordinator: displacedWindowCoordinator
+    )
     internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
     internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()

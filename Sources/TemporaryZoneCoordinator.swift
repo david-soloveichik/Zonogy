@@ -17,22 +17,19 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
-    func resolveDisplacedWindow(
-        _ displacedWindow: ManagedWindow?,
-        preferredScreenId: CGDirectDisplayID?,
-        disposition: DisplacedWindowDisposition
-    )
     func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
 }
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
 final class TemporaryZoneCoordinator {
     weak var host: TemporaryZoneCoordinatorHost?
+    private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
     private var lastEmptyZoneCount: Int?
 
-    init(host: TemporaryZoneCoordinatorHost) {
+    init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
+        self.displacedWindowCoordinator = displacedWindowCoordinator
     }
 
     func occupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
@@ -205,7 +202,7 @@ final class TemporaryZoneCoordinator {
                 managed,
                 to: ZoneKey(screenId: addZoneScreenId, index: newZone.index)
             ) {
-                host.resolveDisplacedWindow(
+                displacedWindowCoordinator.resolve(
                     result.displacedWindow,
                     preferredScreenId: addZoneScreenId,
                     disposition: .reassign
