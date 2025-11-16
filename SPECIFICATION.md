@@ -227,7 +227,7 @@ After events such as application termination, workspace focus changes, or access
 
 `kAXWindowCreatedNotification` is not reliably generated, while `kAXFocusedWindowChangedNotification` is much more reliable. We subscribe to both for max reliability.
 
-Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on LatticeTopology and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
+Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on Zonogy and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
 
 ## 8. Developer Tools
 
@@ -308,6 +308,14 @@ Zonogy always writes debug logs to `/tmp/zonogy-debug.log`. AI agents should rea
 When I am running Zonogy (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
 After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
+
+### Sleep/Wake State Recovery
+
+macOS can destroy and recreate application windows when the computer sleeps. Zonogy must preserve its layout across those transitions:
+
+- **Temporary zone snapshot** – before sleep we record the floating window (bundle ID, CGWindowID, internal `windowId`, and title) for each screen's temporary zone. After wake we immediately reattach any returning window that matches the snapshot and keep it key/visible for a short protection window so newly recaptured tiled windows cannot minimize it.
+- **Per-zone snapshot** – before sleep we also snapshot every tiled zone using the zone's `screenId`+index together with the window's identifiers described above. When a window is recaptured during wake, we first check whether it matches a stored snapshot. If so we force-place it back into its remembered zone (evicting placeholders or temporary occupants as needed) before running the normal placement logic. This applies independently per screen, so multi-display layouts are preserved exactly.
+- **Multiple wake passes** – because Accessibility events can arrive slowly after wake, we replay the snapshot data immediately after the first sync *and* again after each scheduled recapture (0.5 s, 1.5 s, 3.0 s) so late-arriving windows still land in their original zones. Snapshots are cleared only after the matching window successfully returns to its zone.
 
 ### External Tool: `winmanmon`
 

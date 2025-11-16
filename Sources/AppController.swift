@@ -23,6 +23,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let displacedWindowFrame: CGRect?
     }
 
+    struct TemporaryZoneIdentitySnapshot {
+        let screenId: CGDirectDisplayID
+        let identity: WindowIdentity
+    }
+
     static let shared = AppController()
 
     internal let windowController: WindowController
@@ -66,6 +71,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let activeFitOverflowTolerance: CGFloat = 1.0
     internal var activeFitState: ActiveFitState?
     internal var activeFitSuppressedWindowIds: Set<Int> = []
+    internal var pendingTemporaryZoneIdentitySnapshots: [CGDirectDisplayID: TemporaryZoneIdentitySnapshot] = [:]
+    internal var temporaryZoneWakeProtectionDeadlines: [Int: Date] = [:]
+    internal let temporaryZoneWakeProtectionDuration: TimeInterval = 5.0
+    internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
+    internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

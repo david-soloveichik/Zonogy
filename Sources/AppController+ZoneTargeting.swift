@@ -157,6 +157,12 @@ extension AppController {
         managed.zoneIndex = zoneIndex
         if zoneIndex != nil {
             clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
+            let key = ZoneKey(screenId: screenId, index: zoneIndex!)
+            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != managed.windowId || $0.key == key }
+            liveZoneAssignments[key] = ZoneAssignmentSnapshot(
+                zoneKey: key,
+                identity: .make(from: managed)
+            )
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }

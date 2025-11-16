@@ -17,15 +17,20 @@ extension AppController {
         reason: String
     ) {
         temporaryZoneCoordinator.assign(managed, to: screenId, centerWindow: centerWindow, reason: reason)
+        clearTemporaryZoneWakeProtection(windowId: managed.windowId)
         updateTemporaryZoneTargeting(reason: reason)
     }
 
     func minimizeTemporaryZoneOccupant(on screenId: CGDirectDisplayID, reason: String) {
+        if let occupant = temporaryZoneOccupant(on: screenId) {
+            clearTemporaryZoneWakeProtection(windowId: occupant.windowId)
+        }
         temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: reason)
     }
 
     func clearTemporaryZone(for windowId: Int, minimize: Bool, reason: String) {
         temporaryZoneCoordinator.clear(windowId: windowId, minimize: minimize, reason: reason)
+        clearTemporaryZoneWakeProtection(windowId: windowId)
     }
 
     func updateTemporaryZoneTargeting(reason: String) {
@@ -64,6 +69,12 @@ extension AppController {
             return
         }
         guard occupant.windowId != windowId else {
+            return
+        }
+        if shouldProtectTemporaryZoneOccupant(windowId: occupant.windowId) {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug("Skipping temporary zone minimization for wake-protected window \(occupant.windowId) on screen \(screenIndex) (reason: \(reason))")
+            scheduleTemporaryZoneWakeProtection(windowId: occupant.windowId)
             return
         }
         minimizeTemporaryZoneOccupant(on: screenId, reason: reason)

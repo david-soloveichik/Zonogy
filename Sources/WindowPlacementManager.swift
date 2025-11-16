@@ -42,6 +42,8 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         excluding windowId: Int,
         reason: String
     )
+    func handleTemporaryZoneRestorationIfNeeded(_ managed: ManagedWindow) -> Bool
+    func handleZoneAssignmentRestorationIfNeeded(_ managed: ManagedWindow) -> Bool
 }
 
 class WindowPlacementManager {
@@ -60,6 +62,14 @@ class WindowPlacementManager {
 
         delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window")
         managed.zoneIndex = nil
+
+        if delegate.handleZoneAssignmentRestorationIfNeeded(managed) {
+            return
+        }
+
+        if delegate.handleTemporaryZoneRestorationIfNeeded(managed) {
+            return
+        }
 
         if let preferredScreenId {
             placeWindow(managed, on: preferredScreenId)
@@ -258,6 +268,41 @@ class WindowPlacementManager {
         )
 
         minimizeOrCloseDisplacedWindow(displacedWindow)
+    }
+
+    /// Places a window into a specific zone, used for restoring pre-sleep assignments.
+    func placeWindow(
+        _ managed: ManagedWindow,
+        into zoneKey: ZoneKey,
+        reason: String
+    ) {
+        guard let delegate = delegate,
+              let context = delegate.screenContexts[zoneKey.screenId],
+              let descriptor = delegate.descriptor(for: zoneKey.screenId),
+              let zone = context.zoneController.zone(at: zoneKey.index) else {
+            return
+        }
+
+        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: reason)
+        managed.zoneIndex = nil
+
+        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
+        let displacedWindow = removeOccupantIfNeeded(
+            in: zone,
+            controller: context.zoneController,
+            excluding: managed.windowId
+        )
+
+        assignWindowToZone(
+            managed,
+            zone: zone,
+            screenId: zoneKey.screenId,
+            descriptor: descriptor,
+            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+        )
+
+        minimizeOrCloseDisplacedWindow(displacedWindow)
+        emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: reason)
     }
 
     /// Assigns a managed window to a zone and updates targeted-zone bookkeeping.

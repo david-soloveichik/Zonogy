@@ -18,6 +18,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
     func resolveDisplacedWindow(_ displacedWindow: ManagedWindow?, preferredScreenId: CGDirectDisplayID?)
+    func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
 }
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
@@ -112,6 +113,10 @@ final class TemporaryZoneCoordinator {
                 continue
             }
 
+            if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
+                continue
+            }
+
             if occupantPid == focusContext.pid {
                 if focusContext.window.windowId == occupantId {
                     continue
@@ -135,6 +140,10 @@ final class TemporaryZoneCoordinator {
             guard let window = host.windowController.window(withId: occupantId),
                   case .accessibility(_, let occupantPid, _) = window.backing else {
                 occupants.removeValue(forKey: screenId)
+                continue
+            }
+
+            if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
                 continue
             }
 

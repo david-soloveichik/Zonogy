@@ -4,6 +4,19 @@ import ApplicationServices
 
 /// Handles hotkeys, system events, display reconfiguration, and recapture scheduling.
 extension AppController {
+    internal func currentWindowCounts() -> (managed: Int, placeholders: Int) {
+        var managed = 0
+        var placeholders = 0
+        for window in windowController.allWindows {
+            if window.isPlaceholder {
+                placeholders += 1
+            } else {
+                managed += 1
+            }
+        }
+        return (managed, placeholders)
+    }
+
     func hotkeyService(_ service: HotkeyService, didTrigger action: HotkeyService.Action) {
         switch action {
         case .addZone:
@@ -57,30 +70,14 @@ extension AppController {
     }
 
     func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
-        // Log current state before sleep
-        var managedWindowCount = 0
-        var placeholderCount = 0
-        for window in windowController.allWindows {
-            if window.isPlaceholder {
-                placeholderCount += 1
-            } else {
-                managedWindowCount += 1
-            }
-        }
+        let (managedWindowCount, placeholderCount) = currentWindowCounts()
         Logger.debug("System will sleep - current state: \(managedWindowCount) managed windows, \(placeholderCount) placeholders")
+        snapshotTemporaryZoneOccupants(reason: "sleep")
+        snapshotZoneAssignments(reason: "sleep")
     }
 
     func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
-        // Log initial state after wake
-        var initialManagedCount = 0
-        var initialPlaceholderCount = 0
-        for window in windowController.allWindows {
-            if window.isPlaceholder {
-                initialPlaceholderCount += 1
-            } else {
-                initialManagedCount += 1
-            }
-        }
+        let (initialManagedCount, initialPlaceholderCount) = currentWindowCounts()
         Logger.debug("System did wake - initial state: \(initialManagedCount) managed windows, \(initialPlaceholderCount) placeholders - scheduling delayed window recapture")
 
         // First, validate and prune any destroyed windows from existing managed windows
@@ -101,6 +98,8 @@ extension AppController {
 
         // Force immediate sync to ensure placeholders are shown
         syncWindowsToZones()
+        restoreTemporaryZoneOccupantsFromExistingWindows(reason: "wake-existing")
+        restoreZoneAssignmentsFromExistingWindows(reason: "wake-existing")
 
         // Schedule window recapture after a delay to allow the Accessibility API to stabilize
         // We use multiple attempts with increasing delays to handle different wake scenarios
@@ -115,16 +114,7 @@ extension AppController {
 
             Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
 
-            // Count how many windows we currently have
-            var preCaptureManaged = 0
-            var prePlaceholders = 0
-            for window in self.windowController.allWindows {
-                if window.isPlaceholder {
-                    prePlaceholders += 1
-                } else {
-                    preCaptureManaged += 1
-                }
-            }
+            let (preCaptureManaged, prePlaceholders) = self.currentWindowCounts()
 
             // Recapture windows from all running applications
             let visibleBundleIds = self.bundleIdsWithVisibleWindows()
@@ -149,17 +139,11 @@ extension AppController {
             // Only sync if we captured new windows
             if capturedCount > 0 {
                 self.syncWindowsToZones()
+                self.restoreTemporaryZoneOccupantsFromExistingWindows(reason: "\(reason)-recapture-\(delay)")
+                self.restoreZoneAssignmentsFromExistingWindows(reason: "\(reason)-recapture-\(delay)")
 
                 // Log the result
-                var postCaptureManaged = 0
-                var postPlaceholders = 0
-                for window in self.windowController.allWindows {
-                    if window.isPlaceholder {
-                        postPlaceholders += 1
-                    } else {
-                        postCaptureManaged += 1
-                    }
-                }
+                let (postCaptureManaged, postPlaceholders) = self.currentWindowCounts()
 
                 Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
             }
