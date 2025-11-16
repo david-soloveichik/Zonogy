@@ -18,6 +18,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
     func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
+    func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String)
 }
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
@@ -67,6 +68,8 @@ final class TemporaryZoneCoordinator {
             let frame = placementFrame(for: managed, on: descriptor)
             host.windowController.showWindow(managed, at: frame, on: descriptor)
         }
+
+        host.activateTemporaryZoneWindow(managed, reason: reason)
 
         Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
