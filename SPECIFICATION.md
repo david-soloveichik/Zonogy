@@ -189,6 +189,7 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - Placing another window into the temporary zone minimizes the previous occupant. Losing focus/key status for any reason (clicking a tiled zone, activating another app, clicking a placeholder) immediately minimizes the current occupant as well.
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator, a new zone should be created and it should be placed in it as normal.
 - Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline.
+- While Control-Command is held during a drag, the temporary zone pill highlights; dropping onto it parks the window in the temporary zone (replacing and minimizing the prior occupant) and releasing the modifiers mid-drag reverts to the normal floating drag behavior.
 - Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
 - When every tiled zone is occupied the temporary zone auto-targets; once any tiled zone becomes empty or a new one is created, normal targeting rules resume. Emptying the temporary zone never forces retargeting.
 

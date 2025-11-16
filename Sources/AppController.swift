@@ -3,9 +3,11 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost {
     struct FloatingTemporaryDragState {
         let windowId: Int
+        var hoveredAddZoneScreenId: CGDirectDisplayID?
+        var hoveredTemporaryScreenId: CGDirectDisplayID?
     }
     struct ZoneEdgeMargins {
         var top: CGFloat
@@ -42,6 +44,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let indicatorManager = ZoneIndicatorManager()
     internal let temporaryIndicatorManager = TemporaryZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
+    internal lazy var temporaryZoneCoordinator = TemporaryZoneCoordinator(host: self)
+    internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
+    internal let addIndicatorTracker = EdgeIndicatorTracker()
+    internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
@@ -49,12 +55,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenChangeDebounceInterval: TimeInterval = 0.25
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?
-    internal var currentAddZoneIndicatorHitAreas: [CGDirectDisplayID: CGRect] = [:]
     internal let activeFitOverflowTolerance: CGFloat = 1.0
     internal var activeFitState: ActiveFitState?
     internal var activeFitSuppressedWindowIds: Set<Int> = []
-    internal var temporaryZoneOccupants: [CGDirectDisplayID: Int] = [:]
-    internal var floatingTemporaryDragState: FloatingTemporaryDragState?
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

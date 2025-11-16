@@ -176,7 +176,8 @@ extension AppController {
         }
 
         if isWindowInTemporaryZone(windowId) && !isControlCommandDragActive() {
-            floatingTemporaryDragState = FloatingTemporaryDragState(windowId: windowId)
+            let tempScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+            temporaryDragHandler.beginDrag(windowId: windowId, originScreenId: tempScreenId)
             Logger.debug("Floating temporary zone drag began for window \(windowId)")
             return
         }
@@ -198,10 +199,8 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-update") {
             return
         }
-        if let state = floatingTemporaryDragState, state.windowId == windowId {
-            if isControlCommandDragActive() {
-                promoteFloatingDragToTiledDrag(windowId: windowId, frame: frame)
-            }
+        if temporaryDragHandler.isActive {
+            temporaryDragHandler.updateDrag(frame: frame)
             return
         }
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
@@ -211,9 +210,8 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
             return
         }
-        if floatingTemporaryDragState?.windowId == windowId {
-            floatingTemporaryDragState = nil
-            handleFloatingTemporaryDragEnd(windowId: windowId, finalFrame: finalFrame)
+        if temporaryDragHandler.isActive {
+            temporaryDragHandler.endDrag(finalFrame: finalFrame)
             activeFitResumeAfterDrag(windowId: windowId)
             return
         }
@@ -234,8 +232,8 @@ extension AppController {
     }
 
     func windowManualMoveDidAbort(windowId: Int) {
-        if floatingTemporaryDragState?.windowId == windowId {
-            floatingTemporaryDragState = nil
+        if temporaryDragHandler.isActive {
+            temporaryDragHandler.abortDrag()
             return
         }
         if dragDropCoordinator.currentDragWindowId == windowId {
@@ -261,20 +259,34 @@ extension AppController {
         }
     }
 
-    private func promoteFloatingDragToTiledDrag(windowId: Int, frame: CGRect) {
+    func dropWindowIntoTemporaryZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID) {
+        if let originKey,
+           let originContext = screenContexts[originKey.screenId] {
+            originContext.zoneController.removeWindow(windowId: managed.windowId)
+        }
+        clearManagedWindowZone(managed)
+        assignWindowToTemporaryZone(managed, on: screenId, centerWindow: true, reason: "drag-to-temporary-zone")
+    }
+
+    internal func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?) {
+        promoteFloatingDragToTiledDrag(windowId: windowId, frame: frame, originTemporaryScreenId: originScreenId)
+    }
+
+    private func promoteFloatingDragToTiledDrag(windowId: Int, frame: CGRect, originTemporaryScreenId: CGDirectDisplayID?) {
         guard let managed = windowController.window(withId: windowId) else {
-            floatingTemporaryDragState = nil
             return
         }
-        floatingTemporaryDragState = nil
         clearTemporaryZone(for: windowId, minimize: false, reason: "control-command-drag")
         activeFitSuspendForDrag(windowId: windowId)
-        let originScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        updateAddZoneIndicatorHighlight(screenId: nil)
+        updateTemporaryIndicatorHighlight(screenId: nil)
+        let originScreenId = originTemporaryScreenId ?? managed.screenDisplayId ?? detectScreenId(for: managed)
         dragDropCoordinator.beginDragSession(
             windowId: windowId,
             frame: frame,
             originZoneKey: nil,
-            originScreenId: originScreenId
+            originScreenId: originScreenId,
+            originatedFromTemporary: true
         )
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
     }
@@ -343,9 +355,55 @@ extension AppController {
         return "screen \(screenIndex) zone \(key.index) (\(occupancy))"
     }
 
-    private func isControlCommandDragActive() -> Bool {
+    internal func isControlCommandDragActive() -> Bool {
         let flags = NSEvent.modifierFlags
         return flags.contains(.command) && flags.contains(.control)
     }
 
+    internal func currentCursorAccessibilityPoint() -> CGPoint? {
+        let cocoaLocation = NSEvent.mouseLocation
+        let cocoaPoint = CGPoint(x: cocoaLocation.x, y: cocoaLocation.y)
+        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
+        return CoordinateConversion.cocoaToAccessibility(
+            cocoaFrame: cocoaFrame,
+            primaryScreenBounds: windowController.primaryScreenBounds
+        ).origin
+    }
+
+    internal func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+        guard let cursorPoint else { return nil }
+        for (screenId, frame) in addIndicatorTracker.hitAreas where frame.contains(cursorPoint) {
+            return screenId
+        }
+        return nil
+    }
+
+    internal func resolveTemporaryDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+        guard let cursorPoint,
+              let targetScreen = targetedTemporaryScreenId,
+              let frame = temporaryIndicatorTracker.hitAreas[targetScreen] else {
+            return nil
+        }
+        return frame.contains(cursorPoint) ? targetScreen : nil
+    }
+
+}
+
+// MARK: - DragDropCoordinatorDelegate (temporary re-entry)
+
+extension AppController {
+    func resumeTemporaryDrag(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?) {
+        guard let managed = windowController.window(withId: windowId) else {
+            return
+        }
+        let screenId = originScreenId ?? detectScreenId(for: managed) ?? activeScreenId()
+        assignWindowToTemporaryZone(
+            managed,
+            on: screenId,
+            centerWindow: false,
+            reason: "control-command-release"
+        )
+        temporaryDragHandler.beginDrag(windowId: windowId, originScreenId: screenId)
+        temporaryDragHandler.updateDrag(frame: frame)
+    }
 }

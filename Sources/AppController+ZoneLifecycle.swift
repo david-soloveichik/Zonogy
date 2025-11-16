@@ -308,7 +308,7 @@ extension AppController {
             newAddZoneHitAreas[screenId] = frames.accessibility
         }
 
-        currentAddZoneIndicatorHitAreas = newAddZoneHitAreas
+        addIndicatorTracker.updateHitAreas(newAddZoneHitAreas)
 
         if addZoneDescriptors.isEmpty {
             addZoneIndicatorManager.updateDragHighlight(screenId: nil)
@@ -318,20 +318,26 @@ extension AppController {
         }
 
         var temporaryDescriptors: [TemporaryZoneIndicatorDescriptor] = []
+        var newTemporaryHitAreas: [CGDirectDisplayID: CGRect] = [:]
         for (screenId, context) in screenContexts {
-            guard let cocoaFrame = temporaryIndicatorFrame(for: context.descriptor) else {
+            guard let frames = temporaryIndicatorFrames(for: context.descriptor) else {
                 continue
             }
             let descriptor = TemporaryZoneIndicatorDescriptor(
                 screenId: screenId,
-                cocoaFrame: cocoaFrame,
+                cocoaFrame: frames.cocoa,
                 isTargeted: targetedTemporaryScreenId == screenId,
-                isOccupied: temporaryZoneOccupants[screenId] != nil
+                isOccupied: temporaryZoneOccupant(on: screenId) != nil,
+                isDragHighlighted: temporaryIndicatorTracker.highlightedScreenId == screenId
             )
             temporaryDescriptors.append(descriptor)
+            newTemporaryHitAreas[screenId] = frames.accessibility
         }
 
+        temporaryIndicatorTracker.updateHitAreas(newTemporaryHitAreas)
+
         if temporaryDescriptors.isEmpty {
+            temporaryIndicatorTracker.setHighlightedScreen(nil)
             temporaryIndicatorManager.tearDown()
         } else {
             temporaryIndicatorManager.present(over: temporaryDescriptors)
@@ -360,27 +366,41 @@ extension AppController {
         return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
     }
 
-    private func temporaryIndicatorFrame(for descriptor: ScreenDescriptor) -> CGRect? {
+    private func temporaryIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.visibleScreenBounds.standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil
         }
 
-        let width = min(max(bounds.width * 0.25, 80), 180)
+        let width = min(max(bounds.width / 3, 80), bounds.width)
         let height: CGFloat = 6
         var originX = bounds.midX - width / 2
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
         let originY = bounds.maxY - height
         let screenFrame = CGRect(x: originX, y: originY, width: width, height: height).standardized
-        return descriptor.screenToCocoa(screenFrame).standardized
+        let cocoaFrame = descriptor.screenToCocoa(screenFrame).standardized
+        let accessibilityFrame = descriptor.screenToAccessibility(screenFrame).standardized
+        return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
     }
 
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
-        currentAddZoneIndicatorHitAreas
+        addIndicatorTracker.hitAreas
     }
 
     func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?) {
-        addZoneIndicatorManager.updateDragHighlight(screenId: screenId)
+        if addIndicatorTracker.setHighlightedScreen(screenId) {
+            addZoneIndicatorManager.updateDragHighlight(screenId: screenId)
+        }
+    }
+
+    func temporaryIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
+        temporaryIndicatorTracker.hitAreas
+    }
+
+    func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?) {
+        if temporaryIndicatorTracker.setHighlightedScreen(screenId) {
+            temporaryIndicatorManager.updateDragHighlight(screenId: screenId)
+        }
     }
 
 
