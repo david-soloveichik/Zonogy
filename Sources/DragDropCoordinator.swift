@@ -15,9 +15,25 @@ struct DragSession {
     let beganAt: Date
 }
 
+enum DisplacedWindowDisposition {
+    case reassign
+    case minimize
+}
+
 struct DropResult {
     let displacedWindow: ManagedWindow?
     let preferredScreenId: CGDirectDisplayID?
+    let displacedDisposition: DisplacedWindowDisposition
+
+    init(
+        displacedWindow: ManagedWindow?,
+        preferredScreenId: CGDirectDisplayID?,
+        displacedDisposition: DisplacedWindowDisposition = .reassign
+    ) {
+        self.displacedWindow = displacedWindow
+        self.preferredScreenId = preferredScreenId
+        self.displacedDisposition = displacedDisposition
+    }
 }
 
 protocol DragDropCoordinatorDelegate: AnyObject {
@@ -123,10 +139,14 @@ class DragDropCoordinator {
         recordDragUpdate(windowId: windowId, frame: frame)
     }
 
-    func endDragSession(windowId: Int, finalFrame: CGRect) -> (displacedWindow: ManagedWindow?, preferredScreenId: CGDirectDisplayID?) {
+    func endDragSession(windowId: Int, finalFrame: CGRect) -> (
+        displacedWindow: ManagedWindow?,
+        preferredScreenId: CGDirectDisplayID?,
+        displacedDisposition: DisplacedWindowDisposition
+    ) {
         guard let delegate = delegate else {
             tearDownDragSession()
-            return (nil, nil)
+            return (nil, nil, .reassign)
         }
 
         recordDragUpdate(windowId: windowId, frame: finalFrame)
@@ -134,19 +154,21 @@ class DragDropCoordinator {
         guard let session = dragSession, session.windowId == windowId else {
             tearDownDragSession()
             delegate.syncWindowsToZones(excluding: [])
-            return (nil, nil)
+            return (nil, nil, .reassign)
         }
 
         dragOverlayManager.tearDown()
 
         var displacedWindow: ManagedWindow?
         var displacedPreferredScreen: CGDirectDisplayID?
+        var displacedDisposition: DisplacedWindowDisposition = .reassign
         let cursorPoint = currentCursorAccessibilityPoint()
 
         if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
             if let result = performDropIntoNewZone(session: session, screenId: addZoneScreenId) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
+                displacedDisposition = result.displacedDisposition
             } else {
                 handleDropCancellation(session: session)
             }
@@ -154,6 +176,7 @@ class DragDropCoordinator {
             if let result = performDropIntoTemporaryZone(session: session, screenId: temporaryScreenId) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
+                displacedDisposition = result.displacedDisposition
             } else {
                 handleDropCancellation(session: session)
             }
@@ -161,6 +184,7 @@ class DragDropCoordinator {
             if let result = performDrop(session: session, targetKey: targetKey) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
+                displacedDisposition = result.displacedDisposition
             }
         } else {
             handleDropCancellation(session: session)
@@ -171,7 +195,7 @@ class DragDropCoordinator {
         delegate.updateTemporaryIndicatorHighlight(screenId: nil)
 
         let preferredScreen = displacedPreferredScreen ?? session.originScreenId
-        return (displacedWindow, preferredScreen)
+        return (displacedWindow, preferredScreen, displacedDisposition)
     }
 
     func tearDownDragSession() {
@@ -440,7 +464,11 @@ class DragDropCoordinator {
             }
             delegate.clearManagedWindowZone(displaced)
             Logger.debug("Window \(displaced.windowId) displaced from zone \(targetKey.index); will reassign later")
-            return DropResult(displacedWindow: displaced, preferredScreenId: targetKey.screenId)
+            return DropResult(
+                displacedWindow: displaced,
+                preferredScreenId: targetKey.screenId,
+                displacedDisposition: session.originatedFromTemporary ? .minimize : .reassign
+            )
         }
 
         return DropResult(displacedWindow: nil, preferredScreenId: nil)

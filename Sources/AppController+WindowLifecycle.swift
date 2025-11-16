@@ -217,7 +217,11 @@ extension AppController {
         }
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
 
-        resolveDisplacedWindow(result.displacedWindow, preferredScreenId: result.preferredScreenId)
+        resolveDisplacedWindow(
+            result.displacedWindow,
+            preferredScreenId: result.preferredScreenId,
+            disposition: result.displacedDisposition
+        )
 
         syncWindowsToZones()
 
@@ -246,8 +250,22 @@ extension AppController {
         activeFitResumeAfterDrag(windowId: windowId)
     }
 
-    internal func resolveDisplacedWindow(_ displacedWindow: ManagedWindow?, preferredScreenId: CGDirectDisplayID?) {
+    internal func resolveDisplacedWindow(
+        _ displacedWindow: ManagedWindow?,
+        preferredScreenId: CGDirectDisplayID?,
+        disposition: DisplacedWindowDisposition = .reassign
+    ) {
         guard let displacedWindow else { return }
+
+        switch disposition {
+        case .minimize:
+            windowController.minimizeWindow(displacedWindow)
+            Logger.debug("Minimized displaced window \(displacedWindow.windowId) after temporary-zone replace")
+            return
+        case .reassign:
+            break
+        }
+
         if hasAvailableTiledZone() {
             windowPlacementManager.placeNewWindow(displacedWindow, preferredScreenId: preferredScreenId)
         } else {
