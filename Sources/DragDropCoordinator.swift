@@ -162,7 +162,14 @@ class DragDropCoordinator {
         var displacedWindow: ManagedWindow?
         var displacedPreferredScreen: CGDirectDisplayID?
         var displacedDisposition: DisplacedWindowDisposition = .reassign
-        let cursorPoint = currentCursorAccessibilityPoint()
+        guard let cursorPoint = currentCursorAccessibilityPoint() else {
+            Logger.debug("Drag drop aborted: unable to resolve cursor position")
+            handleDropCancellation(session: session)
+            dragSession = nil
+            delegate.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate.updateTemporaryIndicatorHighlight(screenId: nil)
+            return (nil, session.originScreenId, .reassign)
+        }
 
         if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
             if let result = performDropIntoNewZone(session: session, screenId: addZoneScreenId) {
@@ -228,16 +235,10 @@ class DragDropCoordinator {
     }
 
     private func resolveDropTarget(for accessibilityFrame: CGRect, cursorPoint: CGPoint?) -> ZoneKey? {
-        guard let delegate = delegate else { return nil }
-
-        let normalizedFrame = accessibilityFrame.standardized
-        let center = CGPoint(x: normalizedFrame.midX, y: normalizedFrame.midY)
-
-        var bestKey: ZoneKey?
-        var bestScore: CGFloat = 0
-        var bestIntersection: CGFloat = 0
-
-        let allowFallback = (cursorPoint == nil)
+        guard let cursorPoint,
+              let delegate = delegate else {
+            return nil
+        }
 
         for (screenId, context) in delegate.screenContexts {
             let descriptor = context.descriptor
@@ -245,41 +246,13 @@ class DragDropCoordinator {
                 let accessibilityZone = zoneAccessibilityFrame(zone, descriptor: descriptor)
                 let candidateKey = ZoneKey(screenId: screenId, index: zone.index)
 
-                if let cursorPoint, accessibilityZone.contains(cursorPoint) {
+                if accessibilityZone.contains(cursorPoint) {
                     return candidateKey
-                }
-
-                guard allowFallback else {
-                    continue
-                }
-
-                let intersection = normalizedFrame.intersection(accessibilityZone)
-                let intersectionArea: CGFloat
-                if intersection.isNull {
-                    intersectionArea = 0
-                } else {
-                    intersectionArea = intersection.width * intersection.height
-                }
-
-                let zoneArea = accessibilityZone.width * accessibilityZone.height
-                let containsCenter = accessibilityZone.contains(center)
-                let score = intersectionArea + (containsCenter ? zoneArea : 0)
-
-                guard score > 0 else {
-                    continue
-                }
-
-                if score > bestScore ||
-                    (score == bestScore && (intersectionArea > bestIntersection ||
-                        (intersectionArea == bestIntersection && delegate.targetedZoneManager.prefersCandidate(candidateKey, over: bestKey)))) {
-                    bestScore = score
-                    bestIntersection = intersectionArea
-                    bestKey = candidateKey
                 }
             }
         }
 
-        return allowFallback ? bestKey : nil
+        return nil
     }
 
     private func zoneAccessibilityFrame(_ zone: Zone, descriptor: ScreenDescriptor) -> CGRect {
