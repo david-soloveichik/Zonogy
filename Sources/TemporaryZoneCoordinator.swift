@@ -27,6 +27,8 @@ final class TemporaryZoneCoordinator {
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
     private var lastEmptyZoneCount: Int?
+    // Counts nested critical sections that must not trigger auto-retargeting (e.g. while swapping floating occupants).
+    private var retargetingSuspensionCount = 0
 
     init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
@@ -57,7 +59,10 @@ final class TemporaryZoneCoordinator {
         }
 
         if let occupantId = occupants[screenId], occupantId != managed.windowId {
-            minimizeOccupant(on: screenId, reason: "replace-with-new-window")
+            // Replacing the floating window is an internal housekeeping step; keep targeting stable during it.
+            withRetargetingSuspended {
+                minimizeOccupant(on: screenId, reason: "replace-with-new-window")
+            }
         }
 
         occupants[screenId] = managed.windowId
@@ -166,6 +171,9 @@ final class TemporaryZoneCoordinator {
         let emptyCount = emptyZoneCount(in: host.screenContexts)
         let previousCount = lastEmptyZoneCount ?? emptyCount
         defer { lastEmptyZoneCount = emptyCount }
+        if retargetingSuspensionCount > 0 {
+            return
+        }
 
         if emptyCount > 0 {
             guard let targetedTempScreen = host.targetedZoneManager.targetedTemporaryScreenId else {
@@ -190,6 +198,13 @@ final class TemporaryZoneCoordinator {
                 ?? host.activeScreenId()
             host.targetedZoneManager.setTemporaryTarget(on: preferredScreen, reason: reason)
         }
+    }
+
+    /// Runs the supplied block while suppressing fallback retargeting decisions.
+    private func withRetargetingSuspended(_ perform: () -> Void) {
+        retargetingSuspensionCount += 1
+        defer { retargetingSuspensionCount = max(0, retargetingSuspensionCount - 1) }
+        perform()
     }
 
     func finalizeFloatingDrop(

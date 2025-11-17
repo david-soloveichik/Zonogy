@@ -108,6 +108,14 @@ extension AppController {
     }
 
     internal func shouldRetarget(to candidate: ZoneKey) -> Bool {
+        if let tempScreen = targetedZoneManager.targetedTemporaryScreenId {
+            if temporaryZoneOccupant(on: tempScreen) != nil {
+                // Specification: keep the targeted temporary zone while it still holds a window.
+                return false
+            }
+            // Temporary zone is targeted but currently empty; fall back to normal rules.
+        }
+
         guard let currentKey = targetedZoneManager.targetedZoneKey else {
             return true
         }
