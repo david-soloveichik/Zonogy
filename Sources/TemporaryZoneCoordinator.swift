@@ -168,11 +168,19 @@ final class TemporaryZoneCoordinator {
         defer { lastEmptyZoneCount = emptyCount }
 
         if emptyCount > 0 {
-            if host.targetedZoneManager.targetedTemporaryScreenId != nil {
-                let preferred = host.targetedZoneManager.targetedZoneKey?.screenId ?? host.activeScreenId()
-                let fallback = host.targetedZoneManager.fallbackTargetedZone(preferredScreenId: preferred)
-                host.targetedZoneManager.setTargetedZone(fallback, reason: reason)
+            guard let targetedTempScreen = host.targetedZoneManager.targetedTemporaryScreenId else {
+                return
             }
+
+            if let occupantId = occupants[targetedTempScreen],
+               host.windowController.window(withId: occupantId) != nil {
+                // Temporary zone stays targeted while it still holds a window, even if tiled zones reopen.
+                return
+            }
+
+            let preferred = host.targetedZoneManager.targetedZoneKey?.screenId ?? host.activeScreenId()
+            let fallback = host.targetedZoneManager.fallbackTargetedZone(preferredScreenId: preferred)
+            host.targetedZoneManager.setTargetedZone(fallback, reason: reason)
             return
         }
 
