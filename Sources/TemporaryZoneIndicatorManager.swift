@@ -14,15 +14,17 @@ protocol TemporaryZoneIndicatorManagerDelegate: AnyObject {
 }
 
 final class TemporaryZoneIndicatorManager {
-    private final class IndicatorWindow: NSWindow {
+    private final class IndicatorWindow: NSPanel {
         init(frame: NSRect) {
             super.init(
                 contentRect: frame,
-                styleMask: [.borderless],
+                styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
             )
             isReleasedWhenClosed = false
+            isFloatingPanel = false
+            becomesKeyOnlyIfNeeded = false
             ignoresMouseEvents = false
             isOpaque = false
             hasShadow = false
@@ -33,6 +35,10 @@ final class TemporaryZoneIndicatorManager {
 
         override var canBecomeKey: Bool { false }
         override var canBecomeMain: Bool { false }
+
+        override func makeKeyAndOrderFront(_ sender: Any?) {
+            orderFront(sender)
+        }
     }
 
     private final class IndicatorView: NSView {
