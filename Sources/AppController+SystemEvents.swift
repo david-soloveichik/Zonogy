@@ -31,6 +31,12 @@ extension AppController {
             Logger.debug("Hotkey clear or reset zones triggered")
         case .targetTemporaryZone:
             Logger.debug("Hotkey target temporary zone triggered")
+        case .navigateUp:
+            Logger.debug("Hotkey navigate up triggered")
+        case .navigateLeft:
+            Logger.debug("Hotkey navigate left triggered")
+        case .navigateRight:
+            Logger.debug("Hotkey navigate right triggered")
         }
         triggerShortcut(action)
     }

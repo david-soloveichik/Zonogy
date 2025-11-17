@@ -344,6 +344,12 @@ extension AppController {
                 self.clearOrResetZones()
             case .targetTemporaryZone:
                 self.targetTemporaryZone()
+            case .navigateUp:
+                self.navigateUp()
+            case .navigateLeft:
+                self.navigateLeft()
+            case .navigateRight:
+                self.navigateRight()
             }
         }
     }

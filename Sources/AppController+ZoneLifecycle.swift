@@ -827,4 +827,172 @@ extension AppController {
         targetedZoneManager.setTemporaryTarget(on: screenId, reason: "shortcut-target-temporary")
     }
 
+    /// Navigate up: from temporary zone to normal zone on same screen
+    internal func navigateUp() {
+        guard let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId else {
+            Logger.debug("Navigate up: temporary zone not targeted, doing nothing")
+            return
+        }
+
+        guard let context = screenContexts[targetedTemporaryScreenId] else {
+            Logger.debug("Navigate up: no context for temporary zone screen")
+            return
+        }
+
+        let zones = context.zoneController.allZones
+
+        // Prefer empty tiling zone with lowest index
+        let emptyZones = zones.filter { $0.isEmpty }.sorted { $0.index < $1.index }
+        if let firstEmptyZone = emptyZones.first {
+            let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstEmptyZone.index)
+            Logger.debug("Navigate up: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-navigate-up")
+            return
+        }
+
+        // If no empty zone, target filled zone with highest index
+        let filledZones = zones.filter { !$0.isEmpty }.sorted { $0.index > $1.index }
+        if let firstFilledZone = filledZones.first {
+            let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstFilledZone.index)
+            Logger.debug("Navigate up: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-navigate-up")
+            return
+        }
+
+        Logger.debug("Navigate up: no zones available on screen")
+    }
+
+    /// Navigate left: between zones or screens
+    internal func navigateLeft() {
+        // If temporary zone is targeted, go to temporary zone on screen to the left
+        if let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId {
+            navigateTemporaryZoneLeft(from: targetedTemporaryScreenId)
+            return
+        }
+
+        // If normal zone is targeted, navigate to lower index or previous screen
+        if let targetedKey = targetedZoneManager.targetedZoneKey {
+            navigateNormalZoneLeft(from: targetedKey)
+            return
+        }
+
+        Logger.debug("Navigate left: no zone targeted")
+    }
+
+    /// Navigate right: between zones or screens
+    internal func navigateRight() {
+        // If temporary zone is targeted, go to temporary zone on screen to the right
+        if let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId {
+            navigateTemporaryZoneRight(from: targetedTemporaryScreenId)
+            return
+        }
+
+        // If normal zone is targeted, navigate to higher index or next screen
+        if let targetedKey = targetedZoneManager.targetedZoneKey {
+            navigateNormalZoneRight(from: targetedKey)
+            return
+        }
+
+        Logger.debug("Navigate right: no zone targeted")
+    }
+
+    private func navigateTemporaryZoneLeft(from currentScreenId: CGDirectDisplayID) {
+        let screens = screenOrder
+        guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex > 0 else {
+            Logger.debug("Navigate left (temp): already at leftmost screen")
+            return
+        }
+
+        let leftScreenId = screens[currentIndex - 1]
+        Logger.debug("Navigate left (temp): targeting temporary zone on screen \(screenContextStore.loggingIndex(for: leftScreenId))")
+        targetedZoneManager.setTemporaryTarget(on: leftScreenId, reason: "shortcut-navigate-left-temp")
+    }
+
+    private func navigateTemporaryZoneRight(from currentScreenId: CGDirectDisplayID) {
+        let screens = screenOrder
+        guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex < screens.count - 1 else {
+            Logger.debug("Navigate right (temp): already at rightmost screen")
+            return
+        }
+
+        let rightScreenId = screens[currentIndex + 1]
+        Logger.debug("Navigate right (temp): targeting temporary zone on screen \(screenContextStore.loggingIndex(for: rightScreenId))")
+        targetedZoneManager.setTemporaryTarget(on: rightScreenId, reason: "shortcut-navigate-right-temp")
+    }
+
+    private func navigateNormalZoneLeft(from currentKey: ZoneKey) {
+        guard let context = screenContexts[currentKey.screenId] else {
+            Logger.debug("Navigate left (normal): no context for current screen")
+            return
+        }
+
+        let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
+
+        // Try to find zone with lower index on same screen
+        if let lowerZone = zones.last(where: { $0.index < currentKey.index }) {
+            let newKey = ZoneKey(screenId: currentKey.screenId, index: lowerZone.index)
+            Logger.debug("Navigate left (normal): targeting zone \(lowerZone.index) on same screen")
+            targetedZoneManager.setTargetedZone(newKey, reason: "shortcut-navigate-left-normal")
+            return
+        }
+
+        // If at first zone, wrap to previous screen
+        let screens = screenOrder
+        guard let currentScreenIndex = screens.firstIndex(of: currentKey.screenId), currentScreenIndex > 0 else {
+            Logger.debug("Navigate left (normal): at first zone on first screen")
+            return
+        }
+
+        let leftScreenId = screens[currentScreenIndex - 1]
+        guard let leftContext = screenContexts[leftScreenId] else {
+            Logger.debug("Navigate left (normal): no context for left screen")
+            return
+        }
+
+        let leftZones = leftContext.zoneController.allZones.sorted { $0.index > $1.index }
+        if let lastZone = leftZones.first {
+            let newKey = ZoneKey(screenId: leftScreenId, index: lastZone.index)
+            Logger.debug("Navigate left (normal): wrapping to zone \(lastZone.index) on screen \(screenContextStore.loggingIndex(for: leftScreenId))")
+            targetedZoneManager.setTargetedZone(newKey, reason: "shortcut-navigate-left-normal-wrap")
+        }
+    }
+
+    private func navigateNormalZoneRight(from currentKey: ZoneKey) {
+        guard let context = screenContexts[currentKey.screenId] else {
+            Logger.debug("Navigate right (normal): no context for current screen")
+            return
+        }
+
+        let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
+
+        // Try to find zone with higher index on same screen
+        if let higherZone = zones.first(where: { $0.index > currentKey.index }) {
+            let newKey = ZoneKey(screenId: currentKey.screenId, index: higherZone.index)
+            Logger.debug("Navigate right (normal): targeting zone \(higherZone.index) on same screen")
+            targetedZoneManager.setTargetedZone(newKey, reason: "shortcut-navigate-right-normal")
+            return
+        }
+
+        // If at last zone, wrap to next screen
+        let screens = screenOrder
+        guard let currentScreenIndex = screens.firstIndex(of: currentKey.screenId),
+              currentScreenIndex < screens.count - 1 else {
+            Logger.debug("Navigate right (normal): at last zone on last screen")
+            return
+        }
+
+        let rightScreenId = screens[currentScreenIndex + 1]
+        guard let rightContext = screenContexts[rightScreenId] else {
+            Logger.debug("Navigate right (normal): no context for right screen")
+            return
+        }
+
+        let rightZones = rightContext.zoneController.allZones.sorted { $0.index < $1.index }
+        if let firstZone = rightZones.first {
+            let newKey = ZoneKey(screenId: rightScreenId, index: firstZone.index)
+            Logger.debug("Navigate right (normal): wrapping to zone \(firstZone.index) on screen \(screenContextStore.loggingIndex(for: rightScreenId))")
+            targetedZoneManager.setTargetedZone(newKey, reason: "shortcut-navigate-right-normal-wrap")
+        }
+    }
+
 }

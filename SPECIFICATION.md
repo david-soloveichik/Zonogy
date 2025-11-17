@@ -199,6 +199,9 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - When dragging a window from a normal (tiled zoned), dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
 - Control-Command-drag can also be used to place a tiled window (ie normal zone) into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
 - Pressing Control-Cmd-DownArrow sets the temporary zone on the active screen as the targeted zone. This allows users to quickly target the temporary zone without clicking the pill indicator.
+- Pressing Control-Cmd-UpArrow switches from the targeted temporary zone to a normal zone on the same screen (prefers empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
+- Pressing Control-Cmd-LeftArrow navigates left: if temporary zone is targeted, targets the temporary zone on the screen to the left; if normal zone is targeted, targets the zone with lower index on same screen, or wraps to the last zone on the previous screen.
+- Pressing Control-Cmd-RightArrow navigates right: if temporary zone is targeted, targets the temporary zone on the screen to the right; if normal zone is targeted, targets the zone with higher index on same screen, or wraps to the first zone on the next screen.
 
 ### Screen Management
 
