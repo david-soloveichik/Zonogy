@@ -819,12 +819,28 @@ extension AppController {
         }
     }
 
-    /// Target the temporary zone on the active screen
+    /// Target the temporary zone, preferring the screen of the currently targeted normal zone
     internal func targetTemporaryZone() {
-        let screenId = activeScreenId()
-        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        guard let targetedZone = targetedZoneManager.targetedZoneKey else {
+            Logger.debug("Target temporary zone: normal zone not targeted; shortcut ignored")
+            return
+        }
+
+        let preferredScreenId: CGDirectDisplayID
+        if screenContexts[targetedZone.screenId] != nil {
+            preferredScreenId = targetedZone.screenId
+        } else {
+            let active = activeScreenId()
+            if screenContexts[active] != nil {
+                preferredScreenId = active
+            } else {
+                preferredScreenId = screenOrder.first ?? active
+            }
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: preferredScreenId)
         Logger.debug("Target temporary zone: setting temporary zone on screen \(screenIndex) as target")
-        targetedZoneManager.setTemporaryTarget(on: screenId, reason: "shortcut-target-temporary")
+        targetedZoneManager.setTemporaryTarget(on: preferredScreenId, reason: "shortcut-target-temporary")
     }
 
     /// Navigate up: from temporary zone to normal zone on same screen
@@ -897,7 +913,7 @@ extension AppController {
     }
 
     private func navigateTemporaryZoneLeft(from currentScreenId: CGDirectDisplayID) {
-        let screens = screenOrder
+        let screens = screenOrderLeftToRight
         guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex > 0 else {
             Logger.debug("Navigate left (temp): already at leftmost screen")
             return
@@ -909,7 +925,7 @@ extension AppController {
     }
 
     private func navigateTemporaryZoneRight(from currentScreenId: CGDirectDisplayID) {
-        let screens = screenOrder
+        let screens = screenOrderLeftToRight
         guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex < screens.count - 1 else {
             Logger.debug("Navigate right (temp): already at rightmost screen")
             return
@@ -937,7 +953,7 @@ extension AppController {
         }
 
         // If at first zone, wrap to previous screen
-        let screens = screenOrder
+        let screens = screenOrderLeftToRight
         guard let currentScreenIndex = screens.firstIndex(of: currentKey.screenId), currentScreenIndex > 0 else {
             Logger.debug("Navigate left (normal): at first zone on first screen")
             return
@@ -974,7 +990,7 @@ extension AppController {
         }
 
         // If at last zone, wrap to next screen
-        let screens = screenOrder
+        let screens = screenOrderLeftToRight
         guard let currentScreenIndex = screens.firstIndex(of: currentKey.screenId),
               currentScreenIndex < screens.count - 1 else {
             Logger.debug("Navigate right (normal): at last zone on last screen")

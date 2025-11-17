@@ -98,6 +98,35 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         screenContextStore.order
     }
 
+    /// Screens sorted from left to right using visible screen bounds in screen coordinates.
+    internal var screenOrderLeftToRight: [CGDirectDisplayID] {
+        let contexts = screenContexts
+        var ordered = screenOrder
+        for screenId in contexts.keys where !ordered.contains(screenId) {
+            ordered.append(screenId)
+        }
+
+        func sortKey(for screenId: CGDirectDisplayID) -> (CGFloat, CGFloat, CGDirectDisplayID) {
+            guard let descriptor = contexts[screenId]?.descriptor else {
+                return (.greatestFiniteMagnitude, .greatestFiniteMagnitude, screenId)
+            }
+            let bounds = descriptor.visibleScreenBounds
+            return (bounds.minX, bounds.minY, screenId)
+        }
+
+        return ordered.sorted { lhs, rhs in
+            let leftKey = sortKey(for: lhs)
+            let rightKey = sortKey(for: rhs)
+            if leftKey.0 == rightKey.0 {
+                if leftKey.1 == rightKey.1 {
+                    return leftKey.2 < rightKey.2
+                }
+                return leftKey.1 < rightKey.1
+            }
+            return leftKey.0 < rightKey.0
+        }
+    }
+
     internal var dragExcludedZones: Set<ZoneKey> {
         dragDropCoordinator.dragExcludedZones
     }
