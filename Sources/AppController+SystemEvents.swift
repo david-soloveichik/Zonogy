@@ -29,6 +29,8 @@ extension AppController {
             Logger.debug("Hotkey flip key window triggered")
         case .clearOrResetZones:
             Logger.debug("Hotkey clear or reset zones triggered")
+        case .clearOrResetZonesAtCursor:
+            Logger.debug("Hotkey clear or reset zones at cursor triggered")
         case .targetTemporaryZone:
             Logger.debug("Hotkey target temporary zone triggered")
         case .navigateUp:

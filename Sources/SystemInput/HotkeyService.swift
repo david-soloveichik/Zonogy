@@ -13,6 +13,7 @@ final class HotkeyService {
         case navigateUp = 7
         case navigateLeft = 8
         case navigateRight = 9
+        case clearOrResetZonesAtCursor = 10
     }
 
     weak var delegate: HotkeyServiceDelegate?
@@ -20,6 +21,7 @@ final class HotkeyService {
     private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
+    private let baseHotKeyModifiers: UInt32 = UInt32(cmdKey | controlKey)
 
     func start(delegate: HotkeyServiceDelegate) {
         self.delegate = delegate
@@ -40,10 +42,13 @@ final class HotkeyService {
     }
 
     func handleLocalShortcut(event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.command),
-              event.modifierFlags.contains(.control) else {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags.contains(.command),
+              flags.contains(.control) else {
             return false
         }
+
+        let usesCursorScreen = flags.contains(.option) && flags.contains(.shift)
 
         switch Int(event.keyCode) {
         case kVK_ANSI_Equal:
@@ -59,7 +64,8 @@ final class HotkeyService {
             delegate?.hotkeyService(self, didTrigger: .flipKeyWindow)
             return true
         case kVK_Space:
-            delegate?.hotkeyService(self, didTrigger: .clearOrResetZones)
+            let action: Action = usesCursorScreen ? .clearOrResetZonesAtCursor : .clearOrResetZones
+            delegate?.hotkeyService(self, didTrigger: action)
             return true
         case kVK_DownArrow:
             delegate?.hotkeyService(self, didTrigger: .targetTemporaryZone)
@@ -125,19 +131,27 @@ final class HotkeyService {
         registerHotKey(keyCode: UInt32(kVK_ANSI_Z), action: .captureTimeTravelLogs)
         registerHotKey(keyCode: UInt32(kVK_Return), action: .flipKeyWindow)
         registerHotKey(keyCode: UInt32(kVK_Space), action: .clearOrResetZones)
+        registerHotKey(
+            keyCode: UInt32(kVK_Space),
+            action: .clearOrResetZonesAtCursor,
+            modifierFlags: baseHotKeyModifiers | UInt32(shiftKey | optionKey)
+        )
         registerHotKey(keyCode: UInt32(kVK_DownArrow), action: .targetTemporaryZone)
         registerHotKey(keyCode: UInt32(kVK_UpArrow), action: .navigateUp)
         registerHotKey(keyCode: UInt32(kVK_LeftArrow), action: .navigateLeft)
         registerHotKey(keyCode: UInt32(kVK_RightArrow), action: .navigateRight)
     }
 
-    private func registerHotKey(keyCode: UInt32, action: Action) {
+    private func registerHotKey(
+        keyCode: UInt32,
+        action: Action,
+        modifierFlags: UInt32? = nil
+    ) {
         var hotKeyRef: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: action.rawValue)
-        let modifierFlags = UInt32(cmdKey | controlKey)
         let status = RegisterEventHotKey(
             keyCode,
-            modifierFlags,
+            modifierFlags ?? baseHotKeyModifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             OptionBits(kEventHotKeyExclusive),

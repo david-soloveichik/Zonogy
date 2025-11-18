@@ -119,6 +119,7 @@ Pressing Control-Cmd-Space clears all zones on the active screen and empties the
 - Empty the temporary zone on the active screen (minimize the window in it if there is one).
 - If all zones on the active screen are already empty, reduce the zone count to 1.
 - Otherwise, minimize all windows on the active screen (making all zones empty).
+- Pressing Shift-Option-Control-Cmd-Space performs the same steps, but targets the screen currently holding the mouse pointer (fall back to the active screen only if the pointer is outside every managed display).
 
 ### Resizing Zones
 

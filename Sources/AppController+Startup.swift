@@ -342,6 +342,8 @@ extension AppController {
                 self.flipKeyWindowToAnotherScreen()
             case .clearOrResetZones:
                 self.clearOrResetZones()
+            case .clearOrResetZonesAtCursor:
+                self.clearOrResetZonesAtCursor()
             case .targetTemporaryZone:
                 self.targetTemporaryZone()
             case .navigateUp:

@@ -768,9 +768,22 @@ extension AppController {
 
     /// Clear all zones on active screen. If zones are already empty, go to one-zone configuration.
     internal func clearOrResetZones() {
-        let screenId = activeScreenId()
+        clearOrResetZones(on: activeScreenId(), reason: "shortcut-active-screen")
+    }
+
+    /// Run the clear/reset shortcut on the screen containing the mouse cursor (fallback to active).
+    internal func clearOrResetZonesAtCursor() {
+        if let cursorScreenId = resolveCursorScreenId() {
+            clearOrResetZones(on: cursorScreenId, reason: "shortcut-cursor-screen")
+        } else {
+            Logger.debug("Clear/reset zones (shortcut-cursor-screen): cursor outside managed displays, falling back to active screen")
+            clearOrResetZones()
+        }
+    }
+
+    private func clearOrResetZones(on screenId: CGDirectDisplayID, reason: String) {
         guard let context = screenContexts[screenId] else {
-            Logger.debug("Clear/reset zones: active screen not available")
+            Logger.debug("Clear/reset zones (\(reason)): screen context unavailable")
             return
         }
 
@@ -778,30 +791,26 @@ extension AppController {
         let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
-        // Also empty the temporary zone on the active screen
+        // Also empty the temporary zone on the selected screen
         temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
 
         if allEmpty {
-            // All zones are empty, reset to one zone
-            Logger.debug("Clear/reset zones: all zones empty on screen \(screenIndex), resetting to 1 zone")
+            Logger.debug("Clear/reset zones (\(reason)): all zones empty on screen \(screenIndex), resetting to 1 zone")
             let removedWindowIds = context.zoneController.setZoneCount(to: 1)
 
-            // Handle any removed windows
             for windowId in removedWindowIds {
                 if let managed = windowController.window(withId: windowId) {
                     windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
                 }
             }
 
-            // Clear placeholder mappings since zones are being reindexed
             placeholderCoordinator.clearMappingsForScreen(screenId)
 
             syncWindowsToZones()
             activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
             targetedZoneManager.ensureTargetedZone(reason: "reset-to-one-zone")
         } else {
-            // Minimize all non-placeholder windows on this screen
-            Logger.debug("Clear/reset zones: minimizing all windows on screen \(screenIndex)")
+            Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
             var minimizedCount = 0
 
             for zone in zones {
@@ -814,9 +823,29 @@ extension AppController {
                 }
             }
 
-            Logger.debug("Clear/reset zones: minimized \(minimizedCount) window(s) on screen \(screenIndex)")
+            Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedCount) window(s) on screen \(screenIndex)")
             syncWindowsToZones()
         }
+    }
+
+    private func resolveCursorScreenId() -> CGDirectDisplayID? {
+        guard let cursorPoint = currentCursorAccessibilityPoint() else {
+            return nil
+        }
+
+        for screenId in screenOrder {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+            let descriptor = context.descriptor
+            let screenBounds = descriptor.cocoaToScreen(descriptor.cocoaBounds)
+            let accessibilityBounds = descriptor.screenToAccessibility(screenBounds)
+            if accessibilityBounds.contains(cursorPoint) {
+                return screenId
+            }
+        }
+
+        return nil
     }
 
     /// Target the temporary zone, preferring the screen of the currently targeted normal zone
