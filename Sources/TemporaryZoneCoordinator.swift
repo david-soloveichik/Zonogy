@@ -23,6 +23,12 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
 final class TemporaryZoneCoordinator {
+    private struct TiledFocusContext {
+        let window: ManagedWindow
+        let pid: pid_t
+        let screenId: CGDirectDisplayID?
+    }
+
     weak var host: TemporaryZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
@@ -115,7 +121,11 @@ final class TemporaryZoneCoordinator {
         }
 
         let entries = occupants
+        let focusScreenId = focusContext.screenId
         for (screenId, occupantId) in entries {
+            if let focusScreenId, focusScreenId != screenId {
+                continue
+            }
             guard let window = host.windowController.window(withId: occupantId),
                   case .accessibility(_, let occupantPid, _) = window.backing else {
                 occupants.removeValue(forKey: screenId)
@@ -145,7 +155,11 @@ final class TemporaryZoneCoordinator {
         }
 
         let entries = occupants
+        let focusScreenId = focusContext.screenId
         for (screenId, occupantId) in entries {
+            if let focusScreenId, focusScreenId != screenId {
+                continue
+            }
             guard let window = host.windowController.window(withId: occupantId),
                   case .accessibility(_, let occupantPid, _) = window.backing else {
                 occupants.removeValue(forKey: screenId)
@@ -289,7 +303,7 @@ final class TemporaryZoneCoordinator {
         return count
     }
 
-    private func tiledFocusContext(pid: pid_t, focusedWindowId: Int?) -> (window: ManagedWindow, pid: pid_t)? {
+    private func tiledFocusContext(pid: pid_t, focusedWindowId: Int?) -> TiledFocusContext? {
         guard let host,
               let managed = resolvedFocusedWindow(host: host, pid: pid, focusedWindowId: focusedWindowId),
               isTiledWindow(managed) else {
@@ -297,7 +311,8 @@ final class TemporaryZoneCoordinator {
         }
 
         let resolvedPid = accessibilityPid(for: managed) ?? pid
-        return (managed, resolvedPid)
+        let screenId = managed.screenDisplayId ?? host.detectScreenId(for: managed)
+        return TiledFocusContext(window: managed, pid: resolvedPid, screenId: screenId)
     }
 
     private func resolvedFocusedWindow(
