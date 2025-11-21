@@ -31,8 +31,8 @@ extension AppController {
             }
         }
 
-        if let emptyZoneKey = emptyZoneKey, shouldRetarget(to: emptyZoneKey) {
-            targetedZoneManager.setTargetedZone(emptyZoneKey, reason: "zone-became-empty")
+        if let emptyZoneKey = emptyZoneKey {
+            targetedZoneManager.setTargetedZone(emptyZoneKey, reason: reason)
         }
 
         clearTemporaryZone(for: windowId, minimize: false, reason: reason)

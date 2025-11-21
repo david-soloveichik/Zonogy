@@ -76,12 +76,13 @@ Whenever zones are added or removed on a screen, the dimensions of the remaining
 
 Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
 
-**Targeted zone selection:** (logic describes normal, not-temporary zones only; see below for temporary zones)
+**Targeted zone selection:** ( in this section "zone" refers to just normal, not-temporary zones only; see below for temporary zones)
 
 - Launching: target zone 1 on the primary display.
 - Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
 - Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a zone transitions from filled to empty, or a new zone is created: switch the target to that zone if the current target is filled, or if the current target is an empty zone with a higher index; otherwise leave the target alone.
+- Whenever a normal (non-temporary) zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
+- When a new normal zone is created: target that new zone if the current target is filled or is an empty zone with a higher index; otherwise keep the current target.
 - Whenever the targeted zone is filled: if another empty (normal, not-temporary) zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
 - If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
 

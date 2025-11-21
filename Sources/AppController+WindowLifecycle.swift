@@ -90,11 +90,13 @@ extension AppController {
     func windowDidMiniaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did miniaturize")
         let managed = windowController.window(withId: windowId)
+
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize")
         syncWindowsToZones()
+
         activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "miniaturize")
         activeFitClearSuppressionForWindow(windowId)
         if let managed,
