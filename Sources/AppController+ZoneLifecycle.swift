@@ -1050,33 +1050,34 @@ extension AppController {
 
     // MARK: - Event suppression helpers
 
-    internal func suppressEvents(
+    /// Suppress the *next* occurrence of the given events for specific windows. Entries self-expire after `timeout`.
+    internal func suppressNextEvents(
         for windowIds: [Int],
         events: Set<AppController.SuppressedEvent>,
-        duration: TimeInterval,
+        timeout: TimeInterval = 3.0,
         reason: String
     ) {
         guard !windowIds.isEmpty, !events.isEmpty else { return }
-        let expiry = Date().addingTimeInterval(duration)
+        let deadline = Date().addingTimeInterval(timeout)
         for windowId in windowIds {
             var suppressions = eventSuppressions[windowId] ?? [:]
             for event in events {
-                suppressions[event] = expiry
+                suppressions[event] = SuppressionEntry(remaining: 1, deadline: deadline)
             }
             eventSuppressions[windowId] = suppressions
         }
         let eventList = events.map { $0.rawValue }.joined(separator: ",")
-        Logger.debug("Suppressing events [\(eventList)] for windows \(windowIds) until \(expiry) (reason: \(reason))")
+        Logger.debug("Suppressing next events [\(eventList)] for windows \(windowIds) until \(deadline) (reason: \(reason))")
     }
 
     internal func isEventSuppressed(windowId: Int, event: AppController.SuppressedEvent) -> Bool {
         let now = Date()
         guard var suppressions = eventSuppressions[windowId],
-              let expiry = suppressions[event] else {
+              var entry = suppressions[event] else {
             return false
         }
 
-        if expiry < now {
+        if entry.deadline < now || entry.remaining <= 0 {
             suppressions.removeValue(forKey: event)
             if suppressions.isEmpty {
                 eventSuppressions.removeValue(forKey: windowId)
@@ -1086,8 +1087,11 @@ extension AppController {
             return false
         }
 
-        // One-shot suppression: consume after first matching notification
-        suppressions.removeValue(forKey: event)
+        entry.remaining -= 1
+        suppressions[event] = entry.remaining > 0 ? entry : nil
+        if suppressions[event] == nil {
+            suppressions.removeValue(forKey: event)
+        }
         if suppressions.isEmpty {
             eventSuppressions.removeValue(forKey: windowId)
         } else {
@@ -1103,9 +1107,9 @@ extension AppController {
     internal func minimizeWindowProgrammatically(
         _ managed: ManagedWindow,
         reason: String,
-        suppressDuration: TimeInterval = 1.0
+        suppressTimeout: TimeInterval = 3.0
     ) {
-        suppressEvents(for: [managed.windowId], events: [.miniaturized], duration: suppressDuration, reason: reason)
+        suppressNextEvents(for: [managed.windowId], events: [.miniaturized], timeout: suppressTimeout, reason: reason)
         windowController.minimizeWindow(managed)
     }
 
@@ -1114,7 +1118,7 @@ extension AppController {
         _ managed: ManagedWindow,
         reason: String
     ) {
-        minimizeWindowProgrammatically(managed, reason: reason, suppressDuration: 1.0)
+        minimizeWindowProgrammatically(managed, reason: reason, suppressTimeout: 3.0)
     }
 
 }

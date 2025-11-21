@@ -83,7 +83,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let temporaryZoneWakeProtectionDuration: TimeInterval = 5.0
     internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]
-    internal var eventSuppressions: [Int: [SuppressedEvent: Date]] = [:]
+    struct SuppressionEntry {
+        var remaining: Int
+        var deadline: Date
+    }
+
+    internal var eventSuppressions: [Int: [SuppressedEvent: SuppressionEntry]] = [:]
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
