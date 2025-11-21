@@ -166,7 +166,8 @@ extension WindowController {
                     pid: pid,
                     appElement: appElement,
                     allowReturningExisting: allowExisting,
-                    notifyDelegate: notifyDelegate
+                    notifyDelegate: notifyDelegate,
+                    needsRetry: &needsRetry
                 ) {
                     captured.append(managed)
                 }
@@ -182,7 +183,8 @@ extension WindowController {
                     pid: pid,
                     appElement: appElement,
                     allowReturningExisting: allowExisting,
-                    notifyDelegate: notifyDelegate
+                    notifyDelegate: notifyDelegate,
+                    needsRetry: &needsRetry
                 ) {
                     captured.append(managed)
                 }
@@ -197,9 +199,19 @@ extension WindowController {
         pid: pid_t,
         appElement: AXUIElement,
         allowReturningExisting: Bool,
-        notifyDelegate: Bool
+        notifyDelegate: Bool,
+        needsRetry: UnsafeMutablePointer<Bool>? = nil
     ) -> ManagedWindow? {
-        guard let cgWindowId = cgWindowId(for: element, pid: pid, context: "captureWindowIfNeeded") else {
+        let cgResult = cgWindowIdWithStatus(for: element, pid: pid, context: "captureWindowIfNeeded")
+        guard let cgWindowId = cgResult.id else {
+            if let error = cgResult.axError,
+               retryableAXWindowErrors.contains(error) {
+                needsRetry?.pointee = true
+            } else if cgResult.axError == nil {
+                // Received CGWindowID 0; the window may not be fully initialized yet.
+                needsRetry?.pointee = true
+            }
+
             Logger.debug("captureWindowIfNeeded: Skipping window because CGWindowID is unavailable for pid \(pid)")
             return nil
         }
@@ -520,25 +532,30 @@ extension WindowController {
             return nil
         }
 
-        guard let cgWindowId = cgWindowId(for: element, pid: pid, context: "externalIdentifier") else {
+        let result = cgWindowIdWithStatus(for: element, pid: pid, context: "externalIdentifier")
+        guard let cgWindowId = result.id else {
             return nil
         }
 
         return ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
     }
 
-    private func cgWindowId(for element: AXUIElement, pid: pid_t, context: String) -> CGWindowID? {
+    private func cgWindowIdWithStatus(for element: AXUIElement, pid: pid_t, context: String) -> (id: CGWindowID?, axError: AXError?) {
         var cgWindowId: CGWindowID = 0
         let status = _AXUIElementGetWindow(element, &cgWindowId)
         guard status == .success else {
             Logger.debug("cgWindowId(\(context)): _AXUIElementGetWindow failed for pid \(pid) with AXError \(status.rawValue)")
-            return nil
+            return (nil, status)
         }
         guard cgWindowId != 0 else {
             Logger.debug("cgWindowId(\(context)): Received CGWindowID 0 for pid \(pid); treating as missing")
-            return nil
+            return (nil, nil)
         }
-        return cgWindowId
+        return (cgWindowId, nil)
+    }
+
+    private var retryableAXWindowErrors: Set<AXError> {
+        [.cannotComplete, .illegalArgument]
     }
 
     private func registerAccessibilityNotifications(for managed: ManagedWindow, appElement: AXUIElement) {
