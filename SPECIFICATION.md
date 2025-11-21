@@ -230,7 +230,7 @@ After events such as application termination, workspace focus changes, or access
 - We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
 **Log monitoring tip:** To watch the live log output, run:
 `stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
-- **Notification suppression:** When Zonogy programmatically minimizes windows (e.g., bulk clear/reset, displacement, startup pruning), it marks those windows with a short-lived, one-shot suppression for the ensuing `AXWindowMiniaturized` notification. This absorbs only the events we caused, so user-triggered actions immediately after remain effective. The suppression window is ~1s by default.
+- **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it marks only those window IDs with a short-lived, one-shot suppression for the ensuing `AXWindowMiniaturized` notification. Other windows remain unaffected and user-triggered actions still get through. The suppression window is ~1s by default.
 (`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
 - The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./Zonogy`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
