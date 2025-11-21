@@ -808,7 +808,6 @@ extension AppController {
 
             syncWindowsToZones()
             activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
-            targetedZoneManager.ensureTargetedZone(reason: "reset-to-one-zone")
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
             var minimizedCount = 0
@@ -825,6 +824,13 @@ extension AppController {
 
             Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedCount) window(s) on screen \(screenIndex)")
             syncWindowsToZones()
+        }
+
+        // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.
+        if context.zoneController.zone(at: 1) != nil {
+            targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
+        } else {
+            targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
         }
     }
 
