@@ -31,10 +31,6 @@ extension AppController {
         placeholder.screenDisplayId = descriptor.displayId
         if let zoneIndex = placeholder.zoneIndex {
             setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
-            let zoneKey = ZoneKey(screenId: descriptor.displayId, index: zoneIndex)
-            if shouldRetarget(to: zoneKey) {
-                targetedZoneManager.setTargetedZone(zoneKey, reason: "placeholder-shown")
-            }
         }
     }
 
