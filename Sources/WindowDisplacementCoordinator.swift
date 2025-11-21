@@ -5,6 +5,7 @@ protocol DisplacedWindowCoordinatorHost: AnyObject {
     var windowPlacementManager: WindowPlacementManager { get }
     var windowController: WindowController { get }
     var targetedTemporaryScreenId: CGDirectDisplayID? { get }
+    func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
 
     func hasAvailableTiledZone() -> Bool
     func activeScreenId() -> CGDirectDisplayID
@@ -33,7 +34,7 @@ final class DisplacedWindowCoordinator {
 
         switch disposition {
         case .minimize:
-            host.windowController.minimizeWindow(displacedWindow)
+            host.minimizeWindowProgrammatically(displacedWindow, reason: "displaced-window")
             Logger.debug("Minimized displaced window \(displacedWindow.windowId) per displacement policy")
             return
         case .reassign:

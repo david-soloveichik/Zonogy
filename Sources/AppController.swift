@@ -4,6 +4,9 @@ import AppKit
 import ApplicationServices
 
 class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost {
+    enum SuppressedEvent: String {
+        case miniaturized
+    }
     struct FloatingTemporaryDragState {
         let windowId: Int
         var hoveredAddZoneScreenId: CGDirectDisplayID?
@@ -80,6 +83,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let temporaryZoneWakeProtectionDuration: TimeInterval = 5.0
     internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]
+    internal var eventSuppressions: [Int: [SuppressedEvent: Date]] = [:]
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

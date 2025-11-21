@@ -4,7 +4,7 @@ import Cocoa
 
 protocol WindowPlacementManagerDelegate: AnyObject {
     // Zone management
-    func removeWindowFromAllZones(windowId: Int, reason: String)
+    func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool)
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
@@ -12,6 +12,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
 
     // Window management
     var windowController: WindowController { get }
+    func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func frameWithMargin(for zone: Zone, in controller: ZoneController) -> CGRect
@@ -60,7 +61,7 @@ class WindowPlacementManager {
     func placeNewWindow(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID? = nil) {
         guard let delegate = delegate else { return }
 
-        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window")
+        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window", retarget: true)
         managed.zoneIndex = nil
 
         if delegate.handleZoneAssignmentRestorationIfNeeded(managed) {
@@ -106,7 +107,7 @@ class WindowPlacementManager {
     func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
         guard let delegate = delegate else { return }
 
-        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "zone-removal-reassignment")
+        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "zone-removal-reassignment", retarget: true)
         managed.zoneIndex = nil
 
         if let (zone, context, descriptor) = findZoneAcceptingRemovedWindow(preferredScreenId: preferredScreenId) {
@@ -136,7 +137,7 @@ class WindowPlacementManager {
 
         Logger.debug("Zone removal minimizing window \(managed.windowId); no available zone without displacement")
         delegate.clearManagedWindowZone(managed)
-        delegate.windowController.minimizeWindow(managed)
+        delegate.minimizeWindowProgrammatically(managed, reason: "zone-removal-no-destination")
     }
 
     /// Moves an already managed window between zones, optionally minimizing displaced occupants.
@@ -283,7 +284,7 @@ class WindowPlacementManager {
             return
         }
 
-        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: reason)
+        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: true)
         managed.zoneIndex = nil
 
         let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
@@ -451,7 +452,7 @@ class WindowPlacementManager {
             delegate.forgetPlaceholder(windowId: displaced.windowId)
         } else {
             delegate.clearManagedWindowZone(displaced)
-            delegate.windowController.minimizeWindow(displaced)
+            delegate.minimizeWindowProgrammatically(displaced, reason: "displaced-window")
         }
     }
 

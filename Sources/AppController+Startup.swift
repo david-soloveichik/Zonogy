@@ -41,7 +41,7 @@ extension AppController {
             for removedId in removedWindowIds {
                 if let removedWindow = windowController.window(withId: removedId) {
                     clearManagedWindowZone(removedWindow)
-                    windowController.minimizeWindow(removedWindow)
+                    minimizeWindowProgrammatically(removedWindow, reason: "startup-trim-zone-count")
                 }
             }
 
@@ -67,7 +67,7 @@ extension AppController {
 
             for window in unassignedWindows {
                 clearManagedWindowZone(window)
-                windowController.minimizeWindow(window)
+                minimizeWindowProgrammatically(window, reason: "startup-unassigned-window")
             }
         }
     }

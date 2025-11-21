@@ -158,8 +158,8 @@ extension AppController {
             return ["error": "Window \(windowId) not found"]
         }
 
-        windowController.minimizeWindow(managed)
-        removeWindowFromAllZones(windowId: windowId, reason: "socket-minimize")
+        minimizeWindowProgrammatically(managed, reason: "socket-minimize")
+        removeWindowFromAllZones(windowId: windowId, reason: "socket-minimize", retarget: true)
         syncWindowsToZones()
 
         return ["window_id": windowId]

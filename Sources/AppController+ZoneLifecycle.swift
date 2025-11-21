@@ -151,7 +151,7 @@ extension AppController {
             return
         }
 
-        windowController.minimizeWindow(managed)
+        minimizeWindowProgrammatically(managed, reason: "minimize-command")
 
         // Remove from zone and sync (delegate may not fire in CLI environment)
         removeWindowFromAllZones(windowId: windowId, reason: "minimize-command")
@@ -811,14 +811,16 @@ extension AppController {
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
             var minimizedCount = 0
+            var minimizedWindowIds: [Int] = []
 
             for zone in zones {
                 if let windowId = zone.windowId,
                    let managed = windowController.window(withId: windowId),
                    !managed.isPlaceholder {
-                    windowController.minimizeWindow(managed)
-                    removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut")
+                    minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
+                    removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
                     minimizedCount += 1
+                    minimizedWindowIds.append(windowId)
                 }
             }
 
@@ -1044,6 +1046,75 @@ extension AppController {
             Logger.debug("Navigate right (normal): wrapping to zone \(firstZone.index) on screen \(screenContextStore.loggingIndex(for: rightScreenId))")
             targetedZoneManager.setTargetedZone(newKey, reason: "shortcut-navigate-right-normal-wrap")
         }
+    }
+
+    // MARK: - Event suppression helpers
+
+    internal func suppressEvents(
+        for windowIds: [Int],
+        events: Set<AppController.SuppressedEvent>,
+        duration: TimeInterval,
+        reason: String
+    ) {
+        guard !windowIds.isEmpty, !events.isEmpty else { return }
+        let expiry = Date().addingTimeInterval(duration)
+        for windowId in windowIds {
+            var suppressions = eventSuppressions[windowId] ?? [:]
+            for event in events {
+                suppressions[event] = expiry
+            }
+            eventSuppressions[windowId] = suppressions
+        }
+        let eventList = events.map { $0.rawValue }.joined(separator: ",")
+        Logger.debug("Suppressing events [\(eventList)] for windows \(windowIds) until \(expiry) (reason: \(reason))")
+    }
+
+    internal func isEventSuppressed(windowId: Int, event: AppController.SuppressedEvent) -> Bool {
+        let now = Date()
+        guard var suppressions = eventSuppressions[windowId],
+              let expiry = suppressions[event] else {
+            return false
+        }
+
+        if expiry < now {
+            suppressions.removeValue(forKey: event)
+            if suppressions.isEmpty {
+                eventSuppressions.removeValue(forKey: windowId)
+            } else {
+                eventSuppressions[windowId] = suppressions
+            }
+            return false
+        }
+
+        // One-shot suppression: consume after first matching notification
+        suppressions.removeValue(forKey: event)
+        if suppressions.isEmpty {
+            eventSuppressions.removeValue(forKey: windowId)
+        } else {
+            eventSuppressions[windowId] = suppressions
+        }
+
+        Logger.debug("Suppressed event \(event.rawValue) for window \(windowId)")
+        return true
+    }
+
+    // MARK: - Programmatic actions
+
+    internal func minimizeWindowProgrammatically(
+        _ managed: ManagedWindow,
+        reason: String,
+        suppressDuration: TimeInterval = 1.0
+    ) {
+        suppressEvents(for: [managed.windowId], events: [.miniaturized], duration: suppressDuration, reason: reason)
+        windowController.minimizeWindow(managed)
+    }
+
+    // Protocol convenience overload (no duration parameter)
+    internal func minimizeWindowProgrammatically(
+        _ managed: ManagedWindow,
+        reason: String
+    ) {
+        minimizeWindowProgrammatically(managed, reason: reason, suppressDuration: 1.0)
     }
 
 }

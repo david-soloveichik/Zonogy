@@ -7,6 +7,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenContextStore: ScreenContextStore { get }
     var windowPlacementManager: WindowPlacementManager { get }
+    func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
 
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
@@ -93,7 +94,7 @@ final class TemporaryZoneCoordinator {
         }
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
-        host.windowController.minimizeWindow(occupant)
+        host.minimizeWindowProgrammatically(occupant, reason: reason)
         Logger.debug("Temporary zone minimized occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         refreshTargeting(reason: reason)
         host.refreshIndicators()
@@ -108,7 +109,7 @@ final class TemporaryZoneCoordinator {
         Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {
             host.clearManagedWindowZone(window)
-            host.windowController.minimizeWindow(window)
+            host.minimizeWindowProgrammatically(window, reason: reason)
         }
         refreshTargeting(reason: reason)
         host.refreshIndicators()

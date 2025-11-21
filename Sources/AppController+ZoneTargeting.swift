@@ -8,7 +8,7 @@ extension AppController {
         screenContexts[screenId]?.zoneController
     }
 
-    internal func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified") {
+    internal func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified", retarget: Bool = true) {
         var removed = false
         var emptyZoneKey: ZoneKey?
 
@@ -31,7 +31,7 @@ extension AppController {
             }
         }
 
-        if let emptyZoneKey = emptyZoneKey {
+        if retarget, let emptyZoneKey = emptyZoneKey {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: reason)
         }
 
