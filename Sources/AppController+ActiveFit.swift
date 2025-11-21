@@ -123,7 +123,15 @@ extension AppController {
             return
         }
 
-        let targetOrigin = frameWithMargin(for: zone, in: context.zoneController).origin
+        let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
+
+        // Ensure we perform the canonical zone resize before deciding whether overflow exists.
+        // This prevents ActiveFit from acting on stale dimensions (e.g., when a window just moved from another screen).
+        if activeFitState == nil {
+            windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
+        }
+
+        let targetOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
 
