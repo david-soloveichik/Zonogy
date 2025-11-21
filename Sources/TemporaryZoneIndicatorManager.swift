@@ -50,8 +50,8 @@ final class TemporaryZoneIndicatorManager {
 
         private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
         private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
-        private let targetedFillColor = NSColor.systemBlue.withAlphaComponent(0.3)
-        private let targetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.58)
+        private let targetedFillColor = IndicatorPalette.targetedFillColor
+        private let targetedBorderColor = IndicatorPalette.targetedBorderColor
         private let occupiedFillColor = NSColor.systemBlue.withAlphaComponent(0.22)
         private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
         private let idleFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
@@ -83,34 +83,54 @@ final class TemporaryZoneIndicatorManager {
             guard let layer else { return }
             let background: NSColor
             let border: NSColor
+            let shadowColor: CGColor
+            let shadowOpacity: Float
+            let shadowRadius: CGFloat
+            let borderWidth: CGFloat
+            let transform: CGAffineTransform
 
             if isDragHighlighted {
                 background = highlightFillColor
                 border = highlightBorderColor
+                shadowColor = NSColor.systemBlue.withAlphaComponent(0.95).cgColor
+                shadowOpacity = 1.0
+                shadowRadius = 9
+                borderWidth = 1.9
+                transform = CGAffineTransform(scaleX: 1.12, y: 1.12)
             } else if isTargeted {
                 background = targetedFillColor
                 border = targetedBorderColor
+                shadowColor = IndicatorPalette.targetedShadowColor.cgColor
+                shadowOpacity = IndicatorPalette.targetedShadowOpacity
+                shadowRadius = IndicatorPalette.targetedShadowRadius
+                borderWidth = IndicatorPalette.defaultBorderWidth
+                transform = .identity
             } else if isOccupied {
                 background = occupiedFillColor
                 border = occupiedBorderColor
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+                borderWidth = IndicatorPalette.defaultBorderWidth
+                transform = .identity
             } else {
                 background = idleFillColor
                 border = idleBorderColor
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+                borderWidth = IndicatorPalette.defaultBorderWidth
+                transform = .identity
             }
 
             layer.backgroundColor = background.cgColor
-            layer.borderWidth = isDragHighlighted ? 1.9 : 1.2
+            layer.borderWidth = borderWidth
             layer.borderColor = border.cgColor
-            let glowOpacity: Float = isDragHighlighted ? 1.0 : (isTargeted ? 0.75 : 0.0)
-            layer.shadowColor = NSColor.systemBlue.withAlphaComponent(0.95).cgColor
-            layer.shadowOpacity = glowOpacity
-            layer.shadowRadius = isDragHighlighted ? 9 : (isTargeted ? 6 : 0)
+            layer.shadowColor = shadowColor
+            layer.shadowOpacity = shadowOpacity
+            layer.shadowRadius = shadowRadius
             layer.shadowOffset = .zero
-            if isDragHighlighted {
-                layer.setAffineTransform(CGAffineTransform(scaleX: 1.12, y: 1.12))
-            } else {
-                layer.setAffineTransform(.identity)
-            }
+            layer.setAffineTransform(transform)
         }
 
         override func mouseDown(with event: NSEvent) {

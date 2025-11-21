@@ -58,8 +58,8 @@ final class ZoneIndicatorManager {
             }
         }
 
-        private let targetedColor = NSColor.systemBlue.withAlphaComponent(0.55)
-        private let targetedBorder = NSColor.systemBlue.withAlphaComponent(0.75)
+        private let targetedColor = IndicatorPalette.targetedFillColor
+        private let targetedBorder = IndicatorPalette.targetedBorderColor
         private let untargetedColor = NSColor.systemBlue.withAlphaComponent(0.25)
         private let untargetedBorder = NSColor.systemBlue.withAlphaComponent(0.4)
 
@@ -93,10 +93,16 @@ final class ZoneIndicatorManager {
 
             layer.backgroundColor = background.cgColor
             layer.borderColor = border.cgColor
-            layer.borderWidth = 1.2
-            layer.shadowColor = NSColor.systemBlue.withAlphaComponent(isTargeted ? 0.6 : 0.0).cgColor
-            layer.shadowOpacity = isTargeted ? 0.6 : 0.0
-            layer.shadowRadius = isTargeted ? 6 : 0
+            layer.borderWidth = IndicatorPalette.defaultBorderWidth
+            if isTargeted {
+                layer.shadowColor = IndicatorPalette.targetedShadowColor.cgColor
+                layer.shadowOpacity = IndicatorPalette.targetedShadowOpacity
+                layer.shadowRadius = IndicatorPalette.targetedShadowRadius
+            } else {
+                layer.shadowColor = NSColor.clear.cgColor
+                layer.shadowOpacity = 0.0
+                layer.shadowRadius = 0
+            }
             layer.shadowOffset = CGSize(width: 0, height: 0)
         }
 
