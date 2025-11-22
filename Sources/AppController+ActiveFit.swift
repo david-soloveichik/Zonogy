@@ -181,8 +181,10 @@ extension AppController {
 
         let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
         Logger.debug("ActiveFit restoring window \(state.windowId) to zone \(state.zoneKey.index) (reason: \(reason))")
-        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+
+        // Clear state before moving window to avoid race condition with frame retry checks
         activeFitState = nil
+        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
     }
 
     private func framesClose(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
