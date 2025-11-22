@@ -411,6 +411,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
     func debugTargetedZoneDescription() -> String?
+    func isWindowManagedByActiveFit(windowId: Int) -> Bool
 }
 
 /// NSWindowDelegate for tracking window events

@@ -448,6 +448,11 @@ extension AppController {
         return "screen \(screenIndex) zone \(key.index) (\(occupancy))"
     }
 
+    func isWindowManagedByActiveFit(windowId: Int) -> Bool {
+        // Check if this window is currently being managed by ActiveFit
+        return activeFitState?.windowId == windowId
+    }
+
     internal func isControlCommandDragActive() -> Bool {
         let flags = NSEvent.modifierFlags
         return flags.contains(.command) && flags.contains(.control)

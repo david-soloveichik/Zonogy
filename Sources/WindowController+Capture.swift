@@ -532,12 +532,25 @@ extension WindowController {
         delay: TimeInterval = 0.25
     ) {
         guard !pendingAccessibilityFrameRetryWindowIds.contains(windowId) else { return }
+
+        // Skip retry if window is being managed by ActiveFit
+        if delegate?.isWindowManagedByActiveFit(windowId: windowId) ?? false {
+            Logger.debug("Skipping frame retry for window \(windowId) - managed by ActiveFit")
+            return
+        }
+
         pendingAccessibilityFrameRetryWindowIds.insert(windowId)
 
         let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.pendingAccessibilityFrameRetryWindowIds.remove(windowId)
+
+            // Check again at execution time in case ActiveFit was activated after scheduling
+            if self.delegate?.isWindowManagedByActiveFit(windowId: windowId) ?? false {
+                Logger.debug("Skipping delayed retry execution for window \(windowId) - now managed by ActiveFit")
+                return
+            }
 
             self.performProgrammaticUpdate(for: windowId) {
                 let currentFrame = self.accessibilityFrameForWindow(element: element, on: screen)
