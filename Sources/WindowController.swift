@@ -52,6 +52,7 @@ class WindowController {
     internal var externalWindows: [ExternalWindowIdentifier: ManagedWindow] = [:]
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
+    internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
     internal var ignoredBundleIdentifiers: Set<String>
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?

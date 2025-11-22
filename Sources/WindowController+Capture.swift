@@ -293,10 +293,10 @@ extension WindowController {
 
     /// Show a window at the specified frame (frame is in screen-local coordinates)
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
-        let accessibilityFrame = screen.screenToAccessibility(frame)
         switch managedWindow.backing {
         case .appKit(let window):
             // Convert accessibility coordinates back to Cocoa for AppKit windows
+            let accessibilityFrame = screen.screenToAccessibility(frame)
             let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
                 accessibilityFrame: accessibilityFrame,
                 primaryScreenBounds: primaryScreenBounds
@@ -309,7 +309,12 @@ extension WindowController {
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
-                _ = setAccessibilityFrame(element: element, frame: accessibilityFrame)
+                applyScreenFrameWithBestEffort(
+                    windowId: managedWindow.windowId,
+                    element: element,
+                    targetScreenFrame: frame,
+                    screen: screen
+                )
             }
             _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         }
@@ -359,9 +364,9 @@ extension WindowController {
 
     /// Resize and reposition a window to match a frame (frame is in screen-local coordinates)
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect, on screen: ScreenDescriptor) {
-        let accessibilityFrame = screen.screenToAccessibility(frame)
         switch managedWindow.backing {
         case .appKit(let window):
+            let accessibilityFrame = screen.screenToAccessibility(frame)
             let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
                 accessibilityFrame: accessibilityFrame,
                 primaryScreenBounds: primaryScreenBounds
@@ -370,26 +375,12 @@ extension WindowController {
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
-                let currentFrame = accessibilityFrameForWindow(element: element, on: screen)
-                let visibleBounds = screen.visibleScreenBounds
-                // Decide whether to move first or resize first so the in-between frame stays on-screen if possible
-                let order = preferredAccessibilityUpdateOrder(currentFrame: currentFrame, targetFrame: frame, visibleBounds: visibleBounds)
-
-                let firstPass = applyAccessibilityFrame(element: element, targetAccessibilityFrame: accessibilityFrame, order: order, windowId: managedWindow.windowId, screen: screen)
-
-                // If the OS reported success but the window didn't land in the right place, try the opposite order once.
-                if firstPass.applied, let actual = accessibilityFrameForWindow(element: element, on: screen) {
-                    let actualScreenFrame = actual
-                    if !framesRoughlyEqual(actualScreenFrame, frame) {
-                        let retryOrder = order.opposite
-                        let retryPass = applyAccessibilityFrame(element: element, targetAccessibilityFrame: accessibilityFrame, order: retryOrder, windowId: managedWindow.windowId, screen: screen)
-
-                        if retryPass.applied, let final = accessibilityFrameForWindow(element: element, on: screen), !framesRoughlyEqual(final, frame) {
-                            let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-                            Logger.debug("Post-retry frame mismatch for window \(managedWindow.windowId) on screen \(screenIndex); target: \(frame), actual: \(final), initialOrder: \(order.logLabel), retryOrder: \(retryOrder.logLabel)")
-                        }
-                    }
-                }
+                applyScreenFrameWithBestEffort(
+                    windowId: managedWindow.windowId,
+                    element: element,
+                    targetScreenFrame: frame,
+                    screen: screen
+                )
             }
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
@@ -412,6 +403,95 @@ extension WindowController {
             case .sizeThenPosition: return .positionThenSize
             case .positionThenSize: return .sizeThenPosition
             }
+        }
+    }
+
+    /// Apply a desired screen-frame to an AX-managed window, choosing a safe order,
+    /// retrying with the opposite order if needed, and scheduling a delayed retry
+    /// when the actual frame still doesn't match the target.
+    private func applyScreenFrameWithBestEffort(
+        windowId: Int,
+        element: AXUIElement,
+        targetScreenFrame: CGRect,
+        screen: ScreenDescriptor
+    ) {
+        let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
+        let currentFrame = accessibilityFrameForWindow(element: element, on: screen)
+        let visibleBounds = screen.visibleScreenBounds
+        // Decide whether to move first or resize first so the in-between frame stays on-screen if possible
+        let order = preferredAccessibilityUpdateOrder(
+            currentFrame: currentFrame,
+            targetFrame: targetScreenFrame,
+            visibleBounds: visibleBounds
+        )
+
+        let firstPass = applyAccessibilityFrame(
+            element: element,
+            targetAccessibilityFrame: targetAccessibilityFrame,
+            order: order,
+            windowId: windowId,
+            screen: screen
+        )
+
+        guard firstPass.applied else { return }
+
+        guard let actual = accessibilityFrameForWindow(element: element, on: screen) else {
+            logFrameReadFailure(windowId: windowId, screen: screen, context: "post-apply")
+            scheduleAccessibilityFrameRetryIfNeeded(
+                windowId: windowId,
+                element: element,
+                targetScreenFrame: targetScreenFrame,
+                screen: screen
+            )
+            return
+        }
+
+        if !framesRoughlyEqual(actual, targetScreenFrame) {
+            logFrameMismatch(
+                windowId: windowId,
+                screen: screen,
+                context: "post-apply",
+                target: targetScreenFrame,
+                actual: actual,
+                order: order
+            )
+        }
+
+        // Try opposite order immediately
+        let retryOrder = order.opposite
+        let retryPass = applyAccessibilityFrame(
+            element: element,
+            targetAccessibilityFrame: targetAccessibilityFrame,
+            order: retryOrder,
+            windowId: windowId,
+            screen: screen
+        )
+
+        if retryPass.applied, let final = accessibilityFrameForWindow(element: element, on: screen) {
+            if !framesRoughlyEqual(final, targetScreenFrame) {
+                logFrameMismatch(
+                    windowId: windowId,
+                    screen: screen,
+                    context: "post-retry",
+                    target: targetScreenFrame,
+                    actual: final,
+                    order: retryOrder
+                )
+                scheduleAccessibilityFrameRetryIfNeeded(
+                    windowId: windowId,
+                    element: element,
+                    targetScreenFrame: targetScreenFrame,
+                    screen: screen
+                )
+            }
+        } else {
+            // Could not apply opposite order; schedule delayed retry
+            scheduleAccessibilityFrameRetryIfNeeded(
+                windowId: windowId,
+                element: element,
+                targetScreenFrame: targetScreenFrame,
+                screen: screen
+            )
         }
     }
 
@@ -442,6 +522,58 @@ extension WindowController {
         }
 
         return (sizeResult && positionResult, positionResult, sizeResult)
+    }
+
+    private func scheduleAccessibilityFrameRetryIfNeeded(
+        windowId: Int,
+        element: AXUIElement,
+        targetScreenFrame: CGRect,
+        screen: ScreenDescriptor,
+        delay: TimeInterval = 0.25
+    ) {
+        guard !pendingAccessibilityFrameRetryWindowIds.contains(windowId) else { return }
+        pendingAccessibilityFrameRetryWindowIds.insert(windowId)
+
+        let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.pendingAccessibilityFrameRetryWindowIds.remove(windowId)
+
+            self.performProgrammaticUpdate(for: windowId) {
+                let currentFrame = self.accessibilityFrameForWindow(element: element, on: screen)
+                let order = self.preferredAccessibilityUpdateOrder(
+                    currentFrame: currentFrame,
+                    targetFrame: targetScreenFrame,
+                    visibleBounds: screen.visibleScreenBounds
+                )
+
+                let result = self.applyAccessibilityFrame(
+                    element: element,
+                    targetAccessibilityFrame: targetAccessibilityFrame,
+                    order: order,
+                    windowId: windowId,
+                    screen: screen
+                )
+
+                guard result.applied else { return }
+
+                guard let final = self.accessibilityFrameForWindow(element: element, on: screen) else {
+                    self.logFrameReadFailure(windowId: windowId, screen: screen, context: "delayed-retry")
+                    return
+                }
+
+                if !self.framesRoughlyEqual(final, targetScreenFrame) {
+                    self.logFrameMismatch(
+                        windowId: windowId,
+                        screen: screen,
+                        context: "delayed-retry",
+                        target: targetScreenFrame,
+                        actual: final,
+                        order: order
+                    )
+                }
+            }
+        }
     }
 
     /// Decide whether to set size or position first so intermediate frames stay on-screen when possible.
@@ -485,6 +617,43 @@ extension WindowController {
         abs(lhs.height - rhs.height) <= tolerance
     }
 
+    private func logFrameReadFailure(windowId: Int, screen: ScreenDescriptor, context: String) {
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        Logger.debug("Could not read actual AX frame for window \(windowId) on screen \(screenIndex) (context: \(context))")
+    }
+
+    private func logFrameMismatch(
+        windowId: Int,
+        screen: ScreenDescriptor,
+        context: String,
+        target: CGRect,
+        actual: CGRect,
+        order: AccessibilityUpdateOrder
+    ) {
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        let cgFrame = actualCGWindowFrame(for: windowId)
+        if let cgFrame {
+            Logger.debug("Frame mismatch (\(context)) for window \(windowId) on screen \(screenIndex); target: \(target), AX actual: \(actual), CG actual: \(cgFrame), order: \(order.logLabel)")
+        } else {
+            Logger.debug("Frame mismatch (\(context)) for window \(windowId) on screen \(screenIndex); target: \(target), AX actual: \(actual), CG actual: unavailable, order: \(order.logLabel)")
+        }
+    }
+
+    private func actualCGWindowFrame(for windowId: Int) -> CGRect? {
+        guard let managed = windowRegistry.window(withId: windowId),
+              case .accessibility(_, _, let cgWindowId) = managed.backing else {
+            return nil
+        }
+
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(cgWindowId)) as? [[String: Any]],
+              let boundsDict = windowInfo.first?[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: boundsDict) else {
+            return nil
+        }
+        // CGWindow bounds are already in screen/global coordinates with y:0 at top-left.
+        return rect
+    }
+
     private func overflowArea(for frame: CGRect, bounds: CGRect) -> CGFloat {
         let intersection = frame.intersection(bounds)
         let frameArea = frame.width * frame.height
@@ -508,13 +677,6 @@ extension WindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.programmaticUpdateWindowIds.remove(windowId)
         }
-    }
-
-    private func setAccessibilityFrame(element: AXUIElement, frame: CGRect) -> Bool {
-        // Some apps apply constraints based on current size; set size first, then position.
-        let sizeResult = setAccessibilitySize(element: element, size: frame.size)
-        let positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: frame.origin)
-        return sizeResult && positionResult
     }
 
     private func setAccessibilityPoint(element: AXUIElement, attribute: CFString, point: CGPoint) -> Bool {
