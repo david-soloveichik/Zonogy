@@ -370,11 +370,99 @@ extension WindowController {
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
-                _ = setAccessibilityFrame(element: element, frame: accessibilityFrame)
+                let currentFrame = accessibilityFrameForWindow(element: element, on: screen)
+                let visibleBounds = screen.visibleScreenBounds
+                // Decide whether to move first or resize first so the in-between frame stays on-screen if possible
+                let order = preferredAccessibilityUpdateOrder(currentFrame: currentFrame, targetFrame: frame, visibleBounds: visibleBounds)
+
+                let sizeFirst: Bool
+                switch order {
+                case .sizeThenPosition: sizeFirst = true
+                case .positionThenSize: sizeFirst = false
+                }
+
+                let sizeResult: Bool
+                let positionResult: Bool
+
+                if sizeFirst {
+                    sizeResult = setAccessibilitySize(element: element, size: accessibilityFrame.size)
+                    positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: accessibilityFrame.origin)
+                } else {
+                    positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: accessibilityFrame.origin)
+                    sizeResult = setAccessibilitySize(element: element, size: accessibilityFrame.size)
+                }
+
+                if !(sizeResult && positionResult) {
+                    let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+                    Logger.debug("Failed to set frame for window \(managedWindow.windowId) on screen \(screenIndex); order: \(order.logLabel), positionSuccess: \(positionResult), sizeSuccess: \(sizeResult), requested frame: \(frame)")
+                }
             }
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
         Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame)")
+    }
+
+    private enum AccessibilityUpdateOrder {
+        case sizeThenPosition
+        case positionThenSize
+
+        var logLabel: String {
+            switch self {
+            case .sizeThenPosition: return "size-then-position"
+            case .positionThenSize: return "position-then-size"
+            }
+        }
+    }
+
+    /// Decide whether to set size or position first so intermediate frames stay on-screen when possible.
+    private func preferredAccessibilityUpdateOrder(
+        currentFrame: CGRect?,
+        targetFrame: CGRect,
+        visibleBounds: CGRect
+    ) -> AccessibilityUpdateOrder {
+        guard let currentFrame else {
+            // Without a current frame, prefer position first to reduce the chance of expanding off-screen before moving.
+            return .positionThenSize
+        }
+
+        let sizeFirstIntermediate = CGRect(origin: currentFrame.origin, size: targetFrame.size)
+        let positionFirstIntermediate = CGRect(origin: targetFrame.origin, size: currentFrame.size)
+
+        let sizeFirstSafe = frameIsWithinBounds(sizeFirstIntermediate, bounds: visibleBounds) && frameIsWithinBounds(targetFrame, bounds: visibleBounds)
+        let positionFirstSafe = frameIsWithinBounds(positionFirstIntermediate, bounds: visibleBounds) && frameIsWithinBounds(targetFrame, bounds: visibleBounds)
+
+        if positionFirstSafe && !sizeFirstSafe { return .positionThenSize }
+        if sizeFirstSafe && !positionFirstSafe { return .sizeThenPosition }
+        if positionFirstSafe && sizeFirstSafe { return .positionThenSize } // stable default
+
+        // If neither order keeps everything on-screen, choose the one with less overflow area.
+        let sizeFirstOverflow = overflowArea(for: sizeFirstIntermediate, bounds: visibleBounds)
+        let positionFirstOverflow = overflowArea(for: positionFirstIntermediate, bounds: visibleBounds)
+        return positionFirstOverflow <= sizeFirstOverflow ? .positionThenSize : .sizeThenPosition
+    }
+
+    private func frameIsWithinBounds(_ frame: CGRect, bounds: CGRect, tolerance: CGFloat = 1.0) -> Bool {
+        return frame.minX >= bounds.minX - tolerance &&
+               frame.minY >= bounds.minY - tolerance &&
+               frame.maxX <= bounds.maxX + tolerance &&
+               frame.maxY <= bounds.maxY + tolerance
+    }
+
+    private func overflowArea(for frame: CGRect, bounds: CGRect) -> CGFloat {
+        let intersection = frame.intersection(bounds)
+        let frameArea = frame.width * frame.height
+        let intersectionArea = intersection.width * intersection.height
+        return max(0, frameArea - intersectionArea)
+    }
+
+    /// Current window frame in screen coordinates, or nil if it cannot be read.
+    private func accessibilityFrameForWindow(element: AXUIElement, on screen: ScreenDescriptor) -> CGRect? {
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return nil
+        }
+        let accessibilityFrame = CGRect(origin: position, size: size)
+        return screen.accessibilityToScreen(accessibilityFrame)
     }
 
     private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
