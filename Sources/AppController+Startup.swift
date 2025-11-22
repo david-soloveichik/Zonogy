@@ -352,6 +352,8 @@ extension AppController {
                 self.navigateLeft()
             case .navigateRight:
                 self.navigateRight()
+            case .minimizeActiveWindow:
+                self.minimizeActiveWindow()
             }
         }
     }

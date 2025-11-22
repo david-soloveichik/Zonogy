@@ -160,6 +160,10 @@ Placeholder windows and the add-zone indicator accept external drops so the user
 
 **Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
 
+### Minimize Active Window
+
+Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications.
+
 ### Flip the Key Window to Another Screen
 
 Pressing shortcut Control-Cmd-Enter moves the currently active/key window to another screen (if there is more than one screen).

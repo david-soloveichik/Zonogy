@@ -14,6 +14,7 @@ final class HotkeyService {
         case navigateLeft = 8
         case navigateRight = 9
         case clearOrResetZonesAtCursor = 10
+        case minimizeActiveWindow = 11
     }
 
     weak var delegate: HotkeyServiceDelegate?
@@ -43,6 +44,15 @@ final class HotkeyService {
 
     func handleLocalShortcut(event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        // Check for Cmd-M (only Command key, no Control)
+        if flags.contains(.command) && !flags.contains(.control) && !flags.contains(.option) && !flags.contains(.shift) {
+            if Int(event.keyCode) == kVK_ANSI_M {
+                delegate?.hotkeyService(self, didTrigger: .minimizeActiveWindow)
+                return true
+            }
+        }
+
         guard flags.contains(.command),
               flags.contains(.control) else {
             return false
@@ -140,6 +150,8 @@ final class HotkeyService {
         registerHotKey(keyCode: UInt32(kVK_UpArrow), action: .navigateUp)
         registerHotKey(keyCode: UInt32(kVK_LeftArrow), action: .navigateLeft)
         registerHotKey(keyCode: UInt32(kVK_RightArrow), action: .navigateRight)
+        // Register Cmd-M with only Command key modifier (no Control)
+        registerHotKey(keyCode: UInt32(kVK_ANSI_M), action: .minimizeActiveWindow, modifierFlags: UInt32(cmdKey))
     }
 
     private func registerHotKey(

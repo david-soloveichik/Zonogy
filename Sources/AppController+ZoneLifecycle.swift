@@ -1129,4 +1129,33 @@ extension AppController {
         minimizeWindowProgrammatically(managed, reason: reason, suppressTimeout: 3.0)
     }
 
+    /// Minimizes the currently active/key window using Cmd-M shortcut override
+    internal func minimizeActiveWindow() {
+        // Try to get the frontmost managed window
+        guard let (managed, pid) = managedWindowForFrontmostApplication(
+            logPrefix: "minimizeActiveWindow"
+        ) else {
+            Logger.debug("minimizeActiveWindow: No eligible frontmost window to minimize")
+            return
+        }
+
+        // Get window title for logging
+        var windowTitle = "untitled"
+        if case .accessibility(let element, _, _) = managed.backing {
+            var value: AnyObject?
+            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+               let title = value as? String,
+               !title.isEmpty {
+                windowTitle = title
+            }
+        }
+
+        Logger.debug(
+            "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid) " +
+            "(\(windowTitle))"
+        )
+
+        minimizeWindowProgrammatically(managed, reason: "cmd-m-override")
+    }
+
 }
