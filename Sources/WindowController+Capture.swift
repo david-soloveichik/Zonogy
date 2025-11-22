@@ -386,9 +386,10 @@ extension WindowController {
     }
 
     private func setAccessibilityFrame(element: AXUIElement, frame: CGRect) -> Bool {
-        let positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: frame.origin)
+        // Some apps apply constraints based on current size; set size first, then position.
         let sizeResult = setAccessibilitySize(element: element, size: frame.size)
-        return positionResult && sizeResult
+        let positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: frame.origin)
+        return sizeResult && positionResult
     }
 
     private func setAccessibilityPoint(element: AXUIElement, attribute: CFString, point: CGPoint) -> Bool {
