@@ -1156,6 +1156,15 @@ extension AppController {
         )
 
         minimizeWindowProgrammatically(managed, reason: "cmd-m-override")
+
+        // Since we're suppressing the miniaturize notification to avoid feedback loops,
+        // we need to manually handle the zone removal and placeholder creation
+        removeWindowFromAllZones(windowId: managed.windowId, reason: "cmd-m-minimize", retarget: true)
+        syncWindowsToZones()
+
+        // Clear ActiveFit state if needed
+        activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "cmd-m-minimize")
+        activeFitClearSuppressionForWindow(managed.windowId)
     }
 
 }
