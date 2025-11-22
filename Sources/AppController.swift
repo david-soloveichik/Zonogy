@@ -209,10 +209,49 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     internal func activeScreenId() -> CGDirectDisplayID {
-        if let main = NSScreen.main,
-           let id = AppController.displayId(for: main),
-           screenContexts[id] != nil {
+        let cursorScreenId = resolveCursorScreenId()
+
+        let mainScreenId: CGDirectDisplayID? = {
+            guard let main = NSScreen.main,
+                  let id = AppController.displayId(for: main),
+                  screenContexts[id] != nil else {
+                return nil
+            }
             return id
+        }()
+
+        if let cursor = cursorScreenId,
+           let main = mainScreenId,
+           cursor == main {
+            return cursor
+        }
+
+        let targetedScreenId: CGDirectDisplayID? = {
+            if let tiled = targetedZoneManager.targetedZoneKey?.screenId,
+               screenContexts[tiled] != nil {
+                return tiled
+            }
+            if let temporary = targetedZoneManager.targetedTemporaryScreenId,
+               screenContexts[temporary] != nil {
+                return temporary
+            }
+            return nil
+        }()
+
+        if let target = targetedScreenId {
+            if let cursor = cursorScreenId, cursor == target {
+                return cursor
+            }
+            if let main = mainScreenId, main == target {
+                return main
+            }
+        }
+
+        if let main = mainScreenId {
+            return main
+        }
+        if let cursor = cursorScreenId {
+            return cursor
         }
         if screenContexts[primaryScreenId] != nil {
             return primaryScreenId

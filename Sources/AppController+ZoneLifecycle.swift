@@ -836,7 +836,7 @@ extension AppController {
         }
     }
 
-    private func resolveCursorScreenId() -> CGDirectDisplayID? {
+    internal func resolveCursorScreenId() -> CGDirectDisplayID? {
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
             return nil
         }
