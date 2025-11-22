@@ -375,26 +375,20 @@ extension WindowController {
                 // Decide whether to move first or resize first so the in-between frame stays on-screen if possible
                 let order = preferredAccessibilityUpdateOrder(currentFrame: currentFrame, targetFrame: frame, visibleBounds: visibleBounds)
 
-                let sizeFirst: Bool
-                switch order {
-                case .sizeThenPosition: sizeFirst = true
-                case .positionThenSize: sizeFirst = false
-                }
+                let firstPass = applyAccessibilityFrame(element: element, targetAccessibilityFrame: accessibilityFrame, order: order, windowId: managedWindow.windowId, screen: screen)
 
-                let sizeResult: Bool
-                let positionResult: Bool
+                // If the OS reported success but the window didn't land in the right place, try the opposite order once.
+                if firstPass.applied, let actual = accessibilityFrameForWindow(element: element, on: screen) {
+                    let actualScreenFrame = actual
+                    if !framesRoughlyEqual(actualScreenFrame, frame) {
+                        let retryOrder = order.opposite
+                        let retryPass = applyAccessibilityFrame(element: element, targetAccessibilityFrame: accessibilityFrame, order: retryOrder, windowId: managedWindow.windowId, screen: screen)
 
-                if sizeFirst {
-                    sizeResult = setAccessibilitySize(element: element, size: accessibilityFrame.size)
-                    positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: accessibilityFrame.origin)
-                } else {
-                    positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: accessibilityFrame.origin)
-                    sizeResult = setAccessibilitySize(element: element, size: accessibilityFrame.size)
-                }
-
-                if !(sizeResult && positionResult) {
-                    let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-                    Logger.debug("Failed to set frame for window \(managedWindow.windowId) on screen \(screenIndex); order: \(order.logLabel), positionSuccess: \(positionResult), sizeSuccess: \(sizeResult), requested frame: \(frame)")
+                        if retryPass.applied, let final = accessibilityFrameForWindow(element: element, on: screen), !framesRoughlyEqual(final, frame) {
+                            let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+                            Logger.debug("Post-retry frame mismatch for window \(managedWindow.windowId) on screen \(screenIndex); target: \(frame), actual: \(final), initialOrder: \(order.logLabel), retryOrder: \(retryOrder.logLabel)")
+                        }
+                    }
                 }
             }
         }
@@ -412,6 +406,42 @@ extension WindowController {
             case .positionThenSize: return "position-then-size"
             }
         }
+
+        var opposite: AccessibilityUpdateOrder {
+            switch self {
+            case .sizeThenPosition: return .positionThenSize
+            case .positionThenSize: return .sizeThenPosition
+            }
+        }
+    }
+
+    /// Applies AX size/position in a specified order and logs detailed success state.
+    private func applyAccessibilityFrame(
+        element: AXUIElement,
+        targetAccessibilityFrame: CGRect,
+        order: AccessibilityUpdateOrder,
+        windowId: Int,
+        screen: ScreenDescriptor
+    ) -> (applied: Bool, positionResult: Bool, sizeResult: Bool) {
+        let sizeFirst = order == .sizeThenPosition
+
+        let sizeResult: Bool
+        let positionResult: Bool
+
+        if sizeFirst {
+            sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
+            positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
+        } else {
+            positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
+            sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
+        }
+
+        if !(sizeResult && positionResult) {
+            let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+            Logger.debug("Failed to set frame for window \(windowId) on screen \(screenIndex); order: \(order.logLabel), positionSuccess: \(positionResult), sizeSuccess: \(sizeResult), requested frame: \(screen.accessibilityToScreen(targetAccessibilityFrame))")
+        }
+
+        return (sizeResult && positionResult, positionResult, sizeResult)
     }
 
     /// Decide whether to set size or position first so intermediate frames stay on-screen when possible.
@@ -446,6 +476,13 @@ extension WindowController {
                frame.minY >= bounds.minY - tolerance &&
                frame.maxX <= bounds.maxX + tolerance &&
                frame.maxY <= bounds.maxY + tolerance
+    }
+
+    private func framesRoughlyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 1.0) -> Bool {
+        abs(lhs.minX - rhs.minX) <= tolerance &&
+        abs(lhs.minY - rhs.minY) <= tolerance &&
+        abs(lhs.width - rhs.width) <= tolerance &&
+        abs(lhs.height - rhs.height) <= tolerance
     }
 
     private func overflowArea(for frame: CGRect, bounds: CGRect) -> CGFloat {
