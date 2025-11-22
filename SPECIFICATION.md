@@ -76,15 +76,15 @@ Whenever zones are added or removed on a screen, the dimensions of the remaining
 
 Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
 
-**Targeted zone selection:** ( in this section "zone" refers to just normal, not-temporary zones only; see below for temporary zones)
+**Targeted zone selection:** (in this section "zone" refers to just normal, not-temporary zones only; see below for temporary zones)
 
 - Launching: target zone 1 on the primary display.
 - Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
 - Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a normal (non-temporary) zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
+- Whenever a normal zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
 - When a new normal zone is created: target that new zone if the current target is filled or is an empty zone with a higher index; otherwise keep the current target.
-- Whenever the targeted zone is filled: if another empty (normal, not-temporary) zone exists, retarget to the empty zone with the lowest index; if none exist, keep the zone you just filled targeted.
-- If the targeted zone is removed: retarget to the lowest-index empty zone if there is one; otherwise choose the occupied zone with the highest index.
+- Whenever the targeted normal zone is filled: if another empty normal zone exists on the same screen, retarget to such zone with the lowest index; if none exist, target the temporary zone on the same screen.
+- If the targeted zone is removed: retarget to the lowest-index empty zone on the same screen if there is one; otherwise target the temporary zone on the same screen.
 
 **Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
 
@@ -116,12 +116,9 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
-Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). More specifically:
-- Empty the temporary zone on the active screen (minimize the window in it if there is one).
-- If all zones on the active screen are already empty, reduce the zone count to 1.
-- Otherwise, minimize all windows on the active screen (making all zones empty).
-- After this clear/reset completes, target zone 1 on that screen (regardless of prior target).
-- Pressing Shift-Option-Control-Cmd-Space performs the same steps, but targets the screen currently holding the mouse pointer (fall back to the active screen only if the pointer is outside every managed display).
+Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen.
+
+Pressing Shift-Option-Control-Cmd-Space performs the same steps, but works with the screen currently holding the mouse pointer.
 
 ### Resizing Zones
 
@@ -196,7 +193,6 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - Holds at most one managed window (no placeholder). This is also called the "floating window". When placed into a temporary zone, a window is centered and resized once; after that the user may freely move/resize it without changing any tiled frames.
 - Placing another window into the temporary zone minimizes the previous occupant. We minimize the floating window when another (non-placeholder managed) window on the same screen becomes active/front-most. Temporary zones on other screens stay untouched so each screen floats independently.
 - Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
-- At the point when we fill the last previously empty tiled (normal) zone the temporary zone auto-targets. If that temporary zone is targeted **and** still contains a window, it keeps the target even when another tiled zone becomes empty or a new one is created; the user must explicitly retarget or empty the temporary zone to hand control back. Emptying the temporary zone never forces retargeting, but once it is empty (or manually deselected) normal targeting rules resume.
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.
 - Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline; however, unlike the usual replace pipeline, the displaced window should be minimized (now swapped into the temporary zone). We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
 - When dragging a window from a normal (tiled zoned), dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.

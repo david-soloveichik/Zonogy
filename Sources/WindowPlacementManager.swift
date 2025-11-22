@@ -336,10 +336,16 @@ class WindowPlacementManager {
         delegate.updateTemporaryZoneTargeting(reason: "zone-assignment")
 
         if zoneWasEmptyBeforeAssignment && wasTargetedZone {
-            // Specification: filling the targeted zone promotes the lowest-index remaining empty zone (if any)
-            let nextEmpty = delegate.targetedZoneManager.lowestIndexEmptyZone(excluding: filledZoneKey)
+            // Specification: filling the targeted zone promotes the lowest-index remaining empty zone on the same screen (if any)
+            let nextEmpty = delegate.targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(
+                screenId: filledZoneKey.screenId,
+                excluding: filledZoneKey
+            )
             if let nextEmpty {
                 delegate.targetedZoneManager.setTargetedZone(nextEmpty, reason: "zone-filled-switch-to-empty")
+            } else {
+                // No empty zones on same screen, target the temporary zone on the same screen
+                delegate.targetedZoneManager.setTemporaryTarget(on: filledZoneKey.screenId, reason: "zone-filled-no-empty-same-screen")
             }
         }
     }

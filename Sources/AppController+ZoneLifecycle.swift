@@ -66,9 +66,15 @@ extension AppController {
 
         let currentTarget = targetedZoneKey
         var pendingTargetedKey: ZoneKey?
+        var shouldTargetTemporary = false
         if let currentTarget, currentTarget.screenId == screenId {
             if currentTarget.index == index {
-                pendingTargetedKey = targetedZoneManager.fallbackTargetedZone(preferredScreenId: screenId)
+                // The targeted zone is being removed, find a fallback on the same screen
+                pendingTargetedKey = targetedZoneManager.fallbackTargetedZoneOnSameScreen(screenId: screenId)
+                if pendingTargetedKey == nil {
+                    // No empty zones on same screen, will target temporary zone
+                    shouldTargetTemporary = true
+                }
             } else if currentTarget.index > index {
                 pendingTargetedKey = ZoneKey(screenId: screenId, index: currentTarget.index - 1)
             }
@@ -76,6 +82,8 @@ extension AppController {
 
         if let pendingTargetedKey {
             targetedZoneManager.setTargetedZone(pendingTargetedKey, reason: "zone-removed")
+        } else if shouldTargetTemporary {
+            targetedZoneManager.setTemporaryTarget(on: screenId, reason: "zone-removed-no-empty-same-screen")
         }
 
         if let removedWindowId = removalResult.removedWindowId,
@@ -86,7 +94,7 @@ extension AppController {
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
 
-        if pendingTargetedKey == nil {
+        if pendingTargetedKey == nil && !shouldTargetTemporary {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")
         }
 
