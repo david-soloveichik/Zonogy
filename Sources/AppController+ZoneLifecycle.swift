@@ -1022,24 +1022,57 @@ extension AppController {
         Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
     }
 
-    /// Find the foremost managed (non-placeholder) window whose accessibility frame contains the cursor.
+    /// Find the foremost managed (non-placeholder) window under the cursor, preferring true z-order.
     private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
-        var bestCandidate: (ManagedWindow, pid_t)?
-
+        // Build a lookup table of externally backed managed windows keyed by their stable CG identifier.
+        var managedByExternalId: [ExternalWindowIdentifier: ManagedWindow] = [:]
         for window in windowController.allWindows {
             guard !window.isPlaceholder,
-                  case .accessibility(_, let pid, _) = window.backing,
-                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: window),
-                  frame.contains(cursorPoint),
-                  !window.isMinimized else {
+                  !window.isMinimized,
+                  let identifier = window.externalIdentifier else {
                 continue
             }
-
-            // Prefer the last matching window; ordering is not critical because managed windows rarely overlap.
-            bestCandidate = (window, pid)
+            managedByExternalId[identifier] = window
         }
 
-        return bestCandidate
+        // Prefer the true frontmost window under the cursor using the window server's z-ordered list.
+        if let windowList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] {
+            for windowInfo in windowList {
+                guard let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
+                      let cgWindowId = windowInfo[kCGWindowNumber as String] as? Int,
+                      let boundsDict = windowInfo[kCGWindowBounds as String] as? NSDictionary,
+                      let bounds = CGRect(dictionaryRepresentation: boundsDict) else {
+                    continue
+                }
+
+                // CGWindow bounds share the same top-left origin convention as accessibility coordinates.
+                guard bounds.contains(cursorPoint) else {
+                    continue
+                }
+
+                let identifier = ExternalWindowIdentifier(pid: ownerPID, cgWindowId: cgWindowId)
+                if let managed = managedByExternalId[identifier] {
+                    return (managed, ownerPID)
+                }
+            }
+        }
+
+        // Fallback: approximate by scanning managed windows whose accessibility frames contain the cursor.
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  !window.isMinimized,
+                  case .accessibility(_, let pid, _) = window.backing,
+                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: window),
+                  frame.contains(cursorPoint) else {
+                continue
+            }
+            return (window, pid)
+        }
+
+        return nil
     }
 
     /// Find the empty zone (placeholder frame) under the cursor, if any.
