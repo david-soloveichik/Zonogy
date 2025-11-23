@@ -48,6 +48,7 @@ final class ZoneResizeHandleManager {
         
         private var isHovering = false
         private var isDragging = false
+        private static weak var activeDragView: HandleView?
         
         // Visual bar customization
         private let barThickness: CGFloat = 4.0
@@ -84,6 +85,10 @@ final class ZoneResizeHandleManager {
         }
         
         override func mouseEntered(with event: NSEvent) {
+            // Prevent other handles from lighting up if a drag is in progress
+            if let dragger = HandleView.activeDragView, dragger !== self {
+                return
+            }
             isHovering = true
             needsDisplay = true
         }
@@ -122,11 +127,13 @@ final class ZoneResizeHandleManager {
         }
         
         override func mouseDown(with event: NSEvent) {
+            HandleView.activeDragView = self
             isDragging = true
             needsDisplay = true
         }
         
         override func mouseUp(with event: NSEvent) {
+            HandleView.activeDragView = nil
             isDragging = false
             needsDisplay = true
         }
