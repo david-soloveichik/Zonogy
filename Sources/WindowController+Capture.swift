@@ -585,12 +585,17 @@ extension WindowController {
                     actual: final,
                     order: retryOrder
                 )
-                scheduleAccessibilityFrameRetryIfNeeded(
-                    windowId: windowId,
-                    element: element,
-                    targetScreenFrame: targetScreenFrame,
-                    screen: screen
-                )
+                // Only schedule a delayed retry if the final frame still overflows the visible bounds.
+                // If the window is fully on-screen but merely refuses to shrink to the exact zone size,
+                // treat the current placement as "good enough" to avoid late jumps caused by retries.
+                if !frameIsWithinBounds(final, bounds: visibleBounds) {
+                    scheduleAccessibilityFrameRetryIfNeeded(
+                        windowId: windowId,
+                        element: element,
+                        targetScreenFrame: targetScreenFrame,
+                        screen: screen
+                    )
+                }
             }
         } else {
             // Could not apply opposite order; schedule delayed retry
@@ -639,6 +644,20 @@ extension WindowController {
         screen: ScreenDescriptor,
         delay: TimeInterval = 0.25
     ) {
+        // If the window is already fully within the visible screen bounds, do not
+        // schedule a retry. This prevents late retries from nudging windows that
+        // are visually in a good state (e.g., min-width windows that cannot shrink
+        // to the exact requested zone size).
+        if let current = accessibilityFrameForWindow(element: element, on: screen) {
+            let visibleBounds = screen.visibleScreenBounds
+            let cgFrame = actualCGWindowFrame(for: windowId)
+            let boundsCheckFrame = cgFrame ?? current
+            if frameIsWithinBounds(boundsCheckFrame, bounds: visibleBounds) {
+                Logger.debug("Skipping frame retry for window \(windowId) - frame already within visible bounds")
+                return
+            }
+        }
+
         guard !pendingAccessibilityFrameRetryWindowIds.contains(windowId) else { return }
 
         // Skip retry if window is being managed by ActiveFit
