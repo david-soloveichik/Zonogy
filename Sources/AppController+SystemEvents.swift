@@ -54,6 +54,7 @@ extension AppController {
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
+            handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
         }
         if let application {
             lastActiveApplicationPid = application.processIdentifier

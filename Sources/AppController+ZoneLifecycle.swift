@@ -464,6 +464,7 @@ extension AppController {
                     }
                     let displayFrame = frameWithMargin(for: zone, in: controller)
                     windowController.moveWindow(managed, to: displayFrame, on: descriptor)
+                    manualResizeDetachedWindowIds.remove(windowId)
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                     assignedWindowIds.insert(windowId)
                 }

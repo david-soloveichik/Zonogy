@@ -80,6 +80,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenChangeDebounceInterval: TimeInterval = 0.25
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?
+    /// Windows that were manually resized while tiled and should snap back to their zone frame on focus loss or the next layout sync.
+    internal var manualResizeDetachedWindowIds: Set<Int> = []
     internal let activeFitOverflowTolerance: CGFloat = 1.0
     internal var activeFitState: ActiveFitState?
     internal var activeFitSuppressedWindowIds: Set<Int> = []

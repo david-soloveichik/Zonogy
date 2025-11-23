@@ -29,6 +29,7 @@ extension AppController {
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")
         handleActiveFitFocusChange(pid: pid)
         handleTemporaryZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
+        handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -66,6 +67,7 @@ extension AppController {
 
     func windowWillClose(windowId: Int) {
         Logger.debug("Window \(windowId) will close")
+        manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
         if let managed, managed.isPlaceholder {
             placeholderCoordinator.forget(windowId: windowId)
@@ -89,6 +91,7 @@ extension AppController {
 
     func windowDidMiniaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did miniaturize")
+        manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
 
         if let managed, isEventSuppressed(windowId: managed.windowId, event: .miniaturized) {
@@ -124,11 +127,30 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
             return
         }
-        
-        // Resizing managed windows should not update zone sizes.
-        // We just log it. We explicitly DO NOT call syncWindowsToZones() here, allowing
-        // the window to remain at its new custom size/position until some other event triggers a sync.
-        Logger.debug("Window \(windowId) manual resize ended. Not forcing zone snap.")
+
+        guard let managed = windowController.window(withId: windowId),
+              !managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            Logger.debug("Window \(windowId) manual resize ended outside tiled zone; ignoring snapback tracking")
+            manualResizeDetachedWindowIds.remove(windowId)
+            return
+        }
+
+        manualResizeDetachedWindowIds.insert(windowId)
+
+        let resolvedScreenId: CGDirectDisplayID? = {
+            if let screenId {
+                return screenId
+            }
+            return managed.screenDisplayId ?? detectScreenId(for: managed)
+        }()
+
+        if let resolvedScreenId {
+            let screenIndex = screenContextStore.loggingIndex(for: resolvedScreenId)
+            Logger.debug("Window \(windowId) manual resize ended in zone \(zoneIndex) on screen \(screenIndex); deferring snapback until layout sync or focus loss")
+        } else {
+            Logger.debug("Window \(windowId) manual resize ended in zone \(zoneIndex) on unknown screen; deferring snapback until layout sync or focus loss")
+        }
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
@@ -438,6 +460,64 @@ extension AppController {
         return nil
     }
 
+}
+
+// MARK: - Manual resize snapback
+
+extension AppController {
+    internal func handleManualResizeFocusChange(pid: pid_t, focusedWindowId: Int?) {
+        guard !manualResizeDetachedWindowIds.isEmpty else {
+            return
+        }
+
+        let candidateIds = manualResizeDetachedWindowIds
+        Logger.debug("Manual resize focus change for pid \(pid) (focusedWindowId: \(focusedWindowId.map(String.init) ?? "nil"), candidates: \(candidateIds.count))")
+        for windowId in candidateIds {
+            guard let managed = windowController.window(withId: windowId) else {
+                manualResizeDetachedWindowIds.remove(windowId)
+                continue
+            }
+
+            guard case .accessibility(_, let windowPid, _) = managed.backing,
+                  windowPid == pid else {
+                continue
+            }
+
+            if let focusedWindowId, focusedWindowId == windowId {
+                // Keep the active window at its custom size until it later loses focus.
+                continue
+            }
+
+            snapManuallyResizedWindowBackToZoneIfNeeded(windowId: windowId, reason: "focus-change")
+        }
+    }
+
+    private func snapManuallyResizedWindowBackToZoneIfNeeded(windowId: Int, reason: String) {
+        guard manualResizeDetachedWindowIds.contains(windowId) else {
+            return
+        }
+
+        defer { manualResizeDetachedWindowIds.remove(windowId) }
+
+        guard let managed = windowController.window(withId: windowId),
+              !managed.isPlaceholder,
+              let zoneIndex = managed.zoneIndex else {
+            return
+        }
+
+        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        guard let screenId,
+              let context = screenContexts[screenId],
+              let descriptor = descriptor(for: screenId),
+              let zone = context.zoneController.zone(at: zoneIndex) else {
+            return
+        }
+
+        let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Manual resize snapback: restoring window \(windowId) to zone \(zone.index) on screen \(screenIndex) (reason: \(reason))")
+        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+    }
 }
 
 // MARK: - DragDropCoordinatorDelegate (temporary re-entry)

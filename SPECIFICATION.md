@@ -130,7 +130,7 @@ Placeholder windows inside empty zones are not resizable by dragging their edges
 
 #### Resizing Managed Windows
 
-If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized or another window is managed).
+If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
 
 While the user is dragging a separator, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
