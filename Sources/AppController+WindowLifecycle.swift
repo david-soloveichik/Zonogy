@@ -29,6 +29,7 @@ extension AppController {
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")
         handleActiveFitFocusChange(pid: pid)
         handleTemporaryZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
+        syncWindowsToZones()
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
