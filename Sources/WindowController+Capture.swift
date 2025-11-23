@@ -793,14 +793,22 @@ extension WindowController {
     }
 
     private func performProgrammaticUpdate(for windowId: Int, _ block: () -> Void) {
+        // Cancel any pending cleanup for this window (debouncing).
+        programmaticUpdateWorkItems[windowId]?.cancel()
+        
         programmaticUpdateWindowIds.insert(windowId)
         block()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.programmaticUpdateWindowIds.remove(windowId)
+            self.programmaticUpdateWorkItems.removeValue(forKey: windowId)
             // Clear the cached frame for AppKit windows after the update is considered complete.
             self.lastRequestedAppKitFrames.removeValue(forKey: windowId)
         }
+        
+        programmaticUpdateWorkItems[windowId] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
 
     private func setAccessibilityPoint(element: AXUIElement, attribute: CFString, point: CGPoint) -> Bool {

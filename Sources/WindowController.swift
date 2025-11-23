@@ -51,6 +51,7 @@ class WindowController {
     internal var externalWindows: [ExternalWindowIdentifier: ManagedWindow] = [:]
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
+    internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
     internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
     internal var lastRequestedAppKitFrames: [Int: CGRect] = [:] // New: For AppKit windows, to avoid frame read race conditions
     internal var ignoredBundleIdentifiers: Set<String>
@@ -136,6 +137,8 @@ class WindowController {
             }
             windowRegistry.removeWindow(withId: windowId)
             programmaticUpdateWindowIds.remove(windowId)
+            programmaticUpdateWorkItems[windowId]?.cancel()
+            programmaticUpdateWorkItems.removeValue(forKey: windowId)
             if currentDraggingWindowId == windowId {
                 currentDraggingWindowId = nil
             }
