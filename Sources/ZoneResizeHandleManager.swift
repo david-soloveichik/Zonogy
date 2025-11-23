@@ -8,7 +8,9 @@ struct ZoneSeparatorDescriptor {
 }
 
 protocol ZoneResizeHandleManagerDelegate: AnyObject {
+    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int)
     func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint)
+    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int)
 }
 
 final class ZoneResizeHandleManager {
@@ -48,6 +50,7 @@ final class ZoneResizeHandleManager {
         
         private var isHovering = false
         private var isDragging = false
+        private var hasActiveResizeDrag = false
         private static weak var activeDragView: HandleView?
         
         // Visual bar customization
@@ -133,12 +136,21 @@ final class ZoneResizeHandleManager {
         }
         
         override func mouseUp(with event: NSEvent) {
+            if hasActiveResizeDrag {
+                delegate?.resizeHandleDragEnded(screenId: screenId, separatorIndex: separatorIndex)
+            }
+            hasActiveResizeDrag = false
             HandleView.activeDragView = nil
             isDragging = false
             needsDisplay = true
         }
 
         override func mouseDragged(with event: NSEvent) {
+            if !hasActiveResizeDrag {
+                hasActiveResizeDrag = true
+                delegate?.resizeHandleDragBegan(screenId: screenId, separatorIndex: separatorIndex)
+            }
+
             isDragging = true
             needsDisplay = true
             

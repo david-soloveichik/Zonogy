@@ -644,6 +644,12 @@ extension WindowController {
         screen: ScreenDescriptor,
         delay: TimeInterval = 0.25
     ) {
+        // Avoid scheduling retries while a zone resize drag is in progress.
+        if delegate?.isZoneResizeDragInProgress() ?? false {
+            Logger.debug("Skipping frame retry for window \(windowId) - zone resize in progress")
+            return
+        }
+
         // If the window is already fully within the visible screen bounds, do not
         // schedule a retry. This prevents late retries from nudging windows that
         // are visually in a good state (e.g., min-width windows that cannot shrink
@@ -672,6 +678,12 @@ extension WindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.pendingAccessibilityFrameRetryWindowIds.remove(windowId)
+
+            // Skip the delayed retry as well if a zone resize is still active.
+            if self.delegate?.isZoneResizeDragInProgress() ?? false {
+                Logger.debug("Skipping delayed frame retry execution for window \(windowId) - zone resize in progress")
+                return
+            }
 
             // Check again at execution time in case ActiveFit was activated after scheduling
             if self.delegate?.isWindowManagedByActiveFit(windowId: windowId) ?? false {

@@ -755,6 +755,28 @@ extension AppController {
 
     // MARK: - ZoneResizeHandleManagerDelegate
 
+    internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
+        Logger.debug("Zone resize drag began on screen \(screenId) separator \(separatorIndex)")
+        zoneResizeDragInProgress = true
+        activeFitZoneResizeLoggedWindowIds.removeAll()
+        // Snap any ActiveFit window back to its zone-aligned position before live resizing.
+        activeFitDeactivate(reason: "zone-resize-begin")
+    }
+
+    internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
+        Logger.debug("Zone resize drag ended on screen \(screenId) separator \(separatorIndex)")
+        zoneResizeDragInProgress = false
+        activeFitZoneResizeLoggedWindowIds.removeAll()
+
+        // When resizing stops, if the active window qualifies, re-evaluate ActiveFit.
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        handleActiveFitActivationCandidate(pid: pid)
+    }
+
+    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int) {
+        beginZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
+    }
+
     func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint) {
         guard let context = screenContexts[screenId] else { return }
         
@@ -776,6 +798,10 @@ extension AppController {
         
         // Sync windows and handles to new layout
         syncWindowsToZones()
+    }
+
+    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int) {
+        endZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
     }
 
     internal func refreshResizeHandles() {

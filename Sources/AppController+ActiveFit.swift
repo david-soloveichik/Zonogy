@@ -301,6 +301,17 @@ extension AppController {
     }
 
     private func isActiveFitSuppressed(windowId: Int) -> Bool {
-        activeFitSuppressedWindowIds.contains(windowId)
+        if zoneResizeDragInProgress {
+            if !activeFitZoneResizeLoggedWindowIds.contains(windowId) {
+                activeFitZoneResizeLoggedWindowIds.insert(windowId)
+                Logger.debug("ActiveFit suppression: zone resize in progress; skipping window \(windowId)")
+            }
+            return true
+        }
+        if activeFitSuppressedWindowIds.contains(windowId) {
+            Logger.debug("ActiveFit suppression: window \(windowId) is in suppressed set")
+            return true
+        }
+        return false
     }
 }

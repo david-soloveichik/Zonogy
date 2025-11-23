@@ -53,6 +53,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingSync = false
     internal var pendingSyncExcludedZones: Set<ZoneKey> = []
     internal var liveResizingZoneKey: ZoneKey?
+    /// True while the user is actively dragging a zone separator (live zone resize).
+    /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.
+    internal var zoneResizeDragInProgress = false
+    internal var isZoneResizeInProgress = false
     internal var lastActiveApplicationPid: pid_t?
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderCoordinator: PlaceholderCoordinator
@@ -79,6 +83,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let activeFitOverflowTolerance: CGFloat = 1.0
     internal var activeFitState: ActiveFitState?
     internal var activeFitSuppressedWindowIds: Set<Int> = []
+    internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
     internal var pendingTemporaryZoneIdentitySnapshots: [CGDirectDisplayID: TemporaryZoneIdentitySnapshot] = [:]
     internal var temporaryZoneWakeProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneWakeProtectionDuration: TimeInterval = 5.0

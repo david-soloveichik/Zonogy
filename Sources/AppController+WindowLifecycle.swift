@@ -396,6 +396,10 @@ extension AppController {
         return activeFitState?.windowId == windowId
     }
 
+    func isZoneResizeDragInProgress() -> Bool {
+        return zoneResizeDragInProgress
+    }
+
     internal func isControlCommandDragActive() -> Bool {
         let flags = NSEvent.modifierFlags
         return flags.contains(.command) && flags.contains(.control)
