@@ -16,10 +16,22 @@ extension AppController {
         }
 
         guard let managed = windowController.focusedWindowIfTracked(pid: pid),
-              !managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex,
-              zoneIndex >= 2 else {
+              !managed.isPlaceholder else {
             activeFitDeactivate(reason: "focus-ineligible")
+            return
+        }
+
+        // If focus moved to a different window than the one currently
+        // expanded via ActiveFit, restore that previous window to its
+        // zone-aligned frame before evaluating the new candidate.
+        if let state = activeFitState, state.windowId != managed.windowId {
+            restoreActiveFitState(state: state, reason: "focus-transfer")
+        }
+
+        guard let zoneIndex = managed.zoneIndex,
+              zoneIndex >= 2 else {
+            // New focused window is not in a right-column zone; no
+            // ActiveFit behavior is needed after restoring any prior state.
             return
         }
 
