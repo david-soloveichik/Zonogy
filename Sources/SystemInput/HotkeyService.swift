@@ -15,6 +15,7 @@ final class HotkeyService {
         case navigateRight = 9
         case clearOrResetZonesAtCursor = 10
         case minimizeActiveWindow = 11
+        case minimizeWindowOrRemoveZoneAtCursor = 12
     }
 
     weak var delegate: HotkeyServiceDelegate?
@@ -70,6 +71,12 @@ final class HotkeyService {
         case kVK_ANSI_Z:
             delegate?.hotkeyService(self, didTrigger: .captureTimeTravelLogs)
             return true
+        case kVK_ANSI_M:
+            if flags.contains(.option) && flags.contains(.shift) {
+                delegate?.hotkeyService(self, didTrigger: .minimizeWindowOrRemoveZoneAtCursor)
+                return true
+            }
+            return false
         case kVK_Return:
             delegate?.hotkeyService(self, didTrigger: .flipKeyWindow)
             return true
@@ -152,6 +159,12 @@ final class HotkeyService {
         registerHotKey(keyCode: UInt32(kVK_RightArrow), action: .navigateRight)
         // Register Cmd-M with only Command key modifier (no Control)
         registerHotKey(keyCode: UInt32(kVK_ANSI_M), action: .minimizeActiveWindow, modifierFlags: UInt32(cmdKey))
+        // Register Shift-Option-Control-Cmd-M for cursor-based minimize/remove behavior
+        registerHotKey(
+            keyCode: UInt32(kVK_ANSI_M),
+            action: .minimizeWindowOrRemoveZoneAtCursor,
+            modifierFlags: baseHotKeyModifiers | UInt32(shiftKey | optionKey)
+        )
     }
 
     private func registerHotKey(

@@ -165,6 +165,11 @@ Placeholder windows and the add-zone indicator accept external drops so the user
 
 Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications.
 
+Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
+
+- If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and ActiveFit cleanup).
+- Otherwise, if the mouse pointer is within the frame of an empty zone (i.e., over its placeholder window), remove that zone exactly as if the blue "x" button on the placeholder had been clicked.
+
 ### Flip the Key Window to Another Screen
 
 Pressing shortcut Control-Cmd-Enter moves the currently active/key window to another screen (if there is more than one screen).

@@ -354,6 +354,8 @@ extension AppController {
                 self.navigateRight()
             case .minimizeActiveWindow:
                 self.minimizeActiveWindow()
+            case .minimizeWindowOrRemoveZoneAtCursor:
+                self.minimizeWindowOrRemoveZoneAtCursor()
             }
         }
     }

@@ -970,6 +970,92 @@ extension AppController {
         return nil
     }
 
+    /// Minimize the managed window under the mouse cursor, or remove the empty zone under the cursor.
+    internal func minimizeWindowOrRemoveZoneAtCursor() {
+        guard let cursorPoint = currentCursorAccessibilityPoint() else {
+            Logger.debug("Cursor shortcut: unable to resolve cursor position; ignoring")
+            return
+        }
+
+        // First priority: minimize a managed (non-placeholder) window under the cursor.
+        if let (managed, pid) = managedWindowUnderCursor(cursorPoint: cursorPoint) {
+            // Get window title for logging (best-effort).
+            var windowTitle = "untitled"
+            if case .accessibility(let element, _, _) = managed.backing {
+                var value: AnyObject?
+                if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+                   let title = value as? String,
+                   !title.isEmpty {
+                    windowTitle = title
+                }
+            }
+
+            Logger.debug(
+                "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(windowTitle))"
+            )
+
+            minimizeWindowProgrammatically(managed, reason: "cursor-shortcut-minimize")
+
+            // Mirror Cmd-M behavior: explicitly update zones and ActiveFit state.
+            removeWindowFromAllZones(windowId: managed.windowId, reason: "cursor-shortcut-minimize", retarget: true)
+            syncWindowsToZones()
+
+            activeFitClearForWindowIfNeeded(
+                windowId: managed.windowId,
+                restoreToZone: false,
+                reason: "cursor-shortcut-minimize"
+            )
+            activeFitClearSuppressionForWindow(managed.windowId)
+            return
+        }
+
+        // Second priority: remove the empty zone under the cursor (placeholder frame).
+        if let zoneKey = emptyZoneKeyUnderCursor(cursorPoint: cursorPoint) {
+            let screenIndex = screenContextStore.loggingIndex(for: zoneKey.screenId)
+            Logger.debug(
+                "minimizeWindowOrRemoveZoneAtCursor: Removing zone \(zoneKey.index) on screen \(screenIndex) under cursor"
+            )
+            _ = performRemoveZone(at: zoneKey.index, on: zoneKey.screenId, announce: false)
+            return
+        }
+
+        Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
+    }
+
+    /// Find the foremost managed (non-placeholder) window whose accessibility frame contains the cursor.
+    private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
+        var bestCandidate: (ManagedWindow, pid_t)?
+
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  case .accessibility(_, let pid, _) = window.backing,
+                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: window),
+                  frame.contains(cursorPoint),
+                  !window.isMinimized else {
+                continue
+            }
+
+            // Prefer the last matching window; ordering is not critical because managed windows rarely overlap.
+            bestCandidate = (window, pid)
+        }
+
+        return bestCandidate
+    }
+
+    /// Find the empty zone (placeholder frame) under the cursor, if any.
+    private func emptyZoneKeyUnderCursor(cursorPoint: CGPoint) -> ZoneKey? {
+        for (screenId, context) in screenContexts {
+            let descriptor = context.descriptor
+            for zone in context.zoneController.allZones where zone.isEmpty {
+                let accessibilityZone = descriptor.screenToAccessibility(zone.frame)
+                if accessibilityZone.contains(cursorPoint) {
+                    return ZoneKey(screenId: screenId, index: zone.index)
+                }
+            }
+        }
+        return nil
+    }
+
     /// Target the temporary zone, preferring the screen of the currently targeted normal zone
     internal func targetTemporaryZone() {
         guard let targetedZone = targetedZoneManager.targetedZoneKey else {

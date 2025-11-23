@@ -41,6 +41,8 @@ extension AppController {
             Logger.debug("Hotkey navigate right triggered")
         case .minimizeActiveWindow:
             Logger.debug("Hotkey minimize active window triggered")
+        case .minimizeWindowOrRemoveZoneAtCursor:
+            Logger.debug("Hotkey minimize window or remove zone at cursor triggered")
         }
         triggerShortcut(action)
     }
