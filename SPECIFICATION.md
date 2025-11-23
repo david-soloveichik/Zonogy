@@ -122,20 +122,19 @@ Pressing Shift-Option-Control-Cmd-Space performs the same steps, but works with 
 
 ### Resizing Zones
 
-#### If a zone is empty (contains a placeholder window)
+#### Resizing Empty or Occupied Zones (via white bar)
 
-The placeholder window can be resized. Resizing it, resizes the zone and re-adjusts the other zones appropriately.
+Zones are resized by dragging a "white bar" separator located in the margin between zones. This separator is only visible when the mouse hovers over the margin between zones. Dragging this bar adjusts the layout ratios for the involved zones.
 
-The resize affordances should only allow motions that can actually change the zone layout. For example, when zone 1 is the left-most column its bottom edge cannot be dragged vertically—only its right edge can move horizontally. When there are three zones, the right-hand zones can adjust both horizontally (shared splitter with zone 1) and vertically (between themselves). Attempted drags in unsupported directions must be ignored.
+Placeholder windows inside empty zones are not resizable by dragging their edges. Their size is strictly determined by the zone dimensions.
 
-While the user is dragging an edge, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
+#### Resizing Managed Windows
+
+If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized or another window is managed).
+
+While the user is dragging a separator, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
 For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
-
-#### If a zone contains a window
-
-Resizing the window should resize the zone to the best of our ability. Unlike for the placeholder window, we don't want a "live update".
-Also if the window is moved to another location and released, it should "snap" back to its proper location in its zone.
 
 ### Repositioning and Resizing Window to Zone
 
@@ -328,7 +327,7 @@ macOS can destroy and recreate application windows when the computer sleeps. Zon
 
 - **Temporary zone snapshot** – before sleep we record the floating window (bundle ID, CGWindowID, internal `windowId`, and title) for each screen's temporary zone. After wake we immediately reattach any returning window that matches the snapshot and keep it key/visible for a short protection window so newly recaptured tiled windows cannot minimize it.
 - **Per-zone snapshot** – before sleep we also snapshot every tiled zone using the zone's `screenId`+index together with the window's identifiers described above. When a window is recaptured during wake, we first check whether it matches a stored snapshot. If so we force-place it back into its remembered zone (evicting placeholders or temporary occupants as needed) before running the normal placement logic. This applies independently per screen, so multi-display layouts are preserved exactly.
-- **Multiple wake passes** – because Accessibility events can arrive slowly after wake, we replay the snapshot data immediately after the first sync *and* again after each scheduled recapture (0.5 s, 1.5 s, 3.0 s) so late-arriving windows still land in their original zones. Snapshots are cleared only after the matching window successfully returns to its zone.
+- **Multiple wake passes** – because Accessibility events can arrive slowly after wake, we replay the snapshot data immediately after the first sync *and* again after each scheduled recapture (0.5 s, 1.5 s, 3.0 s) so late-arriving windows still land in their original zones. Snapshots are cleared only after the matching window successfully returns to its zone.
 
 ### External Tool: `winmanmon`
 
