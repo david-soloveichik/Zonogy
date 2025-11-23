@@ -10,24 +10,8 @@ extension WindowController {
     }
 
     func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
-        guard let managed = windowRegistry.window(withId: windowId),
-              managed.isPlaceholder,
-              let zoneIndex = managed.zoneIndex,
-              let screenId = managed.screenDisplayId else {
-            return proposedSize
-        }
-
-        let allowedAxes = delegate?.placeholderAllowedResizeAxes(screenId: screenId, zoneIndex: zoneIndex) ?? []
-        var size = proposedSize
-
-        if !allowedAxes.contains(.horizontal) {
-            size.width = currentSize.width
-        }
-        if !allowedAxes.contains(.vertical) {
-            size.height = currentSize.height
-        }
-
-        return size
+        // Placeholders are not resizable by dragging edges anymore.
+        return currentSize
     }
 
     private func startManualDrag(for managed: ManagedWindow, with frame: CGRect, trigger: ManualDragTrigger) {
@@ -35,7 +19,7 @@ extension WindowController {
         dragCandidate = nil
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
         Logger.debug(
-            "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), placeholderResizeActive: \(isPlaceholderLiveResizeActive), targetedZone: \(targetDescription))"
+            "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), targetedZone: \(targetDescription))"
         )
         delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
     }
@@ -45,11 +29,6 @@ extension WindowController {
     internal func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
         if currentDraggingWindowId == managed.windowId {
             return true
-        }
-
-        if isPlaceholderLiveResizeActive {
-            dragCandidate = nil
-            return false
         }
 
         guard isLeftMouseButtonDown() else {
@@ -115,31 +94,13 @@ extension WindowController {
             return
         }
 
-        if managed.isPlaceholder {
-            guard let zoneIndex = managed.zoneIndex,
-                  let screenId = managed.screenDisplayId else {
-                return
-            }
-            placeholderLiveResizeDepth += 1
-            delegate?.placeholderLiveResizeDidBegin(screenId: screenId, zoneIndex: zoneIndex)
-        } else {
+        if !managed.isPlaceholder {
             resizingWindowId = windowId
         }
     }
 
     func windowDidResize(windowId: Int) {
-        guard let managed = windowRegistry.window(withId: windowId) else {
-            return
-        }
-
-        if managed.isPlaceholder {
-            guard let zoneIndex = managed.zoneIndex,
-                  let screenId = managed.screenDisplayId,
-                  let screenFrame = actualFrameInScreenCoordinates(for: managed) else {
-                return
-            }
-            delegate?.placeholderLiveResized(screenId: screenId, zoneIndex: zoneIndex, to: screenFrame)
-        }
+        // No-op for placeholders as they are resized programmatically or via handles.
     }
 
     func windowDidEndLiveResize(windowId: Int) {
@@ -147,17 +108,7 @@ extension WindowController {
             return
         }
 
-        if managed.isPlaceholder {
-            if placeholderLiveResizeDepth > 0 {
-                placeholderLiveResizeDepth -= 1
-            }
-            guard let zoneIndex = managed.zoneIndex,
-                  let screenId = managed.screenDisplayId,
-                  let screenFrame = actualFrameInScreenCoordinates(for: managed) else {
-                return
-            }
-            delegate?.placeholderLiveResizeDidEnd(screenId: screenId, zoneIndex: zoneIndex, to: screenFrame)
-        } else {
+        if !managed.isPlaceholder {
             guard resizingWindowId == windowId else {
                 return
             }

@@ -10,7 +10,6 @@ final class PlaceholderCoordinator {
     weak var delegate: PlaceholderCoordinatorDelegate?
 
     private let windowController: WindowController
-    private var placeholderMappings: [Int: ZoneKey] = [:]
 
     init(windowController: WindowController) {
         self.windowController = windowController
@@ -23,75 +22,80 @@ final class PlaceholderCoordinator {
         excludedZones: Set<ZoneKey>,
         contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?
     ) {
-        var placeholdersByKey: [ZoneKey: ManagedWindow] = [:]
-        var unassignedPlaceholders: [ManagedWindow] = []
+        // 1. Identify all currently known placeholder windows
+        let allPlaceholders = existingWindows.filter { $0.isPlaceholder }
+        var availablePlaceholders = allPlaceholders 
+        var assignedWindowIds = Set<Int>()
 
-        for window in existingWindows where window.isPlaceholder {
-            if let key = placeholderMappings[window.windowId] {
-                placeholdersByKey[key] = window
-            } else if let screenId = window.screenDisplayId, let zoneIndex = window.zoneIndex {
-                let key = ZoneKey(screenId: screenId, index: zoneIndex)
-                // Defensive check: Only use this metadata if we don't already have a placeholder for this key
-                // This prevents stale metadata from overriding correct mappings
-                if placeholdersByKey[key] == nil {
-                    record(placeholder: window, key: key)
-                    placeholdersByKey[key] = window
-                } else {
-                    // Stale metadata - treat as unassigned and clear the metadata
-                    window.zoneIndex = nil
-                    window.screenDisplayId = nil
-                    unassignedPlaceholders.append(window)
+        // 2. Validate existing assignments in zones
+        for screenId in screenOrder {
+            guard let context = contextProvider(screenId) else { continue }
+            for zone in context.zoneController.allZones {
+                if let pid = zone.placeholderWindowId {
+                    // Check if this window still exists
+                    if windowController.window(withId: pid) != nil {
+                        assignedWindowIds.insert(pid)
+                        // Remove from available list so we don't reuse it elsewhere
+                        availablePlaceholders.removeAll { $0.windowId == pid }
+                    } else {
+                        // Window is gone, clear assignment
+                        context.zoneController.setPlaceholder(windowId: nil, forZoneIndex: zone.index)
+                    }
                 }
-            } else {
-                unassignedPlaceholders.append(window)
             }
         }
-
-        var placeholdersToRetire = placeholdersByKey
-
+        
+        // 3. Process each zone: Show, Hide, or Assign
         for screenId in screenOrder {
             guard let context = contextProvider(screenId) else { continue }
             let zoneController = context.zoneController
 
             for zone in zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
+                let isExcluded = excludedZones.contains(key)
+                
+                // Case A: Zone is occupied by a managed window
                 if zone.windowId != nil {
-                    if let placeholder = placeholdersByKey[key] {
+                    if let pid = zone.placeholderWindowId,
+                       let placeholder = windowController.window(withId: pid) {
+                        // Hide the assigned placeholder
                         delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: .replacedByWindow)
                         clearManagedZone(for: placeholder)
-                        forget(windowId: placeholder.windowId)
-                        placeholdersToRetire.removeValue(forKey: key)
                     }
                     continue
                 }
 
+                // Case B: Zone is empty, needs a placeholder
                 let displayFrame = context.displayFrame(for: zone)
 
-                let isExcluded = excludedZones.contains(key)
-
-                if let placeholder = placeholdersByKey[key] {
+                if let pid = zone.placeholderWindowId,
+                   let placeholder = windowController.window(withId: pid) {
+                    // Already has one, update and show
                     record(placeholder: placeholder, key: key)
                     delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
-                    placeholdersToRetire.removeValue(forKey: key)
-                } else if let reusable = unassignedPlaceholders.popLast() {
-                    Logger.debug("Reusing placeholder window \(reusable.windowId) for zone \(zone.index) on screen \(context.descriptor.displayId)")
-                    record(placeholder: reusable, key: key)
-                    delegate?.placeholderCoordinator(self, prepareToShow: reusable, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
                 } else {
-                    let placeholder = windowController.createPlaceholderWindow(frame: displayFrame, zoneIndex: zone.index, on: context.descriptor)
+                    // Needs one. Try to reuse or create.
+                    let placeholder: ManagedWindow
+                    
+                    if let reusable = availablePlaceholders.popLast() {
+                        placeholder = reusable
+                        Logger.debug("Reusing placeholder window \(placeholder.windowId) for zone \(zone.index) on screen \(context.descriptor.displayId)")
+                    } else {
+                        placeholder = windowController.createPlaceholderWindow(frame: displayFrame, zoneIndex: zone.index, on: context.descriptor)
+                    }
+                    
+                    // Assign to zone
+                    zoneController.setPlaceholder(windowId: placeholder.windowId, forZoneIndex: zone.index)
+                    assignedWindowIds.insert(placeholder.windowId)
+                    
                     record(placeholder: placeholder, key: key)
                     delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
                 }
             }
         }
 
-        for placeholder in placeholdersToRetire.values {
-            delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: .replacedByWindow)
-            clearManagedZone(for: placeholder)
-            forget(windowId: placeholder.windowId)
-        }
-
-        for placeholder in unassignedPlaceholders {
+        // 4. Clean up unassigned placeholders
+        for placeholder in availablePlaceholders {
             delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: .idle)
             clearManagedZone(for: placeholder)
             forget(windowId: placeholder.windowId)
@@ -99,35 +103,30 @@ final class PlaceholderCoordinator {
     }
 
     func record(placeholder: ManagedWindow, key: ZoneKey) {
-        placeholderMappings[placeholder.windowId] = key
         windowController.refreshPlaceholderMetadata(placeholder, screenId: key.screenId, zoneIndex: key.index)
     }
 
     func forget(windowId: Int) {
-        placeholderMappings.removeValue(forKey: windowId)
-    }
-
-    func key(for windowId: Int) -> ZoneKey? {
-        placeholderMappings[windowId]
+        // No longer needed to remove from local map, but keeping method signature if AppController calls it.
+        // AppController calls this when window closes. 
+        // But here we primarily manage "forgetting" by clearing zone assignment.
+        // If AppController calls this, it means the window is GONE.
+        // We should ensure it is removed from any zone.
+        // But we don't have easy access to ZoneController here without context.
+        // However, syncPlaceholders handles validation of non-existent windows.
     }
 
     /// Clear all placeholder mappings for a specific screen
     /// Used when zones are reorganized (added/removed) to prevent stale mappings
     func clearMappingsForScreen(_ screenId: CGDirectDisplayID) {
-        let keysToRemove = placeholderMappings.compactMap { windowId, key in
-            key.screenId == screenId ? windowId : nil
-        }
-        for windowId in keysToRemove {
-            placeholderMappings.removeValue(forKey: windowId)
-
-            // CRITICAL: Also clear the metadata from the ManagedWindow
-            // This prevents stale zone assignments from being reused
-            if let placeholder = windowController.window(withId: windowId),
-               placeholder.isPlaceholder {
-                placeholder.zoneIndex = nil
-                placeholder.screenDisplayId = nil
-            }
-        }
+        // With the new architecture, mappings are in the Zone objects.
+        // If we want to clear them (e.g. to force regeneration), we would need to iterate zones.
+        // But usually we want to preserve them.
+        // This method might be vestigial or needed for specific reset scenarios.
+        // If we leave it empty, 'syncPlaceholders' will still validate/reassign.
+        // But to be safe and ensure metadata is cleared:
+        // We can't clear zone.placeholderWindowId here easily without the ZoneController.
+        // We can rely on syncPlaceholders.
     }
 
     func applyResize(zoneKey: ZoneKey, placeholderFrame: CGRect, context: PlaceholderCoordinatorScreenContext, finalize: Bool) {

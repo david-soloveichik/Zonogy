@@ -15,13 +15,6 @@ let axResizedNotificationName = kAXResizedNotification as String
 let axWindowCreatedNotificationName = kAXWindowCreatedNotification as String
 let axMainWindowChangedNotificationName = kAXMainWindowChangedNotification as String
 
-struct PlaceholderResizeAxes: OptionSet {
-    let rawValue: Int
-
-    static let horizontal = PlaceholderResizeAxes(rawValue: 1 << 0)
-    static let vertical = PlaceholderResizeAxes(rawValue: 1 << 1)
-}
-
 struct PlaceholderTarget {
     let screenId: CGDirectDisplayID
     let zoneIndex: Int
@@ -62,10 +55,7 @@ class WindowController {
     internal var resizingWindowId: Int?
     internal let primaryScreenBounds: CGRect
     internal var dragCandidate: DragCandidate?
-    internal var placeholderLiveResizeDepth: Int = 0
-    internal var isPlaceholderLiveResizeActive: Bool {
-        placeholderLiveResizeDepth > 0
-    }
+    
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.
     internal let dragActivationDistance: CGFloat = 6
@@ -398,10 +388,6 @@ protocol WindowControllerDelegate: AnyObject {
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)
-    func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int)
-    func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
-    func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect)
-    func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect)
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect)

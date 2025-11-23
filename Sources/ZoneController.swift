@@ -44,7 +44,7 @@ class ZoneController {
         }
 
         let newCount = zones.count + 1
-        let assignments = zones.sorted { $0.index < $1.index }.map { $0.windowId } + [nil]
+        let assignments = zones.sorted { $0.index < $1.index }.map { ($0.windowId, $0.placeholderWindowId) } + [(nil, nil)]
         recomputeLayout(zoneCount: newCount, preservingAssignments: assignments)
         Logger.debug("Added zone \(newCount)")
         return zones.last
@@ -66,7 +66,7 @@ class ZoneController {
         let removedZone = zones.remove(at: arrayIndex)
         let removedWindowId = removedZone.windowId
 
-        let remainingAssignments = zones.sorted { $0.index < $1.index }.map { $0.windowId }
+        let remainingAssignments = zones.sorted { $0.index < $1.index }.map { ($0.windowId, $0.placeholderWindowId) }
         let newCount = zones.count
         recomputeLayout(zoneCount: newCount, preservingAssignments: remainingAssignments)
 
@@ -84,16 +84,16 @@ class ZoneController {
         }
 
         let sortedZones = zones.sorted { $0.index < $1.index }
-        var assignments: [Int?]
+        var assignments: [(Int?, Int?)]
         var removedWindowIds: [Int] = []
 
         if clampedCount < sortedZones.count {
-            assignments = sortedZones.prefix(clampedCount).map { $0.windowId }
+            assignments = sortedZones.prefix(clampedCount).map { ($0.windowId, $0.placeholderWindowId) }
             removedWindowIds = sortedZones.dropFirst(clampedCount).compactMap { $0.windowId }
         } else {
-            assignments = sortedZones.map { $0.windowId }
+            assignments = sortedZones.map { ($0.windowId, $0.placeholderWindowId) }
             if clampedCount > assignments.count {
-                assignments.append(contentsOf: Array(repeating: nil, count: clampedCount - assignments.count))
+                assignments.append(contentsOf: Array(repeating: (nil, nil), count: clampedCount - assignments.count))
             }
         }
 
@@ -115,6 +115,12 @@ class ZoneController {
         if wasEmpty {
             Logger.debug("Zone \(zoneIndex) is now occupied")
         }
+    }
+
+    /// Assign a placeholder window ID to a zone
+    func setPlaceholder(windowId: Int?, forZoneIndex index: Int) {
+        guard let zone = zone(at: index) else { return }
+        zone.placeholderWindowId = windowId
     }
 
     /// Remove a window from its zone
@@ -170,7 +176,7 @@ class ZoneController {
         let sanitizedFrame = sanitizeFrame(newFrame)
         layout.resize(zoneIndex: index, zoneCount: zones.count, screenFrame: screenFrame, to: sanitizedFrame)
 
-        let assignments = zones.sorted { $0.index < $1.index }.map { $0.windowId }
+        let assignments = zones.sorted { $0.index < $1.index }.map { ($0.windowId, $0.placeholderWindowId) }
         recomputeLayout(zoneCount: zones.count, preservingAssignments: assignments)
 
         if wasOccupied {
@@ -181,21 +187,33 @@ class ZoneController {
         return true
     }
 
+    /// Resize zones by dragging a separator
+    func resizeBySeparator(index: Int, delta: CGFloat) {
+        layout.resizeBySeparator(index: index, delta: delta, zoneCount: zones.count, screenFrame: screenFrame)
+        let assignments = zones.sorted { $0.index < $1.index }.map { ($0.windowId, $0.placeholderWindowId) }
+        recomputeLayout(zoneCount: zones.count, preservingAssignments: assignments)
+        Logger.debug("Resized by separator \(index) delta \(delta)")
+    }
+
     /// Recompute the layout for the current number of zones
-    private func recomputeLayout(zoneCount: Int, preservingAssignments assignmentsParam: [Int?]? = nil) {
+    private func recomputeLayout(zoneCount: Int, preservingAssignments assignmentsParam: [(Int?, Int?)]? = nil) {
         let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
 
-        let assignments: [Int?]
+        let assignments: [(Int?, Int?)]
         if let provided = assignmentsParam {
             assignments = provided
         } else {
-            assignments = zones.sorted { $0.index < $1.index }.map { $0.windowId }
+            assignments = zones.sorted { $0.index < $1.index }.map { ($0.windowId, $0.placeholderWindowId) }
         }
 
         zones = frames.enumerated().map { index, frame in
-            let windowId = index < assignments.count ? assignments[index] : nil
-            return Zone(index: index + 1, frame: frame, windowId: windowId)
+            let (windowId, placeholderId) = index < assignments.count ? assignments[index] : (nil, nil)
+            return Zone(index: index + 1, frame: frame, windowId: windowId, placeholderWindowId: placeholderId)
         }
+    }
+
+    func separators() -> [ZoneLayout.Separator] {
+        return layout.separators(zoneCount: zones.count, screenFrame: screenFrame)
     }
 
     /// Force a layout recalculation (useful after screen size changes)

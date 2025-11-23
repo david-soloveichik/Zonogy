@@ -523,6 +523,7 @@ extension AppController {
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         updateTemporaryZoneTargeting(reason: "sync")
         refreshIndicators()
+        refreshResizeHandles()
     }
 
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {
@@ -737,26 +738,6 @@ extension AppController {
         return pins
     }
 
-    internal func applyPlaceholderResize(zoneKey: ZoneKey, placeholderFrame: CGRect, finalize: Bool) {
-        guard let context = screenContexts[zoneKey.screenId],
-              let descriptor = descriptor(for: zoneKey.screenId) else {
-            return
-        }
-
-        let screenContext = PlaceholderCoordinatorScreenContext(
-            descriptor: descriptor,
-            zoneController: context.zoneController,
-            displayFrameForZone: { zone in
-                self.frameWithMargin(for: zone, in: context.zoneController)
-            },
-            placeholderToZoneFrame: { frame, zone in
-                self.zoneFrame(fromContentFrame: frame, for: zone, in: context)
-            }
-        )
-
-        placeholderCoordinator.applyResize(zoneKey: zoneKey, placeholderFrame: placeholderFrame, context: screenContext, finalize: finalize)
-    }
-
     private func clamp(frame: CGRect, to bounds: CGRect) -> CGRect {
         var normalized = frame.standardized
 
@@ -770,6 +751,47 @@ extension AppController {
         normalized.size.height = max(0, maxY - originY)
 
         return normalized
+    }
+
+    // MARK: - ZoneResizeHandleManagerDelegate
+
+    func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint) {
+        guard let context = screenContexts[screenId] else { return }
+        
+        let separators = context.zoneController.separators()
+        guard let separator = separators.first(where: { $0.index == separatorIndex }) else { return }
+        
+        let scalarDelta: CGFloat
+        switch separator.orientation {
+        case .vertical:
+            scalarDelta = delta.x
+        case .horizontal:
+            scalarDelta = delta.y
+        }
+        
+        // Apply resize
+        context.zoneController.resizeBySeparator(index: separatorIndex, delta: scalarDelta)
+        
+        // Sync windows and handles to new layout
+        syncWindowsToZones()
+    }
+
+    internal func refreshResizeHandles() {
+        var descriptors: [ZoneSeparatorDescriptor] = []
+        
+        for (screenId, context) in screenContexts {
+            let separators = context.zoneController.separators()
+            for sep in separators {
+                descriptors.append(ZoneSeparatorDescriptor(
+                    screenId: screenId,
+                    index: sep.index,
+                    orientation: sep.orientation,
+                    frame: sep.frame
+                ))
+            }
+        }
+        
+        resizeHandleManager.present(over: descriptors)
     }
 
     // MARK: - Keyboard Shortcuts

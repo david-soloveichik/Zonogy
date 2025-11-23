@@ -3,11 +3,23 @@ import AppKit
 
 /// Helper for computing and updating zone frame rectangles.
 struct ZoneLayout {
+    enum SeparatorOrientation {
+        case vertical
+        case horizontal
+    }
+
+    struct Separator {
+        let index: Int
+        let orientation: SeparatorOrientation
+        let frame: CGRect
+    }
+
     private(set) var leftWidthRatio: CGFloat = 0.5
     private(set) var rightTopHeightRatio: CGFloat = 0.5
 
     private let minWidthRatio: CGFloat = 0.1
     private let minHeightRatio: CGFloat = 0.1
+    private let marginSize: CGFloat = 8.0
 
     /// Computes the frame rectangles for the specified number of zones using default ratios.
     /// - Parameters:
@@ -81,6 +93,35 @@ struct ZoneLayout {
         }
     }
 
+    func separators(zoneCount: Int, screenFrame: CGRect) -> [Separator] {
+        let frames = self.frames(for: zoneCount, screenFrame: screenFrame)
+        
+        if zoneCount == 2 {
+            // Vertical separator between zone 1 and 2
+            // Located at leftFrame.maxX
+            let left = frames[0]
+            let x = left.maxX
+            let rect = CGRect(x: x - marginSize/2, y: screenFrame.minY, width: marginSize, height: screenFrame.height)
+            return [Separator(index: 0, orientation: .vertical, frame: rect)]
+        } else if zoneCount == 3 {
+            // Vertical separator between 1 and 2/3
+            let left = frames[0]
+            let x = left.maxX
+            let vRect = CGRect(x: x - marginSize/2, y: screenFrame.minY, width: marginSize, height: screenFrame.height)
+            
+            // Horizontal separator between 2 and 3
+            let top = frames[1]
+            let y = top.maxY
+            let hRect = CGRect(x: top.minX, y: y - marginSize/2, width: top.width, height: marginSize)
+            
+            return [
+                Separator(index: 0, orientation: .vertical, frame: vRect),
+                Separator(index: 1, orientation: .horizontal, frame: hRect)
+            ]
+        }
+        return []
+    }
+
     /// Adjusts layout ratios after the specified zone has been resized.
     mutating func resize(zoneIndex: Int, zoneCount: Int, screenFrame: CGRect, to newFrame: CGRect) {
         guard screenFrame.width > 0, screenFrame.height > 0 else {
@@ -131,6 +172,23 @@ struct ZoneLayout {
         default:
             break
         }
+    }
+
+    mutating func resizeBySeparator(index: Int, delta: CGFloat, zoneCount: Int, screenFrame: CGRect) {
+         if zoneCount == 2 || zoneCount == 3 {
+             if index == 0 { // Vertical
+                 let currentLeftWidth = screenFrame.width * leftWidthRatio
+                 let newLeftWidth = currentLeftWidth + delta
+                 leftWidthRatio = clampWidthRatio(newLeftWidth / screenFrame.width)
+             }
+         }
+         if zoneCount == 3 {
+             if index == 1 { // Horizontal
+                 let currentTopHeight = screenFrame.height * rightTopHeightRatio
+                 let newTopHeight = currentTopHeight + delta
+                 rightTopHeightRatio = clampHeightRatio(newTopHeight / screenFrame.height)
+             }
+         }
     }
 
     private func clampWidthRatio(_ ratio: CGFloat) -> CGFloat {

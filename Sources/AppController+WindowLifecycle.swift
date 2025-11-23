@@ -120,58 +120,15 @@ extension AppController {
         windowPlacementManager.placeNewWindow(managed)
     }
 
-    func placeholderLiveResizeDidBegin(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        liveResizingZoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Placeholder live resize began for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth))")
-    }
-
-    func placeholderLiveResized(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect) {
-        let key = ZoneKey(screenId: screenId, index: zoneIndex)
-        guard liveResizingZoneKey == key else {
-            return
-        }
-
-        applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: false)
-    }
-
-    func placeholderLiveResizeDidEnd(screenId: CGDirectDisplayID, zoneIndex: Int, to frame: CGRect) {
-        let key = ZoneKey(screenId: screenId, index: zoneIndex)
-        if liveResizingZoneKey == key {
-            liveResizingZoneKey = nil
-        }
-
-        let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Placeholder live resize ended for zone \(zoneIndex) on screen \(screenIndex) (depth=\(windowController.placeholderLiveResizeDepth), finalFrame: \(frame))")
-
-        applyPlaceholderResize(zoneKey: key, placeholderFrame: frame, finalize: true)
-    }
-
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
             return
         }
-        guard let screenId,
-              let context = screenContexts[screenId],
-              let managed = windowController.window(withId: windowId),
-              let zoneIndex = managed.zoneIndex else {
-            Logger.debug("Resize completed for window \(windowId) without a zone assignment")
-            return
-        }
-
-        guard let zone = context.zoneController.zone(at: zoneIndex) else {
-            Logger.debug("Zone \(zoneIndex) not found during resize for window \(windowId)")
-            return
-        }
-
-        let zoneFrame = zoneFrame(fromContentFrame: frame, for: zone, in: context)
-        guard context.zoneController.resizeZone(at: zoneIndex, to: zoneFrame, allowOccupied: true) else {
-            Logger.debug("Failed to resize zone \(zoneIndex) from window \(windowId)")
-            return
-        }
-
-        Logger.debug("Applied window-driven resize for zone \(zoneIndex) from window \(windowId)")
-        syncWindowsToZones()
+        
+        // Resizing managed windows should not update zone sizes.
+        // We just log it. We explicitly DO NOT call syncWindowsToZones() here, allowing
+        // the window to remain at its new custom size/position until some other event triggers a sync.
+        Logger.debug("Window \(windowId) manual resize ended. Not forcing zone snap.")
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
@@ -382,20 +339,6 @@ extension AppController {
             originatedFromTemporary: false
         )
         dragDropCoordinator.updateDragSession(windowId: windowId, frame: frame)
-    }
-
-    func placeholderAllowedResizeAxes(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderResizeAxes {
-        guard let context = screenContexts[screenId],
-              let zone = context.zoneController.zone(at: zoneIndex), zone.isEmpty else {
-            return []
-        }
-
-        let zoneCount = context.zoneController.allZones.count
-        return PlaceholderResizePolicy.allowedAxes(
-            zoneIndex: zoneIndex,
-            zoneCount: zoneCount,
-            zoneIsEmpty: zone.isEmpty
-        )
     }
 
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {

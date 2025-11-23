@@ -1026,11 +1026,11 @@ extension WindowController {
             let isProgrammatic = programmaticUpdateWindowIds.contains(managed.windowId)
             let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
             if isProgrammatic {
-                Logger.debug("External window \(managed.windowId) moved (ignored programmatic update; placeholderResizeActive: \(isPlaceholderLiveResizeActive), targetedZone: \(targetDescription))")
+                Logger.debug("External window \(managed.windowId) moved (ignored programmatic update; targetedZone: \(targetDescription))")
                 return
             }
 
-            Logger.debug("External window \(managed.windowId) moved by user (placeholderResizeActive: \(isPlaceholderLiveResizeActive), targetedZone: \(targetDescription))")
+            Logger.debug("External window \(managed.windowId) moved by user (targetedZone: \(targetDescription))")
             let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
             if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
                 delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)

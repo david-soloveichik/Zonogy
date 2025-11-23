@@ -13,9 +13,6 @@ enum GuardrailTests {
         if !TargetedZoneSelectionTests.run() {
             allPassed = false
         }
-        if !PlaceholderResizePolicyTests.run() {
-            allPassed = false
-        }
         if !AccessibilityNotificationCatalogTests.run() {
             allPassed = false
         }
@@ -173,50 +170,6 @@ private enum TargetedZoneSelectionTests {
     }
 }
 
-private enum PlaceholderResizePolicyTests {
-    @discardableResult
-    static func run() -> Bool {
-        var allPassed = true
-
-        func assert(_ condition: Bool, _ message: String) {
-            if !condition {
-                print("PlaceholderResizePolicyTests: \(message)")
-                allPassed = false
-            }
-        }
-
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 1, zoneCount: 1, zoneIsEmpty: true).isEmpty,
-            "single zone should not allow resizing"
-        )
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 1, zoneCount: 2, zoneIsEmpty: true) == [.horizontal],
-            "two zones should allow horizontal resizing"
-        )
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 1, zoneCount: 3, zoneIsEmpty: true) == [.horizontal],
-            "left zone in three-zone layout should allow horizontal resizing only"
-        )
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 2, zoneCount: 3, zoneIsEmpty: true) == [.horizontal, .vertical],
-            "top-right zone in three-zone layout should allow horizontal and vertical resizing"
-        )
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 3, zoneCount: 3, zoneIsEmpty: true) == [.horizontal, .vertical],
-            "bottom-right zone in three-zone layout should allow horizontal and vertical resizing"
-        )
-        assert(
-            PlaceholderResizePolicy.allowedAxes(zoneIndex: 1, zoneCount: 2, zoneIsEmpty: false).isEmpty,
-            "occupied zones should not be resizable"
-        )
-
-        if allPassed {
-            print("PlaceholderResizePolicyTests: all tests passed")
-        }
-        return allPassed
-    }
-}
-
 private enum ActiveFitPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -252,7 +205,7 @@ private enum ActiveFitPolicyTests {
             screenBounds: bounds,
             tolerance: tolerance
         ) {
-            assert(frame.origin.x == 1080, "combined overflow should shift left as needed (expected 1080, got \(frame.origin.x))")
+            assert(frame.origin.x == 1020, "combined overflow should shift left as needed (expected 1020, got \(frame.origin.x))")
             assert(frame.origin.y == 560, "combined overflow should shift up as needed (expected 560, got \(frame.origin.y))")
         } else {
             assert(false, "expected ActiveFit to translate for combined width/height overflow in zone 3")

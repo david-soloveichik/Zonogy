@@ -12,10 +12,14 @@ class Zone {
     /// The ID of the window currently occupying this zone, or nil if empty
     var windowId: Int?
 
-    init(index: Int, frame: CGRect, windowId: Int? = nil) {
+    /// The ID of the placeholder window associated with this zone, or nil if none
+    var placeholderWindowId: Int?
+
+    init(index: Int, frame: CGRect, windowId: Int? = nil, placeholderWindowId: Int? = nil) {
         self.index = index
         self.frame = frame
         self.windowId = windowId
+        self.placeholderWindowId = placeholderWindowId
     }
 
     var isEmpty: Bool {

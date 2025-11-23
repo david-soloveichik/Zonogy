@@ -113,7 +113,7 @@ extension WindowController {
         let cocoaFrame = screen.screenToCocoa(frame)
         let window = PlaceholderPanel(
             contentRect: cocoaFrame,
-            styleMask: [.titled, .resizable, .nonactivatingPanel],
+            styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
