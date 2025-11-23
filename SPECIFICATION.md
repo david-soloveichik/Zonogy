@@ -128,6 +128,8 @@ Zones are resized by dragging a "white bar" separator located in the margin betw
 
 Placeholder windows inside empty zones are not resizable by dragging their edges. Their size is strictly determined by the zone dimensions.
 
+If an ActiveFit window in zone 2 or 3 would overlap a zone separator, the white bar adapts so it does not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the ActiveFit frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 3. When ActiveFit deactivates or focus moves to a different window, the separators return to the normal layout.
+
 #### Resizing Managed Windows
 
 If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.

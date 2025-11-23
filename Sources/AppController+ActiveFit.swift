@@ -107,6 +107,7 @@ extension AppController {
         } else {
             Logger.debug("ActiveFit dropping state for window \(windowId) without restore (\(reason))")
             activeFitState = nil
+            refreshResizeHandles()
         }
     }
 
@@ -172,6 +173,7 @@ extension AppController {
         Logger.debug("ActiveFit translating window \(managed.windowId) to \(revealFrame.origin) (reason: \(reason))")
         windowController.moveWindow(managed, to: revealFrame, on: descriptor)
         activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, appliedFrame: revealFrame)
+        refreshResizeHandles()
     }
 
     private func activeFitDeactivateIfMatches(windowId: Int, reason: String) {
@@ -197,6 +199,7 @@ extension AppController {
         // Clear state before moving window to avoid race condition with frame retry checks
         activeFitState = nil
         windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+        refreshResizeHandles()
     }
 
     private func framesClose(_ lhs: CGRect, _ rhs: CGRect) -> Bool {

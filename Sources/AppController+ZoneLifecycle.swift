@@ -807,19 +807,74 @@ extension AppController {
 
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
-        
+        let activeState = activeFitState
+
         for (screenId, context) in screenContexts {
             let separators = context.zoneController.separators()
+
             for sep in separators {
+                var frame = sep.frame
+
+                if let state = activeState,
+                   state.zoneKey.screenId == screenId {
+                    let activeFrame = state.appliedFrame.standardized
+
+                    switch sep.orientation {
+                    case .vertical:
+                        // Separator between zone 1 and zones 2/3 (index 0) should
+                        // not extend into an ActiveFit window in zone 2 or 3.
+                        if sep.index == 0, state.zoneKey.index >= 2 {
+                            let originalFrame = frame.standardized
+                            let intersection = originalFrame.intersection(activeFrame).standardized
+                            if !intersection.isNull, intersection.height > 0 {
+                                let topGap = max(0, intersection.minY - originalFrame.minY)
+                                let bottomGap = max(0, originalFrame.maxY - intersection.maxY)
+                                let maxGap = max(topGap, bottomGap)
+
+                                // If the ActiveFit window fully covers the separator,
+                                // hide this handle entirely.
+                                guard maxGap > 0 else {
+                                    continue
+                                }
+
+                                if topGap >= bottomGap {
+                                    frame = CGRect(
+                                        x: originalFrame.minX,
+                                        y: originalFrame.minY,
+                                        width: originalFrame.width,
+                                        height: topGap
+                                    )
+                                } else {
+                                    frame = CGRect(
+                                        x: originalFrame.minX,
+                                        y: intersection.maxY,
+                                        width: originalFrame.width,
+                                        height: bottomGap
+                                    )
+                                }
+                            }
+                        }
+
+                    case .horizontal:
+                        // Hide the separator between zones 2 and 3 (index 1) if it
+                        // would overlap an ActiveFit window in zone 3.
+                        if sep.index == 1, state.zoneKey.index == 3 {
+                            if frame.intersects(activeFrame) {
+                                continue
+                            }
+                        }
+                    }
+                }
+
                 descriptors.append(ZoneSeparatorDescriptor(
                     screenId: screenId,
                     index: sep.index,
                     orientation: sep.orientation,
-                    frame: sep.frame
+                    frame: frame
                 ))
             }
         }
-        
+
         resizeHandleManager.present(over: descriptors)
     }
 
