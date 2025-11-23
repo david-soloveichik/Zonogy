@@ -21,13 +21,13 @@ final class ZoneResizeHandleManager {
                 defer: false
             )
             isReleasedWhenClosed = false
-            isFloatingPanel = true
+            isFloatingPanel = false
             becomesKeyOnlyIfNeeded = false
             ignoresMouseEvents = false
             isOpaque = false
             hasShadow = false
             backgroundColor = .clear
-            level = .floating 
+            level = .normal
             collectionBehavior = [
                 .moveToActiveSpace,
                 .transient,
