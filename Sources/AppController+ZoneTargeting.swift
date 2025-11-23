@@ -31,6 +31,12 @@ extension AppController {
             }
         }
 
+        // Drop any persisted zone-assignment snapshots for this window so we don't
+        // try to resurrect it into a zone after it has been explicitly removed.
+        if !liveZoneAssignments.isEmpty {
+            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != windowId }
+        }
+
         if retarget, let emptyZoneKey = emptyZoneKey {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: reason)
         }
@@ -163,9 +169,9 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
-        if zoneIndex != nil {
+        if let zoneIndex, !managed.isPlaceholder {
             clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
-            let key = ZoneKey(screenId: screenId, index: zoneIndex!)
+            let key = ZoneKey(screenId: screenId, index: zoneIndex)
             liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != managed.windowId || $0.key == key }
             liveZoneAssignments[key] = ZoneAssignmentSnapshot(
                 zoneKey: key,
@@ -176,6 +182,9 @@ extension AppController {
     }
 
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
+        if !managed.isPlaceholder, !liveZoneAssignments.isEmpty {
+            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != managed.windowId }
+        }
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
         activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "assignment-cleared")

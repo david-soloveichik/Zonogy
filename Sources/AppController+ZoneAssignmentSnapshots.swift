@@ -10,9 +10,27 @@ extension AppController {
     }
 
     func snapshotZoneAssignments(reason: String) {
-        pendingZoneAssignmentSnapshots = liveZoneAssignments
+        // Only snapshot assignments for non-placeholder windows that are still
+        // tracked and currently associated with a tiled zone on the expected screen.
+        pendingZoneAssignmentSnapshots = liveZoneAssignments.filter { key, snapshot in
+            guard let window = windowController.window(withId: snapshot.identity.windowId) else {
+                return false
+            }
+            if window.isPlaceholder {
+                return false
+            }
+            if window.zoneIndex == nil {
+                return false
+            }
+            if window.screenDisplayId != key.screenId {
+                return false
+            }
+            return true
+        }
         if !pendingZoneAssignmentSnapshots.isEmpty {
             Logger.debug("Snapshot \(pendingZoneAssignmentSnapshots.count) zone assignment(s) for \(reason)")
+        } else {
+            Logger.debug("Snapshot 0 zone assignments for \(reason) (none eligible)")
         }
     }
 
