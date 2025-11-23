@@ -21,13 +21,13 @@ extension AppController {
         Logger.debug("Preparing to show placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (excluded: \(isExcluded))")
 
         if isExcluded {
-            Logger.debug("Bringing excluded placeholder \(placeholder.windowId) to front using orderFront")
-            placeholder.appKitWindow?.orderFront(nil)
-        } else {
-            Logger.debug("Showing placeholder \(placeholder.windowId) using showWindow")
-            windowController.showWindow(placeholder, at: frame, on: descriptor)
-            windowController.moveWindow(placeholder, to: frame, on: descriptor)
+            Logger.debug("Hiding excluded placeholder \(placeholder.windowId) using hideWindow")
+            windowController.hideWindow(placeholder, reason: .zoneExcluded)
+            return
         }
+
+        Logger.debug("Showing placeholder \(placeholder.windowId) using ensurePlaceholderVisibilityAndPosition")
+        windowController.ensurePlaceholderVisibilityAndPosition(placeholder, at: frame, on: descriptor)
         placeholder.screenDisplayId = descriptor.displayId
         if let zoneIndex = placeholder.zoneIndex {
             setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
@@ -42,14 +42,15 @@ extension AppController {
         let screenIndex = placeholder.screenDisplayId.map { screenContextStore.loggingIndex(for: $0) } ?? -1
         Logger.debug("Preparing to hide placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (reason: \(reason))")
 
+        let hideReason: WindowController.HideReason
         switch reason {
         case .replacedByWindow:
-            Logger.debug("Closing placeholder \(placeholder.windowId) - replaced by actual window")
-            windowController.closeWindow(placeholder)
+            hideReason = .replacedByOccupant
         case .idle:
-            Logger.debug("Hiding idle placeholder \(placeholder.windowId) using orderOut")
-            placeholder.appKitWindow?.orderOut(nil)
+            hideReason = .inactiveZone
         }
+        Logger.debug("Hiding placeholder \(placeholder.windowId) (reason: \(hideReason))")
+        windowController.hideWindow(placeholder, reason: hideReason)
     }
 
     func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, didResizeZone key: ZoneKey, finalize: Bool) {

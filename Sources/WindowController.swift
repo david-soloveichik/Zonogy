@@ -39,6 +39,12 @@ struct AccessibilityElementKey: Hashable {
 
 /// Encapsulates AppKit window creation and manipulation
 class WindowController {
+    enum HideReason {
+        case zoneExcluded
+        case replacedByOccupant
+        case inactiveZone
+    }
+
     internal let windowRegistry = ManagedWindowRegistry()
     internal let accessibilityWatcher: AccessibilityWatcher
     internal var windowDelegates: [Int: ManagedWindowDelegate] = [:]
@@ -46,6 +52,7 @@ class WindowController {
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
+    internal var lastRequestedAppKitFrames: [Int: CGRect] = [:] // New: For AppKit windows, to avoid frame read race conditions
     internal var ignoredBundleIdentifiers: Set<String>
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
@@ -290,6 +297,13 @@ class WindowController {
     func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow, on screen: ScreenDescriptor) -> CGRect {
         switch managedWindow.backing {
         case .appKit(let window):
+            // If this window is currently undergoing a programmatic update, prefer our last requested frame.
+            // This avoids race conditions where AppKit hasn't yet updated window.frame but we're reading it.
+            if programmaticUpdateWindowIds.contains(managedWindow.windowId),
+               let lastFrame = lastRequestedAppKitFrames[managedWindow.windowId] {
+                // The lastFrame is in Cocoa coordinates as stored. Convert to screen.
+                return screen.cocoaToScreen(lastFrame)
+            }
             let cocoaFrame = window.frame
             return screen.cocoaToScreen(cocoaFrame)
         case .accessibility(let element, _, _):

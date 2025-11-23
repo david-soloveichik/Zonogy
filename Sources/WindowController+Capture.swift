@@ -301,11 +301,20 @@ extension WindowController {
                 accessibilityFrame: accessibilityFrame,
                 primaryScreenBounds: primaryScreenBounds
             )
-            window.setFrame(cocoaFrame, display: true)
-            if managedWindow.isPlaceholder {
-                Logger.debug("Bringing placeholder window \(managedWindow.windowId) to front via orderFront")
+            
+            performProgrammaticUpdate(for: managedWindow.windowId) {
+                window.setFrame(cocoaFrame, display: true)
+                self.lastRequestedAppKitFrames[managedWindow.windowId] = cocoaFrame
             }
-            window.orderFront(nil)
+
+            // Only order to front if it's not a placeholder, or if it's a placeholder but not currently key.
+            // This avoids redundant orderFront calls for placeholders during continuous resizing.
+            if !managedWindow.isPlaceholder || !window.isKeyWindow {
+                if managedWindow.isPlaceholder {
+                    Logger.debug("Bringing placeholder window \(managedWindow.windowId) to front via orderFront (conditional)")
+                }
+                window.orderFront(nil)
+            }
         case .accessibility(let element, _, _):
             // Accessibility API uses screen coordinates directly
             performProgrammaticUpdate(for: managedWindow.windowId) {
@@ -364,6 +373,14 @@ extension WindowController {
 
     /// Resize and reposition a window to match a frame (frame is in screen-local coordinates)
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect, on screen: ScreenDescriptor) {
+        let currentFrame = actualFrameInScreenCoordinates(for: managedWindow, on: screen)
+
+        if framesRoughlyEqual(currentFrame, frame) {
+            let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+            Logger.debug("Skipping move for window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame) (already at target).")
+            return
+        }
+
         switch managedWindow.backing {
         case .appKit(let window):
             let accessibilityFrame = screen.screenToAccessibility(frame)
@@ -385,6 +402,97 @@ extension WindowController {
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
         Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame)")
+    }
+
+    func ensurePlaceholderVisibilityAndPosition(
+        _ placeholder: ManagedWindow,
+        at frame: CGRect,
+        on screen: ScreenDescriptor
+    ) {
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+
+        // If not visible, always perform a full show/move.
+        guard isWindowVisible(placeholder) else {
+            Logger.debug("Placeholder \(placeholder.windowId) not visible on screen \(screenIndex); performing full show/move to frame \(frame).")
+            showWindow(placeholder, at: frame, on: screen)
+            return
+        }
+
+        // Window is visible. Now handle based on backing type.
+        switch placeholder.backing {
+        case .appKit(let window):
+            let accessibilityFrame = screen.screenToAccessibility(frame)
+            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: accessibilityFrame,
+                primaryScreenBounds: primaryScreenBounds
+            )
+
+            // Always set frame for AppKit placeholders if visible, as we fully control them.
+            // This avoids the framesRoughlyEqual check during continuous drags for AppKit windows.
+            performProgrammaticUpdate(for: placeholder.windowId) {
+                window.setFrame(cocoaFrame, display: true)
+                self.lastRequestedAppKitFrames[placeholder.windowId] = cocoaFrame
+            }
+            
+            // Conditionally order to front
+            if !window.isKeyWindow {
+                Logger.debug("Placeholder \(placeholder.windowId) visible on screen \(screenIndex), frame updated to \(frame); bringing to front.")
+                window.orderFront(nil)
+            } else {
+                Logger.debug("Placeholder \(placeholder.windowId) visible and key on screen \(screenIndex), frame updated to \(frame).")
+            }
+
+        case .accessibility(let element, _, _):
+            let currentFrame = actualFrameInScreenCoordinates(for: placeholder, on: screen)
+            if framesRoughlyEqual(currentFrame, frame) {
+                // Already visible and at the correct frame. Just ensure it's frontmost.
+                Logger.debug("Placeholder \(placeholder.windowId) (AX) already visible and at target on screen \(screenIndex); ensuring frontmost.")
+                _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+            } else {
+                // Visible but at the wrong frame. Perform a full show/move for AX window.
+                Logger.debug("Placeholder \(placeholder.windowId) (AX) visible but at wrong frame on screen \(screenIndex); performing full show/move to frame \(frame).")
+                showWindow(placeholder, at: frame, on: screen)
+            }
+        }
+    }
+
+    /// Checks if a managed window is currently visible.
+    func isWindowVisible(_ managedWindow: ManagedWindow) -> Bool {
+        switch managedWindow.backing {
+        case .appKit(let window):
+            return window.isVisible // Corrected: use isVisible instead of !isHidden
+        case .accessibility(let element, _, _):
+            var hiddenValue: CFTypeRef?
+            let status = AXUIElementCopyAttributeValue(element, kAXHiddenAttribute as CFString, &hiddenValue)
+            guard status == .success, let hiddenValue else {
+                // If we can't get the attribute, assume it's visible for safety.
+                return true
+            }
+            if CFGetTypeID(hiddenValue) == CFBooleanGetTypeID() {
+                return !CFBooleanGetValue(unsafeBitCast(hiddenValue, to: CFBoolean.self))
+            }
+            if let number = hiddenValue as? NSNumber {
+                return !number.boolValue
+            }
+            return true // Default to visible
+        }
+    }
+
+    /// Hides a managed window.
+    func hideWindow(_ managedWindow: ManagedWindow, reason: HideReason) {
+        switch managedWindow.backing {
+        case .appKit(let window):
+            window.orderOut(nil)
+        case .accessibility(let element, _, _):
+            _ = AXUIElementSetAttributeValue(element, kAXHiddenAttribute as CFString, kCFBooleanTrue)
+        }
+        let reasonLabel: String
+        switch reason {
+        case .zoneExcluded: reasonLabel = "zone-excluded"
+        case .replacedByOccupant: reasonLabel = "replaced-by-occupant"
+        case .inactiveZone: reasonLabel = "inactive-zone"
+        }
+        Logger.debug("Hidden window \(managedWindow.windowId) (reason: \(reasonLabel))")
     }
 
     private enum AccessibilityUpdateOrder {
@@ -623,7 +731,7 @@ extension WindowController {
                frame.maxY <= bounds.maxY + tolerance
     }
 
-    private func framesRoughlyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 1.0) -> Bool {
+    internal func framesRoughlyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 2.0) -> Bool {
         abs(lhs.minX - rhs.minX) <= tolerance &&
         abs(lhs.minY - rhs.minY) <= tolerance &&
         abs(lhs.width - rhs.width) <= tolerance &&
@@ -688,7 +796,10 @@ extension WindowController {
         programmaticUpdateWindowIds.insert(windowId)
         block()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.programmaticUpdateWindowIds.remove(windowId)
+            guard let self else { return }
+            self.programmaticUpdateWindowIds.remove(windowId)
+            // Clear the cached frame for AppKit windows after the update is considered complete.
+            self.lastRequestedAppKitFrames.removeValue(forKey: windowId)
         }
     }
 

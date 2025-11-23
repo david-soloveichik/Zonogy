@@ -769,6 +769,8 @@ extension AppController {
             scalarDelta = delta.y
         }
         
+        guard abs(scalarDelta) > 0.001 else { return }
+        
         // Apply resize
         context.zoneController.resizeBySeparator(index: separatorIndex, delta: scalarDelta)
         
