@@ -15,9 +15,23 @@ extension AppController {
             return
         }
 
-        guard let managed = windowController.focusedWindowIfTracked(pid: pid),
-              !managed.isPlaceholder else {
-            activeFitDeactivate(reason: "focus-ineligible")
+        guard let managed = windowController.focusedWindowIfTracked(pid: pid) else {
+            // No tracked focused window for this pid; keep any existing ActiveFit window in place.
+            Logger.debug("ActiveFit focus change ignored for pid \(pid); no tracked focused window")
+            return
+        }
+
+        // If the newly focused window is not part of our managed layout (neither tiled nor in the
+        // temporary zone), we deliberately keep the current ActiveFit window expanded.
+        guard isLayoutManagedWindow(managed) else {
+            Logger.debug("ActiveFit focus change ignored for window \(managed.windowId); not in tiled or temporary zones")
+            return
+        }
+
+        // Focusing a placeholder participates in the managed layout but should not make that
+        // placeholder an ActiveFit candidate. Simply restore any existing ActiveFit window.
+        guard !managed.isPlaceholder else {
+            activeFitDeactivate(reason: "focus-placeholder")
             return
         }
 
@@ -313,6 +327,18 @@ extension AppController {
         }
         if activeFitSuppressedWindowIds.contains(windowId) {
             Logger.debug("ActiveFit suppression: window \(windowId) is in suppressed set")
+            return true
+        }
+        return false
+    }
+
+    /// Returns true when the window is participating in the managed layout — either as a tiled
+    /// zone occupant (including placeholders) or as the occupant of a temporary zone.
+    private func isLayoutManagedWindow(_ managed: ManagedWindow) -> Bool {
+        if managed.zoneIndex != nil {
+            return true
+        }
+        if isWindowInTemporaryZone(managed.windowId) {
             return true
         }
         return false
