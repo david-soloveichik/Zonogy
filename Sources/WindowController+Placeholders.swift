@@ -176,7 +176,8 @@ extension WindowController {
         }
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: 20, weight: .semibold)
+            .font: NSFont.systemFont(ofSize: 20, weight: .semibold),
+            .baselineOffset: 1.0
         ]
         let attributedTitle = NSAttributedString(string: "×", attributes: titleAttributes)
         closeButton.attributedTitle = attributedTitle
