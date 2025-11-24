@@ -12,7 +12,7 @@ extension AppController {
     func snapshotZoneAssignments(reason: String) {
         // Only snapshot assignments for non-placeholder windows that are still
         // tracked and currently associated with a tiled zone on the expected screen.
-        pendingZoneAssignmentSnapshots = liveZoneAssignments.filter { key, snapshot in
+        let candidateSnapshots = liveZoneAssignments.filter { key, snapshot in
             guard let window = windowController.window(withId: snapshot.identity.windowId) else {
                 return false
             }
@@ -27,10 +27,33 @@ extension AppController {
             }
             return true
         }
-        if !pendingZoneAssignmentSnapshots.isEmpty {
+
+        // If we found eligible assignments, replace the pending snapshot with the
+        // current state. If not, *preserve* any existing snapshot so that spurious
+        // sleep notifications that fire while no windows are managed (e.g. during
+        // wake-related display churn) do not erase the last real layout.
+        if !candidateSnapshots.isEmpty {
+            pendingZoneAssignmentSnapshots = candidateSnapshots
             Logger.debug("Snapshot \(pendingZoneAssignmentSnapshots.count) zone assignment(s) for \(reason)")
+
+            // Log a concise summary of the snapshot contents to make sleep/wake
+            // behavior easier to interpret in time-travel logs.
+            let details = pendingZoneAssignmentSnapshots.map { key, snapshot in
+                let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+                let identity = snapshot.identity
+                let bundle = identity.bundleIdentifier ?? "unknown"
+                let title = identity.windowTitle ?? "unknown"
+                return "screen \(screenIndex) zone \(key.index) -> windowId \(identity.windowId) (bundle: \(bundle), title: \(title))"
+            }
+            Logger.debug("Zone assignment snapshot details (\(reason)): \(details.joined(separator: "; "))")
         } else {
-            Logger.debug("Snapshot 0 zone assignments for \(reason) (none eligible)")
+            if pendingZoneAssignmentSnapshots.isEmpty {
+                Logger.debug("Snapshot 0 zone assignments for \(reason) (none eligible)")
+            } else {
+                Logger.debug(
+                    "Snapshot 0 zone assignments for \(reason) (none eligible; preserving \(pendingZoneAssignmentSnapshots.count) existing snapshot(s))"
+                )
+            }
         }
     }
 
@@ -40,14 +63,24 @@ extension AppController {
         }
 
         var remaining: [ZoneKey: ZoneAssignmentSnapshot] = [:]
+        var restored = 0
         for (key, snapshot) in pendingZoneAssignmentSnapshots {
             if attemptZoneAssignmentRestoration(using: snapshot, reason: reason) {
                 liveZoneAssignments[key] = snapshot
+                restored += 1
             } else {
                 remaining[key] = snapshot
             }
         }
         pendingZoneAssignmentSnapshots = remaining
+
+        let pendingCount = pendingZoneAssignmentSnapshots.count
+        if restored > 0 || pendingCount > 0 {
+            Logger.debug(
+                "Zone assignment restore summary (reason: \(reason)): " +
+                "restored \(restored), pending \(pendingCount) snapshot(s)"
+            )
+        }
     }
 
     func handleZoneAssignmentRestorationIfNeeded(_ managed: ManagedWindow) -> Bool {
@@ -63,6 +96,15 @@ extension AppController {
 
     private func attemptZoneAssignmentRestoration(using snapshot: ZoneAssignmentSnapshot, reason: String) -> Bool {
         guard let managed = resolveManagedWindow(for: snapshot) else {
+            let identity = snapshot.identity
+            let bundle = identity.bundleIdentifier ?? "unknown"
+            let title = identity.windowTitle ?? "unknown"
+            let key = snapshot.zoneKey
+            let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+            Logger.debug(
+                "Zone snapshot still pending for screen \(screenIndex) zone \(key.index): " +
+                "windowId \(identity.windowId) (bundle: \(bundle), title: \(title)) not yet recaptured (reason: \(reason))"
+            )
             return false
         }
         return attemptZoneAssignmentRestoration(with: managed, snapshot: snapshot, reason: reason)

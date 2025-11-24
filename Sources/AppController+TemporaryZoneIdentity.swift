@@ -19,9 +19,30 @@ extension AppController {
             )
         }
 
-        pendingTemporaryZoneIdentitySnapshots = snapshot
+        // Only overwrite the pending snapshot when we have at least one active
+        // temporary-zone occupant. This prevents spurious sleep notifications
+        // that arrive with no occupants (often during wake-induced display
+        // reconfiguration) from discarding a valid pre-sleep snapshot.
         if !snapshot.isEmpty {
+            pendingTemporaryZoneIdentitySnapshots = snapshot
             Logger.debug("Snapshot \(snapshot.count) temporary zone occupant(s) for \(reason)")
+
+            // Log snapshot contents so it is clear which floating windows are
+            // expected to be restored after wake.
+            let details = snapshot.map { screenId, entry in
+                let screenIndex = screenContextStore.loggingIndex(for: screenId)
+                let identity = entry.identity
+                let bundle = identity.bundleIdentifier ?? "unknown"
+                let title = identity.windowTitle ?? "unknown"
+                return "screen \(screenIndex) temporary -> windowId \(identity.windowId) (bundle: \(bundle), title: \(title))"
+            }
+            Logger.debug("Temporary zone snapshot details (\(reason)): \(details.joined(separator: "; "))")
+        } else if pendingTemporaryZoneIdentitySnapshots.isEmpty {
+            Logger.debug("Snapshot 0 temporary zone occupant(s) for \(reason) (none eligible)")
+        } else {
+            Logger.debug(
+                "Snapshot 0 temporary zone occupant(s) for \(reason) (none eligible; preserving \(pendingTemporaryZoneIdentitySnapshots.count) existing snapshot(s))"
+            )
         }
     }
 
@@ -51,14 +72,26 @@ extension AppController {
                 restored += 1
             } else {
                 remaining[screenId] = entry
+                let identity = entry.identity
+                let bundle = identity.bundleIdentifier ?? "unknown"
+                let title = identity.windowTitle ?? "unknown"
+                let screenIndex = screenContextStore.loggingIndex(for: screenId)
+                Logger.debug(
+                    "Temporary zone snapshot still pending for screen \(screenIndex): " +
+                    "windowId \(identity.windowId) (bundle: \(bundle), title: \(title)) not yet recaptured (reason: \(reason))"
+                )
             }
         }
 
-        if restored > 0 {
-            Logger.debug("Restored \(restored) temporary zone occupant(s) from existing windows (reason: \(reason))")
-        }
-
         pendingTemporaryZoneIdentitySnapshots = remaining
+
+        let pendingCount = pendingTemporaryZoneIdentitySnapshots.count
+        if restored > 0 || pendingCount > 0 {
+            Logger.debug(
+                "Temporary zone restore summary (reason: \(reason)): " +
+                "restored \(restored), pending \(pendingCount) snapshot(s)"
+            )
+        }
     }
 
     func handleTemporaryZoneRestorationIfNeeded(_ managed: ManagedWindow) -> Bool {
