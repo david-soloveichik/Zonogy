@@ -1,3 +1,9 @@
 {
-  "ignoredBundleIdentifiers": []
+  "ignoredBundleIdentifiers": [],
+  "bundleExceptions": [
+    {
+      "bundleIdentifier": "com.valvesoftware.steam.helper",
+      "ignoreActivationPolicy": true
+    }
+  ]
 }

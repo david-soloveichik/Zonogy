@@ -363,7 +363,7 @@ The source code for Amethyst tiling window manager (with my modifications) is at
 
 ## 9. Configuration
 
-An optional `config.json` file lets users specify bundle identifiers that the window manager should ignore. When present, it is discovered using the following search order:
+An optional `config.json` file lets users (a) specify bundle identifiers that the window manager should ignore entirely and (b) define per-application exception rules that tweak the default eligibility checks for specific apps. When present, it is discovered using the following search order:
 
 1. The executable directory (sibling to the built binary)
 2. The current working directory
@@ -377,8 +377,21 @@ The file schema:
   "ignoredBundleIdentifiers": [
     "com.example.App",
     "org.example.OtherApp"
+  ],
+  "bundleExceptions": [
+    {
+      "bundleIdentifier": "com.example.HelperApp",
+      "ignoreActivationPolicy": true
+    }
   ]
 }
 ```
 
-Bundle identifiers listed here are excluded from zone management and will not be minimized during startup. Zonogy always ignores its own bundle identifier automatically.
+Fields:
+
+- `ignoredBundleIdentifiers` – optional array of bundle IDs that should be completely ignored by Zonogy. Windows belonging to these apps are never captured or managed.
+- `bundleExceptions` – optional array of per-application exception rules. Each object has:
+  - `bundleIdentifier` – the app’s bundle identifier (e.g., `"com.apple.Dictionary"`).
+  - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app’s `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
+
+For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

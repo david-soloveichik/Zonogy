@@ -220,7 +220,7 @@ extension WindowController {
 
         Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
 
-        guard isStandardWindow(element) else {
+        guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId) else {
             Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")
             return nil
         }
@@ -886,12 +886,14 @@ extension WindowController {
         return false
     }
 
-    private func isStandardWindow(_ element: AXUIElement) -> Bool {
+    private func isStandardWindow(_ element: AXUIElement, pid: pid_t, cgWindowId: CGWindowID) -> Bool {
+        let contextPrefix = "isStandardWindow(pid: \(pid), cgWindowId: \(cgWindowId))"
+
         var roleObject: AnyObject?
         let roleStatus = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
         guard roleStatus == .success, let role = roleObject as? String, role == kAXWindowRole as String else {
             if roleStatus != .success {
-                Logger.debug("isStandardWindow: Failed to get role attribute, AX error \(roleStatus.rawValue)")
+                Logger.debug("\(contextPrefix): Failed to get role attribute, AX error \(roleStatus.rawValue)")
             }
             return false
         }
@@ -900,11 +902,11 @@ extension WindowController {
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
             guard subrole == kAXStandardWindowSubrole as String else {
-                Logger.debug("isStandardWindow: Window has non-standard subrole: \(subrole)")
+                Logger.debug("\(contextPrefix): Window has non-standard subrole: \(subrole)")
                 return false
             }
         } else if subroleStatus != .success {
-            Logger.debug("isStandardWindow: Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
+            Logger.debug("\(contextPrefix): Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
         }
 
         // Check isMovable attribute (per SPECIFICATION.md)
@@ -913,9 +915,9 @@ extension WindowController {
         let settableStatus = AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &isPositionSettable)
         if settableStatus != .success || !isPositionSettable.boolValue {
             if settableStatus != .success {
-                Logger.debug("isStandardWindow: Failed to check if position is settable, AX error \(settableStatus.rawValue)")
+                Logger.debug("\(contextPrefix): Failed to check if position is settable, AX error \(settableStatus.rawValue)")
             } else {
-                Logger.debug("isStandardWindow: Window position is not settable (not movable)")
+                Logger.debug("\(contextPrefix): Window position is not settable (not movable)")
             }
             return false
         }
@@ -929,7 +931,7 @@ extension WindowController {
             if let zoomButtonValue {
                 let typeId = CFGetTypeID(zoomButtonValue)
                 if typeId == CFNullGetTypeID() {
-                    Logger.debug("isStandardWindow: Zoom button attribute returned CFNull (no zoom button)")
+                    Logger.debug("\(contextPrefix): Zoom button attribute returned CFNull (no zoom button)")
                 } else if typeId == AXValueGetTypeID() {
                     let axValue = zoomButtonValue as! AXValue
                     let valueType = AXValueGetType(axValue)
@@ -937,9 +939,9 @@ extension WindowController {
                     if valueType.rawValue == axErrorTypeRawValue {
                         var underlyingError = AXError.success
                         if AXValueGetValue(axValue, valueType, &underlyingError) {
-                            Logger.debug("isStandardWindow: Zoom button attribute returned AX error \(underlyingError.rawValue)")
+                            Logger.debug("\(contextPrefix): Zoom button attribute returned AX error \(underlyingError.rawValue)")
                         } else {
-                            Logger.debug("isStandardWindow: Zoom button attribute returned AX error type value without readable code")
+                            Logger.debug("\(contextPrefix): Zoom button attribute returned AX error type value without readable code")
                         }
                     } else {
                         hasZoomButton = true
@@ -948,28 +950,28 @@ extension WindowController {
                     hasZoomButton = true
                 }
             } else {
-                Logger.debug("isStandardWindow: Zoom button attribute returned nil (no zoom button)")
+                Logger.debug("\(contextPrefix): Zoom button attribute returned nil (no zoom button)")
             }
         } else if zoomStatus == .noValue {
-            Logger.debug("isStandardWindow: Zoom button attribute reports no value (no zoom button)")
+            Logger.debug("\(contextPrefix): Zoom button attribute reports no value (no zoom button)")
         } else {
-            Logger.debug("isStandardWindow: Failed to get zoom button attribute, AX error \(zoomStatus.rawValue)")
+            Logger.debug("\(contextPrefix): Failed to get zoom button attribute, AX error \(zoomStatus.rawValue)")
         }
 
         if !hasZoomButton {
-            Logger.debug("isStandardWindow: Window has no zoom button")
+            Logger.debug("\(contextPrefix): Window has no zoom button")
             return false
         }
 
         // Check window height (must be >= 250px tall)
         if let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) {
             if size.height < 250 {
-                Logger.debug("isStandardWindow: Window height \(size.height) is less than 250px minimum")
+                Logger.debug("\(contextPrefix): Window height \(size.height) is less than 250px minimum")
                 return false
             }
         } else {
             // If we can't get the size, we treat it as not meeting the criteria
-            Logger.debug("isStandardWindow: Unable to get window size for height check")
+            Logger.debug("\(contextPrefix): Unable to get window size for height check")
             return false
         }
 

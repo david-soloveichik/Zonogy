@@ -277,7 +277,8 @@ extension AppController {
         if configuration.ignoredBundleIdentifiers.contains(bundleId) {
             return false
         }
-        if application.activationPolicy != .regular {
+        if application.activationPolicy != .regular &&
+            !configuration.applicationExceptionPolicy.ignoresActivationPolicy(forBundleIdentifier: bundleId) {
             return false
         }
         if isXpcOrHelperProcess(application) {

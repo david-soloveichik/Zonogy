@@ -1,13 +1,17 @@
 import Foundation
 
-struct Configuration: Decodable {
+/// Top-level configuration for Zonogy, loaded from an optional config.json file.
+/// Currently supports ignored bundle identifiers and per-application exception rules.
+struct Configuration {
     private struct FileContents: Decodable {
         let ignoredBundleIdentifiers: [String]?
+        let bundleExceptions: [ApplicationExceptionRule]?
     }
 
     private static let defaultIgnoredBundles: Set<String> = []
 
     let ignoredBundleIdentifiers: Set<String>
+    let applicationExceptionPolicy: ApplicationExceptionPolicy
 
     static func load(fileManager: FileManager = .default) -> Configuration {
         let candidateURLs = configurationFileCandidates(fileManager: fileManager)
@@ -23,15 +27,22 @@ struct Configuration: Decodable {
             if fileManager.fileExists(atPath: url.path),
                let data = try? Data(contentsOf: url),
                let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
-                let configured = Set(decoded.ignoredBundleIdentifiers ?? [])
-                let merged = configured.union(finalIgnoredBundles)
-                Logger.debug("Loaded configuration from \(url.path) with ignored bundles: \(Array(merged))")
-                return Configuration(ignoredBundleIdentifiers: merged)
+                let configuredIgnored = Set(decoded.ignoredBundleIdentifiers ?? [])
+                let mergedIgnored = configuredIgnored.union(finalIgnoredBundles)
+                let exceptionPolicy = ApplicationExceptionPolicy(rules: decoded.bundleExceptions ?? [])
+                Logger.debug("Loaded configuration from \(url.path) with ignored bundles: \(Array(mergedIgnored))")
+                return Configuration(
+                    ignoredBundleIdentifiers: mergedIgnored,
+                    applicationExceptionPolicy: exceptionPolicy
+                )
             }
         }
 
         Logger.debug("No configuration file found; using default ignored bundles: \(Array(finalIgnoredBundles))")
-        return Configuration(ignoredBundleIdentifiers: finalIgnoredBundles)
+        return Configuration(
+            ignoredBundleIdentifiers: finalIgnoredBundles,
+            applicationExceptionPolicy: .empty
+        )
     }
 
     private static func configurationFileCandidates(fileManager: FileManager) -> [URL] {
