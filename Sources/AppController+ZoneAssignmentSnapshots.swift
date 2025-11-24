@@ -116,9 +116,33 @@ extension AppController {
         reason: String
     ) -> Bool {
         let key = snapshot.zoneKey
-        guard let context = screenContexts[key.screenId],
-              let zone = context.zoneController.zone(at: key.index) else {
-            Logger.debug("Zone snapshot for screen \(screenContextStore.loggingIndex(for: key.screenId)) zone \(key.index) dropped (zone missing)")
+        guard let context = screenContexts[key.screenId] else {
+            let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+            Logger.debug("Zone snapshot for screen \(screenIndex) zone \(key.index) dropped (screen missing)")
+            return true
+        }
+
+        let zoneController = context.zoneController
+
+        // If the target zone no longer exists on an otherwise-present screen, recreate
+        // zones up to the requested index so we can faithfully restore the layout
+        // captured before sleep.
+        if zoneController.zone(at: key.index) == nil {
+            let existingCount = zoneController.allZones.count
+            let desiredCount = max(existingCount, key.index)
+
+            if desiredCount <= 3 {
+                zoneController.setZoneCount(to: desiredCount)
+                let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+                Logger.debug(
+                    "Recreated missing zone \(key.index) on screen \(screenIndex) for snapshot (zone count \(existingCount) -> \(zoneController.allZones.count))"
+                )
+            }
+        }
+
+        guard let zone = zoneController.zone(at: key.index) else {
+            let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+            Logger.debug("Zone snapshot for screen \(screenIndex) zone \(key.index) dropped (zone still missing)")
             return true
         }
 
