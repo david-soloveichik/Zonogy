@@ -810,6 +810,13 @@ extension AppController {
         let activeState = activeFitState
 
         for (screenId, context) in screenContexts {
+            // When a screen's temporary zone holds a floating window,
+            // hide all resize handles on that screen so they don't
+            // overlap the temporary-zone UI.
+            if temporaryZoneOccupant(on: screenId) != nil {
+                continue
+            }
+
             let separators = context.zoneController.separators()
 
             for sep in separators {
