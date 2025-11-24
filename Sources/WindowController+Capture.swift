@@ -959,8 +959,14 @@ extension WindowController {
         }
 
         if !hasZoomButton {
-            Logger.debug("\(contextPrefix): Window has no zoom button")
-            return false
+            if let app = NSRunningApplication(processIdentifier: pid),
+               let bundleId = app.bundleIdentifier,
+               applicationExceptionPolicy.ignoresZoomButtonRequirement(forBundleIdentifier: bundleId) {
+                Logger.debug("\(contextPrefix): Window has no zoom button, but bundle \(bundleId) is configured to ignore zoom button requirement; treating as standard")
+            } else {
+                Logger.debug("\(contextPrefix): Window has no zoom button")
+                return false
+            }
         }
 
         // Check window height (must be >= 250px tall)

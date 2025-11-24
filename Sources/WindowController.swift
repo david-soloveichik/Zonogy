@@ -62,6 +62,7 @@ class WindowController {
     internal var mouseUpGlobalMonitor: Any?
     internal var resizingWindowId: Int?
     internal let primaryScreenBounds: CGRect
+    internal let applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
     
     // Require at least a few pixels of movement (with the button still down)
@@ -73,13 +74,18 @@ class WindowController {
         let needsRetry: Bool
     }
 
-    init(ignoredBundleIdentifiers: Set<String> = [], primaryScreenBounds: CGRect) {
+    init(
+        ignoredBundleIdentifiers: Set<String> = [],
+        primaryScreenBounds: CGRect,
+        applicationExceptionPolicy: ApplicationExceptionPolicy = .empty
+    ) {
         self.accessibilityWatcher = AccessibilityWatcher(
             windowNotifications: AccessibilityNotificationCatalog.windowNotifications,
             applicationNotifications: AccessibilityNotificationCatalog.applicationNotifications
         )
         self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
         self.primaryScreenBounds = primaryScreenBounds
+        self.applicationExceptionPolicy = applicationExceptionPolicy
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
             self?.handleMouseUp()
             return event

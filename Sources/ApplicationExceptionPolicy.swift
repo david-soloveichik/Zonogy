@@ -6,10 +6,16 @@ import Foundation
 struct ApplicationExceptionRule: Decodable {
     let bundleIdentifier: String
     let ignoreActivationPolicy: Bool?
+    let ignoreZoomButtonRequirement: Bool?
 
-    init(bundleIdentifier: String, ignoreActivationPolicy: Bool? = nil) {
+    init(
+        bundleIdentifier: String,
+        ignoreActivationPolicy: Bool? = nil,
+        ignoreZoomButtonRequirement: Bool? = nil
+    ) {
         self.bundleIdentifier = bundleIdentifier
         self.ignoreActivationPolicy = ignoreActivationPolicy
+        self.ignoreZoomButtonRequirement = ignoreZoomButtonRequirement
     }
 }
 
@@ -38,5 +44,11 @@ struct ApplicationExceptionPolicy {
         }
         return rule.ignoreActivationPolicy ?? false
     }
-}
 
+    func ignoresZoomButtonRequirement(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        guard let rule = rulesByBundleId[bundleIdentifier] else {
+            return false
+        }
+        return rule.ignoreZoomButtonRequirement ?? false
+    }
+}

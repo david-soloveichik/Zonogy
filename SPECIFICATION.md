@@ -381,7 +381,8 @@ The file schema:
   "bundleExceptions": [
     {
       "bundleIdentifier": "com.example.HelperApp",
-      "ignoreActivationPolicy": true
+      "ignoreActivationPolicy": true,
+      "ignoreZoomButtonRequirement": true
     }
   ]
 }
@@ -393,5 +394,6 @@ Fields:
 - `bundleExceptions` – optional array of per-application exception rules. Each object has:
   - `bundleIdentifier` – the app’s bundle identifier (e.g., `"com.apple.Dictionary"`).
   - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app’s `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
+  - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app’s windows to expose a zoom button; such windows can still be managed if they pass the other criteria.
 
 For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

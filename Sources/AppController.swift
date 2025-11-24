@@ -163,7 +163,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         self.windowController = WindowController(
             ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
-            primaryScreenBounds: contextStore.primaryScreenBounds
+            primaryScreenBounds: contextStore.primaryScreenBounds,
+            applicationExceptionPolicy: configuration.applicationExceptionPolicy
         )
         self.capturePipeline = WindowCapturePipeline(windowController: self.windowController)
         self.placeholderCoordinator = PlaceholderCoordinator(windowController: self.windowController)

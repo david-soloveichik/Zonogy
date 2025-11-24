@@ -3,7 +3,8 @@
   "bundleExceptions": [
     {
       "bundleIdentifier": "com.valvesoftware.steam.helper",
-      "ignoreActivationPolicy": true
+      "ignoreActivationPolicy": true,
+      "ignoreZoomButtonRequirement": true
     }
   ]
 }
