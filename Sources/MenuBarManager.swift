@@ -40,6 +40,16 @@ class MenuBarManager {
         // Create the menu
         let menu = NSMenu()
 
+        let preferencesItem = NSMenuItem(
+            title: "Preferences...",
+            action: #selector(handlePreferences),
+            keyEquivalent: ","
+        )
+        preferencesItem.target = self
+        menu.addItem(preferencesItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let quitItem = NSMenuItem(
             title: "Quit Zonogy",
             action: #selector(handleQuit),
@@ -80,6 +90,11 @@ class MenuBarManager {
 
         Logger.debug("Failed to load SVG icon from any search path")
         return nil
+    }
+
+    @objc private func handlePreferences() {
+        Logger.debug("Preferences requested from menu bar")
+        PreferencesWindowController.shared.showWindow()
     }
 
     @objc private func handleQuit() {

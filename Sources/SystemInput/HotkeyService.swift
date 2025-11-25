@@ -3,7 +3,7 @@ import Carbon
 
 /// Registers and dispatches global and local hotkey shortcuts
 final class HotkeyService {
-    enum Action: UInt32 {
+    enum Action: UInt32, CaseIterable {
         case addZone = 1
         case removeZone = 2
         case captureTimeTravelLogs = 3
@@ -16,19 +16,43 @@ final class HotkeyService {
         case clearOrResetZonesAtCursor = 10
         case minimizeActiveWindow = 11
         case minimizeWindowOrRemoveZoneAtCursor = 12
+
+        /// Maps to the corresponding preferences action
+        var preferencesAction: KeyboardShortcutPreferences.ShortcutAction {
+            switch self {
+            case .addZone: return .addZone
+            case .removeZone: return .removeZone
+            case .captureTimeTravelLogs: return .captureTimeTravelLogs
+            case .flipKeyWindow: return .flipKeyWindow
+            case .clearOrResetZones: return .clearOrResetZones
+            case .targetTemporaryZone: return .targetTemporaryZone
+            case .navigateUp: return .navigateUp
+            case .navigateLeft: return .navigateLeft
+            case .navigateRight: return .navigateRight
+            case .clearOrResetZonesAtCursor: return .clearOrResetZonesAtCursor
+            case .minimizeActiveWindow: return .minimizeActiveWindow
+            case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor
+            }
+        }
     }
 
     weak var delegate: HotkeyServiceDelegate?
+    private let preferences = KeyboardShortcutPreferences.shared
 
     private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
-    private let baseHotKeyModifiers: UInt32 = UInt32(cmdKey | controlKey)
+    private var isSuspended = false
 
     func start(delegate: HotkeyServiceDelegate) {
         self.delegate = delegate
         installHotKeyEventHandler()
         registerHotKeys()
+
+        // Listen for preference changes to re-register hotkeys
+        preferences.onShortcutsChanged = { [weak self] in
+            self?.reregisterHotKeys()
+        }
     }
 
     func stop() {
@@ -43,62 +67,51 @@ final class HotkeyService {
         }
     }
 
+    /// Temporarily suspends all hotkeys (e.g., while recording a new shortcut)
+    func suspend() {
+        guard !isSuspended else { return }
+        isSuspended = true
+
+        for hotKeyRef in hotKeyRefs {
+            UnregisterEventHotKey(hotKeyRef)
+        }
+        hotKeyRefs.removeAll()
+        Logger.debug("Hotkeys suspended")
+    }
+
+    /// Resumes hotkeys after suspension
+    func resume() {
+        guard isSuspended else { return }
+        isSuspended = false
+
+        registerHotKeys()
+        Logger.debug("Hotkeys resumed")
+    }
+
     func handleLocalShortcut(event: NSEvent) -> Bool {
+        // Don't handle shortcuts while suspended (e.g., during shortcut recording)
+        guard !isSuspended else { return false }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let keyCode = UInt32(event.keyCode)
 
-        // Check for Cmd-M (only Command key, no Control)
-        if flags.contains(.command) && !flags.contains(.control) && !flags.contains(.option) && !flags.contains(.shift) {
-            if Int(event.keyCode) == kVK_ANSI_M {
-                delegate?.hotkeyService(self, didTrigger: .minimizeActiveWindow)
+        // Convert Cocoa modifiers to Carbon modifiers for comparison
+        var carbonModifiers: UInt32 = 0
+        if flags.contains(.command) { carbonModifiers |= UInt32(cmdKey) }
+        if flags.contains(.control) { carbonModifiers |= UInt32(controlKey) }
+        if flags.contains(.option) { carbonModifiers |= UInt32(optionKey) }
+        if flags.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
+
+        // Check each action's shortcut
+        for action in Action.allCases {
+            let shortcut = preferences.shortcut(for: action.preferencesAction)
+            if shortcut.keyCode == keyCode && shortcut.modifiers == carbonModifiers {
+                delegate?.hotkeyService(self, didTrigger: action)
                 return true
             }
         }
 
-        guard flags.contains(.command),
-              flags.contains(.control) else {
-            return false
-        }
-
-        let usesCursorScreen = flags.contains(.option) && flags.contains(.shift)
-
-        switch Int(event.keyCode) {
-        case kVK_ANSI_Equal:
-            delegate?.hotkeyService(self, didTrigger: .addZone)
-            return true
-        case kVK_ANSI_Minus:
-            delegate?.hotkeyService(self, didTrigger: .removeZone)
-            return true
-        case kVK_ANSI_Z:
-            delegate?.hotkeyService(self, didTrigger: .captureTimeTravelLogs)
-            return true
-        case kVK_ANSI_M:
-            if flags.contains(.option) && flags.contains(.shift) {
-                delegate?.hotkeyService(self, didTrigger: .minimizeWindowOrRemoveZoneAtCursor)
-                return true
-            }
-            return false
-        case kVK_Return:
-            delegate?.hotkeyService(self, didTrigger: .flipKeyWindow)
-            return true
-        case kVK_Space:
-            let action: Action = usesCursorScreen ? .clearOrResetZonesAtCursor : .clearOrResetZones
-            delegate?.hotkeyService(self, didTrigger: action)
-            return true
-        case kVK_DownArrow:
-            delegate?.hotkeyService(self, didTrigger: .targetTemporaryZone)
-            return true
-        case kVK_UpArrow:
-            delegate?.hotkeyService(self, didTrigger: .navigateUp)
-            return true
-        case kVK_LeftArrow:
-            delegate?.hotkeyService(self, didTrigger: .navigateLeft)
-            return true
-        case kVK_RightArrow:
-            delegate?.hotkeyService(self, didTrigger: .navigateRight)
-            return true
-        default:
-            return false
-        }
+        return false
     }
 
     fileprivate func handleHotKeyEvent(_ event: EventRef) -> OSStatus {
@@ -143,40 +156,30 @@ final class HotkeyService {
     }
 
     private func registerHotKeys() {
-        registerHotKey(keyCode: UInt32(kVK_ANSI_Equal), action: .addZone)
-        registerHotKey(keyCode: UInt32(kVK_ANSI_Minus), action: .removeZone)
-        registerHotKey(keyCode: UInt32(kVK_ANSI_Z), action: .captureTimeTravelLogs)
-        registerHotKey(keyCode: UInt32(kVK_Return), action: .flipKeyWindow)
-        registerHotKey(keyCode: UInt32(kVK_Space), action: .clearOrResetZones)
-        registerHotKey(
-            keyCode: UInt32(kVK_Space),
-            action: .clearOrResetZonesAtCursor,
-            modifierFlags: baseHotKeyModifiers | UInt32(shiftKey | optionKey)
-        )
-        registerHotKey(keyCode: UInt32(kVK_DownArrow), action: .targetTemporaryZone)
-        registerHotKey(keyCode: UInt32(kVK_UpArrow), action: .navigateUp)
-        registerHotKey(keyCode: UInt32(kVK_LeftArrow), action: .navigateLeft)
-        registerHotKey(keyCode: UInt32(kVK_RightArrow), action: .navigateRight)
-        // Register Cmd-M with only Command key modifier (no Control)
-        registerHotKey(keyCode: UInt32(kVK_ANSI_M), action: .minimizeActiveWindow, modifierFlags: UInt32(cmdKey))
-        // Register Shift-Option-Control-Cmd-M for cursor-based minimize/remove behavior
-        registerHotKey(
-            keyCode: UInt32(kVK_ANSI_M),
-            action: .minimizeWindowOrRemoveZoneAtCursor,
-            modifierFlags: baseHotKeyModifiers | UInt32(shiftKey | optionKey)
-        )
+        for action in Action.allCases {
+            let shortcut = preferences.shortcut(for: action.preferencesAction)
+            registerHotKey(shortcut: shortcut, action: action)
+        }
     }
 
-    private func registerHotKey(
-        keyCode: UInt32,
-        action: Action,
-        modifierFlags: UInt32? = nil
-    ) {
+    private func reregisterHotKeys() {
+        // Unregister all existing hotkeys
+        for hotKeyRef in hotKeyRefs {
+            UnregisterEventHotKey(hotKeyRef)
+        }
+        hotKeyRefs.removeAll()
+
+        // Re-register with updated shortcuts
+        registerHotKeys()
+        Logger.debug("Re-registered hotkeys after preference change")
+    }
+
+    private func registerHotKey(shortcut: KeyboardShortcut, action: Action) {
         var hotKeyRef: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: action.rawValue)
         let status = RegisterEventHotKey(
-            keyCode,
-            modifierFlags ?? baseHotKeyModifiers,
+            shortcut.keyCode,
+            shortcut.modifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             OptionBits(kEventHotKeyExclusive),
@@ -185,7 +188,7 @@ final class HotkeyService {
 
         if status == noErr, let hotKeyRef {
             hotKeyRefs.append(hotKeyRef)
-            Logger.debug("Registered hotkey action \(action) keyCode \(keyCode)")
+            Logger.debug("Registered hotkey action \(action) shortcut \(shortcut.displayString)")
         } else if status != noErr {
             Logger.debug("Failed to register hotkey \(action) with status \(status)")
         }
