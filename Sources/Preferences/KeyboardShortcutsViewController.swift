@@ -141,8 +141,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         if isRecording {
             button.title = "Press shortcut..."
             button.bezelStyle = .rounded
-            button.bezelColor = .systemBlue
+            button.bezelColor = NSColor(calibratedRed: 0.4, green: 0.6, blue: 0.85, alpha: 1.0)
             button.contentTintColor = .white
+            button.startPulsingAnimation()
         } else if isCleared {
             button.title = "None"
             button.bezelStyle = .recessed
@@ -376,12 +377,54 @@ private class ShortcutButton: NSButton {
     var shortcutAction: KeyboardShortcutPreferences.ShortcutAction!
     var row: Int = 0
     var buttonAction: Selector?
+    private var isPulsing = false
+
+    private let pulseMinAlpha: CGFloat = 0.55
+    private let pulseMaxAlpha: CGFloat = 1.0
+    private let pulseDuration: TimeInterval = 0.7
 
     override func sendAction(_ action: Selector?, to target: Any?) -> Bool {
         if let buttonAction = buttonAction {
             return super.sendAction(buttonAction, to: target)
         }
         return super.sendAction(action, to: target)
+    }
+
+    func startPulsingAnimation() {
+        guard !isPulsing else { return }
+        isPulsing = true
+
+        self.wantsLayer = true
+        self.alphaValue = pulseMaxAlpha
+
+        animatePulse(toAlpha: pulseMinAlpha)
+    }
+
+    private func animatePulse(toAlpha alpha: CGFloat) {
+        guard isPulsing else { return }
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = pulseDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().alphaValue = alpha
+        }, completionHandler: { [weak self] in
+            guard let self = self, self.isPulsing else { return }
+            let nextAlpha = alpha == self.pulseMinAlpha ? self.pulseMaxAlpha : self.pulseMinAlpha
+            self.animatePulse(toAlpha: nextAlpha)
+        })
+    }
+
+    func stopPulsingAnimation() {
+        isPulsing = false
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            self.animator().alphaValue = 1.0
+        }
+    }
+
+    override func removeFromSuperview() {
+        stopPulsingAnimation()
+        super.removeFromSuperview()
     }
 }
 
