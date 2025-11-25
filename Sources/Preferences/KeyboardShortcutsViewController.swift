@@ -125,6 +125,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 
     private func makeShortcutCell(for action: KeyboardShortcutPreferences.ShortcutAction, row: Int) -> NSView {
         let cell = NSTableCellView()
+        let prefs = KeyboardShortcutPreferences.shared
 
         let button = ShortcutButton()
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -133,42 +134,78 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         button.target = self
         button.buttonAction = #selector(shortcutButtonClicked(_:))
 
-        let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: action)
+        let shortcut = prefs.shortcut(for: action)
         let isRecording = recordingRow == row
+        let isCleared = prefs.isCleared(action)
 
         if isRecording {
             button.title = "Press shortcut..."
             button.bezelStyle = .rounded
             button.bezelColor = .systemBlue
             button.contentTintColor = .white
-        } else {
-            button.title = shortcut.displayString
+        } else if isCleared {
+            button.title = "None"
             button.bezelStyle = .recessed
             button.bezelColor = nil
-            let isCustom = KeyboardShortcutPreferences.shared.shortcuts[action] != nil
+            button.contentTintColor = .tertiaryLabelColor
+        } else {
+            button.title = shortcut?.displayString ?? "None"
+            button.bezelStyle = .recessed
+            button.bezelColor = nil
+            let isCustom = prefs.isCustomized(action)
             button.contentTintColor = isCustom ? .labelColor : .secondaryLabelColor
         }
 
-        cell.addSubview(button)
+        // Add clear button (x) if shortcut is set
+        let hasShortcut = !isCleared && shortcut != nil
+        if hasShortcut && !isRecording {
+            let clearButton = ClearButton()
+            clearButton.translatesAutoresizingMaskIntoConstraints = false
+            clearButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Clear")
+            clearButton.bezelStyle = .recessed
+            clearButton.isBordered = false
+            clearButton.target = self
+            clearButton.shortcutAction = action
+            clearButton.buttonAction = #selector(clearShortcut(_:))
+            clearButton.contentTintColor = .tertiaryLabelColor
 
-        NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-            button.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-            button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        ])
+            cell.addSubview(button)
+            cell.addSubview(clearButton)
+
+            NSLayoutConstraint.activate([
+                button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+
+                clearButton.leadingAnchor.constraint(equalTo: button.trailingAnchor, constant: 2),
+                clearButton.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                clearButton.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                clearButton.widthAnchor.constraint(equalToConstant: 20),
+            ])
+        } else {
+            cell.addSubview(button)
+
+            NSLayoutConstraint.activate([
+                button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                button.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+        }
 
         return cell
     }
 
     private func makeResetCell(for action: KeyboardShortcutPreferences.ShortcutAction, row: Int) -> NSView {
         let cell = NSTableCellView()
+        let prefs = KeyboardShortcutPreferences.shared
 
-        // Only show reset button if shortcut is customized
-        let isCustom = KeyboardShortcutPreferences.shared.shortcuts[action] != nil
-        if isCustom {
+        // Show reset button if shortcut is customized or cleared
+        let isCustom = prefs.isCustomized(action)
+        let isCleared = prefs.isCleared(action)
+
+        if isCustom || isCleared {
             let button = ResetButton()
             button.translatesAutoresizingMaskIntoConstraints = false
-            button.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset")
+            button.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset to Default")
             button.bezelStyle = .recessed
             button.isBordered = false
             button.target = self
@@ -303,6 +340,11 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integersIn: 1...2))
     }
 
+    @objc private func clearShortcut(_ sender: ClearButton) {
+        KeyboardShortcutPreferences.shared.clearShortcut(for: sender.shortcutAction)
+        tableView.reloadData()
+    }
+
     @objc private func resetSingleShortcut(_ sender: ResetButton) {
         KeyboardShortcutPreferences.shared.resetToDefault(action: sender.shortcutAction)
         tableView.reloadData()
@@ -333,6 +375,18 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 private class ShortcutButton: NSButton {
     var shortcutAction: KeyboardShortcutPreferences.ShortcutAction!
     var row: Int = 0
+    var buttonAction: Selector?
+
+    override func sendAction(_ action: Selector?, to target: Any?) -> Bool {
+        if let buttonAction = buttonAction {
+            return super.sendAction(buttonAction, to: target)
+        }
+        return super.sendAction(action, to: target)
+    }
+}
+
+private class ClearButton: NSButton {
+    var shortcutAction: KeyboardShortcutPreferences.ShortcutAction!
     var buttonAction: Selector?
 
     override func sendAction(_ action: Selector?, to target: Any?) -> Bool {

@@ -104,7 +104,9 @@ final class HotkeyService {
 
         // Check each action's shortcut
         for action in Action.allCases {
-            let shortcut = preferences.shortcut(for: action.preferencesAction)
+            guard let shortcut = preferences.shortcut(for: action.preferencesAction) else {
+                continue // Skip cleared shortcuts
+            }
             if shortcut.keyCode == keyCode && shortcut.modifiers == carbonModifiers {
                 delegate?.hotkeyService(self, didTrigger: action)
                 return true
@@ -157,8 +159,11 @@ final class HotkeyService {
 
     private func registerHotKeys() {
         for action in Action.allCases {
-            let shortcut = preferences.shortcut(for: action.preferencesAction)
-            registerHotKey(shortcut: shortcut, action: action)
+            if let shortcut = preferences.shortcut(for: action.preferencesAction) {
+                registerHotKey(shortcut: shortcut, action: action)
+            } else {
+                Logger.debug("Skipping cleared hotkey for action \(action)")
+            }
         }
     }
 

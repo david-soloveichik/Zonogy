@@ -74,9 +74,11 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
     private struct StoredPreferences: Codable {
         var shortcuts: [String: KeyboardShortcut]
+        var clearedActions: [String]?
     }
 
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
+    @Published private(set) var clearedActions: Set<ShortcutAction> = []
     private let preferencesURL: URL
 
     var onShortcutsChanged: (() -> Void)?
@@ -90,26 +92,47 @@ final class KeyboardShortcutPreferences: ObservableObject {
         loadShortcuts()
     }
 
-    func shortcut(for action: ShortcutAction) -> KeyboardShortcut {
-        shortcuts[action] ?? action.defaultShortcut
+    func shortcut(for action: ShortcutAction) -> KeyboardShortcut? {
+        if clearedActions.contains(action) {
+            return nil
+        }
+        return shortcuts[action] ?? action.defaultShortcut
     }
 
     func setShortcut(_ shortcut: KeyboardShortcut, for action: ShortcutAction) {
+        clearedActions.remove(action)
         shortcuts[action] = shortcut
+        saveShortcuts()
+        onShortcutsChanged?()
+    }
+
+    func clearShortcut(for action: ShortcutAction) {
+        shortcuts.removeValue(forKey: action)
+        clearedActions.insert(action)
         saveShortcuts()
         onShortcutsChanged?()
     }
 
     func resetToDefault(action: ShortcutAction) {
         shortcuts.removeValue(forKey: action)
+        clearedActions.remove(action)
         saveShortcuts()
         onShortcutsChanged?()
     }
 
     func resetAllToDefaults() {
         shortcuts.removeAll()
+        clearedActions.removeAll()
         saveShortcuts()
         onShortcutsChanged?()
+    }
+
+    func isCleared(_ action: ShortcutAction) -> Bool {
+        clearedActions.contains(action)
+    }
+
+    func isCustomized(_ action: ShortcutAction) -> Bool {
+        shortcuts[action] != nil
     }
 
     private func loadShortcuts() {
@@ -125,14 +148,24 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 shortcuts[action] = shortcut
             }
         }
-        Logger.debug("Loaded \(shortcuts.count) custom keyboard shortcuts")
+
+        if let cleared = stored.clearedActions {
+            for key in cleared {
+                if let action = ShortcutAction(rawValue: key) {
+                    clearedActions.insert(action)
+                }
+            }
+        }
+
+        Logger.debug("Loaded \(shortcuts.count) custom shortcuts, \(clearedActions.count) cleared")
     }
 
     private func saveShortcuts() {
-        var stored = StoredPreferences(shortcuts: [:])
+        var stored = StoredPreferences(shortcuts: [:], clearedActions: [])
         for (action, shortcut) in shortcuts {
             stored.shortcuts[action.rawValue] = shortcut
         }
+        stored.clearedActions = clearedActions.map { $0.rawValue }
 
         do {
             let encoder = JSONEncoder()
