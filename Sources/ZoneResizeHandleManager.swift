@@ -4,7 +4,8 @@ struct ZoneSeparatorDescriptor {
     let screenId: CGDirectDisplayID
     let index: Int
     let orientation: ZoneLayout.SeparatorOrientation
-    let frame: CGRect // Screen coordinates
+    let frame: CGRect // Screen-local coordinates
+    let screenCocoaBounds: CGRect // Screen's Cocoa bounds for coordinate conversion
 }
 
 protocol ZoneResizeHandleManagerDelegate: AnyObject {
@@ -190,20 +191,13 @@ final class ZoneResizeHandleManager {
 
         for descriptor in descriptors {
             let key = "\(descriptor.screenId)-\(descriptor.index)"
-            // Convert screen frame to Cocoa frame for window
-            // descriptor.frame is in SCREEN coordinates (Top-Left origin).
-            // NSWindow needs Cocoa coordinates (Bottom-Left origin).
-            // We need the primary screen height to flip.
-            
-            let screenFrame = descriptor.frame
-            // Assuming we have a helper or we can get primary screen.
-            // AppController has CoordinateConversion.
-            // But here we are in a manager.
-            // We should probably pass cocoaFrame in descriptor or convert here.
-            // Let's try to find primary screen.
-            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-            let cocoaY = primaryHeight - screenFrame.maxY // Flip
-            let cocoaFrame = NSRect(x: screenFrame.minX, y: cocoaY, width: screenFrame.width, height: screenFrame.height)
+            // Convert screen-local frame to Cocoa frame for window
+            // descriptor.frame is in screen-local coordinates (origin at screen's top-left, y down).
+            // NSWindow needs Cocoa coordinates (origin at primary screen's bottom-left, y up).
+            let cocoaFrame = CoordinateConversion.screenToCocoa(
+                screenFrame: descriptor.frame,
+                screenBounds: descriptor.screenCocoaBounds
+            )
 
             if let handle = handles[key] {
                 if handle.window.frame != cocoaFrame {

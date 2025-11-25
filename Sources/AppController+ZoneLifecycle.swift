@@ -877,7 +877,8 @@ extension AppController {
                     screenId: screenId,
                     index: sep.index,
                     orientation: sep.orientation,
-                    frame: frame
+                    frame: frame,
+                    screenCocoaBounds: context.descriptor.cocoaBounds
                 ))
             }
         }
