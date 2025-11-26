@@ -52,4 +52,65 @@ struct WinShotSnapshot {
         }
         return false
     }
+
+    /// Emit detailed debug logging describing the snapshot's contents, including
+    /// zone configuration, window identities, temporary-zone occupant, and
+    /// which window (if any) was active when the snapshot was captured.
+    func logDebugDetails(context: String) {
+        let prefix = "WinShot snapshot \(id)"
+
+        Logger.debug("\(prefix) \(context): screenId=\(screenId), zoneCount=\(zoneCount)")
+
+        let sortedZoneIndices = zoneFrames.keys.sorted()
+        for index in sortedZoneIndices {
+            guard let frame = zoneFrames[index] else {
+                continue
+            }
+
+            if let identity = zoneAssignments[index] {
+                let bundle = identity.bundleIdentifier ?? "unknown"
+                let title = identity.windowTitle ?? "untitled"
+                Logger.debug(
+                    "\(prefix) zone \(index): windowId=\(identity.windowId), bundle=\(bundle), title=\(title), frame=\(frame)"
+                )
+            } else {
+                Logger.debug("\(prefix) zone \(index): empty, frame=\(frame)")
+            }
+        }
+
+        if let temp = temporaryZoneOccupant {
+            let bundle = temp.bundleIdentifier ?? "unknown"
+            let title = temp.windowTitle ?? "untitled"
+            Logger.debug(
+                "\(prefix) temporary-zone: windowId=\(temp.windowId), bundle=\(bundle), title=\(title)"
+            )
+        } else {
+            Logger.debug("\(prefix) temporary-zone: empty")
+        }
+
+        guard let activeId = activeWindowId else {
+            Logger.debug("\(prefix) activeWindowId=nil")
+            return
+        }
+
+        if let (zoneIndex, identity) = zoneAssignments.first(where: { $0.value.windowId == activeId }) {
+            let bundle = identity.bundleIdentifier ?? "unknown"
+            let title = identity.windowTitle ?? "untitled"
+            Logger.debug(
+                "\(prefix) activeWindowId=\(activeId) (zone \(zoneIndex), bundle=\(bundle), title=\(title))"
+            )
+            return
+        }
+
+        if let temp = temporaryZoneOccupant, temp.windowId == activeId {
+            let bundle = temp.bundleIdentifier ?? "unknown"
+            let title = temp.windowTitle ?? "untitled"
+            Logger.debug(
+                "\(prefix) activeWindowId=\(activeId) (temporary-zone, bundle=\(bundle), title=\(title))"
+            )
+            return
+        }
+
+        Logger.debug("\(prefix) activeWindowId=\(activeId) (not present in snapshot)")
+    }
 }

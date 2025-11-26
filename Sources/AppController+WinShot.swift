@@ -153,6 +153,8 @@ extension AppController {
             windowController.unminimizeWindow(workItem.managed)
         }
         if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
+            // Suppress the deminiaturize notification to prevent re-placement loop
+            suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
             windowController.unminimizeWindow(tempItem.managed)
         }
 
@@ -163,6 +165,16 @@ extension AppController {
         }
         if let tempItem = temporaryWorkItem {
             temporaryZoneCoordinator.assign(tempItem.managed, to: screenId, centerWindow: true, reason: "winshot-restore")
+            // Suppress the next few focus-shift minimizations to survive the burst of
+            // focus/main-window notifications that follow a snapshot restore. We use
+            // a short timeout so genuine later focus changes behave normally.
+            suppressNextEvents(
+                for: [tempItem.managed.windowId],
+                events: [.temporaryZoneFocusMinimize],
+                count: 3,
+                timeout: 1.0,
+                reason: "winshot-restore"
+            )
         }
 
         // Step 8: POSITION PHASE - Move all zone windows to their target frames in parallel
@@ -184,6 +196,7 @@ extension AppController {
         refreshIndicators()
 
         // Step 11: Activate the previously active window
+        snapshot.logDebugDetails(context: "restoring")
         if let activeWindowId = snapshot.activeWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
             activateWindow(activeWindow)

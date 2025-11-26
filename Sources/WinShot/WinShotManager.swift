@@ -100,7 +100,10 @@ final class WinShotManager {
         // Store snapshot
         addSnapshot(snapshot, for: screenId)
 
-        Logger.debug("WinShot: Created snapshot \(snapshot.id) on screen \(screenId) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))")
+        Logger.debug(
+            "WinShot: Created snapshot \(snapshot.id) on screen \(screenId) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))"
+        )
+        snapshot.logDebugDetails(context: "created (reason: \(reason))")
 
         return snapshot
     }

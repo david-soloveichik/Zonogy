@@ -141,6 +141,12 @@ extension AppController {
 
 extension AppController {
     internal func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool {
+        // Check one-shot event suppression first (used by WinShot restoration)
+        if isEventSuppressed(windowId: windowId, event: .temporaryZoneFocusMinimize) {
+            Logger.debug("Temporary zone focus-minimize suppressed for window \(windowId)")
+            return true
+        }
+        // Check time-based protection (used by wake restoration)
         guard let deadline = temporaryZoneWakeProtectionDeadlines[windowId] else {
             return false
         }

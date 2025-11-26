@@ -1260,24 +1260,37 @@ extension AppController {
 
     // MARK: - Event suppression helpers
 
-    /// Suppress the *next* occurrence of the given events for specific windows. Entries self-expire after `timeout`.
+    /// Suppress the next `count` occurrences of the given events for specific windows. Entries self-expire after `timeout`.
+    internal func suppressNextEvents(
+        for windowIds: [Int],
+        events: Set<AppController.SuppressedEvent>,
+        count: Int,
+        timeout: TimeInterval = 3.0,
+        reason: String
+    ) {
+        guard !windowIds.isEmpty, !events.isEmpty, count > 0 else { return }
+        let deadline = Date().addingTimeInterval(timeout)
+        for windowId in windowIds {
+            var suppressions = eventSuppressions[windowId] ?? [:]
+            for event in events {
+                suppressions[event] = SuppressionEntry(remaining: count, deadline: deadline)
+            }
+            eventSuppressions[windowId] = suppressions
+        }
+        let eventList = events.map { $0.rawValue }.joined(separator: ",")
+        Logger.debug(
+            "Suppressing next \(count) event(s) [\(eventList)] for windows \(windowIds) until \(deadline) (reason: \(reason))"
+        )
+    }
+
+    /// Convenience overload for suppressing the next single occurrence of a set of events.
     internal func suppressNextEvents(
         for windowIds: [Int],
         events: Set<AppController.SuppressedEvent>,
         timeout: TimeInterval = 3.0,
         reason: String
     ) {
-        guard !windowIds.isEmpty, !events.isEmpty else { return }
-        let deadline = Date().addingTimeInterval(timeout)
-        for windowId in windowIds {
-            var suppressions = eventSuppressions[windowId] ?? [:]
-            for event in events {
-                suppressions[event] = SuppressionEntry(remaining: 1, deadline: deadline)
-            }
-            eventSuppressions[windowId] = suppressions
-        }
-        let eventList = events.map { $0.rawValue }.joined(separator: ",")
-        Logger.debug("Suppressing next events [\(eventList)] for windows \(windowIds) until \(deadline) (reason: \(reason))")
+        suppressNextEvents(for: windowIds, events: events, count: 1, timeout: timeout, reason: reason)
     }
 
     internal func isEventSuppressed(windowId: Int, event: AppController.SuppressedEvent) -> Bool {

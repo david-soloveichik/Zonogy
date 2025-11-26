@@ -123,6 +123,10 @@ extension AppController {
 
     func windowDidDeminiaturize(windowId: Int) {
         Logger.debug("Window \(windowId) did deminiaturize")
+        if isEventSuppressed(windowId: windowId, event: .deminiaturized) {
+            Logger.debug("Deminiaturize notification suppressed for window \(windowId)")
+            return
+        }
         guard let managed = windowController.window(withId: windowId) else { return }
         windowPlacementManager.placeNewWindow(managed)
     }

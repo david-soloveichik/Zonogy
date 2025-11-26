@@ -73,7 +73,7 @@ extension AppController {
         }
         if shouldProtectTemporaryZoneOccupant(windowId: occupant.windowId) {
             let screenIndex = screenContextStore.loggingIndex(for: screenId)
-            Logger.debug("Skipping temporary zone minimization for wake-protected window \(occupant.windowId) on screen \(screenIndex) (reason: \(reason))")
+            Logger.debug("Skipping temporary zone minimization for protected temporary-zone window \(occupant.windowId) on screen \(screenIndex) (reason: \(reason))")
             scheduleTemporaryZoneWakeProtection(windowId: occupant.windowId)
             return
         }
