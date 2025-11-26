@@ -16,9 +16,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     private static let padding: CGFloat = 20
     private static let spacing: CGFloat = 16
-    private static let titleHeight: CGFloat = 30
-    private static let glowPadding: CGFloat = 20  // Extra space for selection glow
-
+    
     override init(frame frameRect: NSRect) {
         scrollView = NSScrollView()
         containerView = NSView()
@@ -26,6 +24,12 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         super.init(frame: frameRect)
 
         wantsLayer = true
+
+        // Use a centering clip view so that when the content is smaller
+        // than the scroll view's visible area, it stays visually centered.
+        let clipView = WinShotCenteringClipView()
+        clipView.drawsBackground = false
+        scrollView.contentView = clipView
 
         // Setup scroll view
         scrollView.hasHorizontalScroller = false
@@ -36,21 +40,10 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
         addSubview(scrollView)
 
-        // Add title label
-        let titleLabel = NSTextField(labelWithString: "WinShot Snapshots")
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = NSColor(calibratedRed: 0.1, green: 0.2, blue: 0.4, alpha: 1.0)
-        titleLabel.alignment = .center
-        addSubview(titleLabel)
-
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            titleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+            scrollView.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.padding),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.padding),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.padding),
@@ -69,31 +62,28 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         }
         thumbnailViews.removeAll()
 
-        // Ensure container doesn't clip the glow effect
         containerView.wantsLayer = true
-        containerView.layer?.masksToBounds = false
-        scrollView.wantsLayer = true
-        scrollView.contentView.wantsLayer = true
-        scrollView.contentView.layer?.masksToBounds = false
 
-        // Create new thumbnail views with padding for glow
+        // Calculate total content width for centering
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        var xOffset: CGFloat = Self.glowPadding
+        let totalContentWidth = CGFloat(snapshots.count) * thumbnailSize.width +
+                                CGFloat(max(0, snapshots.count - 1)) * Self.spacing
+
+        // Create new thumbnail views centered in container
+        var xOffset: CGFloat = 0
 
         for snapshot in snapshots {
             let thumbnailView = WinShotThumbnailView(snapshot: snapshot)
             thumbnailView.delegate = self
-            thumbnailView.frame.origin = NSPoint(x: xOffset, y: Self.glowPadding)
+            thumbnailView.frame.origin = NSPoint(x: xOffset, y: 0)
             containerView.addSubview(thumbnailView)
             thumbnailViews.append(thumbnailView)
 
             xOffset += thumbnailSize.width + Self.spacing
         }
 
-        // Update container size with extra padding for glow
-        let totalWidth = max(0, xOffset - Self.spacing + Self.glowPadding)
-        let totalHeight = thumbnailSize.height + Self.glowPadding * 2
-        containerView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+        // Container matches content size exactly; scroll view will center it
+        containerView.frame = NSRect(x: 0, y: 0, width: totalContentWidth, height: thumbnailSize.height)
 
         // Select first item
         selectedIndex = 0
@@ -130,11 +120,13 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
             view.isSelected = (index == selectedIndex)
         }
 
-        // Scroll to make selected view visible
-        if selectedIndex < thumbnailViews.count {
-            let selectedView = thumbnailViews[selectedIndex]
-            scrollView.contentView.scrollToVisible(selectedView.frame)
-        }
+        guard selectedIndex < thumbnailViews.count else { return }
+
+        // Scroll to make selected view visible when content is wider than
+        // the viewport. When content is smaller, the centering clip view
+        // keeps it visually centered.
+        let selectedView = thumbnailViews[selectedIndex]
+        scrollView.contentView.scrollToVisible(selectedView.frame)
     }
 
     // MARK: - WinShotThumbnailViewDelegate
@@ -154,8 +146,8 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
         let contentWidth = CGFloat(maxVisible) * thumbnailSize.width +
                            CGFloat(max(0, maxVisible - 1)) * spacing +
-                           padding * 2 + glowPadding * 2
-        let contentHeight = thumbnailSize.height + titleHeight + padding * 2 + glowPadding * 2
+                           padding * 2
+        let contentHeight = thumbnailSize.height + padding * 2
 
         return NSSize(width: max(contentWidth, 300), height: contentHeight)
     }

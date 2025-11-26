@@ -129,16 +129,6 @@ final class WinShotThumbnailView: NSView {
 
     private func updateSelectionAppearance() {
         selectionBorder.isHidden = !isSelected
-
-        if isSelected {
-            let highlightColor = Self.selectionColor
-            layer?.shadowColor = highlightColor.withAlphaComponent(0.6).cgColor
-            layer?.shadowOpacity = 0.8
-            layer?.shadowRadius = 10
-            layer?.shadowOffset = .zero
-        } else {
-            layer?.shadowOpacity = 0
-        }
     }
 
     static var preferredSize: NSSize {
