@@ -76,6 +76,10 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-will-close")
+
+        // WinShot: Remove any snapshots containing this window
+        winShotManager.removeSnapshotsContaining(windowId: windowId)
+
         syncWindowsToZones()
         activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)

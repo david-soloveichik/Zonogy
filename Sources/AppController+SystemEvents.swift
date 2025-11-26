@@ -43,6 +43,10 @@ extension AppController {
             Logger.debug("Hotkey minimize active window triggered")
         case .minimizeWindowOrRemoveZoneAtCursor:
             Logger.debug("Hotkey minimize window or remove zone at cursor triggered")
+        case .saveWinShotSnapshot:
+            Logger.debug("Hotkey save WinShot snapshot triggered")
+        case .showWinShotChooser:
+            Logger.debug("Hotkey show WinShot chooser triggered")
         }
         triggerShortcut(action)
     }

@@ -16,9 +16,11 @@ final class HotkeyService {
         case clearOrResetZonesAtCursor = 10
         case minimizeActiveWindow = 11
         case minimizeWindowOrRemoveZoneAtCursor = 12
+        case saveWinShotSnapshot = 13
+        case showWinShotChooser = 14  // Fixed shortcut (Control-Command-Tab)
 
-        /// Maps to the corresponding preferences action
-        var preferencesAction: KeyboardShortcutPreferences.ShortcutAction {
+        /// Maps to the corresponding preferences action (nil for fixed shortcuts)
+        var preferencesAction: KeyboardShortcutPreferences.ShortcutAction? {
             switch self {
             case .addZone: return .addZone
             case .removeZone: return .removeZone
@@ -32,6 +34,18 @@ final class HotkeyService {
             case .clearOrResetZonesAtCursor: return .clearOrResetZonesAtCursor
             case .minimizeActiveWindow: return .minimizeActiveWindow
             case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor
+            case .saveWinShotSnapshot: return .saveWinShotSnapshot
+            case .showWinShotChooser: return nil  // Fixed shortcut
+            }
+        }
+
+        /// Returns the fixed shortcut for actions without configurable preferences
+        var fixedShortcut: KeyboardShortcut? {
+            switch self {
+            case .showWinShotChooser:
+                return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey | controlKey))
+            default:
+                return nil
             }
         }
     }
@@ -104,9 +118,17 @@ final class HotkeyService {
 
         // Check each action's shortcut
         for action in Action.allCases {
-            guard let shortcut = preferences.shortcut(for: action.preferencesAction) else {
-                continue // Skip cleared shortcuts
+            let shortcut: KeyboardShortcut?
+            if let fixedShortcut = action.fixedShortcut {
+                shortcut = fixedShortcut
+            } else if let preferencesAction = action.preferencesAction {
+                shortcut = preferences.shortcut(for: preferencesAction)
+            } else {
+                shortcut = nil
             }
+
+            guard let shortcut else { continue }
+
             if shortcut.keyCode == keyCode && shortcut.modifiers == carbonModifiers {
                 delegate?.hotkeyService(self, didTrigger: action)
                 return true
@@ -159,7 +181,11 @@ final class HotkeyService {
 
     private func registerHotKeys() {
         for action in Action.allCases {
-            if let shortcut = preferences.shortcut(for: action.preferencesAction) {
+            // Check if this is a fixed shortcut
+            if let fixedShortcut = action.fixedShortcut {
+                registerHotKey(shortcut: fixedShortcut, action: action)
+            } else if let preferencesAction = action.preferencesAction,
+                      let shortcut = preferences.shortcut(for: preferencesAction) {
                 registerHotKey(shortcut: shortcut, action: action)
             } else {
                 Logger.debug("Skipping cleared hotkey for action \(action)")

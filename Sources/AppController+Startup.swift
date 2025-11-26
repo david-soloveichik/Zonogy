@@ -230,6 +230,9 @@ extension AppController {
                 dragDropCoordinator.tearDownDragSession()
             }
             removeWindowFromAllZones(windowId: windowId, reason: "application-termination")
+
+            // WinShot: Remove any snapshots containing this window
+            winShotManager.removeSnapshotsContaining(windowId: windowId)
         }
         syncWindowsToZones()
     }
@@ -357,6 +360,10 @@ extension AppController {
                 self.minimizeActiveWindow()
             case .minimizeWindowOrRemoveZoneAtCursor:
                 self.minimizeWindowOrRemoveZoneAtCursor()
+            case .saveWinShotSnapshot:
+                self.saveWinShotSnapshot()
+            case .showWinShotChooser:
+                self.showWinShotChooser()
             }
         }
     }

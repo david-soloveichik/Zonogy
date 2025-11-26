@@ -74,6 +74,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()
+    internal let winShotManager = WinShotManager()
+    internal lazy var winShotChooserController: WinShotChooserController = {
+        let controller = WinShotChooserController()
+        controller.delegate = self
+        return controller
+    }()
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     internal var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []

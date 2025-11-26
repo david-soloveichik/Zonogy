@@ -220,6 +220,33 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
 
+### WinShot Snapshots
+
+WinShot allows users to save and restore window arrangement snapshots. Unlike virtual screens, the same window can appear in multiple snapshots.
+
+**Creating Snapshots:**
+- Automatically created when pressing Clear/Reset Zones shortcut (Control-Cmd-Space or variant) when the corresponding screen has managed windows in zones.
+- Explicitly created with Control-Cmd-/ shortcut on the active screen.
+- Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot.
+- Snapshots are screen-specific (cannot restore across screens).
+- Max 10 snapshots per screen; oldest removed when limit exceeded.
+- A snapshot is removed when any window in it is closed.
+- If creating a snapshot with the same exact windows as an existing one, the old snapshot is replaced.
+
+**Chooser Window:**
+- Control-Cmd-Tab shows a floating horizontal strip chooser (like Command-Tab) on the active screen.
+- Hold Control-Cmd and repeatedly press Tab/Shift-Tab to cycle through snapshots.
+- Escape or click outside to cancel.
+- Release Control-Cmd to restore the selected snapshot.
+- Red "x" button on each snapshot allows deletion.
+
+**Snapshot Restoration:**
+- Restores zone configuration to the saved count.
+- Unminimizes windows that were minimized (but not closed).
+- Windows are resized BEFORE unminimizing for smooth animation.
+- Current windows not in the snapshot are minimized AFTER restoration.
+- Activates the previously active window.
+
 ## 6. Implementation Details
 
 ### Destroyed Window Detection

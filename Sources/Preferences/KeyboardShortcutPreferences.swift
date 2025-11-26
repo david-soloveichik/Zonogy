@@ -20,6 +20,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case navigateRight
         case minimizeActiveWindow
         case minimizeWindowOrRemoveZoneAtCursor
+        case saveWinShotSnapshot
 
         var displayName: String {
             switch self {
@@ -35,6 +36,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .navigateRight: return "Navigate Right"
             case .minimizeActiveWindow: return "Minimize Active Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
+            case .saveWinShotSnapshot: return "Save WinShot Snapshot"
             }
         }
 
@@ -68,6 +70,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdOnly)
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrlShiftOpt)
+            case .saveWinShotSnapshot:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Slash), modifiers: cmdCtrl)
             }
         }
     }

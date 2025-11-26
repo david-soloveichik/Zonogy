@@ -1,0 +1,214 @@
+/// Manages per-screen WinShot snapshot storage and lifecycle
+import AppKit
+
+final class WinShotManager {
+    static let maxSnapshotsPerScreen = 10
+    private static let thumbnailHeight: CGFloat = 200
+
+    private var snapshots: [CGDirectDisplayID: [WinShotSnapshot]] = [:]
+
+    // MARK: - Snapshot Access
+
+    /// Get all snapshots for a screen, ordered by creation time (newest first)
+    func snapshots(for screenId: CGDirectDisplayID) -> [WinShotSnapshot] {
+        return snapshots[screenId] ?? []
+    }
+
+    /// Find a snapshot by its unique ID
+    func snapshot(withId id: UUID) -> WinShotSnapshot? {
+        for screenSnapshots in snapshots.values {
+            if let found = screenSnapshots.first(where: { $0.id == id }) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    /// Check if there are any snapshots for a screen
+    func hasSnapshots(for screenId: CGDirectDisplayID) -> Bool {
+        guard let screenSnapshots = snapshots[screenId] else { return false }
+        return !screenSnapshots.isEmpty
+    }
+
+    // MARK: - Snapshot Creation
+
+    /// Creates a snapshot for the given screen if eligible
+    /// Returns the created snapshot, or nil if creation failed or was skipped
+    func createSnapshot(
+        screenId: CGDirectDisplayID,
+        zoneController: ZoneController,
+        windowController: WindowController,
+        temporaryZoneOccupant: ManagedWindow?,
+        activeWindowId: Int?,
+        reason: String
+    ) -> WinShotSnapshot? {
+        // Collect zone data
+        let zones = zoneController.allZones
+        let zoneCount = zones.count
+
+        var zoneFrames: [Int: CGRect] = [:]
+        var zoneAssignments: [Int: WindowIdentity] = [:]
+
+        for zone in zones {
+            zoneFrames[zone.index] = zone.frame
+
+            if let windowId = zone.windowId,
+               let managed = windowController.window(withId: windowId),
+               !managed.isPlaceholder {
+                zoneAssignments[zone.index] = WindowIdentity.make(from: managed)
+            }
+        }
+
+        // Get temporary zone occupant identity
+        let tempIdentity: WindowIdentity?
+        if let tempOccupant = temporaryZoneOccupant {
+            tempIdentity = WindowIdentity.make(from: tempOccupant)
+        } else {
+            tempIdentity = nil
+        }
+
+        // Check eligibility: must have at least one non-placeholder window
+        let hasWindows = !zoneAssignments.isEmpty || tempIdentity != nil
+        guard hasWindows else {
+            Logger.debug("WinShot: Skipping snapshot - no windows on screen \(screenId)")
+            return nil
+        }
+
+        // Check for duplicate window set
+        let windowIds = Set(zoneAssignments.values.map { $0.windowId } + (tempIdentity.map { [$0.windowId] } ?? []))
+        if let existingId = findSnapshotWithSameWindows(windowIds, on: screenId) {
+            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same windows")
+            deleteSnapshot(existingId)
+        }
+
+        // Capture screenshot
+        let thumbnail = captureScreenThumbnail(screenId: screenId)
+
+        // Create snapshot
+        let snapshot = WinShotSnapshot(
+            id: UUID(),
+            screenId: screenId,
+            createdAt: Date(),
+            zoneCount: zoneCount,
+            zoneFrames: zoneFrames,
+            zoneAssignments: zoneAssignments,
+            temporaryZoneOccupant: tempIdentity,
+            activeWindowId: activeWindowId,
+            thumbnail: thumbnail
+        )
+
+        // Store snapshot
+        addSnapshot(snapshot, for: screenId)
+
+        Logger.debug("WinShot: Created snapshot \(snapshot.id) on screen \(screenId) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))")
+
+        return snapshot
+    }
+
+    // MARK: - Snapshot Deletion
+
+    /// Delete a snapshot by its ID
+    func deleteSnapshot(_ id: UUID) {
+        for (screenId, screenSnapshots) in snapshots {
+            if let index = screenSnapshots.firstIndex(where: { $0.id == id }) {
+                snapshots[screenId]?.remove(at: index)
+                Logger.debug("WinShot: Deleted snapshot \(id) from screen \(screenId)")
+                return
+            }
+        }
+    }
+
+    /// Remove all snapshots containing a specific window ID
+    /// Called when a window is closed
+    func removeSnapshotsContaining(windowId: Int) {
+        var removedCount = 0
+        for screenId in snapshots.keys {
+            let before = snapshots[screenId]?.count ?? 0
+            snapshots[screenId]?.removeAll { $0.contains(windowId: windowId) }
+            let after = snapshots[screenId]?.count ?? 0
+            removedCount += (before - after)
+        }
+
+        if removedCount > 0 {
+            Logger.debug("WinShot: Removed \(removedCount) snapshot(s) containing window \(windowId)")
+        }
+    }
+
+    /// Remove all snapshots containing a window matching the given identity
+    func removeSnapshotsContaining(identity: WindowIdentity) {
+        removeSnapshotsContaining(windowId: identity.windowId)
+    }
+
+    /// Clear all snapshots for a specific screen
+    func clearSnapshots(for screenId: CGDirectDisplayID) {
+        let count = snapshots[screenId]?.count ?? 0
+        snapshots[screenId] = nil
+        if count > 0 {
+            Logger.debug("WinShot: Cleared \(count) snapshot(s) for screen \(screenId)")
+        }
+    }
+
+    /// Clear all snapshots
+    func clearAllSnapshots() {
+        let totalCount = snapshots.values.reduce(0) { $0 + $1.count }
+        snapshots.removeAll()
+        if totalCount > 0 {
+            Logger.debug("WinShot: Cleared all \(totalCount) snapshot(s)")
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private func addSnapshot(_ snapshot: WinShotSnapshot, for screenId: CGDirectDisplayID) {
+        if snapshots[screenId] == nil {
+            snapshots[screenId] = []
+        }
+
+        // Insert at the beginning (newest first)
+        snapshots[screenId]?.insert(snapshot, at: 0)
+
+        // Enforce max limit
+        if let count = snapshots[screenId]?.count, count > Self.maxSnapshotsPerScreen {
+            let removed = snapshots[screenId]?.removeLast()
+            Logger.debug("WinShot: Removed oldest snapshot \(removed?.id.uuidString ?? "unknown") to stay within limit")
+        }
+    }
+
+    private func findSnapshotWithSameWindows(_ windowIds: Set<Int>, on screenId: CGDirectDisplayID) -> UUID? {
+        guard let screenSnapshots = snapshots[screenId] else { return nil }
+
+        for snapshot in screenSnapshots {
+            if snapshot.allWindowIds == windowIds {
+                return snapshot.id
+            }
+        }
+        return nil
+    }
+
+    private func captureScreenThumbnail(screenId: CGDirectDisplayID) -> NSImage? {
+        guard let cgImage = CGDisplayCreateImage(screenId) else {
+            Logger.debug("WinShot: Failed to capture screen \(screenId)")
+            return nil
+        }
+
+        let fullSize = NSSize(width: cgImage.width, height: cgImage.height)
+        let fullImage = NSImage(cgImage: cgImage, size: fullSize)
+
+        // Scale down for memory efficiency
+        let scale = Self.thumbnailHeight / CGFloat(cgImage.height)
+        let targetWidth = CGFloat(cgImage.width) * scale
+        let targetSize = NSSize(width: targetWidth, height: Self.thumbnailHeight)
+
+        let thumbnail = NSImage(size: targetSize)
+        thumbnail.lockFocus()
+        fullImage.draw(
+            in: NSRect(origin: .zero, size: targetSize),
+            from: NSRect(origin: .zero, size: fullSize),
+            operation: .copy,
+            fraction: 1.0
+        )
+        thumbnail.unlockFocus()
+
+        return thumbnail
+    }
+}
