@@ -7,7 +7,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
-        case temporaryZoneFocusMinimize
     }
     struct FloatingTemporaryDragState {
         let windowId: Int
@@ -95,8 +94,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var activeFitSuppressedWindowIds: Set<Int> = []
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
     internal var pendingTemporaryZoneIdentitySnapshots: [CGDirectDisplayID: TemporaryZoneIdentitySnapshot] = [:]
-    internal var temporaryZoneWakeProtectionDeadlines: [Int: Date] = [:]
-    internal let temporaryZoneWakeProtectionDuration: TimeInterval = 5.0
+    internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
+    internal let temporaryZoneProtectionDuration: TimeInterval = 1.0
+    internal let activeFitRestoreDelay: TimeInterval = 1.0
     internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     struct SuppressionEntry {

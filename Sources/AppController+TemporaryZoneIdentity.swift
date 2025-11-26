@@ -137,42 +137,49 @@ extension AppController {
     }
 }
 
-// MARK: - Wake protection helpers
+// MARK: - Temporary zone protection helpers (wake and WinShot restoration)
 
 extension AppController {
     internal func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool {
-        // Check one-shot event suppression first (used by WinShot restoration)
-        if isEventSuppressed(windowId: windowId, event: .temporaryZoneFocusMinimize) {
-            Logger.debug("Temporary zone focus-minimize suppressed for window \(windowId)")
-            return true
-        }
-        // Check time-based protection (used by wake restoration)
-        guard let deadline = temporaryZoneWakeProtectionDeadlines[windowId] else {
+        guard let deadline = temporaryZoneProtectionDeadlines[windowId] else {
             return false
         }
         if Date() < deadline {
             return true
         }
-        temporaryZoneWakeProtectionDeadlines.removeValue(forKey: windowId)
+        temporaryZoneProtectionDeadlines.removeValue(forKey: windowId)
         return false
     }
 
-    internal func clearTemporaryZoneWakeProtection(windowId: Int) {
-        temporaryZoneWakeProtectionDeadlines.removeValue(forKey: windowId)
+    internal func scheduleTemporaryZoneProtection(windowId: Int) {
+        temporaryZoneProtectionDeadlines[windowId] = Date().addingTimeInterval(temporaryZoneProtectionDuration)
+        Logger.debug("Temporary zone protection scheduled for window \(windowId) (duration: \(temporaryZoneProtectionDuration)s)")
     }
 
-    internal func scheduleTemporaryZoneWakeProtection(windowId: Int) {
-        temporaryZoneWakeProtectionDeadlines[windowId] = Date().addingTimeInterval(temporaryZoneWakeProtectionDuration)
+    internal func clearTemporaryZoneProtection(windowId: Int) {
+        temporaryZoneProtectionDeadlines.removeValue(forKey: windowId)
+    }
+
+    /// Self-extends protection when triggered.
+    internal func extendTemporaryZoneProtection(windowId: Int) {
+        if temporaryZoneProtectionDeadlines[windowId] != nil {
+            scheduleTemporaryZoneProtection(windowId: windowId)
+        }
     }
 
     private func applyWakeTemporaryZoneBehaviorIfNeeded(_ managed: ManagedWindow, reason: String) {
         guard reason.contains("wake") else { return }
-        scheduleTemporaryZoneWakeProtection(windowId: managed.windowId)
+        scheduleTemporaryZoneProtection(windowId: managed.windowId)
         bringTemporaryZoneWindowToFront(managed)
     }
 
     private func bringTemporaryZoneWindowToFront(_ managed: ManagedWindow) {
         guard !managed.isPlaceholder else { return }
+        if managed.isMinimized {
+            // Avoid treating the wake-driven unminimize as a user action that should
+            // re-enter the normal placement pipeline.
+            suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "wake-temporary-restore")
+        }
         windowController.unminimizeWindow(managed)
 
         switch managed.backing {
@@ -186,6 +193,7 @@ extension AppController {
             break
         }
     }
+
 }
 
 private extension AppController.TemporaryZoneIdentitySnapshot {

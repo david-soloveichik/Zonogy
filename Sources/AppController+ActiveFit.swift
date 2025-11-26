@@ -38,8 +38,13 @@ extension AppController {
         // If focus moved to a different window than the one currently
         // expanded via ActiveFit, restore that previous window to its
         // zone-aligned frame before evaluating the new candidate.
+        // Skip restoration if the ActiveFit window is suppressed (e.g., during WinShot restore).
         if let state = activeFitState, state.windowId != managed.windowId {
-            restoreActiveFitState(state: state, reason: "focus-transfer")
+            if !isActiveFitSuppressed(windowId: state.windowId) {
+                restoreActiveFitState(state: state, reason: "focus-transfer")
+            } else {
+                Logger.debug("ActiveFit focus-transfer restore skipped for window \(state.windowId); behavior suppressed")
+            }
         }
 
         guard let zoneIndex = managed.zoneIndex,
@@ -342,5 +347,61 @@ extension AppController {
             return true
         }
         return false
+    }
+
+    // MARK: - Timed suppression for restore flows
+
+    internal func scheduleActiveFitSuppression(windowIds: [Int], evaluateActiveFitFor activeWindowId: Int? = nil) {
+        for windowId in windowIds {
+            activeFitSuppressedWindowIds.insert(windowId)
+        }
+        Logger.debug("ActiveFit suppression scheduled for windows \(windowIds) (duration: \(activeFitRestoreDelay)s)")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + activeFitRestoreDelay) { [weak self] in
+            guard let self else { return }
+            for windowId in windowIds {
+                self.activeFitSuppressedWindowIds.remove(windowId)
+            }
+            Logger.debug("ActiveFit suppression cleared for windows \(windowIds)")
+
+            // If an active window was specified, trigger ActiveFit evaluation for it
+            if let activeWindowId,
+               let managed = self.windowController.window(withId: activeWindowId),
+               let screenId = managed.screenDisplayId,
+               let zoneIndex = managed.zoneIndex,
+               zoneIndex >= 2 {
+                Logger.debug("Triggering ActiveFit evaluation for window \(activeWindowId) after suppression cleared")
+                self.applyActiveFitAfterRestore(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+            }
+        }
+    }
+
+    private func applyActiveFitAfterRestore(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int) {
+        guard let context = screenContexts[screenId],
+              let descriptor = descriptor(for: screenId),
+              let zone = context.zoneController.zone(at: zoneIndex) else {
+            return
+        }
+
+        let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let targetOrigin = zoneFrame.origin
+        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
+        let screenBounds = descriptor.visibleScreenBounds
+
+        guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
+            zoneIndex: zoneIndex,
+            zoneOrigin: targetOrigin,
+            windowSize: actualFrame.size,
+            screenBounds: screenBounds,
+            tolerance: activeFitOverflowTolerance
+        ) else {
+            return
+        }
+
+        let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
+        Logger.debug("ActiveFit (restore): translating window \(managed.windowId) to \(revealFrame.origin)")
+        windowController.moveWindow(managed, to: revealFrame, on: descriptor)
+        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, appliedFrame: revealFrame)
+        refreshResizeHandles()
     }
 }

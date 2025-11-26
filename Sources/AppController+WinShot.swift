@@ -146,8 +146,13 @@ extension AppController {
             temporaryWorkItem = prepareTemporaryZoneRestore(identity: tempIdentity, on: screenId)
         }
 
-        // Step 6: UNMINIMIZE PHASE - Kick off all unminimize operations in parallel
-        // Pre-position and unminimize all minimized windows in a tight loop
+        // Step 6: UNMINIMIZE PHASE - Kick off all unminimize operations in parallel.
+        // Pre-position and unminimize all minimized windows in a tight loop.
+        // Suppress deminiaturize notifications to prevent re-placement loops.
+        let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
+        if !minimizedZoneWindowIds.isEmpty {
+            suppressNextEvents(for: minimizedZoneWindowIds, events: [.deminiaturized], reason: "winshot-restore")
+        }
         for workItem in zoneWorkItems where workItem.wasMinimized {
             prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
             windowController.unminimizeWindow(workItem.managed)
@@ -158,6 +163,43 @@ extension AppController {
             windowController.unminimizeWindow(tempItem.managed)
         }
 
+        // Step 6b: ActiveFit coordination.
+        // Schedule ActiveFit suppression BEFORE assignment to prevent assignment from triggering ActiveFit.
+        // If the active window is a zone window (not temporary), trigger ActiveFit evaluation after suppression clears.
+        let zoneWindowIds = zoneWorkItems.map { $0.managed.windowId }
+        let activeZoneWindowId: Int? = {
+            guard let activeId = snapshot.activeWindowId,
+                  zoneWindowIds.contains(activeId) else {
+                return nil
+            }
+            return activeId
+        }()
+        if !zoneWindowIds.isEmpty {
+            scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateActiveFitFor: activeZoneWindowId)
+        }
+
+        // If the active snapshot window was previously in an ActiveFit reveal frame, preserve that
+        // frame across the restore instead of snapping it back to the zone frame and then re-expanding.
+        var preserveActiveFitWindowId: Int?
+        if let activeZoneWindowId,
+           let activeItem = zoneWorkItems.first(where: { $0.managed.windowId == activeZoneWindowId }),
+           activeItem.zoneIndex >= 2 {
+            let actualFrame = windowController.actualFrameInScreenCoordinates(for: activeItem.managed, on: activeItem.descriptor)
+            let screenBounds = activeItem.descriptor.visibleScreenBounds
+            if let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
+                zoneIndex: activeItem.zoneIndex,
+                zoneOrigin: activeItem.targetFrame.origin,
+                windowSize: actualFrame.size,
+                screenBounds: screenBounds,
+                tolerance: activeFitOverflowTolerance
+            ), activeFitFramesClose(actualFrame, revealFrame) {
+                let zoneKey = ZoneKey(screenId: screenId, index: activeItem.zoneIndex)
+                activeFitState = ActiveFitState(windowId: activeItem.managed.windowId, zoneKey: zoneKey, appliedFrame: actualFrame)
+                preserveActiveFitWindowId = activeItem.managed.windowId
+                Logger.debug("WinShot: Preserving existing ActiveFit frame for window \(activeItem.managed.windowId) during snapshot restore")
+            }
+        }
+
         // Step 7: ASSIGNMENT PHASE - Assign all windows to their zones
         for workItem in zoneWorkItems {
             context.zoneController.assignWindow(windowId: workItem.managed.windowId, toZoneIndex: workItem.zoneIndex)
@@ -165,20 +207,15 @@ extension AppController {
         }
         if let tempItem = temporaryWorkItem {
             temporaryZoneCoordinator.assign(tempItem.managed, to: screenId, centerWindow: true, reason: "winshot-restore")
-            // Suppress the next few focus-shift minimizations to survive the burst of
-            // focus/main-window notifications that follow a snapshot restore. We use
-            // a short timeout so genuine later focus changes behave normally.
-            suppressNextEvents(
-                for: [tempItem.managed.windowId],
-                events: [.temporaryZoneFocusMinimize],
-                count: 3,
-                timeout: 1.0,
-                reason: "winshot-restore"
-            )
+            // Use timer-based protection to prevent focus-shift minimization during restoration
+            scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
         }
 
         // Step 8: POSITION PHASE - Move all zone windows to their target frames in parallel
         for workItem in zoneWorkItems {
+            if let preserveId = preserveActiveFitWindowId, workItem.managed.windowId == preserveId {
+                continue
+            }
             windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
         }
 
@@ -203,6 +240,14 @@ extension AppController {
         }
 
         Logger.debug("WinShot: Snapshot restoration complete")
+    }
+
+    /// Returns true when two frames are effectively identical for ActiveFit purposes.
+    private func activeFitFramesClose(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) <= activeFitOverflowTolerance &&
+            abs(lhs.origin.y - rhs.origin.y) <= activeFitOverflowTolerance &&
+            abs(lhs.size.width - rhs.size.width) <= activeFitOverflowTolerance &&
+            abs(lhs.size.height - rhs.size.height) <= activeFitOverflowTolerance
     }
 
     /// Prepare a zone restoration work item (does all prep work, returns nil if window not found)

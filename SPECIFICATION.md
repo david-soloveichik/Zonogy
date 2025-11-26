@@ -256,6 +256,13 @@ Not all applications emit didTerminateApplication notification upon closing (eg 
 
 After events such as application termination, workspace focus changes, or accessibility notifications, `AppController` validates every affected PID. An external window is removed immediately when either the window server stops reporting its `CGWindowNumber` or the accessibility element returns an invalid-element error. If the initial pass finds no destroyed windows but the PID still owns managed windows, the controller schedules a short series of PID-scoped revalidations with exponential backoff (≈0.2 s → 3.2 s). Retries cancel as soon as every window disappears or the process exits; no global polling timer runs.
 
+### Restore Protection Windows (WinShot + Sleep/Wake)
+
+When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we apply a short protection window so that internal restore operations do not fight normal layout behavior:
+
+- The floating temporary-zone occupant is temporarily protected from auto-minimization triggered by focus shifts or new tiled placements on the same screen, so it is not immediately cleared while other windows are being recaptured.
+- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. This ensures the window ends up in its correct reveal position without briefly snapping to the zone frame and back out again.
+
 ### Additional Notes
 
 - Placeholder windows need an interactive blue "x" control that sends a callback to remove the zone.

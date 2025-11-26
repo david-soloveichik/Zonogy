@@ -142,6 +142,16 @@ extension AppController {
         snapshot: ZoneAssignmentSnapshot,
         reason: String
     ) -> Bool {
+        // Prevent ActiveFit from fighting against snapshot-driven assignment restores.
+        let activeWindowId: Int? = {
+            if let (frontmost, _) = managedWindowForFrontmostApplication(logPrefix: "zone-snapshot-activeWindow"),
+               frontmost.windowId == managed.windowId {
+                return managed.windowId
+            }
+            return nil
+        }()
+        scheduleActiveFitSuppression(windowIds: [managed.windowId], evaluateActiveFitFor: activeWindowId)
+
         let key = snapshot.zoneKey
         guard let context = screenContexts[key.screenId] else {
             let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
