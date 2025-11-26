@@ -235,10 +235,10 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 **Chooser Window:**
 - Control-Cmd-Tab shows a floating horizontal strip chooser (like Command-Tab) on the active screen.
-- Hold Control-Cmd and repeatedly press Tab/Shift-Tab to cycle through snapshots.
-- Escape or click outside to cancel.
-- Release Control-Cmd to restore the selected snapshot.
-- Red "x" button on each snapshot allows deletion.
+- Hold Control-Cmd and repeatedly press Tab/Shift-Tab to cycle through snapshots in forward or reverse order (respectively).
+- Escape key or click outside to cancel.
+- Release Control-Cmd to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
+- Red "x" button on each snapshot allows deletion (appears on hover).
 
 **Snapshot Restoration:**
 - Restores zone configuration to the saved count and sizes (ratios).

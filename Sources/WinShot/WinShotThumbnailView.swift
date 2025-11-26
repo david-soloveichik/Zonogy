@@ -3,6 +3,7 @@ import AppKit
 
 protocol WinShotThumbnailViewDelegate: AnyObject {
     func thumbnailView(_ view: WinShotThumbnailView, didRequestDelete snapshotId: UUID)
+    func thumbnailView(_ view: WinShotThumbnailView, didClickToSelect snapshotId: UUID)
 }
 
 final class WinShotThumbnailView: NSView {
@@ -43,10 +44,10 @@ final class WinShotThumbnailView: NSView {
         deleteButton.contentTintColor = .systemRed
         deleteButton.isHidden = true  // Show on hover
 
-        // Create selection border layer
+        // Create selection border layer - bright cyan for visibility on light blue background
         selectionBorder = CALayer()
-        selectionBorder.borderColor = NSColor.systemBlue.cgColor
-        selectionBorder.borderWidth = Self.selectionBorderWidth
+        selectionBorder.borderColor = NSColor(calibratedRed: 0.0, green: 0.9, blue: 1.0, alpha: 1.0).cgColor
+        selectionBorder.borderWidth = 4
         selectionBorder.cornerRadius = Self.cornerRadius + 2
         selectionBorder.isHidden = true
 
@@ -54,11 +55,15 @@ final class WinShotThumbnailView: NSView {
 
         wantsLayer = true
         layer?.cornerRadius = Self.cornerRadius
+        layer?.masksToBounds = false  // Allow shadow to extend beyond bounds
 
         // Add subviews
         addSubview(imageView)
         addSubview(deleteButton)
+
+        // Add selection border on top of everything
         layer?.addSublayer(selectionBorder)
+        selectionBorder.zPosition = 100
 
         // Setup constraints
         imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -71,7 +76,7 @@ final class WinShotThumbnailView: NSView {
             imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             deleteButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            deleteButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            deleteButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             deleteButton.widthAnchor.constraint(equalToConstant: Self.deleteButtonSize),
             deleteButton.heightAnchor.constraint(equalToConstant: Self.deleteButtonSize),
         ])
@@ -95,7 +100,8 @@ final class WinShotThumbnailView: NSView {
 
     override func layout() {
         super.layout()
-        selectionBorder.frame = bounds.insetBy(dx: -Self.selectionBorderWidth, dy: -Self.selectionBorderWidth)
+        // Use 4pt inset to match the selection border width
+        selectionBorder.frame = bounds.insetBy(dx: -4, dy: -4)
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -106,6 +112,16 @@ final class WinShotThumbnailView: NSView {
         deleteButton.isHidden = true
     }
 
+    override func mouseUp(with event: NSEvent) {
+        // Check if click was on the delete button area - if so, ignore (button handles it)
+        let locationInView = convert(event.locationInWindow, from: nil)
+        if deleteButton.frame.contains(locationInView) {
+            return
+        }
+        // Click on thumbnail - request selection/restore
+        delegate?.thumbnailView(self, didClickToSelect: snapshotId)
+    }
+
     @objc private func deleteButtonClicked() {
         delegate?.thumbnailView(self, didRequestDelete: snapshotId)
     }
@@ -114,9 +130,10 @@ final class WinShotThumbnailView: NSView {
         selectionBorder.isHidden = !isSelected
 
         if isSelected {
-            layer?.shadowColor = NSColor.systemBlue.cgColor
-            layer?.shadowOpacity = 0.5
-            layer?.shadowRadius = 8
+            // Bright cyan glow effect matching the border
+            layer?.shadowColor = NSColor(calibratedRed: 0.0, green: 0.9, blue: 1.0, alpha: 1.0).cgColor
+            layer?.shadowOpacity = 1.0
+            layer?.shadowRadius = 15
             layer?.shadowOffset = .zero
         } else {
             layer?.shadowOpacity = 0

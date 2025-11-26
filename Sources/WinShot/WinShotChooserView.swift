@@ -17,6 +17,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
     private static let padding: CGFloat = 20
     private static let spacing: CGFloat = 16
     private static let titleHeight: CGFloat = 30
+    private static let glowPadding: CGFloat = 20  // Extra space for selection glow
 
     override init(frame frameRect: NSRect) {
         scrollView = NSScrollView()
@@ -38,7 +39,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         // Add title label
         let titleLabel = NSTextField(labelWithString: "WinShot Snapshots")
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = .white
+        titleLabel.textColor = NSColor(calibratedRed: 0.1, green: 0.2, blue: 0.4, alpha: 1.0)
         titleLabel.alignment = .center
         addSubview(titleLabel)
 
@@ -68,23 +69,31 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         }
         thumbnailViews.removeAll()
 
-        // Create new thumbnail views
+        // Ensure container doesn't clip the glow effect
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = false
+        scrollView.wantsLayer = true
+        scrollView.contentView.wantsLayer = true
+        scrollView.contentView.layer?.masksToBounds = false
+
+        // Create new thumbnail views with padding for glow
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        var xOffset: CGFloat = 0
+        var xOffset: CGFloat = Self.glowPadding
 
         for snapshot in snapshots {
             let thumbnailView = WinShotThumbnailView(snapshot: snapshot)
             thumbnailView.delegate = self
-            thumbnailView.frame.origin = NSPoint(x: xOffset, y: 0)
+            thumbnailView.frame.origin = NSPoint(x: xOffset, y: Self.glowPadding)
             containerView.addSubview(thumbnailView)
             thumbnailViews.append(thumbnailView)
 
             xOffset += thumbnailSize.width + Self.spacing
         }
 
-        // Update container size
-        let totalWidth = max(0, xOffset - Self.spacing)
-        containerView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: thumbnailSize.height)
+        // Update container size with extra padding for glow
+        let totalWidth = max(0, xOffset - Self.spacing + Self.glowPadding)
+        let totalHeight = thumbnailSize.height + Self.glowPadding * 2
+        containerView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
 
         // Select first item
         selectedIndex = 0
@@ -134,6 +143,10 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         delegate?.chooserView(self, didRequestDelete: snapshotId)
     }
 
+    func thumbnailView(_ view: WinShotThumbnailView, didClickToSelect snapshotId: UUID) {
+        delegate?.chooserView(self, didSelect: snapshotId)
+    }
+
     /// Calculate the preferred window size for displaying the given number of snapshots
     static func preferredWindowSize(for snapshotCount: Int) -> NSSize {
         let thumbnailSize = WinShotThumbnailView.preferredSize
@@ -141,8 +154,8 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
         let contentWidth = CGFloat(maxVisible) * thumbnailSize.width +
                            CGFloat(max(0, maxVisible - 1)) * spacing +
-                           padding * 2
-        let contentHeight = thumbnailSize.height + titleHeight + padding * 2
+                           padding * 2 + glowPadding * 2
+        let contentHeight = thumbnailSize.height + titleHeight + padding * 2 + glowPadding * 2
 
         return NSSize(width: max(contentWidth, 300), height: contentHeight)
     }

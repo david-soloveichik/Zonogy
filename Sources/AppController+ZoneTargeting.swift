@@ -252,6 +252,11 @@ extension AppController {
     // MARK: - ZoneClickInterceptorDelegate
 
     func zoneClickInterceptor(_ interceptor: ZoneClickInterceptor, shouldConsumeClickAt location: CGPoint) -> Bool {
+        // Don't intercept clicks when WinShot chooser is active - allow clicks to pass through
+        if winShotChooserController.isActive {
+            return false
+        }
+
         guard let key = zoneKey(containingScreenPoint: location) else {
             return false
         }

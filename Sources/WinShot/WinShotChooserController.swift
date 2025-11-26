@@ -53,7 +53,15 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         let windowSize = WinShotChooserView.preferredWindowSize(for: snapshots.count)
         window?.setContentSize(windowSize)
         chooserView.frame = NSRect(origin: .zero, size: windowSize)
-        window?.contentView = chooserView
+
+        // Add chooserView as subview of the visual effect view (for proper rounded corner clipping)
+        // The window structure is: contentView (container) -> visualEffectView -> chooserView
+        if let contentView = window?.contentView,
+           let visualEffectView = contentView.subviews.first as? NSVisualEffectView {
+            // Remove any existing chooser subviews (from previous show calls)
+            visualEffectView.subviews.forEach { $0.removeFromSuperview() }
+            visualEffectView.addSubview(chooserView)
+        }
 
         // Position window
         window?.centerOnScreen(screenId)
@@ -196,7 +204,9 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     }
 
     func chooserView(_ view: WinShotChooserView, didSelect snapshotId: UUID) {
-        // Not used - selection happens on modifier release
+        // Click on snapshot triggers immediate restoration
+        hide()
+        delegate?.chooserController(self, didSelect: snapshotId)
     }
 
     deinit {

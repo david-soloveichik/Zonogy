@@ -14,10 +14,44 @@ final class WinShotChooserWindow: NSPanel {
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(0.85)
-        hasShadow = true
-        level = .floating
+        backgroundColor = .clear
+        hasShadow = false  // Disable window shadow - we'll add custom shadow
+        level = .popUpMenu  // Higher than .floating to appear above resize bars
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+
+        // Create container view for shadow (doesn't clip)
+        let containerView = NSView()
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = false
+        containerView.layer?.cornerRadius = 16
+
+        // Add shadow to the container (so it's not clipped)
+        containerView.layer?.shadowColor = NSColor.black.cgColor
+        containerView.layer?.shadowOpacity = 0.3
+        containerView.layer?.shadowRadius = 12
+        containerView.layer?.shadowOffset = CGSize(width: 0, height: -4)
+
+        // Create rounded rectangle visual effect view for elegant appearance
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = .hudWindow
+        visualEffectView.blendingMode = .behindWindow
+        visualEffectView.state = .active
+        visualEffectView.wantsLayer = true
+        visualEffectView.layer?.cornerRadius = 16
+        visualEffectView.layer?.masksToBounds = true  // Clip content to rounded corners
+        visualEffectView.layer?.backgroundColor = NSColor(calibratedRed: 0.7, green: 0.85, blue: 1.0, alpha: 0.9).cgColor
+
+        // Add visual effect view to container
+        containerView.addSubview(visualEffectView)
+        visualEffectView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            visualEffectView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            visualEffectView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            visualEffectView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            visualEffectView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+        ])
+
+        contentView = containerView
     }
 
     override var canBecomeKey: Bool {
