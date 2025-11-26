@@ -173,6 +173,10 @@ extension AppController {
         // Step 9: MINIMIZE PHASE - Minimize windows not in snapshot in parallel
         for window in windowsToMinimize {
             minimizeWindowProgrammatically(window, reason: "winshot-restore")
+            // Explicitly remove the window from all zones (and any temporary zone)
+            // so that zones which are empty in the snapshot end up truly empty,
+            // allowing placeholders to be restored correctly.
+            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
         }
 
         // Step 10: Sync and refresh
