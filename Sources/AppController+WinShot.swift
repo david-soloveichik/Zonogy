@@ -304,8 +304,13 @@ extension AppController {
             placeholderCoordinator.clearMappingsForScreen(snapshot.screenId)
         }
 
-        // Restore zone frames if stored
-        // Note: For now we just restore zone count - exact frame ratios could be restored later
+        // Restore zone frames/ratios
+        // Resize zone 1 first (sets left width ratio), then zone 2 (sets height ratio for 3-zone layout)
+        for zoneIndex in 1...targetZoneCount {
+            if let savedFrame = snapshot.zoneFrames[zoneIndex] {
+                context.zoneController.resizeZone(at: zoneIndex, to: savedFrame, allowOccupied: true)
+            }
+        }
     }
 
     private func findWindowMatching(identity: WindowIdentity) -> ManagedWindow? {

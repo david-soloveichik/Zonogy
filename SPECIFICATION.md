@@ -241,7 +241,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Red "x" button on each snapshot allows deletion.
 
 **Snapshot Restoration:**
-- Restores zone configuration to the saved count.
+- Restores zone configuration to the saved count and sizes (ratios).
 - Unminimizes windows that were minimized (but not closed).
 - Windows are resized BEFORE unminimizing for smooth animation.
 - Current windows not in the snapshot are minimized AFTER restoration.
