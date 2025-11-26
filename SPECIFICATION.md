@@ -245,6 +245,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Unminimizes windows that were minimized (but not closed).
 - Windows are resized BEFORE unminimizing for smooth animation.
 - Current windows not in the snapshot are minimized AFTER restoration.
+- All window operations (unminimize, move, minimize) run in parallel for fast restoration.
 - Activates the previously active window.
 
 ## 6. Implementation Details

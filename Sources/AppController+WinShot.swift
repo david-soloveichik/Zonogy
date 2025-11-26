@@ -74,12 +74,33 @@ extension AppController {
 
     // MARK: - Snapshot Restoration
 
-    /// Restore a WinShot snapshot
+    /// Work item for restoring a window to a zone
+    private struct ZoneRestoreWorkItem {
+        let managed: ManagedWindow
+        let zoneIndex: Int
+        let zone: Zone
+        let descriptor: ScreenDescriptor
+        let targetFrame: CGRect
+        let wasMinimized: Bool
+    }
+
+    /// Work item for restoring a window to the temporary zone
+    private struct TemporaryRestoreWorkItem {
+        let managed: ManagedWindow
+        let wasMinimized: Bool
+    }
+
+    /// Restore a WinShot snapshot with parallel window operations
     internal func restoreWinShotSnapshot(_ snapshot: WinShotSnapshot) {
         let screenId = snapshot.screenId
 
         guard let context = screenContexts[screenId] else {
             Logger.debug("WinShot: Cannot restore - no context for screen \(screenId)")
+            return
+        }
+
+        guard let descriptor = descriptor(for: screenId) else {
+            Logger.debug("WinShot: Cannot restore - no descriptor for screen \(screenId)")
             return
         }
 
@@ -97,32 +118,137 @@ extension AppController {
         // Step 4: Restore zone configuration
         restoreZoneConfiguration(snapshot: snapshot, context: context)
 
-        // Step 5: Restore windows in zones (unminimize if needed, position before unminimizing)
+        // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
+        var zoneWorkItems: [ZoneRestoreWorkItem] = []
+        var temporaryWorkItem: TemporaryRestoreWorkItem?
+
+        // Prepare zone restoration work items
         for (zoneIndex, identity) in snapshot.zoneAssignments {
-            restoreWindowToZone(identity: identity, zoneIndex: zoneIndex, on: screenId, context: context)
+            if let workItem = prepareZoneRestore(
+                identity: identity,
+                zoneIndex: zoneIndex,
+                on: screenId,
+                context: context,
+                descriptor: descriptor
+            ) {
+                zoneWorkItems.append(workItem)
+            }
         }
 
-        // Step 6: Restore temporary zone occupant
+        // Prepare temporary zone work item
         if let tempIdentity = snapshot.temporaryZoneOccupant {
-            restoreWindowToTemporaryZone(identity: tempIdentity, on: screenId)
+            temporaryWorkItem = prepareTemporaryZoneRestore(identity: tempIdentity, on: screenId)
         }
 
-        // Step 7: Minimize windows that were not in the snapshot
+        // Step 6: UNMINIMIZE PHASE - Kick off all unminimize operations in parallel
+        // Pre-position and unminimize all minimized windows in a tight loop
+        for workItem in zoneWorkItems where workItem.wasMinimized {
+            prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
+            windowController.unminimizeWindow(workItem.managed)
+        }
+        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
+            windowController.unminimizeWindow(tempItem.managed)
+        }
+
+        // Step 7: ASSIGNMENT PHASE - Assign all windows to their zones
+        for workItem in zoneWorkItems {
+            context.zoneController.assignWindow(windowId: workItem.managed.windowId, toZoneIndex: workItem.zoneIndex)
+            setManagedWindow(workItem.managed, screenId: screenId, zoneIndex: workItem.zoneIndex)
+        }
+        if let tempItem = temporaryWorkItem {
+            temporaryZoneCoordinator.assign(tempItem.managed, to: screenId, centerWindow: true, reason: "winshot-restore")
+        }
+
+        // Step 8: POSITION PHASE - Move all zone windows to their target frames in parallel
+        for workItem in zoneWorkItems {
+            windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
+        }
+
+        // Step 9: MINIMIZE PHASE - Minimize windows not in snapshot in parallel
         for window in windowsToMinimize {
             minimizeWindowProgrammatically(window, reason: "winshot-restore")
         }
 
-        // Step 8: Sync and refresh
+        // Step 10: Sync and refresh
         syncWindowsToZones()
         refreshIndicators()
 
-        // Step 9: Activate the previously active window
+        // Step 11: Activate the previously active window
         if let activeWindowId = snapshot.activeWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
             activateWindow(activeWindow)
         }
 
         Logger.debug("WinShot: Snapshot restoration complete")
+    }
+
+    /// Prepare a zone restoration work item (does all prep work, returns nil if window not found)
+    private func prepareZoneRestore(
+        identity: WindowIdentity,
+        zoneIndex: Int,
+        on screenId: CGDirectDisplayID,
+        context: ScreenContext,
+        descriptor: ScreenDescriptor
+    ) -> ZoneRestoreWorkItem? {
+        // Find the window matching this identity
+        guard let managed = findWindowMatching(identity: identity) else {
+            Logger.debug("WinShot: Cannot find window for identity \(identity.windowId) in zone \(zoneIndex)")
+            return nil
+        }
+
+        guard let zone = context.zoneController.zone(at: zoneIndex) else {
+            return nil
+        }
+
+        // Remove the window from any zone it's currently in (could be on another screen)
+        for (otherScreenId, otherContext) in screenContexts {
+            if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
+                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore")
+                otherContext.zoneController.removeWindow(windowId: managed.windowId)
+            }
+        }
+
+        // Clear from any temporary zone
+        if isWindowInTemporaryZone(managed.windowId) {
+            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+        }
+
+        let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
+
+        return ZoneRestoreWorkItem(
+            managed: managed,
+            zoneIndex: zoneIndex,
+            zone: zone,
+            descriptor: descriptor,
+            targetFrame: targetFrame,
+            wasMinimized: managed.isMinimized
+        )
+    }
+
+    /// Prepare a temporary zone restoration work item
+    private func prepareTemporaryZoneRestore(identity: WindowIdentity, on screenId: CGDirectDisplayID) -> TemporaryRestoreWorkItem? {
+        guard let managed = findWindowMatching(identity: identity) else {
+            Logger.debug("WinShot: Cannot find window for temporary zone identity \(identity.windowId)")
+            return nil
+        }
+
+        // Remove from any zone it's currently in
+        for (otherScreenId, otherContext) in screenContexts {
+            if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
+                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore to temporary")
+                otherContext.zoneController.removeWindow(windowId: managed.windowId)
+            }
+        }
+
+        // Clear from any temporary zone
+        if isWindowInTemporaryZone(managed.windowId) {
+            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+        }
+
+        return TemporaryRestoreWorkItem(
+            managed: managed,
+            wasMinimized: managed.isMinimized
+        )
     }
 
     // MARK: - Private Helpers
@@ -180,77 +306,6 @@ extension AppController {
 
         // Restore zone frames if stored
         // Note: For now we just restore zone count - exact frame ratios could be restored later
-    }
-
-    private func restoreWindowToZone(identity: WindowIdentity, zoneIndex: Int, on screenId: CGDirectDisplayID, context: ScreenContext) {
-        // Find the window matching this identity
-        guard let managed = findWindowMatching(identity: identity) else {
-            Logger.debug("WinShot: Cannot find window for identity \(identity.windowId) in zone \(zoneIndex)")
-            return
-        }
-
-        guard let zone = context.zoneController.zone(at: zoneIndex),
-              let descriptor = descriptor(for: screenId) else {
-            return
-        }
-
-        // First, remove the window from any zone it's currently in (could be on another screen)
-        // This ensures the old zone gets a placeholder on syncWindowsToZones()
-        for (otherScreenId, otherContext) in screenContexts {
-            if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
-                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore")
-                otherContext.zoneController.removeWindow(windowId: managed.windowId)
-            }
-        }
-
-        // Also clear from any temporary zone it might be in
-        if isWindowInTemporaryZone(managed.windowId) {
-            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
-        }
-
-        // If minimized, pre-position before unminimizing
-        if managed.isMinimized {
-            let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
-            prePositionMinimizedWindow(managed, to: targetFrame, on: descriptor)
-            windowController.unminimizeWindow(managed)
-        }
-
-        // Assign to zone
-        context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zoneIndex)
-        setManagedWindow(managed, screenId: screenId, zoneIndex: zoneIndex)
-
-        // Position window
-        let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
-        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
-    }
-
-    private func restoreWindowToTemporaryZone(identity: WindowIdentity, on screenId: CGDirectDisplayID) {
-        guard let managed = findWindowMatching(identity: identity) else {
-            Logger.debug("WinShot: Cannot find window for temporary zone identity \(identity.windowId)")
-            return
-        }
-
-        // First, remove the window from any zone it's currently in (could be on another screen)
-        // This ensures the old zone gets a placeholder on syncWindowsToZones()
-        for (otherScreenId, otherContext) in screenContexts {
-            if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
-                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore to temporary")
-                otherContext.zoneController.removeWindow(windowId: managed.windowId)
-            }
-        }
-
-        // Also clear from any temporary zone it might be in (on any screen)
-        if isWindowInTemporaryZone(managed.windowId) {
-            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
-        }
-
-        // If minimized, unminimize first
-        if managed.isMinimized {
-            windowController.unminimizeWindow(managed)
-        }
-
-        // Assign to temporary zone
-        temporaryZoneCoordinator.assign(managed, to: screenId, centerWindow: true, reason: "winshot-restore")
     }
 
     private func findWindowMatching(identity: WindowIdentity) -> ManagedWindow? {
