@@ -316,20 +316,27 @@ class DragDropCoordinator {
         }
         if !session.originatedFromTemporary,
            let delegate,
-           delegate.isControlCommandDragActive(),
-           delegate.promoteTiledDragToTemporary(
-               windowId: session.windowId,
-               frame: frame,
-               originZoneKey: session.originZoneKey,
-               originScreenId: session.originScreenId,
-               preferredTemporaryScreenId: temporaryScreenId
-                   ?? session.hoveredTemporaryScreenId
-                   ?? delegate.targetedZoneManager.targetedTemporaryScreenId
-           ) {
+           delegate.isControlCommandDragActive() {
+            // Clear drag session BEFORE promotion so dragExcludedZones is empty
+            // when syncWindowsToZones runs inside promoteTiledDragToTemporary
+            let preferredTemporaryScreenId = temporaryScreenId
+                ?? session.hoveredTemporaryScreenId
+                ?? delegate.targetedZoneManager.targetedTemporaryScreenId
             dragOverlayManager.tearDown()
             dragSession = nil
             delegate.updateAddZoneIndicatorHighlight(screenId: nil)
             delegate.updateTemporaryIndicatorHighlight(screenId: nil)
+
+            let promoted = delegate.promoteTiledDragToTemporary(
+                windowId: session.windowId,
+                frame: frame,
+                originZoneKey: session.originZoneKey,
+                originScreenId: session.originScreenId,
+                preferredTemporaryScreenId: preferredTemporaryScreenId
+            )
+            if !promoted {
+                Logger.debug("Control-Command drag promotion failed for window \(session.windowId)")
+            }
             return
         }
         session.hoveredZoneKey = targetKey
