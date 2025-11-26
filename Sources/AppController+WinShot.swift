@@ -61,6 +61,12 @@ extension AppController {
 
     /// Show the WinShot chooser for the active screen (Control-Command-Tab)
     internal func showWinShotChooser() {
+        // If the chooser is already active, treat another shortcut press as "next"
+        if winShotChooserController.isActive {
+            winShotChooserController.cycleNext()
+            return
+        }
+
         let screenId = activeScreenId()
         let snapshots = winShotManager.snapshots(for: screenId)
 

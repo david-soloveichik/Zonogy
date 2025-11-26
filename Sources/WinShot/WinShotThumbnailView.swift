@@ -13,6 +13,7 @@ final class WinShotThumbnailView: NSView {
     private let imageView: NSImageView
     private let deleteButton: NSButton
     private let selectionBorder: CALayer
+    private static let selectionColor = NSColor(calibratedRed: 0.15, green: 0.35, blue: 0.85, alpha: 1.0)
 
     var isSelected: Bool = false {
         didSet {
@@ -44,11 +45,11 @@ final class WinShotThumbnailView: NSView {
         deleteButton.contentTintColor = .systemRed
         deleteButton.isHidden = true  // Show on hover
 
-        // Create selection border layer - bright cyan for visibility on light blue background
+        // Create selection border layer using the WinShot accent blue
         selectionBorder = CALayer()
-        selectionBorder.borderColor = NSColor(calibratedRed: 0.0, green: 0.9, blue: 1.0, alpha: 1.0).cgColor
-        selectionBorder.borderWidth = 4
-        selectionBorder.cornerRadius = Self.cornerRadius + 2
+        selectionBorder.borderColor = Self.selectionColor.withAlphaComponent(0.9).cgColor
+        selectionBorder.borderWidth = Self.selectionBorderWidth
+        selectionBorder.cornerRadius = Self.cornerRadius
         selectionBorder.isHidden = true
 
         super.init(frame: NSRect(origin: .zero, size: Self.thumbnailSize))
@@ -100,8 +101,8 @@ final class WinShotThumbnailView: NSView {
 
     override func layout() {
         super.layout()
-        // Use 4pt inset to match the selection border width
-        selectionBorder.frame = bounds.insetBy(dx: -4, dy: -4)
+        // Match the thumbnail bounds so the highlight feels crisp and contained
+        selectionBorder.frame = bounds
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -130,10 +131,10 @@ final class WinShotThumbnailView: NSView {
         selectionBorder.isHidden = !isSelected
 
         if isSelected {
-            // Bright cyan glow effect matching the border
-            layer?.shadowColor = NSColor(calibratedRed: 0.0, green: 0.9, blue: 1.0, alpha: 1.0).cgColor
-            layer?.shadowOpacity = 1.0
-            layer?.shadowRadius = 15
+            let highlightColor = Self.selectionColor
+            layer?.shadowColor = highlightColor.withAlphaComponent(0.6).cgColor
+            layer?.shadowOpacity = 0.8
+            layer?.shadowRadius = 10
             layer?.shadowOffset = .zero
         } else {
             layer?.shadowOpacity = 0
