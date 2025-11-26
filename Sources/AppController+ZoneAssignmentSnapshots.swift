@@ -12,19 +12,46 @@ extension AppController {
     func snapshotZoneAssignments(reason: String) {
         // Only snapshot assignments for non-placeholder windows that are still
         // tracked and currently associated with a tiled zone on the expected screen.
+
+        // Debug: log all entries in liveZoneAssignments before filtering
+        if !liveZoneAssignments.isEmpty {
+            Logger.debug("snapshotZoneAssignments: \(liveZoneAssignments.count) entries in liveZoneAssignments")
+            for (key, snapshot) in liveZoneAssignments {
+                let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+                let window = windowController.window(withId: snapshot.identity.windowId)
+                let windowExists = window != nil
+                let isPlaceholder = window?.isPlaceholder ?? false
+                let zoneIndex = window?.zoneIndex
+                let windowScreenId = window?.screenDisplayId
+                let windowScreenIndex = windowScreenId.map { screenContextStore.loggingIndex(for: $0) }
+                Logger.debug(
+                    "  - screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId): " +
+                    "exists=\(windowExists), isPlaceholder=\(isPlaceholder), zoneIndex=\(String(describing: zoneIndex)), " +
+                    "windowScreenIndex=\(String(describing: windowScreenIndex)), keyScreenId=\(key.screenId), windowScreenId=\(String(describing: windowScreenId))"
+                )
+            }
+        }
+
         let candidateSnapshots = liveZoneAssignments.filter { key, snapshot in
+            let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
             guard let window = windowController.window(withId: snapshot.identity.windowId) else {
+                Logger.debug("  -> REJECTED screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId): window not found")
                 return false
             }
             if window.isPlaceholder {
+                Logger.debug("  -> REJECTED screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId): is placeholder")
                 return false
             }
             if window.zoneIndex == nil {
+                Logger.debug("  -> REJECTED screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId): zoneIndex is nil")
                 return false
             }
             if window.screenDisplayId != key.screenId {
+                let windowScreenIndex = window.screenDisplayId.map { screenContextStore.loggingIndex(for: $0) }
+                Logger.debug("  -> REJECTED screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId): screenDisplayId mismatch (window has \(String(describing: windowScreenIndex)), key has \(screenIndex), window displayId=\(String(describing: window.screenDisplayId)), key displayId=\(key.screenId))")
                 return false
             }
+            Logger.debug("  -> ACCEPTED screen \(screenIndex) zone \(key.index) windowId \(snapshot.identity.windowId)")
             return true
         }
 
