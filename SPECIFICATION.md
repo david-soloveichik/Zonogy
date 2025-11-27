@@ -128,7 +128,7 @@ Zones are resized by dragging a "white bar" separator located in the margin betw
 
 Placeholder windows inside empty zones are not resizable by dragging their edges. Their size is strictly determined by the zone dimensions.
 
-If an ActiveFit window in zone 2 or 3 would overlap a zone separator, the white bar adapts so it does not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the ActiveFit frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 3. When ActiveFit deactivates or focus moves to a different window, the separators return to the normal layout.
+If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone separator, the white bar adapts so it does not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect a window in reveal mode in zone 3. When the window exits reveal mode (loses focus or moves to a different window), the separators return to the normal layout.
 
 #### Resizing Managed Windows
 
@@ -167,7 +167,7 @@ Pressing Cmd-M minimizes the currently active/key window. This overrides any app
 
 Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
 
-- If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and ActiveFit cleanup).
+- If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
 - Otherwise, if the mouse pointer is within the frame of an empty zone (i.e., over its placeholder window), remove that zone exactly as if the blue "x" button on the placeholder had been clicked.
 
 ### Flip the Key Window to Another Screen
@@ -186,13 +186,18 @@ In either case, since the original zone of the window is now empty, it should be
 
 Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
 
+**Terminology:**
+
+- **ActiveFit rest mode**: The window's top-left corner is anchored to the zone origin (with margins). The window may overflow off the right or bottom edge of the screen — this is the normal/default state when the window is *not* the active/key window.
+- **ActiveFit reveal mode**: The window is shifted left and/or upward so the entire frame fits within the visible screen bounds. This state is entered when the window *becomes* the active/key window and qualifies for ActiveFit.
+
 **Implementation requirements:**
 
 1. ActiveFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
 2. Attempt the normal zone-aligned move/resize first. Then determine whether ActiveFit is needed by anchoring the window's actual *post-resize* size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
-3. When a qualifying window becomes the active/key window, shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
-4. When that window loses key status, leaves its zone, is minimized, or closes, move it back to its normal zone-aligned position so other zones reclaim their space.
-5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is expanded via ActiveFit, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
+3. When a qualifying window becomes the active/key window, enter **reveal mode**: shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
+4. When that window loses key status, leaves its zone, is minimized, or closes, exit reveal mode and return to **rest mode**: move the window back to its normal zone-anchored position so other zones reclaim their space.
+5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is in reveal mode, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
 
 This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
 
@@ -261,7 +266,7 @@ After events such as application termination, workspace focus changes, or access
 When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we apply a short protection window so that internal restore operations do not fight normal layout behavior:
 
 - The floating temporary-zone occupant is temporarily protected from auto-minimization triggered by focus shifts or new tiled placements on the same screen, so it is not immediately cleared while other windows are being recaptured.
-- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. This ensures the window ends up in its correct reveal position without briefly snapping to the zone frame and back out again.
+- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. This ensures the window ends up in its correct mode (reveal or rest) without briefly snapping between positions.
 
 ### Additional Notes
 

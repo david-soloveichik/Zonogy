@@ -175,11 +175,11 @@ extension AppController {
             return activeId
         }()
         if !zoneWindowIds.isEmpty {
-            scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateActiveFitFor: activeZoneWindowId)
+            scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateRevealModeFor: activeZoneWindowId)
         }
 
-        // If the active snapshot window was previously in an ActiveFit reveal frame, preserve that
-        // frame across the restore instead of snapping it back to the zone frame and then re-expanding.
+        // If the active snapshot window was previously in reveal mode, preserve that
+        // frame across the restore instead of snapping to rest mode and then back to reveal.
         var preserveActiveFitWindowId: Int?
         if let activeZoneWindowId,
            let activeItem = zoneWorkItems.first(where: { $0.managed.windowId == activeZoneWindowId }),
@@ -194,7 +194,7 @@ extension AppController {
                 tolerance: activeFitOverflowTolerance
             ), activeFitFramesClose(actualFrame, revealFrame) {
                 let zoneKey = ZoneKey(screenId: screenId, index: activeItem.zoneIndex)
-                activeFitState = ActiveFitState(windowId: activeItem.managed.windowId, zoneKey: zoneKey, appliedFrame: actualFrame)
+                activeFitState = ActiveFitState(windowId: activeItem.managed.windowId, zoneKey: zoneKey, revealFrame: actualFrame)
                 preserveActiveFitWindowId = activeItem.managed.windowId
                 Logger.debug("WinShot: Preserving existing ActiveFit frame for window \(activeItem.managed.windowId) during snapshot restore")
             }

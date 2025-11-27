@@ -1,56 +1,65 @@
 import Foundation
 import AppKit
 
-/// Manages the ActiveFit behavior that keeps active right-column windows fully on-screen without permanently altering zones.
+/// Manages ActiveFit behavior: transitioning windows between rest mode and reveal mode.
+///
+/// ActiveFit has two modes:
+/// - **Rest mode**: Window is anchored to zone origin; may overflow off-screen (default state).
+/// - **Reveal mode**: Window is shifted so entire frame fits on screen (when window is active).
+///
+/// This extension handles entering reveal mode when a qualifying window gains focus,
+/// and returning to rest mode when the window loses focus or is otherwise deactivated.
 extension AppController {
+    /// Tracks the current reveal mode state for a single window.
+    /// Only one window can be in reveal mode at a time.
     struct ActiveFitState {
         let windowId: Int
         var zoneKey: ZoneKey
-        var appliedFrame: CGRect
+        /// The frame applied when the window entered reveal mode.
+        var revealFrame: CGRect
     }
 
+    /// Handles focus changes to potentially enter or exit reveal mode.
     internal func handleActiveFitFocusChange(pid: pid_t) {
         guard pid != getpid() else {
-            activeFitDeactivate(reason: "focus-self")
+            exitRevealMode(reason: "focus-self")
             return
         }
 
         guard let managed = windowController.focusedWindowIfTracked(pid: pid) else {
-            // No tracked focused window for this pid; keep any existing ActiveFit window in place.
+            // No tracked focused window for this pid; keep any window in reveal mode as-is.
             Logger.debug("ActiveFit focus change ignored for pid \(pid); no tracked focused window")
             return
         }
 
         // If the newly focused window is not part of our managed layout (neither tiled nor in the
-        // temporary zone), we deliberately keep the current ActiveFit window expanded.
+        // temporary zone), we deliberately keep the current window in reveal mode.
         guard isLayoutManagedWindow(managed) else {
             Logger.debug("ActiveFit focus change ignored for window \(managed.windowId); not in tiled or temporary zones")
             return
         }
 
         // Focusing a placeholder participates in the managed layout but should not make that
-        // placeholder an ActiveFit candidate. Simply restore any existing ActiveFit window.
+        // placeholder an ActiveFit candidate. Simply exit reveal mode for any current window.
         guard !managed.isPlaceholder else {
-            activeFitDeactivate(reason: "focus-placeholder")
+            exitRevealMode(reason: "focus-placeholder")
             return
         }
 
-        // If focus moved to a different window than the one currently
-        // expanded via ActiveFit, restore that previous window to its
-        // zone-aligned frame before evaluating the new candidate.
-        // Skip restoration if the ActiveFit window is suppressed (e.g., during WinShot restore).
+        // If focus moved to a different window than the one currently in reveal mode,
+        // return that previous window to rest mode before evaluating the new candidate.
+        // Skip if the window is suppressed (e.g., during WinShot restore).
         if let state = activeFitState, state.windowId != managed.windowId {
             if !isActiveFitSuppressed(windowId: state.windowId) {
-                restoreActiveFitState(state: state, reason: "focus-transfer")
+                transitionToRestMode(state: state, reason: "focus-transfer")
             } else {
-                Logger.debug("ActiveFit focus-transfer restore skipped for window \(state.windowId); behavior suppressed")
+                Logger.debug("ActiveFit: skipping rest mode transition for window \(state.windowId); suppressed")
             }
         }
 
         guard let zoneIndex = managed.zoneIndex,
               zoneIndex >= 2 else {
-            // New focused window is not in a right-column zone; no
-            // ActiveFit behavior is needed after restoring any prior state.
+            // New focused window is not in a right-column zone; no reveal mode needed.
             return
         }
 
@@ -61,21 +70,22 @@ extension AppController {
 
         let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
         guard let screenId else {
-            activeFitDeactivate(reason: "focus-no-screen")
+            exitRevealMode(reason: "focus-no-screen")
             return
         }
 
-        applyActiveFitIfNeeded(to: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "focus-change")
+        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "focus-change")
     }
 
     internal func handleActiveFitActivationCandidate(pid: pid_t?) {
         guard let pid else {
-            activeFitDeactivate(reason: "workspace-no-application")
+            exitRevealMode(reason: "workspace-no-application")
             return
         }
         handleActiveFitFocusChange(pid: pid)
     }
 
+    /// Returns true if the window is in reveal mode and should skip zone sync repositioning.
     internal func activeFitShouldSkipSync(for zoneKey: ZoneKey, windowId: Int) -> Bool {
         guard let state = activeFitState else {
             return false
@@ -83,6 +93,7 @@ extension AppController {
         return state.windowId == windowId && state.zoneKey == zoneKey
     }
 
+    /// Handles zone assignment changes for a window that may be in reveal mode.
     internal func activeFitHandleAssignmentChange(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         if dragDropCoordinator.currentDragWindowId == managed.windowId {
             Logger.debug("ActiveFit assignment change ignored for window \(managed.windowId); drag in progress")
@@ -90,55 +101,58 @@ extension AppController {
         }
         guard let state = activeFitState, state.windowId == managed.windowId else {
             if let zoneIndex {
-                handleAssignmentForPotentialActiveFit(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+                evaluateRevealModeForAssignment(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
             }
             return
         }
 
         guard let zoneIndex else {
-            Logger.debug("ActiveFit clearing state for window \(managed.windowId) due to assignment removal")
+            Logger.debug("ActiveFit: exiting reveal mode for window \(managed.windowId) due to assignment removal")
             activeFitState = nil
             return
         }
 
         guard zoneIndex >= 2 else {
-            Logger.debug("ActiveFit clearing state for window \(managed.windowId) due to reassignment to zone \(zoneIndex)")
-            activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: true, reason: "assignment-zone<2")
+            Logger.debug("ActiveFit: exiting reveal mode for window \(managed.windowId); reassigned to zone \(zoneIndex)")
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
             return
         }
 
         let updatedKey = ZoneKey(screenId: screenId, index: zoneIndex)
         if state.zoneKey != updatedKey {
-            Logger.debug("ActiveFit updating zone key for window \(managed.windowId) to zone \(zoneIndex) on screen \(screenId)")
-            activeFitState = ActiveFitState(windowId: state.windowId, zoneKey: updatedKey, appliedFrame: state.appliedFrame)
+            Logger.debug("ActiveFit: updating zone key for revealed window \(managed.windowId) to zone \(zoneIndex)")
+            activeFitState = ActiveFitState(windowId: state.windowId, zoneKey: updatedKey, revealFrame: state.revealFrame)
         }
 
-        applyActiveFitIfNeeded(to: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "assignment-change")
+        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "assignment-change")
     }
 
-    internal func activeFitClearForWindowIfNeeded(windowId: Int, restoreToZone: Bool = true, reason: String) {
+    /// Clears reveal mode for a specific window, optionally transitioning it back to rest mode.
+    internal func clearRevealModeForWindow(windowId: Int, transitionToRest: Bool = true, reason: String) {
         guard let state = activeFitState, state.windowId == windowId else {
             return
         }
 
-        if restoreToZone {
-            restoreActiveFitState(state: state, reason: reason)
+        if transitionToRest {
+            transitionToRestMode(state: state, reason: reason)
         } else {
-            Logger.debug("ActiveFit dropping state for window \(windowId) without restore (\(reason))")
+            Logger.debug("ActiveFit: clearing reveal state for window \(windowId) without rest transition (\(reason))")
             activeFitState = nil
             refreshResizeHandles()
         }
     }
 
-    internal func activeFitDeactivate(reason: String) {
+    /// Exits reveal mode for the currently revealed window (if any), returning it to rest mode.
+    internal func exitRevealMode(reason: String) {
         guard let state = activeFitState else {
             return
         }
-        restoreActiveFitState(state: state, reason: reason)
+        transitionToRestMode(state: state, reason: reason)
     }
 
-    private func applyActiveFitIfNeeded(
-        to managed: ManagedWindow,
+    /// Evaluates whether a window should enter reveal mode and applies the transition if needed.
+    private func enterRevealModeIfNeeded(
+        for managed: ManagedWindow,
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
         reason: String
@@ -146,78 +160,85 @@ extension AppController {
         guard let context = screenContexts[screenId],
               let descriptor = descriptor(for: screenId),
               let zone = context.zoneController.zone(at: zoneIndex) else {
-            activeFitDeactivate(reason: "missing-context")
+            exitRevealMode(reason: "missing-context")
             return
         }
 
         guard !isActiveFitSuppressed(windowId: managed.windowId) else {
-            Logger.debug("ActiveFit apply skipped for window \(managed.windowId); behavior suppressed")
+            Logger.debug("ActiveFit: reveal mode evaluation skipped for window \(managed.windowId); suppressed")
             return
         }
 
         let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
 
-        // Ensure we perform the canonical zone resize before deciding whether overflow exists.
-        // This prevents ActiveFit from acting on stale dimensions (e.g., when a window just moved from another screen).
+        // First move window to rest mode position (zone-anchored) to get accurate dimensions.
+        // This prevents acting on stale dimensions (e.g., when a window just moved from another screen).
         if activeFitState == nil {
             windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
         }
 
-        let targetOrigin = zoneFrame.origin
+        let restOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
 
+        // Check if window would overflow in rest mode and needs reveal mode
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: zoneIndex,
-            zoneOrigin: targetOrigin,
+            zoneOrigin: restOrigin,
             windowSize: actualFrame.size,
             screenBounds: screenBounds,
             tolerance: activeFitOverflowTolerance
         ) else {
-            activeFitDeactivateIfMatches(windowId: managed.windowId, reason: "no-overflow")
+            // Window fits on screen in rest mode; no reveal needed
+            exitRevealModeIfMatches(windowId: managed.windowId, reason: "no-overflow")
             return
         }
 
+        // If another window is in reveal mode, return it to rest mode first
         if let existing = activeFitState, existing.windowId != managed.windowId {
-            restoreActiveFitState(state: existing, reason: "handoff")
+            transitionToRestMode(state: existing, reason: "handoff")
         }
 
+        // Skip if already in reveal mode at the same position
         if let existing = activeFitState,
            existing.windowId == managed.windowId,
-           framesClose(existing.appliedFrame, revealFrame) {
+           framesClose(existing.revealFrame, revealFrame) {
             return
         }
 
+        // Enter reveal mode: shift window to fit on screen
         let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        Logger.debug("ActiveFit translating window \(managed.windowId) to \(revealFrame.origin) (reason: \(reason))")
+        Logger.debug("ActiveFit: entering reveal mode for window \(managed.windowId) -> \(revealFrame.origin) (\(reason))")
         windowController.moveWindow(managed, to: revealFrame, on: descriptor)
-        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, appliedFrame: revealFrame)
+        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, revealFrame: revealFrame)
         refreshResizeHandles()
     }
 
-    private func activeFitDeactivateIfMatches(windowId: Int, reason: String) {
+    /// Exits reveal mode for a specific window if it matches the current state.
+    private func exitRevealModeIfMatches(windowId: Int, reason: String) {
         guard let state = activeFitState, state.windowId == windowId else {
             return
         }
-        restoreActiveFitState(state: state, reason: reason)
+        transitionToRestMode(state: state, reason: reason)
     }
 
-    private func restoreActiveFitState(state: ActiveFitState, reason: String) {
+    /// Transitions a window from reveal mode back to rest mode (zone-anchored position).
+    private func transitionToRestMode(state: ActiveFitState, reason: String) {
         guard let context = screenContexts[state.zoneKey.screenId],
               let descriptor = descriptor(for: state.zoneKey.screenId),
               let zone = context.zoneController.zone(at: state.zoneKey.index),
               let managed = windowController.window(withId: state.windowId) else {
-            Logger.debug("ActiveFit clearing state for window \(state.windowId) without restore (\(reason))")
+            Logger.debug("ActiveFit: clearing reveal state for window \(state.windowId) without rest transition (\(reason))")
             activeFitState = nil
             return
         }
 
-        let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
-        Logger.debug("ActiveFit restoring window \(state.windowId) to zone \(state.zoneKey.index) (reason: \(reason))")
+        let restFrame = frameWithMargin(for: zone, in: context.zoneController)
+        Logger.debug("ActiveFit: returning window \(state.windowId) to rest mode in zone \(state.zoneKey.index) (\(reason))")
 
         // Clear state before moving window to avoid race condition with frame retry checks
         activeFitState = nil
-        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+        windowController.moveWindow(managed, to: restFrame, on: descriptor)
         refreshResizeHandles()
     }
 
@@ -228,14 +249,15 @@ extension AppController {
             abs(lhs.size.height - rhs.size.height) <= activeFitOverflowTolerance
     }
 
-    private func handleAssignmentForPotentialActiveFit(
+    /// Evaluates whether a newly assigned window should enter reveal mode.
+    private func evaluateRevealModeForAssignment(
         managed: ManagedWindow,
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
         reason: String = "assignment-change"
     ) {
         guard zoneIndex >= 2 else {
-            activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: true, reason: "assignment-zone<2")
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
             return
         }
 
@@ -243,7 +265,7 @@ extension AppController {
             return
         }
 
-        applyActiveFitIfNeeded(to: managed, screenId: screenId, zoneIndex: zoneIndex, reason: reason)
+        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: reason)
     }
 
     private func isWindowActive(_ managed: ManagedWindow) -> Bool {
@@ -266,38 +288,41 @@ extension AppController {
         }
     }
 
+    /// Suspends reveal mode evaluation for a window during drag operations.
+    /// The window stays at its current position (reveal or rest) until the drag ends.
     internal func activeFitSuspendForDrag(windowId: Int) {
         guard activeFitSuppressedWindowIds.insert(windowId).inserted else {
             return
         }
-        // Leave the window exactly where the user grabbed it; we'll snap on drop.
-        activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "drag-begin")
-        Logger.debug("ActiveFit suspended for window \(windowId) during drag")
+        // Clear reveal state without transitioning to rest; window stays where user grabbed it
+        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "drag-begin")
+        Logger.debug("ActiveFit: suspended for window \(windowId) during drag")
     }
 
+    /// Resumes reveal mode evaluation after a drag ends and re-evaluates the window.
     internal func activeFitResumeAfterDrag(windowId: Int) {
         guard activeFitSuppressedWindowIds.remove(windowId) != nil else {
             return
         }
-        Logger.debug("ActiveFit resumed for window \(windowId) after drag")
+        Logger.debug("ActiveFit: resumed for window \(windowId) after drag")
         guard let managed = windowController.window(withId: windowId),
               let screenId = managed.screenDisplayId,
               let zoneIndex = managed.zoneIndex else {
             return
         }
-        handleAssignmentForPotentialActiveFit(managed: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "drag-end")
+        evaluateRevealModeForAssignment(managed: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "drag-end")
     }
 
     internal func activeFitClearSuppressionForWindow(_ windowId: Int) {
         if dragDropCoordinator.currentDragWindowId == windowId {
-            Logger.debug("ActiveFit suppression retained for window \(windowId) while drag is active")
+            Logger.debug("ActiveFit: suppression retained for window \(windowId) while drag is active")
             return
         }
         activeFitSuppressedWindowIds.remove(windowId)
     }
 
-    /// Temporarily disables and immediately reevaluates ActiveFit after structural zone changes.
-    /// This ensures oversized windows snap back to the new zone geometry and reapply ActiveFit if still needed.
+    /// Re-evaluates reveal mode after zone topology changes (add/remove/resize).
+    /// First returns any revealed window to rest mode with new zone geometry, then re-evaluates.
     internal func activeFitRefreshAfterZoneTopologyChange(reason: String) {
         guard let state = activeFitState,
               let managed = windowController.window(withId: state.windowId) else {
@@ -307,14 +332,16 @@ extension AppController {
         let screenId = managed.screenDisplayId ?? state.zoneKey.screenId
         let zoneIndex = managed.zoneIndex ?? state.zoneKey.index
 
-        activeFitDeactivate(reason: reason)
+        // Return to rest mode first (with new zone geometry)
+        exitRevealMode(reason: reason)
 
         guard zoneIndex >= 2,
               screenContexts[screenId]?.zoneController.zone(at: zoneIndex) != nil else {
             return
         }
 
-        handleAssignmentForPotentialActiveFit(
+        // Re-evaluate whether reveal mode is needed with new zone geometry
+        evaluateRevealModeForAssignment(
             managed: managed,
             screenId: screenId,
             zoneIndex: zoneIndex,
@@ -351,32 +378,35 @@ extension AppController {
 
     // MARK: - Timed suppression for restore flows
 
-    internal func scheduleActiveFitSuppression(windowIds: [Int], evaluateActiveFitFor activeWindowId: Int? = nil) {
+    /// Temporarily suppresses reveal mode evaluation during restore flows (WinShot, sleep/wake).
+    /// After the delay, clears suppression and optionally evaluates reveal mode for the active window.
+    internal func scheduleActiveFitSuppression(windowIds: [Int], evaluateRevealModeFor activeWindowId: Int? = nil) {
         for windowId in windowIds {
             activeFitSuppressedWindowIds.insert(windowId)
         }
-        Logger.debug("ActiveFit suppression scheduled for windows \(windowIds) (duration: \(activeFitRestoreDelay)s)")
+        Logger.debug("ActiveFit: suppression scheduled for windows \(windowIds) (duration: \(activeFitRestoreDelay)s)")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + activeFitRestoreDelay) { [weak self] in
             guard let self else { return }
             for windowId in windowIds {
                 self.activeFitSuppressedWindowIds.remove(windowId)
             }
-            Logger.debug("ActiveFit suppression cleared for windows \(windowIds)")
+            Logger.debug("ActiveFit: suppression cleared for windows \(windowIds)")
 
-            // If an active window was specified, trigger ActiveFit evaluation for it
+            // Evaluate reveal mode for the active window after restore settles
             if let activeWindowId,
                let managed = self.windowController.window(withId: activeWindowId),
                let screenId = managed.screenDisplayId,
                let zoneIndex = managed.zoneIndex,
                zoneIndex >= 2 {
-                Logger.debug("Triggering ActiveFit evaluation for window \(activeWindowId) after suppression cleared")
-                self.applyActiveFitAfterRestore(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+                Logger.debug("ActiveFit: evaluating reveal mode for window \(activeWindowId) after restore")
+                self.enterRevealModeAfterRestore(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
             }
         }
     }
 
-    private func applyActiveFitAfterRestore(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int) {
+    /// Enters reveal mode for a window after a restore flow completes.
+    private func enterRevealModeAfterRestore(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int) {
         guard let context = screenContexts[screenId],
               let descriptor = descriptor(for: screenId),
               let zone = context.zoneController.zone(at: zoneIndex) else {
@@ -384,24 +414,25 @@ extension AppController {
         }
 
         let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
-        let targetOrigin = zoneFrame.origin
+        let restOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
 
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: zoneIndex,
-            zoneOrigin: targetOrigin,
+            zoneOrigin: restOrigin,
             windowSize: actualFrame.size,
             screenBounds: screenBounds,
             tolerance: activeFitOverflowTolerance
         ) else {
+            // Window fits in rest mode; no reveal needed
             return
         }
 
         let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        Logger.debug("ActiveFit (restore): translating window \(managed.windowId) to \(revealFrame.origin)")
+        Logger.debug("ActiveFit: entering reveal mode after restore for window \(managed.windowId) -> \(revealFrame.origin)")
         windowController.moveWindow(managed, to: revealFrame, on: descriptor)
-        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, appliedFrame: revealFrame)
+        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, revealFrame: revealFrame)
         refreshResizeHandles()
     }
 }

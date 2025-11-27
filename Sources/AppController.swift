@@ -89,13 +89,21 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var manualMoveSuppressionDeadline: Date?
     /// Windows that were manually resized while tiled and should snap back to their zone frame on focus loss or the next layout sync.
     internal var manualResizeDetachedWindowIds: Set<Int> = []
+
+    // MARK: - ActiveFit State (reveal mode vs rest mode)
+    /// Tolerance in pixels for determining if a window overflows in rest mode and needs reveal mode.
     internal let activeFitOverflowTolerance: CGFloat = 1.0
+    /// Tracks which window is currently in reveal mode (shifted to fit on screen). Only one window at a time.
     internal var activeFitState: ActiveFitState?
+    /// Windows temporarily excluded from reveal mode evaluation (e.g., during drag or restore flows).
     internal var activeFitSuppressedWindowIds: Set<Int> = []
+    /// Windows for which we've already logged zone-resize suppression (prevents log spam).
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
+
     internal var pendingTemporaryZoneIdentitySnapshots: [CGDirectDisplayID: TemporaryZoneIdentitySnapshot] = [:]
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneProtectionDuration: TimeInterval = 1.0
+    /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]

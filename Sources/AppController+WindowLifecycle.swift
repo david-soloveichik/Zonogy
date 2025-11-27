@@ -81,7 +81,7 @@ extension AppController {
         winShotManager.removeSnapshotsContaining(windowId: windowId)
 
         syncWindowsToZones()
-        activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "close")
+        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
         if let managed,
            case .accessibility(_, let pid, _) = managed.backing {
@@ -109,7 +109,7 @@ extension AppController {
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize", retarget: true)
         syncWindowsToZones()
 
-        activeFitClearForWindowIfNeeded(windowId: windowId, restoreToZone: false, reason: "miniaturize")
+        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "miniaturize")
         activeFitClearSuppressionForWindow(windowId)
         if let managed,
            case .accessibility(_, let pid, _) = managed.backing {

@@ -150,7 +150,7 @@ extension AppController {
             }
             return nil
         }()
-        scheduleActiveFitSuppression(windowIds: [managed.windowId], evaluateActiveFitFor: activeWindowId)
+        scheduleActiveFitSuppression(windowIds: [managed.windowId], evaluateRevealModeFor: activeWindowId)
 
         let key = snapshot.zoneKey
         guard let context = screenContexts[key.screenId] else {

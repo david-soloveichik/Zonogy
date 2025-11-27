@@ -760,8 +760,8 @@ extension AppController {
         Logger.debug("Zone resize drag began on screen \(screenId) separator \(separatorIndex)")
         zoneResizeDragInProgress = true
         activeFitZoneResizeLoggedWindowIds.removeAll()
-        // Snap any ActiveFit window back to its zone-aligned position before live resizing.
-        activeFitDeactivate(reason: "zone-resize-begin")
+        // Return any window in reveal mode to rest mode before live resizing.
+        exitRevealMode(reason: "zone-resize-begin")
     }
 
     internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
@@ -824,7 +824,7 @@ extension AppController {
 
                 if let state = activeState,
                    state.zoneKey.screenId == screenId {
-                    let activeFrame = state.appliedFrame.standardized
+                    let activeFrame = state.revealFrame.standardized
 
                     switch sep.orientation {
                     case .vertical:
@@ -1009,13 +1009,13 @@ extension AppController {
 
             minimizeWindowProgrammatically(managed, reason: "cursor-shortcut-minimize")
 
-            // Mirror Cmd-M behavior: explicitly update zones and ActiveFit state.
+            // Mirror Cmd-M behavior: explicitly update zones and clear reveal mode state.
             removeWindowFromAllZones(windowId: managed.windowId, reason: "cursor-shortcut-minimize", retarget: true)
             syncWindowsToZones()
 
-            activeFitClearForWindowIfNeeded(
+            clearRevealModeForWindow(
                 windowId: managed.windowId,
-                restoreToZone: false,
+                transitionToRest: false,
                 reason: "cursor-shortcut-minimize"
             )
             activeFitClearSuppressionForWindow(managed.windowId)
@@ -1377,8 +1377,8 @@ extension AppController {
         removeWindowFromAllZones(windowId: managed.windowId, reason: "cmd-m-minimize", retarget: true)
         syncWindowsToZones()
 
-        // Clear ActiveFit state if needed
-        activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "cmd-m-minimize")
+        // Clear reveal mode state if needed (window is being minimized, no rest transition needed)
+        clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "cmd-m-minimize")
         activeFitClearSuppressionForWindow(managed.windowId)
     }
 

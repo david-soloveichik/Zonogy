@@ -1,8 +1,20 @@
 import CoreGraphics
 
-/// Computes whether an oversized zone occupant should be translated so its full frame fits on screen.
+/// Computes whether an oversized zone occupant qualifies for ActiveFit reveal mode.
+///
+/// ActiveFit has two modes:
+/// - **Rest mode**: Window is anchored to zone origin; may overflow off-screen (default state).
+/// - **Reveal mode**: Window is shifted so entire frame fits on screen (when window is active).
+///
+/// This policy determines the reveal frame for windows that would overflow in rest mode.
 enum ActiveFitPolicy {
-    /// Returns a frame that keeps the window wholly inside the screen, or `nil` if no translation is required.
+    /// Computes the reveal mode frame for a window, or `nil` if no translation is needed.
+    ///
+    /// When a window in zone 2 or 3 would overflow the screen bounds in rest mode (anchored at
+    /// zone origin), this method calculates the shifted position that keeps it fully visible.
+    ///
+    /// - Returns: The reveal frame if the window qualifies for reveal mode, or `nil` if the
+    ///   window fits on screen in rest mode and no translation is required.
     static func revealFrameIfNeeded(
         zoneIndex: Int,
         zoneOrigin: CGPoint,

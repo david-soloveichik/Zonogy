@@ -187,7 +187,7 @@ extension AppController {
         }
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
-        activeFitClearForWindowIfNeeded(windowId: managed.windowId, restoreToZone: false, reason: "assignment-cleared")
+        clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "assignment-cleared")
         activeFitClearSuppressionForWindow(managed.windowId)
     }
 
