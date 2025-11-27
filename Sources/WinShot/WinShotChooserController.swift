@@ -236,8 +236,13 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
     func chooserView(_ view: WinShotChooserView, didSelect snapshotId: UUID) {
         // Click on snapshot triggers immediate restoration
+        // Dispatch restoration asynchronously so the window hides immediately
+        let snapshotIdToRestore = snapshotId
         hide()
-        delegate?.chooserController(self, didSelect: snapshotId)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.chooserController(self, didSelect: snapshotIdToRestore)
+        }
     }
 
     deinit {
