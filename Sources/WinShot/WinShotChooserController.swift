@@ -21,9 +21,9 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     private let modifierMonitor = WinShotModifierMonitor()
     private var keyMonitor: Any?
     private var clickMonitor: Any?
-    private var currentScreenId: CGDirectDisplayID?
 
     private(set) var isActive = false
+    private(set) var currentScreenId: CGDirectDisplayID?
 
     init() {
         modifierMonitor.delegate = self
@@ -98,6 +98,37 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     /// Cycle to the previous snapshot
     func cyclePrevious() {
         chooserView?.selectPrevious()
+    }
+
+    /// Refresh the chooser with updated snapshots (called when snapshots change while chooser is open)
+    func refreshSnapshots(_ snapshots: [WinShotSnapshot]) {
+        guard isActive, let screenId = currentScreenId else { return }
+
+        if snapshots.isEmpty {
+            Logger.debug("WinShot: Closing chooser - no snapshots remaining")
+            cancel()
+            return
+        }
+
+        // Preserve the currently selected snapshot ID if it still exists
+        let previousSelectedId = chooserView?.selectedSnapshotId
+
+        // Reconfigure the view
+        chooserView?.configure(with: snapshots)
+
+        // Try to restore selection to the same snapshot, or stay at current index
+        if let previousId = previousSelectedId,
+           let newIndex = snapshots.firstIndex(where: { $0.id == previousId }) {
+            chooserView?.selectIndex(newIndex)
+        }
+
+        // Resize window if snapshot count changed significantly
+        let windowSize = WinShotChooserView.preferredWindowSize(for: snapshots.count)
+        window?.setContentSize(windowSize)
+        chooserView?.frame = NSRect(origin: .zero, size: windowSize)
+        window?.centerOnScreen(screenId)
+
+        Logger.debug("WinShot: Chooser refreshed with \(snapshots.count) snapshot(s)")
     }
 
     // MARK: - Key Monitoring

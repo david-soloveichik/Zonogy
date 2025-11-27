@@ -104,6 +104,13 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         updateSelection()
     }
 
+    /// Select a specific index
+    func selectIndex(_ index: Int) {
+        guard index >= 0, index < thumbnailViews.count else { return }
+        selectedIndex = index
+        updateSelection()
+    }
+
     /// Returns the currently selected snapshot ID
     var selectedSnapshotId: UUID? {
         guard selectedIndex < thumbnailViews.count else { return nil }

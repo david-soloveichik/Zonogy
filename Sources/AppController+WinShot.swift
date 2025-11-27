@@ -24,7 +24,7 @@ extension AppController {
         // Determine active window ID
         let activeWindowId = resolveActiveWindowId(on: screenId)
 
-        return winShotManager.createSnapshot(
+        let snapshot = winShotManager.createSnapshot(
             screenId: screenId,
             zoneController: context.zoneController,
             windowController: windowController,
@@ -32,6 +32,13 @@ extension AppController {
             activeWindowId: activeWindowId,
             reason: reason
         )
+
+        // Refresh the WinShot chooser if it's open for this screen
+        if snapshot != nil {
+            refreshWinShotChooserIfNeeded(for: screenId)
+        }
+
+        return snapshot
     }
 
     /// Check if the screen has managed windows in zones (excluding placeholders)
@@ -76,6 +83,17 @@ extension AppController {
         }
 
         winShotChooserController.show(snapshots: snapshots, on: screenId)
+    }
+
+    /// Refresh the WinShot chooser if it's currently open for the given screen
+    internal func refreshWinShotChooserIfNeeded(for screenId: CGDirectDisplayID) {
+        guard winShotChooserController.isActive,
+              winShotChooserController.currentScreenId == screenId else {
+            return
+        }
+
+        let snapshots = winShotManager.snapshots(for: screenId)
+        winShotChooserController.refreshSnapshots(snapshots)
     }
 
     // MARK: - Snapshot Restoration
@@ -438,13 +456,9 @@ extension AppController: WinShotChooserControllerDelegate {
         winShotManager.deleteSnapshot(snapshotId)
         Logger.debug("WinShot: Deleted snapshot \(snapshotId)")
 
-        // Refresh the chooser if still active
-        if controller.isActive,
-           let screenId = screenContexts.keys.first(where: { winShotManager.hasSnapshots(for: $0) }) {
-            let snapshots = winShotManager.snapshots(for: screenId)
-            if !snapshots.isEmpty {
-                controller.show(snapshots: snapshots, on: screenId)
-            }
+        // Refresh the chooser if still active for the same screen
+        if let screenId = controller.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: screenId)
         }
     }
 

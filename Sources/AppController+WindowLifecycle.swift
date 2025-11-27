@@ -80,6 +80,11 @@ extension AppController {
         // WinShot: Remove any snapshots containing this window
         winShotManager.removeSnapshotsContaining(windowId: windowId)
 
+        // Refresh the WinShot chooser if it's open and snapshots were removed
+        if let chooserScreenId = winShotChooserController.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: chooserScreenId)
+        }
+
         syncWindowsToZones()
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
