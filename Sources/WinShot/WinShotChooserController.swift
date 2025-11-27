@@ -212,8 +212,14 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             return
         }
 
+        // Hide the window first, then dispatch restoration asynchronously
+        // so the window is fully off-screen before any screenshot capture
+        // (e.g., for pre-restore snapshots)
         hide()
-        delegate?.chooserController(self, didSelect: snapshotId)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.chooserController(self, didSelect: snapshotId)
+        }
     }
 
     // MARK: - WinShotModifierMonitorDelegate

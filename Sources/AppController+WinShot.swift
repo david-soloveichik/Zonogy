@@ -128,6 +128,14 @@ extension AppController {
             return
         }
 
+        // Auto-save current state before restoring, so user can return to it later.
+        // Only create if current windows differ from target snapshot to avoid
+        // the deduplication logic deleting our target snapshot.
+        let currentWindowIds = Set(collectCurrentWindows(on: screenId).map { $0.windowId })
+        if currentWindowIds != snapshot.allWindowIds {
+            createWinShotSnapshot(on: screenId, reason: "pre-restore")
+        }
+
         Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on screen \(screenId)")
 
         // Step 1: Identify current windows on this screen (excluding placeholders)
@@ -142,7 +150,18 @@ extension AppController {
         // Step 4: Restore zone configuration
         restoreZoneConfiguration(snapshot: snapshot, context: context)
 
-        // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
+        // Step 5: MINIMIZE PHASE - Minimize windows not in snapshot FIRST
+        // This must happen before unminimizing new windows to avoid the old windows
+        // briefly popping up in front of the new ones during minimize animation.
+        for window in windowsToMinimize {
+            minimizeWindowProgrammatically(window, reason: "winshot-restore")
+            // Explicitly remove the window from all zones (and any temporary zone)
+            // so that zones which are empty in the snapshot end up truly empty,
+            // allowing placeholders to be restored correctly.
+            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
+        }
+
+        // Step 6: PREP PHASE - Prepare all work items (find windows, remove from old locations)
         var zoneWorkItems: [ZoneRestoreWorkItem] = []
         var temporaryWorkItem: TemporaryRestoreWorkItem?
 
@@ -235,15 +254,6 @@ extension AppController {
                 continue
             }
             windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
-        }
-
-        // Step 9: MINIMIZE PHASE - Minimize windows not in snapshot in parallel
-        for window in windowsToMinimize {
-            minimizeWindowProgrammatically(window, reason: "winshot-restore")
-            // Explicitly remove the window from all zones (and any temporary zone)
-            // so that zones which are empty in the snapshot end up truly empty,
-            // allowing placeholders to be restored correctly.
-            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
         }
 
         // Step 10: Sync and refresh
