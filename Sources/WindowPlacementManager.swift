@@ -125,16 +125,6 @@ class WindowPlacementManager {
             return
         }
 
-        if let temporaryScreenId = delegate.targetedTemporaryScreenId {
-            delegate.assignWindowToTemporaryZone(
-                managed,
-                on: temporaryScreenId,
-                centerWindow: true,
-                reason: "zone-removal-temporary"
-            )
-            return
-        }
-
         Logger.debug("Zone removal minimizing window \(managed.windowId); no available zone without displacement")
         delegate.clearManagedWindowZone(managed)
         delegate.minimizeWindowProgrammatically(managed, reason: "zone-removal-no-destination")
