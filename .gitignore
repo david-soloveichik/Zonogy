@@ -37,5 +37,6 @@ Brewfile.lock.json
 .swiftpm-cache/
 
 PLANNING/
+EXPERIMENTS/
 log.txt
 time_travel_log.txt
