@@ -108,26 +108,19 @@ extension AppController {
         handleApplicationTermination(application)
     }
 
-    func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
-        Logger.debug("SystemEventMonitor: NSWorkspace.willSleepNotification received")
-        handleWorkspaceWillSleep()
+    func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor) {
+        Logger.debug("SystemEventMonitor: NSWorkspace.screensDidSleepNotification received")
+        handleScreensDidSleep()
     }
 
-    func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
-        Logger.debug("SystemEventMonitor: NSWorkspace.didWakeNotification received")
-        handleWorkspaceDidWake()
+    func systemEventMonitorScreensDidWake(_ monitor: SystemEventMonitor) {
+        Logger.debug("SystemEventMonitor: NSWorkspace.screensDidWakeNotification received")
+        handleScreensDidWake()
     }
 
     private func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
-
-            if self.sleepWakeCycle {
-                Logger.debug(
-                    "Skipping \(reason) recapture after \(delay)s because sleepWakeCycle is active"
-                )
-                return
-            }
 
             Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
 

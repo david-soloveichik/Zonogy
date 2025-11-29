@@ -1,81 +1,39 @@
 import Foundation
 import AppKit
 
-/// Sleep/wake pipeline: event gating, topology refresh, and aggressive minimization.
+/// Sleep/wake pipeline: topology refresh and aggressive minimization.
 extension AppController {
     // MARK: - Public entry points from SystemEventMonitor
 
-    internal func handleWorkspaceWillSleep() {
+    internal func handleScreensDidSleep() {
         let (managedWindowCount, placeholderCount) = currentWindowCounts()
-
-        if sleepWakeCycle {
-            Logger.debug(
-                "SleepWake: NSWorkspace.willSleep received while cycle already active - ignoring " +
-                "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
-            )
-            return
-        }
-
         Logger.debug(
-            "SleepWake: entering sleepWakeCycle on willSleep " +
+            "SleepWake: screensDidSleep received " +
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
-
-        // Mark cycle active and clear any prior state.
-        sleepWakeCycle = true
-        sleepWakeTimer?.cancel()
-        sleepWakePassWorkItem?.cancel()
-        sleepWakeTimer = nil
-        sleepWakePassWorkItem = nil
-        sleepWakePreSleepScreenIds = Set(screenContexts.keys)
-        sleepWakeRemainingScreenIds.removeAll()
-        sleepWakeExpectedZoneWindowIds.removeAll()
-        sleepWakeRestoredWindowIds.removeAll()
-        sleepWakeSyncPerformed = false
-
-        if sleepWakePreSleepScreenIds.isEmpty {
-            Logger.debug("SleepWake: pre-sleep screen set is empty (unexpected)")
-        } else {
-            let indices = sleepWakePreSleepScreenIds
-                .map { screenContextStore.loggingIndex(for: $0) }
-                .sorted()
-            Logger.debug("SleepWake: pre-sleep screens: \(indices)")
-        }
+        screensAsleep = true
+        validationRetryManager.cancelAllValidationRetries()
     }
 
-    internal func handleWorkspaceDidWake() {
+    internal func handleScreensDidWake() {
         let (managedWindowCount, placeholderCount) = currentWindowCounts()
-
-        guard sleepWakeCycle else {
-            Logger.debug(
-                "SleepWake: NSWorkspace.didWake received with no active cycle - treating as spurious " +
-                "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
-            )
-            return
-        }
-
         Logger.debug(
-            "SleepWake: didWake received - scheduling wake timer (0.5s) " +
-            "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
+            "SleepWake: screensDidWake received " +
+            "(managed: \(managedWindowCount), placeholders: \(placeholderCount)), " +
+            "scheduling wake pipeline in 5s"
         )
-
-        sleepWakeTimer?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            guard self.sleepWakeCycle else {
-                Logger.debug("SleepWake: wake timer fired but sleepWakeCycle is false; aborting wake pipeline")
-                return
-            }
-            self.startSleepWakePasses()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.executeSleepWakePipeline()
         }
-        sleepWakeTimer = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
 
     // MARK: - Core wake pipeline
 
-    private func startSleepWakePasses() {
-        Logger.debug("SleepWake: wake timer fired - rebuilding screen topology and preparing passes")
+    private func executeSleepWakePipeline() {
+        Logger.debug("SleepWake: starting wake pipeline - rebuilding screen topology")
+
+        // Capture pre-wake screen set for comparison.
+        let preSleepScreenIds = Set(screenContexts.keys)
 
         // Recompute current screen topology.
         let screens = NSScreen.screens
@@ -98,15 +56,15 @@ extension AppController {
         }
 
         let currentScreenIds = Set(screenContexts.keys)
-        sleepWakeRemainingScreenIds = sleepWakePreSleepScreenIds.intersection(currentScreenIds)
-        let removedSinceSleep = sleepWakePreSleepScreenIds.subtracting(currentScreenIds)
+        let remainingScreenIds = preSleepScreenIds.intersection(currentScreenIds)
+        let removedSinceSleep = preSleepScreenIds.subtracting(currentScreenIds)
 
-        if sleepWakeRemainingScreenIds.isEmpty {
+        if remainingScreenIds.isEmpty {
             Logger.debug(
                 "SleepWake: no remaining screens intersect pre-sleep set; all eligible windows will be minimized"
             )
         } else {
-            let indices = sleepWakeRemainingScreenIds
+            let indices = remainingScreenIds
                 .map { screenContextStore.loggingIndex(for: $0) }
                 .sorted()
             Logger.debug(
@@ -121,26 +79,33 @@ extension AppController {
             Logger.debug("SleepWake: screens removed since sleep: \(indices)")
         }
 
-        prepareSleepWakeExpectedZoneWindows()
+        // Collect windows that belong to zones on remaining screens.
+        let expectedZoneWindowIds = collectExpectedZoneWindowIds(remainingScreenIds: remainingScreenIds)
 
         Logger.debug(
-            "SleepWake: starting enumeration passes with " +
-            "\(sleepWakeExpectedZoneWindowIds.count) window(s) in zones on " +
-            "\(sleepWakeRemainingScreenIds.count) remaining screen(s)"
+            "SleepWake: starting enumeration with " +
+            "\(expectedZoneWindowIds.count) window(s) in zones on " +
+            "\(remainingScreenIds.count) remaining screen(s)"
         )
 
-        // Run passes serially with delays between them: first immediately, then
-        // after 0.5s, 0.5s, 1.0s, 1.0s, 2.0s, 2.0s (relative to the previous pass).
-        runSleepWakePass(passIndex: 0, remainingDelays: [0.5, 0.5, 1.0, 1.0, 2.0, 2.0])
+        // Execute enumeration pass.
+        let restoredWindowIds = executeSleepWakeEnumerationPass(
+            remainingScreenIds: remainingScreenIds,
+            expectedZoneWindowIds: expectedZoneWindowIds
+        )
+
+        // Purge unrestored windows from zones and sync.
+        finalizeSleepWakeSync(
+            expectedZoneWindowIds: expectedZoneWindowIds,
+            restoredWindowIds: restoredWindowIds
+        )
     }
 
-    private func prepareSleepWakeExpectedZoneWindows() {
-        sleepWakeExpectedZoneWindowIds.removeAll()
-        sleepWakeRestoredWindowIds.removeAll()
-        sleepWakeSyncPerformed = false
+    private func collectExpectedZoneWindowIds(remainingScreenIds: Set<CGDirectDisplayID>) -> Set<Int> {
+        var expectedIds: Set<Int> = []
 
         // Collect non-placeholder windows assigned to zones on remaining screens.
-        for screenId in sleepWakeRemainingScreenIds {
+        for screenId in remainingScreenIds {
             guard let context = screenContexts[screenId] else {
                 continue
             }
@@ -150,55 +115,26 @@ extension AppController {
                       !managed.isPlaceholder else {
                     continue
                 }
-                sleepWakeExpectedZoneWindowIds.insert(windowId)
+                expectedIds.insert(windowId)
             }
         }
 
         // Also treat temporary-zone occupants on remaining screens as "expected".
-        for screenId in sleepWakeRemainingScreenIds {
+        for screenId in remainingScreenIds {
             if let occupant = temporaryZoneOccupant(on: screenId),
                !occupant.isPlaceholder {
-                sleepWakeExpectedZoneWindowIds.insert(occupant.windowId)
+                expectedIds.insert(occupant.windowId)
             }
         }
-    }
 
-    private func runSleepWakePass(passIndex: Int, remainingDelays: [TimeInterval]) {
-        let isLastPass = remainingDelays.isEmpty
-        Logger.debug(
-            "SleepWake: starting enumeration pass \(passIndex + 1) " +
-            "(sleepWakeCycle=\(sleepWakeCycle), last=\(isLastPass))"
-        )
-
-        executeSleepWakeEnumerationPass(passIndex: passIndex, isLastPass: isLastPass)
-
-        // Schedule the next pass if any remain. We continue running passes even
-        // after sleepWakeCycle becomes false so we can keep minimizing windows
-        // that are not part of any remaining-screen zone.
-        guard let nextDelay = remainingDelays.first else {
-            if !sleepWakeSyncPerformed {
-                Logger.debug(
-                    "SleepWake: all passes complete and sync not yet performed; " +
-                    "finalizing now from runSleepWakePass tail"
-                )
-                finalizeSleepWakeSync(context: "runSleepWakePass-tail")
-            } else {
-                Logger.debug("SleepWake: all passes complete; sync already performed earlier in cycle")
-            }
-            return
-        }
-
-        let delaysTail = Array(remainingDelays.dropFirst())
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.runSleepWakePass(passIndex: passIndex + 1, remainingDelays: delaysTail)
-        }
-        sleepWakePassWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + nextDelay, execute: workItem)
+        return expectedIds
     }
 
     /// Core enumeration pass implementing the "For eligible applications" loop.
-    private func executeSleepWakeEnumerationPass(passIndex: Int, isLastPass: Bool) {
+    private func executeSleepWakeEnumerationPass(
+        remainingScreenIds: Set<CGDirectDisplayID>,
+        expectedZoneWindowIds: Set<Int>
+    ) -> Set<Int> {
         let visibleBundleIds = bundleIdsWithVisibleWindows()
         let allApps = NSWorkspace.shared.runningApplications
 
@@ -207,14 +143,15 @@ extension AppController {
         }
 
         Logger.debug(
-            "SleepWake: pass \(passIndex + 1) - \(eligibleApps.count) eligible application(s), " +
+            "SleepWake: \(eligibleApps.count) eligible application(s), " +
             "\(visibleBundleIds.count) bundle(s) with visible windows"
         )
 
         var totalWindows = 0
         var minimizedCount = 0
         var alreadyMinimizedCount = 0
-        var restoredThisPass: Set<Int> = []
+        var restoredWindowIds: Set<Int> = []
+        var syncPerformed = false
 
         for application in eligibleApps {
             guard let bundleId = application.bundleIdentifier else {
@@ -233,7 +170,7 @@ extension AppController {
             }
 
             Logger.debug(
-                "SleepWake: pass \(passIndex + 1) - enumerated \(windows.count) window(s) for " +
+                "SleepWake: enumerated \(windows.count) window(s) for " +
                 "\(bundleId) (pid \(application.processIdentifier)), needsRetry=\(result.needsRetry)"
             )
 
@@ -245,12 +182,10 @@ extension AppController {
                     continue
                 }
 
-                if isWindowInRemainingZone(managed) {
+                if isWindowInRemainingZone(managed, remainingScreenIds: remainingScreenIds) {
                     // Mark as restored only if this window was expected.
-                    if sleepWakeExpectedZoneWindowIds.contains(managed.windowId) &&
-                        !sleepWakeRestoredWindowIds.contains(managed.windowId) {
-                        sleepWakeRestoredWindowIds.insert(managed.windowId)
-                        restoredThisPass.insert(managed.windowId)
+                    if expectedZoneWindowIds.contains(managed.windowId) {
+                        restoredWindowIds.insert(managed.windowId)
                     }
                     continue
                 }
@@ -264,51 +199,49 @@ extension AppController {
                 minimizeWindowProgrammatically(managed, reason: "sleep-wake-minimize")
                 minimizedCount += 1
             }
+
+            // Check if all expected zone windows have been restored - perform early sync if so.
+            if !syncPerformed {
+                let allRestored = expectedZoneWindowIds.isEmpty ||
+                    restoredWindowIds.isSuperset(of: expectedZoneWindowIds)
+                if allRestored {
+                    Logger.debug(
+                        "SleepWake: all expected zone windows restored mid-enumeration; performing early sync"
+                    )
+                    syncWindowsToZones()
+                    screensAsleep = false
+                    syncPerformed = true
+                }
+            }
         }
 
         Logger.debug(
-            "SleepWake: pass \(passIndex + 1) complete - enumerated \(totalWindows) window(s), " +
+            "SleepWake: enumeration complete - enumerated \(totalWindows) window(s), " +
             "minimized \(minimizedCount) (already minimized \(alreadyMinimizedCount)), " +
-            "restored \(restoredThisPass.count) expected zone window(s) this pass " +
-            "(total restored \(sleepWakeRestoredWindowIds.count)/\(sleepWakeExpectedZoneWindowIds.count))"
+            "restored \(restoredWindowIds.count)/\(expectedZoneWindowIds.count) expected zone window(s)"
         )
 
-        // Decide whether to perform the sync/clear step for this cycle.
-        if !sleepWakeSyncPerformed {
-            let allRestored = sleepWakeExpectedZoneWindowIds.isEmpty ||
-                sleepWakeRestoredWindowIds.isSuperset(of: sleepWakeExpectedZoneWindowIds)
-
-            if allRestored {
-                Logger.debug(
-                    "SleepWake: all expected zone windows on remaining screens have been restored " +
-                    "by pass \(passIndex + 1); finalizing sync"
-                )
-                finalizeSleepWakeSync(context: "all-restored-pass-\(passIndex + 1)")
-            } else if isLastPass {
-                Logger.debug(
-                    "SleepWake: final pass reached with incomplete restores " +
-                    "(restored \(sleepWakeRestoredWindowIds.count)/\(sleepWakeExpectedZoneWindowIds.count)); " +
-                    "finalizing sync at final pass"
-                )
-                finalizeSleepWakeSync(context: "final-pass-\(passIndex + 1)")
-            }
-        }
+        return restoredWindowIds
     }
 
     /// Final step of the sleep/wake cycle: purge any unrecovered zone windows and sync.
-    private func finalizeSleepWakeSync(context: String) {
-        guard !sleepWakeSyncPerformed else {
-            Logger.debug("SleepWake: finalizeSleepWakeSync(\(context)) called but sync already performed; skipping")
+    private func finalizeSleepWakeSync(
+        expectedZoneWindowIds: Set<Int>,
+        restoredWindowIds: Set<Int>
+    ) {
+        // If sync was already performed during enumeration (early exit), skip.
+        guard screensAsleep || !restoredWindowIds.isSuperset(of: expectedZoneWindowIds) else {
+            Logger.debug("SleepWake: sync already performed during enumeration; skipping finalize")
             return
         }
 
-        let unrestored = sleepWakeExpectedZoneWindowIds.subtracting(sleepWakeRestoredWindowIds)
+        let unrestored = expectedZoneWindowIds.subtracting(restoredWindowIds)
         if unrestored.isEmpty {
-            Logger.debug("SleepWake: no unrestored expected zone windows to purge before sync (\(context))")
+            Logger.debug("SleepWake: no unrestored expected zone windows to purge before sync")
         } else {
             Logger.debug(
                 "SleepWake: purging \(unrestored.count) unrestored expected zone window(s) " +
-                "from internal zone model before sync (\(context))"
+                "from internal zone model before sync"
             )
             for windowId in unrestored {
                 // Remove from all zones without retargeting; we only want to drop
@@ -318,15 +251,26 @@ extension AppController {
         }
 
         syncWindowsToZones()
-        sleepWakeCycle = false
-        sleepWakeSyncPerformed = true
+        screensAsleep = false
+    }
+
+    // MARK: - Event gating helper
+
+    /// Returns true when events should be ignored due to screens being asleep.
+    /// Call this at the top of delegate handlers that respond to external notifications.
+    internal func shouldIgnoreDueToSleepWake(event: String) -> Bool {
+        guard screensAsleep else {
+            return false
+        }
+        Logger.debug("SleepWake: ignoring \(event) because screens are asleep")
+        return true
     }
 
     /// Determines whether a managed window is considered "in a zone" on one of the
     /// remaining screens (either as a tiled zone occupant or as a temporary-zone occupant).
-    private func isWindowInRemainingZone(_ managed: ManagedWindow) -> Bool {
+    private func isWindowInRemainingZone(_ managed: ManagedWindow, remainingScreenIds: Set<CGDirectDisplayID>) -> Bool {
         guard let screenId = managed.screenDisplayId,
-              sleepWakeRemainingScreenIds.contains(screenId) else {
+              remainingScreenIds.contains(screenId) else {
             return false
         }
 
@@ -340,18 +284,5 @@ extension AppController {
         }
 
         return false
-    }
-
-    // MARK: - Event gating helper
-
-    /// Returns true when non-sleep/wake events should be ignored due to an active
-    /// sleep/wake cycle. Call this at the top of delegate handlers that respond
-    /// to external notifications (window events, workspace events, display changes).
-    internal func shouldIgnoreDueToSleepWake(event: String) -> Bool {
-        guard sleepWakeCycle else {
-            return false
-        }
-        Logger.debug("SleepWake: ignoring \(event) because sleepWakeCycle is active")
-        return true
     }
 }

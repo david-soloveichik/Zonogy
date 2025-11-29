@@ -45,26 +45,26 @@ final class SystemEventMonitor {
     private func installWorkspaceObservers() {
         let center = NSWorkspace.shared.notificationCenter
 
-        // Sleep/Wake notifications
-        let willSleep = center.addObserver(
-            forName: NSWorkspace.willSleepNotification,
+        // Screen sleep/wake notifications
+        let screensDidSleep = center.addObserver(
+            forName: NSWorkspace.screensDidSleepNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            self.delegate?.systemEventMonitorWillSleep(self)
+            self.delegate?.systemEventMonitorScreensDidSleep(self)
         }
-        workspaceObservers.append(willSleep)
+        workspaceObservers.append(screensDidSleep)
 
-        let didWake = center.addObserver(
-            forName: NSWorkspace.didWakeNotification,
+        let screensDidWake = center.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            self.delegate?.systemEventMonitorDidWake(self)
+            self.delegate?.systemEventMonitorScreensDidWake(self)
         }
-        workspaceObservers.append(didWake)
+        workspaceObservers.append(screensDidWake)
 
         // Screen configuration changes
         let screenChanged = center.addObserver(
@@ -157,7 +157,7 @@ protocol SystemEventMonitorDelegate: AnyObject {
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?)
-    func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor)
-    func systemEventMonitorDidWake(_ monitor: SystemEventMonitor)
+    func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor)
+    func systemEventMonitorScreensDidWake(_ monitor: SystemEventMonitor)
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor)
 }

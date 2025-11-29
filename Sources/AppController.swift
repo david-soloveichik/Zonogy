@@ -91,25 +91,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var manualResizeDetachedWindowIds: Set<Int> = []
 
     // MARK: - Sleep/Wake State
-    /// True between NSWorkspace.willSleepNotification and completion of the wake pipeline.
-    /// When true, we aggressively ignore most external notifications to avoid reacting
-    /// to noisy events while the system is transitioning between sleep and wake.
-    internal var sleepWakeCycle: Bool = false
-    /// Timer that delays the start of the wake pipeline to filter out spurious
-    /// didWake/willSleep pairs and allow Accessibility to stabilize.
-    internal var sleepWakeTimer: DispatchWorkItem?
-    /// Work item for the next scheduled sleep/wake enumeration pass.
-    internal var sleepWakePassWorkItem: DispatchWorkItem?
-    /// Screens that were present at the time of willSleep.
-    internal var sleepWakePreSleepScreenIds: Set<CGDirectDisplayID> = []
-    /// Screens that are still present after wake (intersection of pre-sleep and post-wake).
-    internal var sleepWakeRemainingScreenIds: Set<CGDirectDisplayID> = []
-    /// Windows that belonged to zones on remaining screens at the start of the wake pipeline.
-    internal var sleepWakeExpectedZoneWindowIds: Set<Int> = []
-    /// Subset of expected zone windows that have been observed as "restored" during wake passes.
-    internal var sleepWakeRestoredWindowIds: Set<Int> = []
-    /// Ensures we only perform the sync/clear step once per sleep/wake cycle.
-    internal var sleepWakeSyncPerformed: Bool = false
+    /// True between screensDidSleepNotification and completion of the wake pipeline.
+    /// When true, we ignore all external events to avoid reacting to AX errors
+    /// during the sleep/wake transition.
+    internal var screensAsleep: Bool = false
 
     // MARK: - ActiveFit State (reveal mode vs rest mode)
     /// Tolerance in pixels for determining if a window overflows in rest mode and needs reveal mode.

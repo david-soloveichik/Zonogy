@@ -93,6 +93,17 @@ class ValidationRetryManager {
         retry.workItem?.cancel()
     }
 
+    func cancelAllValidationRetries() {
+        for (_, retry) in validationRetries {
+            retry.workItem?.cancel()
+        }
+        let count = validationRetries.count
+        validationRetries.removeAll()
+        if count > 0 {
+            Logger.debug("Cancelled \(count) pending validation retry/retries")
+        }
+    }
+
     // MARK: - Private Implementation
 
     private func scheduleValidationRetry(for pid: pid_t, reason: String) {
