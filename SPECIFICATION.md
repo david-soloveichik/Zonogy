@@ -225,6 +225,8 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 
 **Screen detection:** Matches Amethyst: calculate each window's frame overlap with every screen via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing screen if no overlap).
 
+**Display removal:** When a display is disconnected or otherwise disappears from `NSScreen.screens`, minimize every non-placeholder managed window that was on that display (instead of reassigning it to another screen). Close any placeholders tied to the removed display.
+
 ### WinShot Snapshots
 
 WinShot allows users to save and restore window arrangement snapshots. Unlike virtual screens, the same window can appear in multiple snapshots.

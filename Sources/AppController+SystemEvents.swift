@@ -286,32 +286,29 @@ extension AppController {
 
     private func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext]) {
         for entry in removed {
-            placeholderCoordinator.clearMappingsForScreen(entry.displayId)
-            let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == entry.displayId }
+            let displayId = entry.displayId
+
+            // Clear any placeholder bookkeeping tied to this display.
+            placeholderCoordinator.clearMappingsForScreen(displayId)
+
+            // Close all placeholder windows that were on the removed display.
+            let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == displayId }
             for placeholder in placeholders {
-                Logger.debug("Closing placeholder \(placeholder.windowId) for removed screen \(entry.displayId)")
+                Logger.debug("Closing placeholder \(placeholder.windowId) for removed screen \(displayId)")
                 windowController.closeWindow(placeholder)
                 placeholderCoordinator.forget(windowId: placeholder.windowId)
             }
+
             let zoneCount = entry.context.zoneController.allZones.count
-            Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [\(entry.displayId)] with \(zoneCount) zone(s)")
+            Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [\(displayId)] with \(zoneCount) zone(s)")
 
-            for zone in entry.context.zoneController.allZones {
-                guard let windowId = zone.windowId,
-                      let managed = windowController.window(withId: windowId) else {
-                    continue
-                }
-
-                if managed.isPlaceholder {
-                    Logger.debug("Closing placeholder \(managed.windowId) tied to removed screen \(entry.displayId)")
-                    windowController.closeWindow(managed)
-                    placeholderCoordinator.forget(windowId: managed.windowId)
-                    continue
-                }
-
-                Logger.debug("Reassigning window \(managed.windowId) from removed screen \(entry.displayId)")
+            // Minimize every non-placeholder managed window that was on the removed display,
+            // instead of reassigning it to another screen.
+            let windowsOnDisplay = windowController.allWindows.filter { !$0.isPlaceholder && $0.screenDisplayId == displayId }
+            for managed in windowsOnDisplay {
+                Logger.debug("Minimizing window \(managed.windowId) from removed screen \(displayId) due to display-removal policy")
                 clearManagedWindowZone(managed)
-                windowPlacementManager.placeNewWindow(managed, preferredScreenId: activeScreenId())
+                minimizeWindowProgrammatically(managed, reason: "display-removal")
             }
         }
     }
