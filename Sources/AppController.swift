@@ -91,6 +91,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var manualResizeDetachedWindowIds: Set<Int> = []
 
     // MARK: - Sleep/Wake State
+    /// Timer used to poll for wake readiness (display awake + session unlocked).
+    internal var wakeReadinessTimer: DispatchSourceTimer?
     /// True between screensDidSleepNotification and completion of the wake pipeline.
     /// When true, we ignore all external events to avoid reacting to AX errors
     /// during the sleep/wake transition.

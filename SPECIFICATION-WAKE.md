@@ -9,19 +9,24 @@ Based on testing, it is safe to assume that CGWindowID is preserved between slee
 We track sleep/wake state with a single flag:
 - `screensAsleep` (bool): true between `screensDidSleepNotification` and completion of the wake pipeline.
 
-When `screensAsleep = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events). This prevents AX errors during the sleep/wake transition from incorrectly pruning window references.
+When `screensAsleep = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events). This prevents AX errors during the wake => sleep transition from incorrectly pruning window references. [workaround #1]
 
 ## Going to sleep
 
 Triggered by: `NSWorkspace.screensDidSleepNotification`.
 
-Set `screensAsleep = true` and cancel all pending validation retries.
+Set `screensAsleep = true` and *cancel all pending validation retries* elsewhere in the code. (We also cancel any timers related to wake functionality to avoid potential issues.)
 
 ## Waking up
 
 Triggered by: `NSWorkspace.screensDidWakeNotification`.
 
-Our big picture goal is to minimize the windows on screen that were possibly disconnected during sleep. After a 5 second delay (to let the Accessibility API stabilize), we recompute the current screen topology (e.g., via `NSScreen.screens` / `screenContextStore` rebuild). A screen is considered a *remaining* screen if it still exists. If there is no intersection between pre-sleep and post-wake screens, then all eligible windows will be minimized.
+When we receive this notifications, it's still possible that the screen is not ready and things like _AXUIElementGetWindow will err. We will wait for the following check to pass:
+    - Is the Display Asleep? (CGDisplayIsAsleep) => must not be
+    - Is the Screen Locked? (CGSSessionScreenIsLocked) => must not be
+We poll at 0.5 increments until this passes. [workaround #2]
+
+Now our big picture goal is to minimize the windows on screen that were possibly disconnected during sleep. We recompute the current screen topology (e.g., via `NSScreen.screens` / `screenContextStore` rebuild). A screen is considered a *remaining* screen if it still exists. If there is no intersection between pre-sleep and post-wake screens, then all eligible windows will be minimized.
 
 For eligible applications (using normal rules):  // Fresh enumeration
     - For every eligible window A (using normal rules):

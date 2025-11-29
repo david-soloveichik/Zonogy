@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 
 /// Sleep/wake pipeline: topology refresh and aggressive minimization.
 extension AppController {
@@ -13,6 +14,7 @@ extension AppController {
         )
         screensAsleep = true
         validationRetryManager.cancelAllValidationRetries()
+        cancelWakeReadinessTimer()
     }
 
     internal func handleScreensDidWake() {
@@ -20,14 +22,73 @@ extension AppController {
         Logger.debug(
             "SleepWake: screensDidWake received " +
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount)), " +
-            "scheduling wake pipeline in 5s"
+            "starting wake readiness polling"
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            self?.executeSleepWakePipeline()
-        }
+        startWakeReadinessPolling()
     }
 
     // MARK: - Core wake pipeline
+
+    /// Polls for display and session readiness before running the wake pipeline.
+    /// Workaround #2 from SPECIFICATION-WAKE: wait until the primary display is awake
+    /// and the session is unlocked, polling in 0.5s increments.
+    private func startWakeReadinessPolling() {
+        cancelWakeReadinessTimer()
+
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
+
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+
+            // If we've already completed the wake pipeline (or weren't asleep), stop polling.
+            if !self.screensAsleep {
+                self.cancelWakeReadinessTimer()
+                return
+            }
+
+            if self.isWakeEnvironmentReady() {
+                Logger.debug("SleepWake: wake readiness checks passed; starting wake pipeline")
+                self.cancelWakeReadinessTimer()
+                self.executeSleepWakePipeline()
+            } else {
+                Logger.debug("SleepWake: wake readiness checks not yet satisfied; retrying in 0.5s")
+            }
+        }
+
+        wakeReadinessTimer = timer
+        timer.resume()
+    }
+
+    /// Cancels any in-flight wake readiness timer.
+    private func cancelWakeReadinessTimer() {
+        wakeReadinessTimer?.cancel()
+        wakeReadinessTimer = nil
+    }
+
+    /// Returns true when both the display and session are ready for Accessibility work.
+    /// - Display must not be asleep (CGDisplayIsAsleep == false)
+    /// - Session must not be locked (CGSSessionScreenIsLocked == false)
+    private func isWakeEnvironmentReady() -> Bool {
+        let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
+        let screenLocked = isScreenLocked()
+        return displayAwake && !screenLocked
+    }
+
+    /// Best-effort check for whether the session screen is locked using CGSessionCopyCurrentDictionary.
+    /// If the dictionary or key is unavailable, we conservatively assume the screen is unlocked to
+    /// avoid stalling the wake pipeline indefinitely.
+    private func isScreenLocked() -> Bool {
+        guard let sessionDict = CGSessionCopyCurrentDictionary() as? [String: Any] else {
+            Logger.debug("SleepWake: CGSessionCopyCurrentDictionary returned nil; treating session as unlocked")
+            return false
+        }
+        if let locked = sessionDict["CGSSessionScreenIsLocked"] as? Bool {
+            return locked
+        }
+        Logger.debug("SleepWake: CGSSessionScreenIsLocked key missing; treating session as unlocked")
+        return false
+    }
 
     private func executeSleepWakePipeline() {
         Logger.debug("SleepWake: starting wake pipeline - rebuilding screen topology")
