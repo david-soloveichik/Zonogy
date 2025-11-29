@@ -306,11 +306,7 @@ After the time travel log file is written, the log buffer should be cleared. Thi
 
 ### Sleep/Wake State Recovery
 
-macOS can destroy and recreate application windows when the computer sleeps. Zonogy must preserve its layout across those transitions:
-
-- **Temporary zone snapshot** – before sleep we record the floating window (bundle ID, CGWindowID, internal `windowId`, and title) for each screen's temporary zone. After wake we immediately reattach any returning window that matches the snapshot and keep it key/visible for a short protection window so newly recaptured tiled windows cannot minimize it.
-- **Per-zone snapshot** – before sleep we also snapshot every tiled zone using the zone's `screenId`+index together with the window's identifiers described above. When a window is recaptured during wake, we first check whether it matches a stored snapshot. If so we force-place it back into its remembered zone (evicting placeholders or temporary occupants as needed) before running the normal placement logic. This applies independently per screen, so multi-display layouts are preserved exactly.
-- **Multiple wake passes** – because Accessibility events can arrive slowly after wake, we replay the snapshot data immediately after the first sync *and* again after each scheduled recapture (0.5 s, 1.5 s, 3.0 s) so late-arriving windows still land in their original zones. Snapshots are cleared only after the matching window successfully returns to its zone.
+The sleep/wake behavior and recovery pipeline are specified in `SPECIFICATION-WAKE.md`. This main specification only references it at a high level; all detailed rules, timing, and edge cases for sleep/wake live in that dedicated document.
 
 ### External Tool: `winmanmon`
 

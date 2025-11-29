@@ -58,6 +58,9 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
+            return
+        }
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
             handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
@@ -71,67 +74,60 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didLaunchApplicationNotification") {
+            return
+        }
         handleApplicationEvent(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didUnhide application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didUnhideApplicationNotification") {
+            return
+        }
         handleApplicationEvent(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didDeactivateApplicationNotification") {
+            return
+        }
         handleApplicationStateChange(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didHideApplicationNotification") {
+            return
+        }
         handleApplicationStateChange(application)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?) {
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didTerminateApplicationNotification") {
+            return
+        }
         handleApplicationTermination(application)
     }
 
     func systemEventMonitorWillSleep(_ monitor: SystemEventMonitor) {
-        let (managedWindowCount, placeholderCount) = currentWindowCounts()
-        Logger.debug("System will sleep - current state: \(managedWindowCount) managed windows, \(placeholderCount) placeholders")
-        snapshotTemporaryZoneOccupants(reason: "sleep")
-        snapshotZoneAssignments(reason: "sleep")
+        Logger.debug("SystemEventMonitor: NSWorkspace.willSleepNotification received")
+        handleWorkspaceWillSleep()
     }
 
     func systemEventMonitorDidWake(_ monitor: SystemEventMonitor) {
-        let (initialManagedCount, initialPlaceholderCount) = currentWindowCounts()
-        Logger.debug("System did wake - initial state: \(initialManagedCount) managed windows, \(initialPlaceholderCount) placeholders - scheduling delayed window recapture")
-
-        // First, validate and prune any destroyed windows from existing managed windows
-        var pidsToValidate = Set<pid_t>()
-        for window in windowController.allWindows {
-            if case .accessibility(_, let pid, _) = window.backing {
-                pidsToValidate.insert(pid)
-            }
-        }
-
-        Logger.debug("Validating \(pidsToValidate.count) PIDs from existing managed windows")
-        for pid in pidsToValidate {
-            let pruned = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "system-wake-validation")
-            if !pruned.isEmpty {
-                Logger.debug("Pruned \(pruned.count) destroyed windows for pid \(pid)")
-            }
-        }
-
-        // Force immediate sync to ensure placeholders are shown
-        syncWindowsToZones()
-        restoreTemporaryZoneOccupantsFromExistingWindows(reason: "wake-existing")
-        restoreZoneAssignmentsFromExistingWindows(reason: "wake-existing")
-
-        // Schedule window recapture after a delay to allow the Accessibility API to stabilize
-        // We use multiple attempts with increasing delays to handle different wake scenarios
-        scheduleWindowRecapture(delay: 0.5, reason: "wake")
-        scheduleWindowRecapture(delay: 1.5, reason: "wake")
-        scheduleWindowRecapture(delay: 3.0, reason: "wake")
+        Logger.debug("SystemEventMonitor: NSWorkspace.didWakeNotification received")
+        handleWorkspaceDidWake()
     }
 
     private func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
+
+            if self.sleepWakeCycle {
+                Logger.debug(
+                    "Skipping \(reason) recapture after \(delay)s because sleepWakeCycle is active"
+                )
+                return
+            }
 
             Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
 
@@ -172,6 +168,9 @@ extension AppController {
     }
 
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor) {
+        if shouldIgnoreDueToSleepWake(event: "NSApplication.didChangeScreenParametersNotification") {
+            return
+        }
         Logger.debug("Screen configuration change notification received from AppKit")
         scheduleScreenTopologyRefresh(reason: "appkit-notification")
     }
@@ -179,6 +178,9 @@ extension AppController {
     // MARK: - DisplayReconfigurationMonitorDelegate
 
     func displayMonitor(_ monitor: DisplayReconfigurationMonitor, didObserve event: DisplayReconfigurationMonitor.Event) {
+        if shouldIgnoreDueToSleepWake(event: "CGDisplayReconfigurationCallback") {
+            return
+        }
         var components: [String] = []
         if event.isAdd { components.append("add") }
         if event.isRemove { components.append("remove") }

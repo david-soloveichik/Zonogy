@@ -66,6 +66,9 @@ extension AppController {
     }
 
     func windowWillClose(windowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowWillClose(\(windowId))") {
+            return
+        }
         Logger.debug("Window \(windowId) will close")
         manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
@@ -99,6 +102,9 @@ extension AppController {
     }
 
     func windowDidMiniaturize(windowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowDidMiniaturize(\(windowId))") {
+            return
+        }
         Logger.debug("Window \(windowId) did miniaturize")
         manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
@@ -127,6 +133,9 @@ extension AppController {
     }
 
     func windowDidDeminiaturize(windowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowDidDeminiaturize(\(windowId))") {
+            return
+        }
         Logger.debug("Window \(windowId) did deminiaturize")
         if isEventSuppressed(windowId: windowId, event: .deminiaturized) {
             Logger.debug("Deminiaturize notification suppressed for window \(windowId)")
@@ -137,6 +146,9 @@ extension AppController {
     }
 
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "windowManualResizeDidEnd(\(windowId))") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
             return
         }
@@ -167,6 +179,9 @@ extension AppController {
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidBegin(\(windowId))") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-begin") {
             return
         }
@@ -195,6 +210,9 @@ extension AppController {
     }
 
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidUpdate(\(windowId))") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-update") {
             return
         }
@@ -206,6 +224,9 @@ extension AppController {
     }
 
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidEnd(\(windowId))") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
             return
         }
@@ -236,6 +257,9 @@ extension AppController {
     }
 
     func windowManualMoveDidAbort(windowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidAbort(\(windowId))") {
+            return
+        }
         if temporaryDragHandler.isActive {
             temporaryDragHandler.abortDrag()
             cancelTiledTemporaryConversionIfNeeded(windowId: windowId, reason: "temporary-drag-abort")
@@ -377,10 +401,16 @@ extension AppController {
     }
 
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {
+        if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
+            return
+        }
         windowPlacementManager.placeNewWindow(window)
     }
 
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {
+        if shouldIgnoreDueToSleepWake(event: "windowCreationFailedRetryNeeded(pid: \(pid))") {
+            return
+        }
         // When AXWindowCreated fires but we can't capture the window (likely due to .cannotComplete errors),
         // schedule a retry to attempt capturing windows for this PID again
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
