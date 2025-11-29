@@ -9,6 +9,10 @@ enum Logger {
     private static let bufferQueue = DispatchQueue(label: "com.zonogy.logger.buffer", qos: .utility)
     private static var recentEntries: [LogEntry] = []
 
+    static func clearLogFile() {
+        try? FileManager.default.removeItem(atPath: logPath)
+    }
+
     static func debug(_ message: String) {
         let timestamp = Date()
         let formatter = DateFormatter()

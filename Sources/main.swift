@@ -26,7 +26,8 @@ app.setActivationPolicy(.accessory)
 // Initialize the AppController singleton
 let appController = AppController.shared
 
-// Always enable file logging for debugging sleep/wake issues
+// Always enable file logging for debugging
+Logger.clearLogFile()   // Empty out the log file for a new session
 Logger.logToFile = true
 Logger.debug("Zonogy starting - logging to \(Logger.logPath)")
 
