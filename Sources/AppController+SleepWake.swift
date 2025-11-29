@@ -130,8 +130,8 @@ extension AppController {
         )
 
         // Run passes serially with delays between them: first immediately, then
-        // after 0.5s, then 0.5s, then 1.0s (relative to the previous pass).
-        runSleepWakePass(passIndex: 0, remainingDelays: [0.5, 0.5, 1.0])
+        // after 0.5s, 0.5s, 1.0s, 1.0s, 2.0s, 2.0s (relative to the previous pass).
+        runSleepWakePass(passIndex: 0, remainingDelays: [0.5, 0.5, 1.0, 1.0, 2.0, 2.0])
     }
 
     private func prepareSleepWakeExpectedZoneWindows() {
