@@ -290,6 +290,14 @@ When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we
 
 Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on Zonogy and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
 
+### Retry Mechanisms Tied to Accessibility
+
+Zonogy uses three narrowly scoped retry mechanisms to cope with AX timing and consistency issues: two are PID/application-scoped and one is per window. All of them are tied to concrete events (no global polling loops) and are explicitly cancelled when they are no longer needed or when the system goes to sleep.
+
+- **(Per-application) destroyed-window validation retries (PID-scoped):** After AX-relevant lifecycle events (window focus changes, application activation/deactivation/hide, screen-topology changes, REPL/socket “validate” commands), `ValidationRetryManager` schedules a short series of PID-scoped validation passes (≈0.2–3.2s backoff) when AX-based destroyed-window detection is inconclusive. These retries are cancelled when the process exits, when all windows are pruned, or when screens go to sleep (`handleScreensDidSleep` calls `cancelAllValidationRetries()`). See also §6 “Destroyed Window Detection” for a fuller description of this pipeline.
+- **(Per-application) AX window-capture retries (PID-scoped):** When `AXWindowCreated` notifications fail to yield a manageable window (e.g., transient AX errors), `WindowCapturePipeline` schedules a small number of delayed recapture attempts per PID using `cancelAllRetries()` to tear them down when captures succeed, the app exits, or the system goes to sleep.
+- **(Per-window) AX frame application retries:** When applying a zone-aligned frame via AX leaves a window off-screen or far from the requested geometry, `WindowController` schedules a one-shot delayed frame retry for that window. These per-window timers are cancelled whenever zone topology/geometry changes or when screens go to sleep so no stale frame targets are applied later.
+
 ## 8. Developer Tools
 
 ### REPL and Socket API

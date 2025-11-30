@@ -18,6 +18,9 @@ extension AppController {
             }
             return nil
         }
+        // Zone topology has changed; cancel any in-flight accessibility frame retries
+        // so they do not apply stale geometry.
+        windowController.cancelAllAccessibilityFrameRetries()
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
@@ -63,6 +66,10 @@ extension AppController {
         // Clear placeholder mappings for this screen since zones are being reindexed
         // This prevents stale mappings from causing duplicate placeholders
         placeholderCoordinator.clearMappingsForScreen(screenId)
+
+        // Zone topology has changed; cancel any in-flight accessibility frame retries
+        // so they do not apply stale geometry computed before the removal.
+        windowController.cancelAllAccessibilityFrameRetries()
 
         let currentTarget = targetedZoneKey
         var pendingTargetedKey: ZoneKey?
@@ -122,6 +129,9 @@ extension AppController {
         }
 
         if context.zoneController.resizeZone(at: index, to: frame) {
+            // Zone geometry changed; clear any pending accessibility frame retries
+            // since their targets were based on the previous layout.
+            windowController.cancelAllAccessibilityFrameRetries()
             syncWindowsToZones()
             if let updatedZone = context.zoneController.zone(at: index) {
                 print("Resized zone \(index) on \(context.descriptor.localizedName) to \(updatedZone.frame)")

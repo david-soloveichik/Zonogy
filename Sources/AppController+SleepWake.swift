@@ -15,6 +15,10 @@ extension AppController {
         screensAsleep = true
         validationRetryManager.cancelAllValidationRetries()
         cancelWakeReadinessTimer()
+        // Cancel any delayed accessibility frame retries so none fire while displays are asleep.
+        windowController.cancelAllAccessibilityFrameRetries()
+        // Cancel any pending window capture retries driven by AX notifications.
+        capturePipeline.cancelAllRetries()
     }
 
     internal func handleScreensDidWake() {

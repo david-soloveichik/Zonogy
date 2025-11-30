@@ -53,6 +53,7 @@ class WindowController {
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
     internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
+    internal var accessibilityFrameRetryWorkItems: [Int: DispatchWorkItem] = [:]
     internal var lastRequestedAppKitFrames: [Int: CGRect] = [:] // New: For AppKit windows, to avoid frame read race conditions
     internal var ignoredBundleIdentifiers: Set<String>
     internal var accessibilityPermissionWarningShown = false
@@ -103,6 +104,19 @@ class WindowController {
         }
         if let monitor = mouseUpGlobalMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    /// Cancel all scheduled accessibility frame retries and clear their bookkeeping.
+    func cancelAllAccessibilityFrameRetries() {
+        for (_, workItem) in accessibilityFrameRetryWorkItems {
+            workItem.cancel()
+        }
+        let count = accessibilityFrameRetryWorkItems.count
+        accessibilityFrameRetryWorkItems.removeAll()
+        pendingAccessibilityFrameRetryWindowIds.removeAll()
+        if count > 0 {
+            Logger.debug("Cancelled \(count) pending accessibility frame retry/retries")
         }
     }
 

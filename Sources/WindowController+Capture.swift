@@ -675,9 +675,16 @@ extension WindowController {
         pendingAccessibilityFrameRetryWindowIds.insert(windowId)
 
         let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+
+        // Cancel any existing work item for this window before scheduling a new one.
+        accessibilityFrameRetryWorkItems[windowId]?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
+
+            // Clear bookkeeping for this window's retry regardless of whether we proceed.
             self.pendingAccessibilityFrameRetryWindowIds.remove(windowId)
+            self.accessibilityFrameRetryWorkItems.removeValue(forKey: windowId)
 
             // Skip the delayed retry as well if a zone resize is still active.
             if self.delegate?.isZoneResizeDragInProgress() ?? false {
@@ -687,7 +694,7 @@ extension WindowController {
 
             // Check again at execution time in case ActiveFit was activated after scheduling
             if self.delegate?.isWindowManagedByActiveFit(windowId: windowId) ?? false {
-                Logger.debug("Skipping delayed retry execution for window \(windowId) - now managed by ActiveFit")
+                Logger.debug("Skipping delayed frame retry execution for window \(windowId) - now managed by ActiveFit")
                 return
             }
 
@@ -726,6 +733,9 @@ extension WindowController {
                 }
             }
         }
+
+        accessibilityFrameRetryWorkItems[windowId] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     /// Decide whether to set size or position first so intermediate frames stay on-screen when possible.
