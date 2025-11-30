@@ -864,8 +864,8 @@ extension AppController {
 
                     case .horizontal:
                         // Hide the separator between zones 2 and 3 (index 1) if it
-                        // would overlap an ActiveFit window in zone 3.
-                        if sep.index == 1, state.zoneKey.index == 3 {
+                        // would overlap an ActiveFit window in zone 2 or 3.
+                        if sep.index == 1, state.zoneKey.index >= 2 {
                             if frame.intersects(activeFrame) {
                                 continue
                             }
