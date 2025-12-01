@@ -71,6 +71,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         displacedWindowCoordinator: displacedWindowCoordinator
     )
     internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
+    /// Tracks screens where the single-zone placeholder has been temporarily hidden (UnderCovers mode).
+    internal var underCoversScreens: Set<CGDirectDisplayID> = []
     internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
@@ -200,6 +202,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
         self.windowController.delegate = self
+        self.windowController.placeholderButtonModeProvider = { [weak self] screenId, zoneIndex in
+            guard let self = self else { return .removeZone }
+            return self.placeholderButtonMode(for: screenId, zoneIndex: zoneIndex)
+        }
         self.indicatorManager.delegate = self
         self.temporaryIndicatorManager.delegate = self
         self.addZoneIndicatorManager.delegate = self

@@ -45,6 +45,9 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     )
     func handleTemporaryZoneRestorationIfNeeded(_ managed: ManagedWindow) -> Bool
     func handleZoneAssignmentRestorationIfNeeded(_ managed: ManagedWindow) -> Bool
+
+    // UnderCovers coordination
+    func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int)
 }
 
 class WindowPlacementManager {
@@ -305,6 +308,8 @@ class WindowPlacementManager {
         zoneWasEmptyBeforeAssignment: Bool
     ) {
         guard let delegate = delegate else { return }
+
+        delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
         let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
         let wasTargetedZone = delegate.targetedZoneManager.targetedZoneKey == filledZoneKey

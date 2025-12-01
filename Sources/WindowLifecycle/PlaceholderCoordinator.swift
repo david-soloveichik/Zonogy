@@ -20,7 +20,8 @@ final class PlaceholderCoordinator {
         existingWindows: [ManagedWindow],
         screenOrder: [CGDirectDisplayID],
         excludedZones: Set<ZoneKey>,
-        contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?
+        contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
+        shouldSuppressPlaceholder: (ZoneKey) -> Bool
     ) {
         // 1. Identify all currently known placeholder windows
         let allPlaceholders = existingWindows.filter { $0.isPlaceholder }
@@ -45,7 +46,7 @@ final class PlaceholderCoordinator {
             }
         }
         
-        // 3. Process each zone: Show, Hide, or Assign
+        // 3. Process each zone: Show, Hide, Assign, or Suppress (UnderCovers)
         for screenId in screenOrder {
             guard let context = contextProvider(screenId) else { continue }
             let zoneController = context.zoneController
@@ -65,8 +66,19 @@ final class PlaceholderCoordinator {
                     continue
                 }
 
-                // Case B: Zone is empty, needs a placeholder
+                // Case B: Zone is empty, may need a placeholder unless suppressed (e.g., UnderCovers)
                 let displayFrame = context.displayFrame(for: zone)
+
+                // UnderCovers and other suppression: ensure any existing placeholder is hidden and not recreated.
+                if shouldSuppressPlaceholder(key) {
+                    if let pid = zone.placeholderWindowId,
+                       let placeholder = windowController.window(withId: pid) {
+                        delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: .idle)
+                        clearManagedZone(for: placeholder)
+                    }
+                    zoneController.setPlaceholder(windowId: nil, forZoneIndex: zone.index)
+                    continue
+                }
 
                 if let pid = zone.placeholderWindowId,
                    let placeholder = windowController.window(withId: pid) {

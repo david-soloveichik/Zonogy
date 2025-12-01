@@ -64,6 +64,10 @@ Placeholder windows must stay anchored to their zone. Dragging their surface sho
 
 **Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
 
+### UnderCovers (single-zone placeholder hiding)
+
+When a screen has exactly one (empty) non-temporary zone, its placeholder shows a blue "⌄" button instead of "x" to indicate temporary put-away. Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. The targeted indicators should continue to be seen and working as normal. This per-screen UnderCovers state ends (and the normal placeholder behavior resumes) when a managed window is about to be placed into zone 1 on that screen or when any of the following actions run on that screen: adding a zone, removing a zone (including clear/reset variants), or using the "minimize window or remove zone at cursor" shortcut.
+
 ### Layout Rules
 
 Whenever zones are added or removed on a screen, the dimensions of the remaining zones on that screen should be adjusted. Intuitively, they should be re-"tiled" to split the screen. The tiling is as follows:

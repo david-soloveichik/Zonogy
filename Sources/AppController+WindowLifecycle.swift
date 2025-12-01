@@ -35,6 +35,19 @@ extension AppController {
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder close requested for zone \(zoneIndex) on screen \(screenIndex)")
+
+        // UnderCovers: when there is exactly one empty non-temporary zone on this screen,
+        // treat the close button as a temporary put-away of the placeholder instead of removing the zone.
+        if zoneIndex == 1,
+           let context = screenContexts[screenId] {
+            let zones = context.zoneController.allZones
+            if zones.count == 1, let zone = zones.first, zone.isEmpty {
+                Logger.debug("Placeholder close mapped to UnderCovers put-away on screen \(screenIndex)")
+                beginUnderCoversIfEligible(on: screenId, zoneIndex: zoneIndex, reason: "placeholder-close")
+                return
+            }
+        }
+
         _ = performRemoveZone(at: zoneIndex, on: screenId, announce: false)
     }
 

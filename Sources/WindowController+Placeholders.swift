@@ -2,6 +2,12 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+/// Display mode for the blue placeholder button (normal close vs UnderCovers put-away).
+enum PlaceholderButtonMode {
+    case removeZone
+    case underCovers
+}
+
 /// Placeholder windows should never steal keyboard focus from real apps.
 /// Use a non-activating panel subclass so clicks don't bring Zonogy forward.
 final class PlaceholderPanel: NSPanel {
@@ -19,6 +25,7 @@ final class PlaceholderContentView: NSView {
     weak var controller: WindowController?
     private(set) var screenId: CGDirectDisplayID
     private(set) var zoneIndex: Int
+    private var closeButton: NSButton?
     private var isDropHighlighted = false {
         didSet {
             if isDropHighlighted != oldValue {
@@ -55,6 +62,7 @@ final class PlaceholderContentView: NSView {
     func update(screenId: CGDirectDisplayID, zoneIndex: Int) {
         self.screenId = screenId
         self.zoneIndex = zoneIndex
+        updateButtonStyle()
     }
 
     override func layout() {
@@ -96,6 +104,33 @@ final class PlaceholderContentView: NSView {
             zoneIndex: zoneIndex,
             draggingInfo: sender
         ) ?? false
+    }
+
+    func attachCloseButton(_ button: NSButton) {
+        closeButton = button
+        updateButtonStyle()
+    }
+
+    private func updateButtonStyle() {
+        guard let controller, let closeButton else { return }
+
+        let mode = controller.placeholderButtonModeProvider?(screenId, zoneIndex) ?? .removeZone
+        let symbol: String
+        switch mode {
+        case .removeZone:
+            symbol = "×"
+        case .underCovers:
+            symbol = "⌄"
+        }
+
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.white,
+            .font: NSFont.systemFont(ofSize: 20, weight: .semibold),
+            .baselineOffset: 1.0
+        ]
+        let attributedTitle = NSAttributedString(string: symbol, attributes: titleAttributes)
+        closeButton.attributedTitle = attributedTitle
+        closeButton.attributedAlternateTitle = attributedTitle
     }
 
     private func updateBorderAppearance() {
@@ -154,7 +189,7 @@ extension WindowController {
             }
         }
 
-        // Create a custom blue "x" close button that matches the spec
+        // Create a custom blue close/put-away button that matches the spec
         let buttonSize: CGFloat = 36
         let closeButton = NSButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
         closeButton.frame = NSRect(x: 16, y: max(frame.height - buttonSize - 16, 16), width: buttonSize, height: buttonSize)
@@ -174,19 +209,13 @@ extension WindowController {
             layer.borderWidth = 1
             layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
         }
-        let titleAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: 20, weight: .semibold),
-            .baselineOffset: 1.0
-        ]
-        let attributedTitle = NSAttributedString(string: "×", attributes: titleAttributes)
-        closeButton.attributedTitle = attributedTitle
-        closeButton.attributedAlternateTitle = attributedTitle
+        // Title is driven by PlaceholderContentView based on button mode (remove vs UnderCovers)
         closeButton.target = self
         closeButton.action = #selector(handlePlaceholderClose(_:))
         closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
 
         contentView.addSubview(closeButton)
+        contentView.attachCloseButton(closeButton)
         window.contentView = contentView
         contentView.autoresizingMask = [.width, .height]
 

@@ -11,6 +11,9 @@ extension AppController {
 
     @discardableResult
     internal func addZone(on screenId: CGDirectDisplayID, announce: Bool = true) -> Zone? {
+        // Any shortcut or command adding a zone to this screen should exit UnderCovers there.
+        endUnderCovers(on: screenId, reason: "add-zone", recreatePlaceholders: false)
+
         guard let context = screenContexts[screenId],
               let newZone = context.zoneController.addZone() else {
             if announce {
@@ -54,6 +57,9 @@ extension AppController {
         announce: Bool,
         context: ScreenContext? = nil
     ) -> ZoneController.RemovalResult? {
+        // Removing a zone on this screen should clear any UnderCovers state there.
+        endUnderCovers(on: screenId, reason: "remove-zone", recreatePlaceholders: false)
+
         let context = context ?? screenContexts[screenId]
         guard let context else {
             return nil
@@ -501,6 +507,11 @@ extension AppController {
                         self.zoneFrame(fromContentFrame: frame, for: zone, in: context)
                     }
                 )
+            },
+            shouldSuppressPlaceholder: { [weak self] key in
+                guard let self = self else { return false }
+                // UnderCovers suppresses the single-zone placeholder on that screen while active.
+                return self.isUnderCoversActive(on: key.screenId) && key.index == 1
             }
         )
 
@@ -919,6 +930,9 @@ extension AppController {
             return
         }
 
+        // Any clear/reset that operates on this screen should exit UnderCovers for it.
+        endUnderCovers(on: screenId, reason: "clear-or-reset-zones-\(reason)", recreatePlaceholders: false)
+
         let zones = context.zoneController.allZones
         let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
@@ -1017,6 +1031,11 @@ extension AppController {
                 "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(windowTitle))"
             )
 
+            // Exit UnderCovers on the screen where this window lives, if applicable.
+            if let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) {
+                endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
+            }
+
             minimizeWindowProgrammatically(managed, reason: "cursor-shortcut-minimize")
 
             // Mirror Cmd-M behavior: explicitly update zones and clear reveal mode state.
@@ -1038,6 +1057,7 @@ extension AppController {
             Logger.debug(
                 "minimizeWindowOrRemoveZoneAtCursor: Removing zone \(zoneKey.index) on screen \(screenIndex) under cursor"
             )
+            endUnderCovers(on: zoneKey.screenId, reason: "cursor-shortcut-remove-zone", recreatePlaceholders: false)
             _ = performRemoveZone(at: zoneKey.index, on: zoneKey.screenId, announce: false)
             return
         }

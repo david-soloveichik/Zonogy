@@ -56,6 +56,8 @@ class WindowController {
     internal var accessibilityFrameRetryWorkItems: [Int: DispatchWorkItem] = [:]
     internal var lastRequestedAppKitFrames: [Int: CGRect] = [:] // New: For AppKit windows, to avoid frame read race conditions
     internal var ignoredBundleIdentifiers: Set<String>
+    /// Optional provider for choosing the placeholder button mode (e.g., normal close vs UnderCovers put-away).
+    internal var placeholderButtonModeProvider: ((CGDirectDisplayID, Int) -> PlaceholderButtonMode)?
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
     internal var currentDraggingWindowId: Int?
