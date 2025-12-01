@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Sleep/wake pipeline: topology refresh and aggressive minimization.
+/// Sleep/wake pipeline: screens-off event gating, AX readiness polling, topology refresh, and aggressive minimization.
 extension AppController {
     // MARK: - Public entry points from SystemEventMonitor
 
@@ -13,8 +13,10 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
         screensAsleep = true
+        menuBarManager.setDimmed(true)
         validationRetryManager.cancelAllValidationRetries()
         cancelWakeReadinessTimer()
+        cancelWakeAXWindowPollingTimer()
         // Cancel any delayed accessibility frame retries so none fire while displays are asleep.
         windowController.cancelAllAccessibilityFrameRetries()
         // Cancel any pending window capture retries driven by AX notifications.
@@ -33,9 +35,9 @@ extension AppController {
 
     // MARK: - Core wake pipeline
 
-    /// Polls for display and session readiness before running the wake pipeline.
-    /// Workaround #2 from SPECIFICATION-WAKE: wait until the primary display is awake
-    /// and the session is unlocked, polling in 0.5s increments.
+    /// Polls for display, session, and AX focused-application readiness before running the wake pipeline.
+    /// Matches SPECIFICATION-WAKE: wait until the primary display is awake, the session is unlocked,
+    /// and AX can report an active application, polling in 0.5s increments.
     private func startWakeReadinessPolling() {
         cancelWakeReadinessTimer()
 
@@ -70,13 +72,47 @@ extension AppController {
         wakeReadinessTimer = nil
     }
 
-    /// Returns true when both the display and session are ready for Accessibility work.
+    /// Cancels any in-flight AX window readiness polling timer.
+    private func cancelWakeAXWindowPollingTimer() {
+        wakeAXWindowPollingTimer?.cancel()
+        wakeAXWindowPollingTimer = nil
+    }
+
+    /// Returns true when the display, session, and AX focused application are ready for Accessibility work.
     /// - Display must not be asleep (CGDisplayIsAsleep == false)
     /// - Session must not be locked (CGSSessionScreenIsLocked == false)
+    /// - AX must be able to return a focused application (when Accessibility permissions are granted)
     private func isWakeEnvironmentReady() -> Bool {
         let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
         let screenLocked = isScreenLocked()
-        return displayAwake && !screenLocked
+        guard displayAwake && !screenLocked else {
+            return false
+        }
+
+        // If Accessibility is not trusted, do not block wake readiness on AX-focused-app checks;
+        // the rest of the pipeline will still behave defensively.
+        guard AXIsProcessTrusted() else {
+            Logger.debug("SleepWake: Accessibility not trusted; skipping AX focused-application readiness check")
+            return true
+        }
+
+        let systemWideElement = AXUIElementCreateSystemWide()
+        var focusedAppValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(
+            systemWideElement,
+            kAXFocusedApplicationAttribute as CFString,
+            &focusedAppValue
+        )
+        guard status == .success, let value = focusedAppValue else {
+            Logger.debug("SleepWake: AX focused application unavailable (AX error \(status.rawValue)); treating environment as not ready")
+            return false
+        }
+        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            Logger.debug("SleepWake: AX focused element is not an application; treating environment as not ready")
+            return false
+        }
+
+        return true
     }
 
     /// Best-effort check for whether the session screen is locked using CGSessionCopyCurrentDictionary.
@@ -144,36 +180,49 @@ extension AppController {
             Logger.debug("SleepWake: screens removed since sleep: \(indices)")
         }
 
-        // Collect windows that belong to zones on remaining screens.
-        let expectedZoneWindowIds = collectExpectedZoneWindowIds(remainingScreenIds: remainingScreenIds)
+        // Collect windows that belong to zones on remaining screens and have stable external identifiers.
+        let (expectedZoneWindowIds, expectedExternalIdentifiers) = collectExpectedSleepWakeWindows(
+            remainingScreenIds: remainingScreenIds
+        )
 
         Logger.debug(
-            "SleepWake: starting enumeration with " +
-            "\(expectedZoneWindowIds.count) window(s) in zones on " +
-            "\(remainingScreenIds.count) remaining screen(s)"
+            "SleepWake: expected \(expectedZoneWindowIds.count) window(s) in zones on " +
+            "\(remainingScreenIds.count) remaining screen(s); " +
+            "\(expectedExternalIdentifiers.count) have external identifiers for AX restoration gating"
         )
 
-        // Execute enumeration pass.
-        let restoredWindowIds = executeSleepWakeEnumerationPass(
-            remainingScreenIds: remainingScreenIds,
-            expectedZoneWindowIds: expectedZoneWindowIds
-        )
-
-        // Purge unrestored windows from zones and sync.
-        finalizeSleepWakeSync(
-            expectedZoneWindowIds: expectedZoneWindowIds,
-            restoredWindowIds: restoredWindowIds
-        )
+        // If there are no expected external windows on remaining screens, we can skip AX restoration
+        // polling and proceed directly to minimization and sync.
+        if expectedExternalIdentifiers.isEmpty {
+            Logger.debug("SleepWake: no expected external windows to restore; skipping AX polling")
+            executeSleepWakeMinimizeAndSync(
+                remainingScreenIds: remainingScreenIds,
+                expectedZoneWindowIds: expectedZoneWindowIds,
+                restoredWindowIds: []
+            )
+        } else {
+            startAXWindowRestorationPolling(
+                remainingScreenIds: remainingScreenIds,
+                expectedZoneWindowIds: expectedZoneWindowIds,
+                expectedExternalIdentifiers: expectedExternalIdentifiers
+            )
+        }
     }
 
-    private func collectExpectedZoneWindowIds(remainingScreenIds: Set<CGDirectDisplayID>) -> Set<Int> {
+    /// Collects non-placeholder windows assigned to zones (including temporary zones) on remaining screens,
+    /// returning both their internal window ids and stable external identifiers (pid + CGWindowID).
+    private func collectExpectedSleepWakeWindows(
+        remainingScreenIds: Set<CGDirectDisplayID>
+    ) -> (windowIds: Set<Int>, externalIdentifiers: [ExternalWindowIdentifier: Int]) {
         var expectedIds: Set<Int> = []
+        var externalMapping: [ExternalWindowIdentifier: Int] = [:]
 
         // Collect non-placeholder windows assigned to zones on remaining screens.
         for screenId in remainingScreenIds {
             guard let context = screenContexts[screenId] else {
                 continue
             }
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
             for zone in context.zoneController.allZones {
                 guard let windowId = zone.windowId,
                       let managed = windowController.window(withId: windowId),
@@ -181,25 +230,186 @@ extension AppController {
                     continue
                 }
                 expectedIds.insert(windowId)
+                if let identifier = managed.externalIdentifier {
+                    externalMapping[identifier] = windowId
+                } else {
+                    Logger.debug(
+                        "SleepWake: zone window \(windowId) on screen \(screenIndex) has no external identifier; " +
+                        "skipping AX restoration gating for this window"
+                    )
+                }
             }
         }
 
         // Also treat temporary-zone occupants on remaining screens as "expected".
         for screenId in remainingScreenIds {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
             if let occupant = temporaryZoneOccupant(on: screenId),
                !occupant.isPlaceholder {
                 expectedIds.insert(occupant.windowId)
+                if let identifier = occupant.externalIdentifier {
+                    externalMapping[identifier] = occupant.windowId
+                } else {
+                    Logger.debug(
+                        "SleepWake: temporary-zone occupant \(occupant.windowId) on screen \(screenIndex) " +
+                        "has no external identifier; skipping AX restoration gating for this window"
+                    )
+                }
             }
         }
 
-        return expectedIds
+        return (expectedIds, externalMapping)
     }
 
-    /// Core enumeration pass implementing the "For eligible applications" loop.
+    /// Stage A from SPECIFICATION-WAKE: poll until `_AXUIElementGetWindow` succeeds for all
+    /// expected external windows on remaining screens (or until a 5s timeout).
+    private func startAXWindowRestorationPolling(
+        remainingScreenIds: Set<CGDirectDisplayID>,
+        expectedZoneWindowIds: Set<Int>,
+        expectedExternalIdentifiers: [ExternalWindowIdentifier: Int]
+    ) {
+        cancelWakeAXWindowPollingTimer()
+
+        let expectedIdentifierSet = Set(expectedExternalIdentifiers.keys)
+        var restoredIdentifiers: Set<ExternalWindowIdentifier> = []
+        let startTime = Date()
+
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        // Poll immediately, then every 0.5s.
+        timer.schedule(deadline: .now(), repeating: 0.5)
+
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+
+            // If the screens are no longer marked as asleep, stop polling.
+            if !self.screensAsleep {
+                self.cancelWakeAXWindowPollingTimer()
+                return
+            }
+
+            let newlyRestored = self.performAXWindowRestorationPass(
+                expectedIdentifiers: expectedIdentifierSet
+            )
+            if !newlyRestored.isEmpty {
+                restoredIdentifiers.formUnion(newlyRestored)
+            }
+
+            let elapsed = Date().timeIntervalSince(startTime)
+            let allRestored = expectedIdentifierSet.isSubset(of: restoredIdentifiers)
+            let timeoutReached = elapsed >= 5.0
+
+            if allRestored || timeoutReached {
+                self.cancelWakeAXWindowPollingTimer()
+
+                let restoredWindowIds: Set<Int> = Set(
+                    restoredIdentifiers.compactMap { expectedExternalIdentifiers[$0] }
+                )
+
+                if timeoutReached && !allRestored {
+                    let missingCount = expectedIdentifierSet.subtracting(restoredIdentifiers).count
+                    Logger.debug(
+                        "SleepWake: AX restoration polling reached 5.0s timeout with " +
+                        "\(missingCount) expected window(s) still unrestored; proceeding with minimization and sync"
+                    )
+                } else {
+                    Logger.debug(
+                        "SleepWake: AX restoration polling succeeded " +
+                        "for all \(expectedIdentifierSet.count) expected external window(s)"
+                    )
+                }
+
+                self.executeSleepWakeMinimizeAndSync(
+                    remainingScreenIds: remainingScreenIds,
+                    expectedZoneWindowIds: expectedZoneWindowIds,
+                    restoredWindowIds: restoredWindowIds
+                )
+            } else {
+                Logger.debug(
+                    "SleepWake: AX restoration polling in progress; " +
+                    "restored \(restoredIdentifiers.count)/\(expectedIdentifierSet.count) expected window(s)"
+                )
+            }
+        }
+
+        wakeAXWindowPollingTimer = timer
+        timer.resume()
+    }
+
+    /// Executes a single AX restoration pass by enumerating windows for the expected PIDs
+    /// and recording any whose ExternalWindowIdentifier matches the expected set.
+    private func performAXWindowRestorationPass(
+        expectedIdentifiers: Set<ExternalWindowIdentifier>
+    ) -> Set<ExternalWindowIdentifier> {
+        var newlyRestored: Set<ExternalWindowIdentifier> = []
+
+        let expectedPids: Set<pid_t> = Set(expectedIdentifiers.map { $0.pid })
+        if expectedPids.isEmpty {
+            return newlyRestored
+        }
+
+        let allApps = NSWorkspace.shared.runningApplications
+
+        for application in allApps {
+            let pid = application.processIdentifier
+            guard expectedPids.contains(pid) else {
+                continue
+            }
+
+            // Use normal application-level filtering but do not restrict by visible bundle ids here;
+            // we want to probe any app that owned a pre-sleep zone window.
+            guard shouldManage(application: application, visibleBundleIds: nil) else {
+                continue
+            }
+
+            let result = windowController.captureWindows(
+                for: application,
+                notifyDelegate: false,
+                allowExisting: true
+            )
+
+            for managed in result.windows {
+                guard case .accessibility(_, let windowPid, _) = managed.backing,
+                      expectedPids.contains(windowPid),
+                      let identifier = managed.externalIdentifier,
+                      expectedIdentifiers.contains(identifier) else {
+                    continue
+                }
+                newlyRestored.insert(identifier)
+            }
+        }
+
+        return newlyRestored
+    }
+
+    /// Stage B and C from SPECIFICATION-WAKE:
+    ///  - Minimize any eligible windows not in zones on remaining screens.
+    ///  - Then purge unrecovered zone windows, sync windows to zones, and mark screens as awake.
+    private func executeSleepWakeMinimizeAndSync(
+        remainingScreenIds: Set<CGDirectDisplayID>,
+        expectedZoneWindowIds: Set<Int>,
+        restoredWindowIds: Set<Int>
+    ) {
+        let minimizedSummary = executeSleepWakeEnumerationPass(
+            remainingScreenIds: remainingScreenIds,
+            expectedZoneWindowIds: expectedZoneWindowIds
+        )
+
+        Logger.debug(
+            "SleepWake: minimization pass summary - enumerated \(minimizedSummary.totalWindows) window(s), " +
+            "minimized \(minimizedSummary.minimizedCount) (already minimized \(minimizedSummary.alreadyMinimizedCount))"
+        )
+
+        finalizeSleepWakeSync(
+            expectedZoneWindowIds: expectedZoneWindowIds,
+            restoredWindowIds: restoredWindowIds
+        )
+    }
+
+    /// Core enumeration pass implementing the "For eligible applications" loop for minimization.
     private func executeSleepWakeEnumerationPass(
         remainingScreenIds: Set<CGDirectDisplayID>,
         expectedZoneWindowIds: Set<Int>
-    ) -> Set<Int> {
+    ) -> (totalWindows: Int, minimizedCount: Int, alreadyMinimizedCount: Int) {
         let visibleBundleIds = bundleIdsWithVisibleWindows()
         let allApps = NSWorkspace.shared.runningApplications
 
@@ -216,7 +426,6 @@ extension AppController {
         var minimizedCount = 0
         var alreadyMinimizedCount = 0
         var restoredWindowIds: Set<Int> = []
-        var syncPerformed = false
 
         for application in eligibleApps {
             guard let bundleId = application.bundleIdentifier else {
@@ -248,7 +457,7 @@ extension AppController {
                 }
 
                 if isWindowInRemainingZone(managed, remainingScreenIds: remainingScreenIds) {
-                    // Mark as restored only if this window was expected.
+                    // Track restored zone windows for logging (but rely on AX polling for purge decisions).
                     if expectedZoneWindowIds.contains(managed.windowId) {
                         restoredWindowIds.insert(managed.windowId)
                     }
@@ -264,29 +473,15 @@ extension AppController {
                 minimizeWindowProgrammatically(managed, reason: "sleep-wake-minimize")
                 minimizedCount += 1
             }
-
-            // Check if all expected zone windows have been restored - perform early sync if so.
-            if !syncPerformed {
-                let allRestored = expectedZoneWindowIds.isEmpty ||
-                    restoredWindowIds.isSuperset(of: expectedZoneWindowIds)
-                if allRestored {
-                    Logger.debug(
-                        "SleepWake: all expected zone windows restored mid-enumeration; performing early sync"
-                    )
-                    syncWindowsToZones()
-                    screensAsleep = false
-                    syncPerformed = true
-                }
-            }
         }
 
         Logger.debug(
             "SleepWake: enumeration complete - enumerated \(totalWindows) window(s), " +
             "minimized \(minimizedCount) (already minimized \(alreadyMinimizedCount)), " +
-            "restored \(restoredWindowIds.count)/\(expectedZoneWindowIds.count) expected zone window(s)"
+            "observed \(restoredWindowIds.count)/\(expectedZoneWindowIds.count) expected zone window(s)"
         )
 
-        return restoredWindowIds
+        return (totalWindows, minimizedCount, alreadyMinimizedCount)
     }
 
     /// Final step of the sleep/wake cycle: purge any unrecovered zone windows and sync.
@@ -294,12 +489,6 @@ extension AppController {
         expectedZoneWindowIds: Set<Int>,
         restoredWindowIds: Set<Int>
     ) {
-        // If sync was already performed during enumeration (early exit), skip.
-        guard screensAsleep || !restoredWindowIds.isSuperset(of: expectedZoneWindowIds) else {
-            Logger.debug("SleepWake: sync already performed during enumeration; skipping finalize")
-            return
-        }
-
         let unrestored = expectedZoneWindowIds.subtracting(restoredWindowIds)
         if unrestored.isEmpty {
             Logger.debug("SleepWake: no unrestored expected zone windows to purge before sync")
@@ -317,6 +506,7 @@ extension AppController {
 
         syncWindowsToZones()
         screensAsleep = false
+        menuBarManager.setDimmed(false)
     }
 
     // MARK: - Event gating helper

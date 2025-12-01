@@ -93,6 +93,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     // MARK: - Sleep/Wake State
     /// Timer used to poll for wake readiness (display awake + session unlocked).
     internal var wakeReadinessTimer: DispatchSourceTimer?
+    /// Timer used to poll for AX window readiness during sleep/wake restoration.
+    internal var wakeAXWindowPollingTimer: DispatchSourceTimer?
     /// True between screensDidSleepNotification and completion of the wake pipeline.
     /// When true, we ignore all external events to avoid reacting to AX errors
     /// during the sleep/wake transition.

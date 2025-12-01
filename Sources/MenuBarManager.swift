@@ -6,8 +6,10 @@ protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
 }
 
+/// Manages the menu bar status item, including visual state (e.g. dimming during sleep/wake) and its menu.
 class MenuBarManager {
     private var statusItem: NSStatusItem?
+    private var isDimmed: Bool = false
     weak var delegate: MenuBarManagerDelegate?
 
     init() {
@@ -60,6 +62,9 @@ class MenuBarManager {
 
         statusItem.menu = menu
 
+        // Ensure initial appearance is not dimmed.
+        setDimmed(false)
+
         Logger.debug("Menu bar icon initialized")
     }
 
@@ -90,6 +95,16 @@ class MenuBarManager {
 
         Logger.debug("Failed to load SVG icon from any search path")
         return nil
+    }
+
+    /// Updates the dimming state of the menu bar icon.
+    /// When dimmed, the icon's alpha is reduced to provide feedback during sleep/wake transitions.
+    func setDimmed(_ dimmed: Bool) {
+        guard dimmed != isDimmed else { return }
+        isDimmed = dimmed
+
+        guard let button = statusItem?.button else { return }
+        button.alphaValue = dimmed ? 0.4 : 1.0
     }
 
     @objc private func handlePreferences() {
