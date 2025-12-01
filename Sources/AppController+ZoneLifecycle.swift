@@ -11,7 +11,22 @@ extension AppController {
 
     @discardableResult
     internal func addZone(on screenId: CGDirectDisplayID, announce: Bool = true) -> Zone? {
-        // Any shortcut or command adding a zone to this screen should exit UnderCovers there.
+        // Special-case: if this screen is in UnderCovers and has a single empty zone 1,
+        // treat the first "add zone" invocation as exiting UnderCovers without changing zone count.
+        if let context = screenContexts[screenId] {
+            let zones = context.zoneController.allZones
+            if isUnderCoversActive(on: screenId),
+               zones.count == 1,
+               let zone = zones.first,
+               zone.index == 1,
+               zone.isEmpty {
+                Logger.debug("Add zone invoked while UnderCovers active on screen \(screenContextStore.loggingIndex(for: screenId)); exiting UnderCovers without adding a new zone")
+                endUnderCovers(on: screenId, reason: "add-zone-exit-undercovers", recreatePlaceholders: true)
+                return zone
+            }
+        }
+
+        // Any shortcut or command adding a zone to this screen should exit UnderCovers otherwise.
         endUnderCovers(on: screenId, reason: "add-zone", recreatePlaceholders: false)
 
         guard let context = screenContexts[screenId],

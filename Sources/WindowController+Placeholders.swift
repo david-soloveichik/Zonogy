@@ -116,17 +116,20 @@ final class PlaceholderContentView: NSView {
 
         let mode = controller.placeholderButtonModeProvider?(screenId, zoneIndex) ?? .removeZone
         let symbol: String
+        let baselineOffset: CGFloat
         switch mode {
         case .removeZone:
             symbol = "×"
+            baselineOffset = 1.0
         case .underCovers:
             symbol = "⌄"
+            baselineOffset = 4.0
         }
 
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
             .font: NSFont.systemFont(ofSize: 20, weight: .semibold),
-            .baselineOffset: 1.0
+            .baselineOffset: baselineOffset
         ]
         let attributedTitle = NSAttributedString(string: symbol, attributes: titleAttributes)
         closeButton.attributedTitle = attributedTitle
