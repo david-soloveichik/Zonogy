@@ -85,6 +85,14 @@ extension AppController {
     private func isWakeEnvironmentReady() -> Bool {
         let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
         let screenLocked = isScreenLocked()
+
+        if !displayAwake {
+            Logger.debug("SleepWake: primary display is asleep; treating environment as not ready")
+        }
+        if screenLocked {
+            Logger.debug("SleepWake: session screen is locked; treating environment as not ready")
+        }
+
         guard displayAwake && !screenLocked else {
             return false
         }
