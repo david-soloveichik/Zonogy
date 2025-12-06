@@ -27,11 +27,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let displacedWindowFrame: CGRect?
     }
 
-    struct TemporaryZoneIdentitySnapshot {
-        let screenId: CGDirectDisplayID
-        let identity: WindowIdentity
-    }
-
     static let shared = AppController()
 
     internal let windowController: WindowController
@@ -112,13 +107,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Windows for which we've already logged zone-resize suppression (prevents log spam).
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
 
-    internal var pendingTemporaryZoneIdentitySnapshots: [CGDirectDisplayID: TemporaryZoneIdentitySnapshot] = [:]
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneProtectionDuration: TimeInterval = 1.0
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
-    internal var pendingZoneAssignmentSnapshots: [ZoneKey: ZoneAssignmentSnapshot] = [:]
-    internal var liveZoneAssignments: [ZoneKey: ZoneAssignmentSnapshot] = [:]
     struct SuppressionEntry {
         var remaining: Int
         var deadline: Date

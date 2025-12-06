@@ -9,13 +9,13 @@ extension AppController {
     }
 
     internal func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified", retarget: Bool = true) {
-        var removed = false
-        var emptyZoneKey: ZoneKey?
-
         if dragDropCoordinator.currentDragWindowId == windowId {
             // Ensure overlays go away when the dragged window disappears.
             dragDropCoordinator.tearDownDragSession()
         }
+
+        var removed = false
+        var emptyZoneKey: ZoneKey?
 
         for (screenId, context) in screenContexts {
             if let zone = context.zoneController.zoneForWindow(windowId: windowId) {
@@ -29,12 +29,6 @@ extension AppController {
             } else {
                 context.zoneController.removeWindow(windowId: windowId)
             }
-        }
-
-        // Drop any persisted zone-assignment snapshots for this window so we don't
-        // try to resurrect it into a zone after it has been explicitly removed.
-        if !liveZoneAssignments.isEmpty {
-            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != windowId }
         }
 
         if retarget, let emptyZoneKey = emptyZoneKey {
@@ -171,20 +165,11 @@ extension AppController {
         managed.zoneIndex = zoneIndex
         if let zoneIndex, !managed.isPlaceholder {
             clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
-            let key = ZoneKey(screenId: screenId, index: zoneIndex)
-            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != managed.windowId || $0.key == key }
-            liveZoneAssignments[key] = ZoneAssignmentSnapshot(
-                zoneKey: key,
-                identity: .make(from: managed)
-            )
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }
 
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
-        if !managed.isPlaceholder, !liveZoneAssignments.isEmpty {
-            liveZoneAssignments = liveZoneAssignments.filter { $0.value.identity.windowId != managed.windowId }
-        }
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
         clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "assignment-cleared")

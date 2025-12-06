@@ -149,9 +149,6 @@ extension AppController {
             // Only sync if we captured new windows
             if capturedCount > 0 {
                 self.syncWindowsToZones()
-                self.restoreTemporaryZoneOccupantsFromExistingWindows(reason: "\(reason)-recapture-\(delay)")
-                self.restoreZoneAssignmentsFromExistingWindows(reason: "\(reason)-recapture-\(delay)")
-
                 // Log the result
                 let (postCaptureManaged, postPlaceholders) = self.currentWindowCounts()
 
