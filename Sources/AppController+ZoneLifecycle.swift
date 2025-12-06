@@ -445,9 +445,31 @@ extension AppController {
 
     // MARK: - Synchronization
 
-    /// Sync all windows to their zones, creating placeholders as needed
+    /// Sync all windows to their zones and keep the internal layout model,
+    /// real windows, placeholders, and UI indicators in lockstep.
+    ///
+    /// High‑level flow:
+    /// 1. Coalesce concurrent sync requests so at most one sync runs at a time.
+    /// 2. Prune any external windows that the OS reports as destroyed and
+    ///    remove them from any zones that still reference them.
+    /// 3. For every screen/zone, position the real window (if any) into its
+    ///    zone frame (respecting margins and ActiveFit reveal mode), and
+    ///    record which windows were actively assigned this pass.
+    /// 4. Ask `PlaceholderCoordinator` to align placeholder windows with all
+    ///    empty zones (except those that are suppressed or excluded), reusing
+    ///    or creating placeholder windows as needed and hiding obsolete ones.
+    /// 5. Clear stale zone assignments for any non‑placeholder window that was
+    ///    not assigned this pass and is not in the temporary floating zone.
+    /// 6. Refresh targeted zone state, temporary‑zone targeting, and visual
+    ///    indicators so the UI matches the new layout.
     internal func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = []) {
+        // Merge explicit exclusions with zones that should not be touched while
+        // a drag‑and‑drop session is in progress (origin/hovered zones).
         let effectiveExcludedZones = excludedZones.union(dragExcludedZones)
+
+        // Ensure only one sync runs at a time. If a sync is already underway,
+        // just record that another pass is needed and the combined exclusions;
+        // the deferred block below will run a follow‑up sync when safe.
         if isSyncingWindows {
             pendingSync = true
             pendingSyncExcludedZones.formUnion(effectiveExcludedZones)
@@ -466,6 +488,9 @@ extension AppController {
 
         Logger.debug("Syncing windows to zones")
 
+        // Phase 1: prune any windows that have been destroyed according to the
+        // underlying Accessibility / CGWindow APIs, and remove them from zones
+        // so no layout continues to reference dead windows.
         let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
         if !prunedWindowIds.isEmpty {
             for windowId in prunedWindowIds {
@@ -473,9 +498,18 @@ extension AppController {
             }
         }
 
+        // Snapshot of all known windows (real + placeholders). We pass this to
+        // the placeholder coordinator so it can reuse existing placeholders.
         let existingWindows = windowController.allWindows
+
+        // Tracks all non‑placeholder windows that end up with a valid zone
+        // assignment in this pass. Anything not in this set (and not in the
+        // temporary zone) will be detached from the tiling model at the end.
         var assignedWindowIds = Set<Int>()
 
+        // Phase 2: walk every screen and zone, and for each zone that already
+        // has a real window, move/resize that window into the zone’s content
+        // frame (with margins) unless ActiveFit says to preserve reveal mode.
         for screenId in screenOrder {
             guard let context = screenContexts[screenId],
                   let descriptor = descriptor(for: screenId) else {
@@ -488,13 +522,20 @@ extension AppController {
                    let managed = windowController.window(withId: windowId) {
                     let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
                     if activeFitShouldSkipSync(for: zoneKey, windowId: windowId) {
+                        // For ActiveFit reveal mode, keep the window in its
+                        // current reveal frame but still treat it as assigned
+                        // to this zone for bookkeeping and targeting.
                         Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] due to active ActiveFit window \(windowId)")
                         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                         assignedWindowIds.insert(windowId)
                         continue
                     }
+                    // Normal case: compute the zone’s content frame (respecting
+                    // the 8px/4px margins) and move the window into it.
                     let displayFrame = frameWithMargin(for: zone, in: controller)
                     windowController.moveWindow(managed, to: displayFrame, on: descriptor)
+                    // If the user had manually resized this window, once we
+                    // snap it back to the zone we can clear the detached flag.
                     manualResizeDetachedWindowIds.remove(windowId)
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                     assignedWindowIds.insert(windowId)
@@ -502,6 +543,9 @@ extension AppController {
             }
         }
 
+        // Phase 3: sync placeholder windows so every empty zone has a matching
+        // placeholder (unless explicitly suppressed or excluded for this pass),
+        // reusing existing placeholder windows where possible.
         placeholderCoordinator.syncPlaceholders(
             existingWindows: existingWindows,
             screenOrder: screenOrder,
@@ -532,7 +576,7 @@ extension AppController {
 
         let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
 
-        // Calculate zone occupancy
+        // Calculate zone occupancy for logging/diagnostics.
         var occupiedZones = 0
         var emptyZones = 0
         for context in screenContexts.values {
@@ -547,6 +591,9 @@ extension AppController {
 
         Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty, excluded zones \(effectiveExcludedZones.count)")
 
+        // Phase 4: clean up stale assignments. Any non‑placeholder window that
+        // was *not* assigned to a tiled zone in this pass and is *not* parked
+        // in the temporary floating zone should no longer be treated as zoned.
         for window in windowController.allWindows where !window.isPlaceholder {
             if assignedWindowIds.contains(window.windowId) {
                 continue
@@ -557,6 +604,9 @@ extension AppController {
             clearManagedWindowZone(window)
         }
 
+        // Phase 5: ensure targeting and indicators are consistent with the new
+        // layout — pick a valid targeted zone if needed, keep the temporary
+        // zone’s targeting model fresh, and refresh all on‑screen adornments.
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         updateTemporaryZoneTargeting(reason: "sync")
         refreshIndicators()
