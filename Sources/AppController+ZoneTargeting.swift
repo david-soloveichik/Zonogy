@@ -163,7 +163,7 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
-        if let zoneIndex, !managed.isPlaceholder {
+        if zoneIndex != nil, !managed.isPlaceholder {
             clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
