@@ -30,27 +30,8 @@ When we receive this notifications, it's still possible that the screen is not r
     - Is the Display Asleep? (CGDisplayIsAsleep) => must not be
     - Is the Screen Locked? (CGSSessionScreenIsLocked) => must not be
     - Is there an active application returned by AX API? => must be yes
-We poll at 0.5 increments until this passes.
+We poll at 0.5 increments until this passes. At this point we assume that AX API is ready.
 
-We then recompute the current screen topology (e.g., via `NSScreen.screens` / `screenContextStore` rebuild). A screen is considered a *remaining* screen if it still exists. If there is no intersection between pre-sleep and post-wake screens, then all eligible windows will be minimized.
-
-At this point we still don't quite trust AX API to be fully ready and `_AXUIElementGetWindow` to work. If we prematurely call `syncWindowsToZones()`, it will consider these windows not managed and we'll lose track of them. So we confirm that none of the managed windows in remaining screens give `_AXUIElementGetWindow` error as described in A:
-
-A.
-Collect all `CGWindowID` and pid of all managed windows in all zones in all *remaining* screens.
-For each pid in this list:
-    - For every eligible window (using normal rules):
-        - If `_AXUIElementGetWindow` returns the `CGWindowID` of one of the collected windows, mark that window as "restored".
-If there are still un-restored windows in the list, repeat A in 0.5 increments for a max of 5 seconds. (We give up after 5s.)
-
-At this point, we assume the AX API is ready and we minimize the windows we don't want and call `syncWindowsToZones()` as described in B and C:
-
-B.
-For eligible applications (using normal rules):  // Fresh enumeration
-    - For every eligible window W (using normal rules):
-        - If W *isn't* in a zone of one of the *remaining* screens: // Can use collection from part A
-            - If W isn't minimized, minimize it (this is intentionally aggressive to keep the screen clean, even for newly-created windows)
-
-C.
-syncWindowsToZones()
 set screensAsleep = false and undim the menubar icon
+
+Finally do the same thing that happens during "screen‑change recapture" (re-use same code).

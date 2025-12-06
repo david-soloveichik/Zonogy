@@ -210,7 +210,7 @@ extension AppController {
         return false
     }
 
-    private func scheduleScreenTopologyRefresh(reason: String, affectedDisplayIds: Set<CGDirectDisplayID> = []) {
+    internal func scheduleScreenTopologyRefresh(reason: String, affectedDisplayIds: Set<CGDirectDisplayID> = []) {
         suppressManualMoveHandling(for: manualMoveSuppressionDuration, reason: reason)
         if let existingReason = pendingScreenChangeReason {
             pendingScreenChangeReason = "\(existingReason),\(reason)"
