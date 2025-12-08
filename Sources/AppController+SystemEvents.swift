@@ -285,6 +285,16 @@ extension AppController {
         for entry in removed {
             let displayId = entry.displayId
 
+            // Snapshot all non-placeholder windows that currently report this
+            // displayId *before* we close placeholders. Closing a placeholder triggers
+            // windowWillClose → syncWindowsToZones, and that sync can clear screenDisplayId
+            // for windows on the removed display. If we computed windowsOnDisplay after
+            // those syncs, we would miss windows that should be
+            // minimized as part of the display-removal policy.
+            let windowsOnDisplay = windowController.allWindows.filter {
+                !$0.isPlaceholder && $0.screenDisplayId == displayId
+            }
+
             // Clear any placeholder bookkeeping tied to this display.
             placeholderCoordinator.clearMappingsForScreen(displayId)
 
@@ -300,8 +310,9 @@ extension AppController {
             Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [\(displayId)] with \(zoneCount) zone(s)")
 
             // Minimize every non-placeholder managed window that was on the removed display,
-            // instead of reassigning it to another screen.
-            let windowsOnDisplay = windowController.allWindows.filter { !$0.isPlaceholder && $0.screenDisplayId == displayId }
+            // instead of reassigning it to another screen. We rely on the pre-snapshot
+            // windowsOnDisplay so this is robust even if earlier syncs cleared
+            // screenDisplayId for those windows.
             for managed in windowsOnDisplay {
                 Logger.debug("Minimizing window \(managed.windowId) from removed screen \(displayId) due to display-removal policy")
                 clearManagedWindowZone(managed)
