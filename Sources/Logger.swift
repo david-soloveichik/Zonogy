@@ -16,7 +16,7 @@ enum Logger {
     static func debug(_ message: String) {
         let timestamp = Date()
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         let formattedTimestamp = formatter.string(from: timestamp)
         let logLine = "[\(formattedTimestamp)] \(message)"
         let logMessage = "\(logLine)\n"
