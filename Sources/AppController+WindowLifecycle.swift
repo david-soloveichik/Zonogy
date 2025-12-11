@@ -17,10 +17,6 @@ extension AppController {
         return windowController.pruneDestroyedWindowsForPid(pid)
     }
 
-    func activationWorkaroundIfNeeded(for pid: pid_t, excludingWindowIds: Set<Int>, reason: String) {
-        triggerActivationWorkaroundIfNeeded(pid: pid, excludingWindowIds: excludingWindowIds, reason: reason)
-    }
-
     // MARK: - WindowControllerDelegate
 
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?) {
@@ -104,14 +100,6 @@ extension AppController {
         syncWindowsToZones()
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
-        if let managed,
-           case .accessibility(_, let pid, _) = managed.backing {
-            triggerActivationWorkaroundIfNeeded(
-                pid: pid,
-                excludingWindowIds: Set([managed.windowId]),
-                reason: "close"
-            )
-        }
     }
 
     func windowDidMiniaturize(windowId: Int) {
@@ -135,14 +123,6 @@ extension AppController {
 
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "miniaturize")
         activeFitClearSuppressionForWindow(windowId)
-        if let managed,
-           case .accessibility(_, let pid, _) = managed.backing {
-            triggerActivationWorkaroundIfNeeded(
-                pid: pid,
-                excludingWindowIds: Set([managed.windowId]),
-                reason: "miniaturize"
-            )
-        }
     }
 
     func windowDidDeminiaturize(windowId: Int) {

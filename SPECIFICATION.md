@@ -288,12 +288,6 @@ When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we
 
 ## 7. Accessibility API Workarounds
 
-### kAXWindowCreatedNotification and kAXFocusedWindowChangedNotification
-
-`kAXWindowCreatedNotification` is not reliably generated, while `kAXFocusedWindowChangedNotification` is much more reliable. We subscribe to both for max reliability.
-
-Unfortunately, there is an edge case which misses `kAXFocusedWindowChangedNotification`: When I close the last window of an application and then open a new window, the OS considers this not a focus change. We address this as follows: When the last managed window of an application A is closed (or minimized), and application A is frontmost, we run `NSRunningApplication.activate(options: [.activateIgnoringOtherApps])` first on Zonogy and then on application A. Then when A later creates a window it considers it a focus change. (Note that we need to focus it back on application A so that I could, for example, press Cmd-N to open a new window in that application, etc.)
-
 ### Retry Mechanisms Tied to Accessibility
 
 Zonogy uses three narrowly scoped retry mechanisms to cope with AX timing and consistency issues: two are PID/application-scoped and one is per window. All of them are tied to concrete events (no global polling loops) and are explicitly cancelled when they are no longer needed or when the system goes to sleep.

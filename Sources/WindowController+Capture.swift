@@ -1227,17 +1227,6 @@ extension WindowController {
 
         externalWindowsByElement.removeValue(forKey: AccessibilityElementKey(element: element))
         accessibilityWatcher.removeWindowNotifications(for: element, pid: pid)
-
-        let stillManaged = windowRegistry.contains { window in
-            guard case .accessibility(_, let otherPid, _) = window.backing else {
-                return false
-            }
-            return otherPid == pid && window.windowId != managed.windowId
-        }
-
-        if !stillManaged {
-            accessibilityWatcher.removeObserver(for: pid)
-        }
     }
 
     /// Detect and prune external windows whose accessibility elements have been destroyed.

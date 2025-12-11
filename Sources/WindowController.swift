@@ -169,6 +169,10 @@ class WindowController {
             }
         }
 
+        // Once all managed windows for this pid are removed due to process termination,
+        // tear down the associated AX observer as well.
+        accessibilityWatcher.removeObserver(for: pid)
+
         return windowIds
     }
 
