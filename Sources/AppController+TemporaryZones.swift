@@ -16,6 +16,11 @@ extension AppController {
         centerWindow: Bool = true,
         reason: String
     ) {
+        // Invariant: when a temporary-zone window is active, no tiled window
+        // should remain in ActiveFit reveal mode. Exit reveal mode for any
+        // existing ActiveFit window before assigning to the temporary zone.
+        exitRevealMode(reason: "temporary-zone-assignment")
+
         temporaryZoneCoordinator.assign(managed, to: screenId, centerWindow: centerWindow, reason: reason)
         clearTemporaryZoneProtection(windowId: managed.windowId)
         updateTemporaryZoneTargeting(reason: reason)

@@ -38,6 +38,7 @@ final class WinShotManager {
         screenId: CGDirectDisplayID,
         zoneController: ZoneController,
         windowController: WindowController,
+        screenDescriptor: ScreenDescriptor,
         temporaryZoneOccupant: ManagedWindow?,
         activeWindowId: Int?,
         reason: String
@@ -48,6 +49,7 @@ final class WinShotManager {
 
         var zoneFrames: [Int: CGRect] = [:]
         var zoneAssignments: [Int: WindowIdentity] = [:]
+        var windowFrames: [Int: CGRect] = [:]
 
         for zone in zones {
             zoneFrames[zone.index] = zone.frame
@@ -56,6 +58,9 @@ final class WinShotManager {
                let managed = windowController.window(withId: windowId),
                !managed.isPlaceholder {
                 zoneAssignments[zone.index] = WindowIdentity.make(from: managed)
+                // Capture the window's actual frame in screen coordinates for potential future use.
+                let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)
+                windowFrames[zone.index] = frame
             }
         }
 
@@ -91,6 +96,7 @@ final class WinShotManager {
             createdAt: Date(),
             zoneCount: zoneCount,
             zoneFrames: zoneFrames,
+            windowFrames: windowFrames,
             zoneAssignments: zoneAssignments,
             temporaryZoneOccupant: tempIdentity,
             activeWindowId: activeWindowId,

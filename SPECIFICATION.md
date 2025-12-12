@@ -272,7 +272,7 @@ After events such as application termination, workspace focus changes, or access
 When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we apply a short protection window so that internal restore operations do not fight normal layout behavior:
 
 - The floating temporary-zone occupant is temporarily protected from auto-minimization triggered by focus shifts or new tiled placements on the same screen, so it is not immediately cleared while other windows are being recaptured.
-- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. This ensures the window ends up in its correct mode (reveal or rest) without briefly snapping between positions.
+- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. The active window is first restored to its zone-aligned frame; if it no longer fits there, a later ActiveFit pass may snap it into a reveal position.
 
 ### Additional Notes
 

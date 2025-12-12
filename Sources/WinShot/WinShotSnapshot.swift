@@ -10,6 +10,10 @@ struct WinShotSnapshot {
     let zoneCount: Int
     let zoneFrames: [Int: CGRect]  // zoneIndex -> frame
 
+    /// Window frames at snapshot time (zoneIndex -> window frame in screen coordinates).
+    /// Only populated for zones that had a non-placeholder window.
+    let windowFrames: [Int: CGRect]
+
     /// Window assignments (zoneIndex -> identity)
     let zoneAssignments: [Int: WindowIdentity]
 
