@@ -26,6 +26,41 @@ extension AppController {
         updateTemporaryZoneTargeting(reason: reason)
     }
 
+    /// If a tiled zone on a screen becomes empty due to its window being minimized,
+    /// and that screen currently has a temporary-zone occupant, promote the temporary
+    /// window into the newly emptied zone.
+    func fillEmptiedZoneFromTemporaryIfAvailable(
+        emptiedZoneKey: ZoneKey,
+        minimizedWindowId: Int,
+        reason: String
+    ) {
+        guard let occupant = temporaryZoneOccupant(on: emptiedZoneKey.screenId) else {
+            return
+        }
+        // Do not attempt to reassign the minimized window itself.
+        guard occupant.windowId != minimizedWindowId else {
+            return
+        }
+
+        guard let context = screenContexts[emptiedZoneKey.screenId],
+              let zone = context.zoneController.zone(at: emptiedZoneKey.index) else {
+            return
+        }
+
+        // Only promote into zones that are effectively empty (no occupant or placeholder only).
+        if let existingId = zone.windowId,
+           let existing = windowController.window(withId: existingId),
+           !existing.isPlaceholder {
+            return
+        }
+
+        windowPlacementManager.placeWindow(
+            occupant,
+            into: emptiedZoneKey,
+            reason: reason
+        )
+    }
+
     func minimizeTemporaryZoneOccupant(on screenId: CGDirectDisplayID, reason: String) {
         if let occupant = temporaryZoneOccupant(on: screenId) {
             clearTemporaryZoneProtection(windowId: occupant.windowId)

@@ -190,11 +190,21 @@ extension AppController {
             return
         }
 
+        let emptiedZoneKey = zoneKey(forManagedWindow: managed)
+
         minimizeWindowProgrammatically(managed, reason: "minimize-command")
 
         // Remove from zone and sync (delegate may not fire in CLI environment)
         removeWindowFromAllZones(windowId: windowId, reason: "minimize-command")
         syncWindowsToZones()
+
+        if let key = emptiedZoneKey {
+            fillEmptiedZoneFromTemporaryIfAvailable(
+                emptiedZoneKey: key,
+                minimizedWindowId: windowId,
+                reason: "minimize-command"
+            )
+        }
 
         print("Minimized window \(windowId)")
     }
@@ -1096,6 +1106,8 @@ extension AppController {
                 "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(windowTitle))"
             )
 
+            let emptiedZoneKey = zoneKey(forManagedWindow: managed)
+
             // Exit UnderCovers on the screen where this window lives, if applicable.
             if let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) {
                 endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
@@ -1106,6 +1118,14 @@ extension AppController {
             // Mirror Cmd-M behavior: explicitly update zones and clear reveal mode state.
             removeWindowFromAllZones(windowId: managed.windowId, reason: "cursor-shortcut-minimize", retarget: true)
             syncWindowsToZones()
+
+            if let key = emptiedZoneKey {
+                fillEmptiedZoneFromTemporaryIfAvailable(
+                    emptiedZoneKey: key,
+                    minimizedWindowId: managed.windowId,
+                    reason: "cursor-shortcut-minimize"
+                )
+            }
 
             clearRevealModeForWindow(
                 windowId: managed.windowId,
@@ -1449,6 +1469,8 @@ extension AppController {
             return
         }
 
+        let emptiedZoneKey = zoneKey(forManagedWindow: managed)
+
         // Get window title for logging
         var windowTitle = "untitled"
         if case .accessibility(let element, _, _) = managed.backing {
@@ -1471,6 +1493,14 @@ extension AppController {
         // we need to manually handle the zone removal and placeholder creation
         removeWindowFromAllZones(windowId: managed.windowId, reason: "cmd-m-minimize", retarget: true)
         syncWindowsToZones()
+
+        if let key = emptiedZoneKey {
+            fillEmptiedZoneFromTemporaryIfAvailable(
+                emptiedZoneKey: key,
+                minimizedWindowId: managed.windowId,
+                reason: "cmd-m-minimize"
+            )
+        }
 
         // Clear reveal mode state if needed (window is being minimized, no rest transition needed)
         clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "cmd-m-minimize")

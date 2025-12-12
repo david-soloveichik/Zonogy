@@ -158,9 +158,19 @@ extension AppController {
             return ["error": "Window \(windowId) not found"]
         }
 
+        let emptiedZoneKey = zoneKey(forManagedWindow: managed)
+
         minimizeWindowProgrammatically(managed, reason: "socket-minimize")
         removeWindowFromAllZones(windowId: windowId, reason: "socket-minimize", retarget: true)
         syncWindowsToZones()
+
+        if let key = emptiedZoneKey {
+            fillEmptiedZoneFromTemporaryIfAvailable(
+                emptiedZoneKey: key,
+                minimizedWindowId: windowId,
+                reason: "socket-minimize"
+            )
+        }
 
         return ["window_id": windowId]
     }
