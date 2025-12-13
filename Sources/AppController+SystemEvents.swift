@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Handles hotkeys, system events, display reconfiguration, and recapture scheduling.
+/// Handles hotkeys, system events, and display reconfiguration.
 extension AppController {
     internal func currentWindowCounts() -> (managed: Int, placeholders: Int) {
         var managed = 0
@@ -116,60 +116,6 @@ extension AppController {
     func systemEventMonitorScreensDidWake(_ monitor: SystemEventMonitor) {
         Logger.debug("SystemEventMonitor: NSWorkspace.screensDidWakeNotification received")
         handleScreensDidWake()
-    }
-
-    private func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self else { return }
-
-            Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
-
-            let (preCaptureManaged, prePlaceholders) = self.currentWindowCounts()
-
-            // Recapture windows from all running applications
-            let visibleBundleIds = self.bundleIdsWithVisibleWindows()
-            var capturedCount = 0
-            for application in NSWorkspace.shared.runningApplications {
-                guard self.shouldManage(application: application, visibleBundleIds: visibleBundleIds) else {
-                    continue
-                }
-
-                // Capture windows, allowing existing ones to be returned
-                let capturedWindows = self.captureWindows(
-                    for: application,
-                    notifyDelegate: true,
-                    allowExisting: true
-                )
-                if !capturedWindows.isEmpty {
-                    capturedCount += capturedWindows.count
-                    Logger.debug("Captured \(capturedWindows.count) windows for \(application.bundleIdentifier ?? "unknown") (pid \(application.processIdentifier))")
-                }
-            }
-
-            // Identify tracked windows that are unminimized but not in any zone
-            // (tiled or temporary) and place them using normal placement logic.
-            var placedUnzonedCount = 0
-            for window in self.windowController.allWindows {
-                guard !window.isPlaceholder,
-                      !window.isMinimized,
-                      self.zoneKey(forManagedWindow: window) == nil,
-                      !self.isWindowInTemporaryZone(window.windowId) else {
-                    continue
-                }
-                Logger.debug("\(reason.capitalized) recapture: placing tracked but unzoned window \(window.windowId)")
-                self.windowPlacementManager.placeNewWindow(window)
-                placedUnzonedCount += 1
-            }
-
-            // Sync if we captured new windows or placed unzoned ones
-            if capturedCount > 0 || placedUnzonedCount > 0 {
-                self.syncWindowsToZones()
-                // Log the result
-                let (postCaptureManaged, postPlaceholders) = self.currentWindowCounts()
-
-                Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, placed \(placedUnzonedCount) unzoned, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
-            }
-        }
     }
 
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor) {
