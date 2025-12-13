@@ -146,13 +146,28 @@ extension AppController {
                 }
             }
 
-            // Only sync if we captured new windows
-            if capturedCount > 0 {
+            // Identify tracked windows that are unminimized but not in any zone
+            // (tiled or temporary) and place them using normal placement logic.
+            var placedUnzonedCount = 0
+            for window in self.windowController.allWindows {
+                guard !window.isPlaceholder,
+                      !window.isMinimized,
+                      self.zoneKey(forManagedWindow: window) == nil,
+                      !self.isWindowInTemporaryZone(window.windowId) else {
+                    continue
+                }
+                Logger.debug("\(reason.capitalized) recapture: placing tracked but unzoned window \(window.windowId)")
+                self.windowPlacementManager.placeNewWindow(window)
+                placedUnzonedCount += 1
+            }
+
+            // Sync if we captured new windows or placed unzoned ones
+            if capturedCount > 0 || placedUnzonedCount > 0 {
                 self.syncWindowsToZones()
                 // Log the result
                 let (postCaptureManaged, postPlaceholders) = self.currentWindowCounts()
 
-                Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
+                Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, placed \(placedUnzonedCount) unzoned, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
             }
         }
     }
