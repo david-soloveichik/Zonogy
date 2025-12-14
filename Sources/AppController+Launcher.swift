@@ -320,7 +320,7 @@ extension AppController: LauncherWindowProvider {
             items.append(item)
         }
 
-        // Sort by lastActiveTime (most recent first), then alphabetically
+        // Sort by lastActiveTime (most recent first), then by Zonogy ID (discovery order)
         items.sort { lhs, rhs in
             switch (lhs.lastActiveTime, rhs.lastActiveTime) {
             case (let lhsTime?, let rhsTime?):
@@ -330,7 +330,10 @@ extension AppController: LauncherWindowProvider {
             case (.none, .some):
                 return false
             case (.none, .none):
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                // Fall back to Zonogy ID (discovery order), which prioritizes main windows
+                let lhsId = lhs.managedWindowId ?? Int.max
+                let rhsId = rhs.managedWindowId ?? Int.max
+                return lhsId < rhsId
             }
         }
 

@@ -67,7 +67,7 @@ When an application with multiple windows is selected, the user can drill down t
 - Only shows windows that Zonogy has captured (i.e., zone-manageable standard windows)
 - Displays window title from accessibility API (titles change frequently so cannot be cached)
 - Shows a window icon glyph for unminimized windows; minimized windows have no icon
-- **Ordering:** Windows are listed by recency (most recently active first). Zonogy tracks when each managed window becomes active, and this order is used for the window list. Windows that Zonogy has never seen active fall to the bottom, ordered by their window title.
+- **Ordering:** Windows are listed by recency (most recently active first). Zonogy tracks when each managed window becomes active, and this order is used for the window list. Windows without recency data are ordered by their Zonogy ID (discovery order), which typically places the main window first.
 
 ### Files and Directories (Optional Extension)
 
