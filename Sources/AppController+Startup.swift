@@ -15,6 +15,10 @@ extension AppController {
 
             let windows = captureWindows(for: application, notifyDelegate: false, allowExisting: false)
             for window in windows {
+                // Skip minimized windows from zone placement - they're tracked for the launcher
+                // but shouldn't be placed into zones during startup
+                guard !window.isMinimized else { continue }
+
                 let resolvedScreenId = detectScreenId(for: window) ?? primaryScreenId
                 guard screenContexts[resolvedScreenId] != nil else {
                     continue
@@ -297,7 +301,9 @@ extension AppController {
     }
 
     internal func bundleIdsWithVisibleWindows() -> Set<String> {
-        guard let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        // Use .excludeDesktopElements without .optionOnScreenOnly to include minimized windows
+        // This allows us to track apps that only have minimized windows for the launcher
+        guard let windowInfoList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
 
