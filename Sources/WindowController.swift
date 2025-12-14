@@ -67,10 +67,13 @@ class WindowController {
     internal let primaryScreenBounds: CGRect
     internal let applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
-    
+
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.
     internal let dragActivationDistance: CGFloat = 6
+
+    /// Tracks the last time each window was activated (for launcher recency ordering)
+    internal var windowLastActiveTime: [Int: Date] = [:]
 
     struct CaptureResult {
         let windows: [ManagedWindow]
@@ -375,6 +378,18 @@ class WindowController {
     /// Get all managed windows
     var allWindows: [ManagedWindow] {
         return windowRegistry.allWindows
+    }
+
+    // MARK: - Window Activity Tracking (for Launcher recency)
+
+    /// Record that a window was activated (for launcher recency ordering)
+    func recordWindowActivity(windowId: Int) {
+        windowLastActiveTime[windowId] = Date()
+    }
+
+    /// Get the last active time for a window (for launcher recency ordering)
+    func lastActiveTime(for windowId: Int) -> Date? {
+        windowLastActiveTime[windowId]
     }
 }
 

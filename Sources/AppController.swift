@@ -78,6 +78,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         controller.delegate = self
         return controller
     }()
+    internal lazy var launcherController: LauncherController = {
+        let controller = LauncherController()
+        controller.delegate = self
+        return controller
+    }()
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     internal var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []

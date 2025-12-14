@@ -18,6 +18,7 @@ final class HotkeyService {
         case minimizeWindowOrRemoveZoneAtCursor = 12
         case saveWinShotSnapshot = 13
         case showWinShotChooser = 14  // Fixed shortcut (Control-Command-Tab)
+        case showLauncher = 15
 
         /// Maps to the corresponding preferences action (nil for fixed shortcuts)
         var preferencesAction: KeyboardShortcutPreferences.ShortcutAction? {
@@ -36,6 +37,7 @@ final class HotkeyService {
             case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor
             case .saveWinShotSnapshot: return .saveWinShotSnapshot
             case .showWinShotChooser: return nil  // Fixed shortcut
+            case .showLauncher: return .showLauncher
             }
         }
 

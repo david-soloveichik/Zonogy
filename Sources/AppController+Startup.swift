@@ -370,8 +370,14 @@ extension AppController {
                 self.saveWinShotSnapshot()
             case .showWinShotChooser:
                 self.showWinShotChooser()
+            case .showLauncher:
+                self.showLauncher()
             }
         }
+    }
+
+    internal func showLauncher() {
+        launcherController.toggle()
     }
 
     private func captureTimeTravelLogs(triggerReason: String) {

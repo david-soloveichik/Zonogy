@@ -1,0 +1,56 @@
+/// Renders a single item row (icon + name) including selected state styling
+
+import SwiftUI
+
+struct LaunchItemRowView: View {
+    let item: LaunchItem
+    let isSelected: Bool
+    var windowCount: Int?
+    var isRunning: Bool = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Running indicator dot
+            Circle()
+                .fill(Color.secondary)
+                .frame(width: 4, height: 4)
+                .opacity(isRunning ? 1 : 0)
+
+            if let icon = item.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+                    .cornerRadius(4)
+            } else {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(.quaternary)
+                    .frame(width: 22, height: 22)
+            }
+
+            Text(item.displayName)
+                .font(.system(size: 14, weight: .regular))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if let count = windowCount, count >= 2 {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.22))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
+                    )
+            }
+        }
+    }
+}

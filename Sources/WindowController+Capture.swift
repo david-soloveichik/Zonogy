@@ -225,10 +225,9 @@ extension WindowController {
             return nil
         }
 
-        if isWindowMinimized(element) {
-            Logger.debug("captureWindowIfNeeded: Window is minimized for pid \(pid)")
-            return nil
-        }
+        // Check minimized state - we still track minimized windows for recency purposes,
+        // but don't notify delegate (so they won't be placed in zones)
+        let isMinimized = isWindowMinimized(element)
 
         if let existing = existingManagedWindow(for: element) {
             Logger.debug("captureWindowIfNeeded: Window already exists for pid \(pid), allowReturningExisting=\(allowReturningExisting)")
@@ -246,11 +245,17 @@ extension WindowController {
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
         externalWindows[identifier] = managed
-        Logger.debug("Captured external window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId)")
+
+        if isMinimized {
+            Logger.debug("Captured minimized window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId) (tracking only, no zone placement)")
+        } else {
+            Logger.debug("Captured external window \(identifier.cgWindowId) from pid \(pid) as managed id \(managed.windowId)")
+        }
 
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 
-        if notifyDelegate {
+        // Only notify delegate for non-minimized windows (minimized windows are tracked but not placed in zones)
+        if notifyDelegate && !isMinimized {
             Logger.debug("captureWindowIfNeeded: Notifying delegate about captured window \(managed.windowId) for pid \(pid)")
             delegate?.windowController(self, didCaptureExternalWindow: managed)
         }

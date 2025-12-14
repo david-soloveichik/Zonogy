@@ -26,6 +26,11 @@ extension AppController {
         handleActiveFitFocusChange(pid: pid)
         handleTemporaryZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
         handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
+
+        // Record window activity for launcher recency ordering
+        if let windowId = focusedWindowId {
+            windowController.recordWindowActivity(windowId: windowId)
+        }
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {
