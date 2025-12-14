@@ -1,0 +1,253 @@
+# Zonogy Launcher
+
+This specification describes the Launcher feature for Zonogy - a window switcher and application launcher that integrates with Zonogy's zone-based window management.
+
+## Overview
+
+The Launcher provides a quick way to switch between windows or launch applications, with the launched/selected window being placed into the targeted zone. It appears as a floating overlay, styled to match macOS aesthetics, and dismisses when an action is taken or the user cancels.
+
+## Activation
+
+### Keyboard Shortcut
+
+- **Default shortcut:** Control-Space (configurable in settings alongside other Zonogy shortcuts)
+- Pressing the shortcut toggles the launcher: if closed, opens it; if already open, closes it
+
+### Positioning
+
+The launcher window should appear:
+
+1. **Centered on the targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown.
+2. If the targeted zone is the temporary zone (which has no visible placeholder), center on the screen containing the temporary zone
+3. The launcher window should be a floating panel that stays above all other windows
+
+## User Interface
+
+### Visual Design
+
+The launcher window should have an elegant, professional appearance matching macOS design language:
+
+- **Background:** Vibrancy/blur effect (NSVisualEffectView) for a modern translucent look
+- **Shape:** Rounded rectangle with appropriate corner radius
+- **Size:** Approximately 500-600px wide, height adjusts based on content (max ~400px with scrolling)
+- **No title bar** - borderless window style
+
+### Layout
+
+1. **Search field** at the top - focused immediately when launcher opens
+2. **Results list** below showing filtered items
+3. Each item row displays:
+   - Icon (application icon, window glyph, or file icon)
+   - Display name
+   - Running indicator (small dot) for running applications
+   - Window count indicator (">") for apps with 2+ windows
+
+### Empty State
+
+When no items match the search query, display a friendly empty state message rather than a blank list.
+
+## Item Types and Sources
+
+### Applications
+
+All applications known to the OS are included:
+
+- **Discovery modes:** Directory scanning of standard application locations (default) or Spotlight database (configurable)
+- **Display name computation** (configurable):
+  - Preferred: bundle Info.plist name → Finder localized name → bundle filename
+  - Bundle Info.plist name only
+  - Finder localized name only
+  - Bundle filename (without .app)
+
+### Windows
+
+When an application with multiple windows is selected, the user can drill down to see individual windows:
+
+- Uses macOS Accessibility API to enumerate windows (including minimized)
+- Displays window title from accessibility API
+- Shows a window icon glyph for unminimized windows; minimized windows have no icon
+- **Ordering:** Windows are listed by recency (most recently active first). Zonogy tracks when each managed window becomes active, and this order is used for the window list. Windows that Zonogy has never seen active fall to the bottom, ordered by their window title.
+
+### Files and Directories (Optional Extension)
+
+Users can extend the searchable list via configuration:
+
+- Configuration file: `~/Library/Application Support/Zonogy/launcher-config.json`
+- Each entry specifies a path and optional alias text
+- Search matches against both filename and alias
+
+## Search and Filtering
+
+### Fuzzy Matching
+
+Search uses subsequence matching (like LaunchBar):
+
+- Characters typed must appear in the item name in order, but not necessarily consecutively
+- Example: typing "ff" matches "Firefox" (F-ire-F-ox)
+- Matching is case-insensitive
+
+### Ranking (Frecency)
+
+Items are ranked by frecency - a blend of frequency and recency:
+
+```
+frecency = log(1 + count) + exp(-ageSeconds / tauSeconds)
+```
+
+Where `tauSeconds` ≈ 10 days.
+
+**Global vs Per-Query Frecency:**
+
+- **Global:** How often/recently an item has been launched overall
+- **Per-query:** How often/recently an item has been launched for the current query (and prefixes)
+
+Final ranking:
+
+```
+finalScore = globalFrecency + (queryBoostWeight * queryFrecency)
+```
+
+Where `queryBoostWeight` ≈ 3.0. When query is empty, `queryFrecency` is zero.
+
+Items ordered by descending `finalScore`, with case-insensitive alphabetical tie-breaker.
+
+### History Persistence
+
+Launch history is persisted to `~/Library/Application Support/Zonogy/launcher-history.json`.
+
+Per-query memory is recorded when:
+
+- User launches with non-empty query
+- Launched item is not the current top-ranked result
+- Recorded for full normalized query and its prefixes (up to 32 characters)
+
+## Navigation and Interaction
+
+### Keyboard Navigation
+
+- **Up/Down arrows:** Select item from the filtered list
+- **Enter:** Activate selected item (launch app, focus window, open file)
+- **Tab:** When app with 2+ windows is selected, drill into window list
+- **Shift-Tab or Escape (in window list):** Return to main app list
+- **Escape (in main list):** Dismiss launcher without action
+
+### Window List Mode
+
+When drilling into an application's windows:
+
+1. The list is replaced with that application's windows
+2. Search field is cleared
+3. First actual window is selected (not the app header)
+4. Same fuzzy matching applies to window titles
+
+**App Header Entry:**
+
+- First entry in window list shows app icon and name
+- Distinct visual styling from window entries
+- Activating it focuses the app without targeting a specific window
+- Always visible regardless of search filter
+
+### After Selection
+
+After selecting any item via Enter:
+
+- Search text is cleared
+- If in window mode, returns to main app list
+- Launcher window closes
+
+## Integration with Zonogy Window Management
+
+### Window Placement
+
+When the user selects a window or launches an application:
+
+1. **If selecting an existing window:**
+   - If minimized: unminimize and place into the targeted zone
+   - If not minimized: move window to the targeted zone (if not already there)
+   - The targeted zone receives the window using standard Zonogy placement rules
+
+2. **If launching a new application:**
+   - The new window will be placed into the targeted zone via normal Zonogy window capture
+
+3. **If activating an app header (not a specific window):**
+   - Use `app.activate(options: [.activateIgnoringOtherApps])` without changing window placement
+
+### Dismissal
+
+The launcher dismisses when:
+
+- User presses Escape
+- User activates an item (Enter on selection)
+- User clicks outside the launcher window
+- User presses the activation shortcut again (toggle behavior)
+
+## Configuration
+
+### Settings Integration
+
+Launcher settings should integrate with Zonogy's existing configuration system:
+
+- **Activation shortcut:** Control-Space (default), configurable
+- **App discovery mode:** Directory scanning or Spotlight
+- **Display name style:** Preferred, bundle name, localized name, or filename
+
+### Configuration Files
+
+- **History:** `~/Library/Application Support/Zonogy/launcher-history.json`
+- **Custom items:** `~/Library/Application Support/Zonogy/launcher-config.json`
+
+Custom items config schema:
+
+```json
+{
+  "items": [
+    {
+      "path": "/path/to/file/or/directory",
+      "alias": "optional alias text"
+    },
+    {
+      "bundleIdentifier": "com.example.app",
+      "alias": "optional alias for existing app"
+    }
+  ]
+}
+```
+
+## Accessibility
+
+### Permissions
+
+Window enumeration requires accessibility permissions. If not granted:
+
+- The ">" indicator should not appear on any app entries
+- Attempting to drill into windows prompts user to grant accessibility in System Preferences
+
+Since Zonogy already requires accessibility permissions for window management, the launcher should leverage those existing permissions.
+
+## Implementation Notes
+
+### Code Reuse
+
+The implementation can be adapted from Test-Launchbar:
+
+- **SubsequenceMatcher:** Fuzzy matching algorithm
+- **LaunchItem/WindowItem models:** Data structures for items
+- **LauncherModel:** Core logic for filtering and ranking
+- **LaunchItemUsageStore:** Frecency tracking and persistence
+- **WindowEnumerationService:** Accessibility-based window enumeration
+- **UI components:** LauncherView, LaunchItemListView, WindowItemListView, etc.
+
+### Window Configuration
+
+The launcher window should be configured as:
+
+- `styleMask: [.borderless]`
+- `level: .floating`
+- `backgroundColor: .clear`
+- Non-activating where possible to avoid interfering with window focus until selection
+
+### Performance
+
+- Application list should be loaded/refreshed on launcher open (or cached with staleness check)
+- Search filtering should be responsive (< 16ms for 60fps feel)
+- Window enumeration on tab-into-app should be fast (async if needed)

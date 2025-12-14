@@ -1,10 +1,10 @@
 # Zonogy Window Manager for MacOS
 
-## 1. Overview
+## Overview
 
 Zonogy is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing reserving space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
 
-## 2. Core Concepts
+## Core Concepts
 
 ### **CRITICAL: Coordinate System**
 
@@ -45,7 +45,7 @@ We manage a window if it passes **all** of the following conditions (see `winman
 
 Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder panes never receive a `CGWindowID` and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the CGWindow value exists.
 
-## 3. Zones
+## Zones
 
 ### Zone Abstraction Basics
 
@@ -103,7 +103,7 @@ When Zonogy starts, if there are already open (unminimized) eligible windows, th
 
 There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
 
-## 4. User Interactions
+## User Interactions
 
 ### Adding and Removing Zones
 
@@ -184,7 +184,7 @@ If the targeted zone is on the same screen as the active/key window then: We pic
 
 In either case, since the original zone of the window is now empty, it should become targeted after this.
 
-## 5. Special Features
+## Special Features
 
 ### ActiveFit: Active Overflow Reveal for Key Windows
 
@@ -262,7 +262,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Windows are resized BEFORE unminimizing for smooth animation.
 - Activates the previously active window.
 
-## 6. Implementation Details
+## Implementation Details
 
 ### Destroyed Window Detection
 
@@ -289,7 +289,7 @@ When restoring layouts from either sleep/wake snapshots or WinShot snapshots, we
 (`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
 - The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./Zonogy`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
-## 7. Accessibility API Workarounds
+## Accessibility API Workarounds
 
 ### Retry Mechanisms Tied to Accessibility
 
@@ -299,7 +299,11 @@ Zonogy uses three narrowly scoped retry mechanisms to cope with AX timing and co
 - **(Per-application) AX window-capture retries (PID-scoped):** When `AXWindowCreated` notifications fail to yield a manageable window (e.g., transient AX errors), `WindowCapturePipeline` schedules a small number of delayed recapture attempts per PID using `cancelAllRetries()` to tear them down when captures succeed, the app exits, or the system goes to sleep.
 - **(Per-window) AX frame application retries:** When applying a zone-aligned frame via AX leaves a window off-screen or far from the requested geometry, `WindowController` schedules a one-shot delayed frame retry for that window. These per-window timers are cancelled whenever zone topology/geometry changes or when screens go to sleep so no stale frame targets are applied later.
 
-## 8. Developer Tools
+## Launcher
+
+For the application launcher and window switcher feature (Control-Space), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
+
+## Developer Tools
 
 ### REPL and Socket API
 
@@ -344,7 +348,7 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 The source code for Amethyst tiling window manager (with my modifications) is at `/Users/dsolov/Documents/Development/VibeDevelopment/Amethyst`. This might be useful as a reference since it implements tiling and some of the functionality we are interested in. For parts of its functionality it relies on the Silica framework whose source code is at `/Users/dsolov/Documents/Development/VibeDevelopment/Silica`.
 
-## 9. Configuration
+## Configuration
 
 An optional `config.json` file lets users (a) specify bundle identifiers that the window manager should ignore entirely and (b) define per-application exception rules that tweak the default eligibility checks for specific apps. When present, it is discovered using the following search order:
 
