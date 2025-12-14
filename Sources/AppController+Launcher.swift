@@ -305,8 +305,20 @@ extension AppController: LauncherWindowProvider {
             // Get title from AX (not cached - titles change frequently)
             var titleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
-            let title = (titleRef as? String) ?? ""
+            var title = (titleRef as? String) ?? ""
             guard !title.isEmpty else { continue }
+
+            // Strip app name suffix (e.g., " - Safari", " — Finder")
+            // Handles: hyphen (-), en-dash (–), em-dash (—), and pipe (|)
+            if let appName = runningApp.localizedName {
+                for separator in [" - ", " – ", " — ", " | "] {
+                    let suffix = separator + appName
+                    if title.hasSuffix(suffix) {
+                        title = String(title.dropLast(suffix.count))
+                        break
+                    }
+                }
+            }
 
             let item = LauncherWindowItem(
                 title: title,
