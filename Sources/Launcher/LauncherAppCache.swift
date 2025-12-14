@@ -11,7 +11,6 @@ final class LauncherAppCache {
     private var iconCache: [URL: NSImage] = [:]
     private var isLoaded = false
     private let appProvider = DefaultAppProvider()
-    private let displayNameStyle: AppDisplayNameStyle = .preferred
 
     private init() {}
 
@@ -19,7 +18,7 @@ final class LauncherAppCache {
     func preload() async {
         guard !isLoaded else { return }
 
-        let apps = await appProvider.discoverApplications(displayNameStyle: displayNameStyle, skipIcons: true)
+        let apps = await appProvider.discoverApplications(skipIcons: true)
         let configEntries = LauncherConfigurationStore.loadEntries()
         let combined = merge(apps: apps, configEntries: configEntries)
 
@@ -34,7 +33,7 @@ final class LauncherAppCache {
     func reload() async {
         iconCache.removeAll()
 
-        let apps = await appProvider.discoverApplications(displayNameStyle: displayNameStyle, skipIcons: true)
+        let apps = await appProvider.discoverApplications(skipIcons: true)
         let configEntries = LauncherConfigurationStore.loadEntries()
         let combined = merge(apps: apps, configEntries: configEntries)
 
@@ -88,7 +87,7 @@ final class LauncherAppCache {
         for entry in configEntries {
             let key = normalizedPath(for: entry.url)
             guard !appPaths.contains(key) else { continue }
-            if let item = LaunchItemBuilder.makeItem(for: entry.url, displayNameStyle: displayNameStyle, alias: entry.alias, skipIcon: true) {
+            if let item = LaunchItemBuilder.makeItem(for: entry.url, alias: entry.alias, skipIcon: true) {
                 extras.append(item)
             }
         }

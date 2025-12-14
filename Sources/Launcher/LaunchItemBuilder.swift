@@ -4,7 +4,7 @@ import AppKit
 import Foundation
 
 enum LaunchItemBuilder {
-    static func makeItem(for url: URL, displayNameStyle: AppDisplayNameStyle, alias: String? = nil, skipIcon: Bool = false) -> LaunchItem? {
+    static func makeItem(for url: URL, alias: String? = nil, skipIcon: Bool = false) -> LaunchItem? {
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
 
         let kind: LaunchItemKind
@@ -16,14 +16,7 @@ enum LaunchItemBuilder {
             kind = .file
         }
 
-        let displayName: String
-        switch kind {
-        case .application:
-            guard let name = AppBundleInfo.displayName(for: resolved, style: displayNameStyle) else { return nil }
-            displayName = name
-        case .directory, .file:
-            displayName = resolved.lastPathComponent
-        }
+        let displayName = AppBundleInfo.displayName(for: resolved)
 
         let icon: NSImage? = skipIcon ? nil : NSWorkspace.shared.icon(forFile: resolved.path)
 

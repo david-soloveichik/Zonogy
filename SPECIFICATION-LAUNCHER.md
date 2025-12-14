@@ -53,11 +53,7 @@ When no items match the search query, display a friendly empty state message rat
 All applications known to the OS are included:
 
 - **Discovery modes:** Directory scanning of standard application locations (default) or Spotlight database (configurable)
-- **Display name computation** (configurable):
-  - Preferred: bundle Info.plist name → Finder localized name → bundle filename
-  - Bundle Info.plist name only
-  - Finder localized name only
-  - Bundle filename (without .app)
+- **Display name:** Uses `FileManager.displayName(atPath:)` which returns the same name shown in Finder/Dock. We strip any ".app" at the end.
 
 ### Windows
 
@@ -194,7 +190,6 @@ Launcher settings should integrate with Zonogy's existing configuration system:
 
 - **Activation shortcut:** Control-Space (default), configurable
 - **App discovery mode:** Directory scanning or Spotlight
-- **Display name style:** Preferred, bundle name, localized name, or filename
 
 ### Configuration Files
 
