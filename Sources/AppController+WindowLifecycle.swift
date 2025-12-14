@@ -59,6 +59,10 @@ extension AppController {
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }
 
+    func placeholderDoubleClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        showLauncher()
+    }
+
     func zoneIndicatorActivated(_ key: ZoneKey) {
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")

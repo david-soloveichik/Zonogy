@@ -52,6 +52,9 @@ final class PlaceholderContentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         controller?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+        if event.clickCount >= 2 {
+            controller?.handlePlaceholderDoubleClick(screenId: screenId, zoneIndex: zoneIndex)
+        }
         super.mouseDown(with: event)
     }
 
@@ -259,6 +262,12 @@ extension WindowController {
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
+    }
+
+    func handlePlaceholderDoubleClick(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        Logger.debug("Placeholder double-clicked for zone \(zoneIndex) on screen \(screenIndex)")
+        delegate?.placeholderDoubleClicked(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     @objc func handlePlaceholderClose(_ sender: NSButton) {

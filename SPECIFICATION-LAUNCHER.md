@@ -13,6 +13,10 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 - **Default shortcut:** Control-Space (configurable in settings alongside other Zonogy shortcuts)
 - Pressing the shortcut toggles the launcher: if closed, opens it; if already open, closes it
 
+### Placeholder Double-Click
+
+Double-clicking a placeholder window shows the Launcher, targeting that zone.
+
 ### Positioning
 
 The launcher window should appear:
