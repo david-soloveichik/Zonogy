@@ -38,6 +38,7 @@ struct LaunchItemRowView: View {
             Text(item.displayName)
                 .font(.system(size: 14, weight: .regular))
                 .lineLimit(1)
+                .truncationMode(.middle)
 
             Spacer(minLength: 0)
 

@@ -22,6 +22,7 @@ struct WindowItemRowView: View {
             Text(window.title)
                 .font(.system(size: 14, weight: .regular))
                 .lineLimit(1)
+                .truncationMode(.middle)
 
             Spacer(minLength: 0)
         }

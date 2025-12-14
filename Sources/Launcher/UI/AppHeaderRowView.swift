@@ -25,6 +25,7 @@ struct AppHeaderRowView: View {
                 Text(appName)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
                 Spacer(minLength: 0)
             }
