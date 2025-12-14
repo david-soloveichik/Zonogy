@@ -63,8 +63,9 @@ All applications known to the OS are included:
 
 When an application with multiple windows is selected, the user can drill down to see individual windows:
 
-- Uses macOS Accessibility API to enumerate windows (including minimized)
-- Displays window title from accessibility API
+- Uses Zonogy's tracked windows as the source of truth (rather than direct Accessibility API enumeration)
+- Only shows windows that Zonogy has captured (i.e., zone-manageable standard windows)
+- Displays window title from accessibility API (titles change frequently so cannot be cached)
 - Shows a window icon glyph for unminimized windows; minimized windows have no icon
 - **Ordering:** Windows are listed by recency (most recently active first). Zonogy tracks when each managed window becomes active, and this order is used for the window list. Windows that Zonogy has never seen active fall to the bottom, ordered by their window title.
 
@@ -234,8 +235,9 @@ The implementation can be adapted from Test-Launchbar:
 - **LaunchItem/WindowItem models:** Data structures for items
 - **LauncherModel:** Core logic for filtering and ranking
 - **LaunchItemUsageStore:** Frecency tracking and persistence
-- **WindowEnumerationService:** Accessibility-based window enumeration
 - **UI components:** LauncherView, LaunchItemListView, WindowItemListView, etc.
+
+Note: Unlike Test-Launchbar, Zonogy's launcher uses `WindowController.allWindows` as the source of truth for window enumeration rather than a separate WindowEnumerationService. This ensures consistency with Zonogy's window management and uses cached state (e.g., `isMinimized`) where available.
 
 ### Window Configuration
 

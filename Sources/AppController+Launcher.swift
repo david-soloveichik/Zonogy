@@ -183,75 +183,49 @@ extension AppController: LauncherControllerDelegate {
 
 extension AppController: LauncherWindowProvider {
     func windowsForApp(bundleIdentifier: String) -> [LauncherWindowItem] {
-        // Find the running app
         guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
             return []
         }
 
         let pid = runningApp.processIdentifier
-        let appElement = AXUIElementCreateApplication(pid)
-
-        // Get all windows via Accessibility API
-        var windowsRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
-        guard result == .success, let windowElements = windowsRef as? [AXUIElement] else {
-            return []
-        }
-
-        // Build a lookup of managed windows by their AXUIElement for matching
-        var managedWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
-        for window in windowController.allWindows {
-            guard !window.isPlaceholder else { continue }
-            if case .accessibility(let element, let windowPid, _) = window.backing, windowPid == pid {
-                let key = AccessibilityElementKey(element: element)
-                managedWindowsByElement[key] = window
-            }
-        }
-
         var items: [LauncherWindowItem] = []
 
-        for windowElement in windowElements {
-            // Get title
+        // Use Zonogy's tracked windows as the source of truth
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  case .accessibility(let element, let windowPid, _) = window.backing,
+                  windowPid == pid else {
+                continue
+            }
+
+            // Get title from AX (not cached - titles change frequently)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(windowElement, kAXTitleAttribute as CFString, &titleRef)
+            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
             let title = (titleRef as? String) ?? ""
-
-            // Skip windows with empty titles
             guard !title.isEmpty else { continue }
-
-            // Get minimized state
-            var minimizedRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(windowElement, kAXMinimizedAttribute as CFString, &minimizedRef)
-            let isMinimized = (minimizedRef as? Bool) ?? false
-
-            // Check if this window is managed by Zonogy
-            let elementKey = AccessibilityElementKey(element: windowElement)
-            let managedWindow = managedWindowsByElement[elementKey]
-            let lastActiveTime = managedWindow.flatMap { windowController.lastActiveTime(for: $0.windowId) }
 
             let item = LauncherWindowItem(
                 title: title,
-                isMinimized: isMinimized,
-                axElement: windowElement,
-                lastActiveTime: lastActiveTime,
+                isMinimized: window.isMinimized,  // Use cached state
+                axElement: element,
+                lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleIdentifier,
                 pid: pid,
-                managedWindowId: managedWindow?.windowId
+                managedWindowId: window.windowId
             )
             items.append(item)
         }
 
-        // Sort by lastActiveTime (most recent first), with untracked windows at the bottom sorted alphabetically
+        // Sort by lastActiveTime (most recent first), then alphabetically
         items.sort { lhs, rhs in
             switch (lhs.lastActiveTime, rhs.lastActiveTime) {
             case (let lhsTime?, let rhsTime?):
-                return lhsTime > rhsTime  // Most recent first
+                return lhsTime > rhsTime
             case (.some, .none):
-                return true  // lhs has time, rhs doesn't - lhs comes first
+                return true
             case (.none, .some):
-                return false  // rhs has time, lhs doesn't - rhs comes first
+                return false
             case (.none, .none):
-                // Neither has time - sort alphabetically
                 return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
         }
@@ -260,26 +234,24 @@ extension AppController: LauncherWindowProvider {
     }
 
     func windowCount(for bundleIdentifier: String) -> Int {
-        // Find the running app
         guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
             return 0
         }
 
         let pid = runningApp.processIdentifier
-        let appElement = AXUIElementCreateApplication(pid)
-
-        // Get all windows via Accessibility API
-        var windowsRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
-        guard result == .success, let windowElements = windowsRef as? [AXUIElement] else {
-            return 0
-        }
-
-        // Count windows with non-empty titles
         var count = 0
-        for windowElement in windowElements {
+
+        // Use Zonogy's tracked windows as the source of truth
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  case .accessibility(let element, let windowPid, _) = window.backing,
+                  windowPid == pid else {
+                continue
+            }
+
+            // Check title (still need AX for this - titles change)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(windowElement, kAXTitleAttribute as CFString, &titleRef)
+            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
                 count += 1
             }
