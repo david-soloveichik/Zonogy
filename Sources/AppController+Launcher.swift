@@ -8,8 +8,14 @@ extension AppController: LauncherControllerDelegate {
         // First, try to use the managed window if Zonogy already knows about it
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
-            // Unminimize if needed
+            // Calculate target zone frame for pre-positioning
+            let targetInfo = calculateTargetZoneFrame(for: managed)
+
+            // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
             if managed.isMinimized {
+                if let (frame, descriptor) = targetInfo {
+                    prePositionMinimizedWindowForLauncher(managed, to: frame, on: descriptor)
+                }
                 windowController.unminimizeWindow(managed)
             }
             // Place in targeted zone
@@ -42,6 +48,28 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - App Launch
 
     func launcherController(_ controller: LauncherController, didLaunchApp url: URL) {
+        // Check if app is already running with exactly 1 window
+        // If so, treat it like a window selection for proper zone placement
+        if let bundleId = Bundle(url: url)?.bundleIdentifier,
+           let singleWindow = singleManagedWindowForRunningApp(bundleIdentifier: bundleId) {
+            // Calculate target zone frame for pre-positioning
+            let targetInfo = calculateTargetZoneFrame(for: singleWindow)
+
+            // Pre-position and unminimize if needed
+            if singleWindow.isMinimized {
+                if let (frame, descriptor) = targetInfo {
+                    prePositionMinimizedWindowForLauncher(singleWindow, to: frame, on: descriptor)
+                }
+                windowController.unminimizeWindow(singleWindow)
+            }
+
+            // Place in targeted zone
+            placeSelectedWindow(singleWindow)
+            Logger.debug("Launcher: Placed single window of running app \(bundleId) into targeted zone")
+            return
+        }
+
+        // Normal app launch
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
 
@@ -52,6 +80,38 @@ extension AppController: LauncherControllerDelegate {
                 Logger.debug("Launcher: Launched \(app.localizedName ?? url.lastPathComponent)")
             }
         }
+    }
+
+    /// Returns the single managed window for a running app if it has exactly 1 window
+    private func singleManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
+        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+            return nil
+        }
+
+        let pid = runningApp.processIdentifier
+        var foundWindow: ManagedWindow?
+        var count = 0
+
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  case .accessibility(let element, let windowPid, _) = window.backing,
+                  windowPid == pid else {
+                continue
+            }
+
+            // Check title (must have a title to be considered a real window)
+            var titleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+            if let title = titleRef as? String, !title.isEmpty {
+                count += 1
+                foundWindow = window
+                if count > 1 {
+                    return nil  // More than 1 window, don't use single-window logic
+                }
+            }
+        }
+
+        return foundWindow
     }
 
     // MARK: - App Activation (without changing window placement)
@@ -164,6 +224,50 @@ extension AppController: LauncherControllerDelegate {
 
         syncWindowsToZones()
         refreshIndicators()
+    }
+
+    /// Calculate the target zone frame for a window being placed via Launcher
+    private func calculateTargetZoneFrame(for managed: ManagedWindow) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
+        // For temporary zone, calculate the centered frame
+        if let temporaryScreenId = targetedTemporaryScreenId {
+            guard let descriptor = descriptor(for: temporaryScreenId),
+                  let frame = temporaryZoneCoordinator.computePlacementFrame(for: managed, on: temporaryScreenId) else {
+                return nil
+            }
+            return (frame, descriptor)
+        }
+
+        // Calculate the targeted tiled zone frame
+        targetedZoneManager.ensureTargetedZone(reason: "launcher-pre-position")
+        guard let targetedKey = targetedZoneKey,
+              let context = screenContexts[targetedKey.screenId],
+              let descriptor = descriptor(for: targetedKey.screenId),
+              let zone = context.zoneController.zone(at: targetedKey.index) else {
+            return nil
+        }
+
+        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
+        return (displayFrame, descriptor)
+    }
+
+    /// Pre-position a minimized window to the target zone frame before unminimizing
+    /// This ensures the unminimize animation shows the window "restoring" to the correct position
+    private func prePositionMinimizedWindowForLauncher(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
+        guard case .accessibility(let element, _, _) = managed.backing else { return }
+
+        let accessibilityFrame = screen.screenToAccessibility(screenFrame)
+
+        var position = accessibilityFrame.origin
+        if let positionValue = AXValueCreate(.cgPoint, &position) {
+            AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
+        }
+
+        var size = accessibilityFrame.size
+        if let sizeValue = AXValueCreate(.cgSize, &size) {
+            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+        }
+
+        Logger.debug("Launcher: Pre-positioned minimized window \(managed.windowId) to \(screenFrame) before unminimizing")
     }
 
     private func activateWindow(_ managed: ManagedWindow) {

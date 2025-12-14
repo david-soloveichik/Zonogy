@@ -163,14 +163,17 @@ After selecting any item via Enter:
 When the user selects a window or launches an application:
 
 1. **If selecting an existing window:**
-   - If minimized: unminimize and place into the targeted zone
+   - If minimized: resize/position to target zone frame BEFORE unminimizing (so the unminimize animation shows the window restoring to the correct position), then place into the targeted zone
    - If not minimized: move window to the targeted zone (if not already there)
    - The targeted zone receives the window using standard Zonogy placement rules
 
-2. **If launching a new application:**
+2. **If launching/selecting a running app with exactly 1 window:**
+   - Treat as window selection (applies pre-positioning and zone placement as above)
+
+3. **If launching a new application:**
    - The new window will be placed into the targeted zone via normal Zonogy window capture
 
-3. **If activating an app header (not a specific window):**
+4. **If activating an app header (not a specific window):**
    - Use `app.activate(options: [.activateIgnoringOtherApps])` without changing window placement
 
 ### Dismissal

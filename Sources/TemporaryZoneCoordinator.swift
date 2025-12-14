@@ -293,6 +293,13 @@ final class TemporaryZoneCoordinator {
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
 
+    /// Compute the placement frame for a window in the temporary zone without actually placing it.
+    /// Used for pre-positioning minimized windows before unminimizing.
+    func computePlacementFrame(for managed: ManagedWindow, on screenId: CGDirectDisplayID) -> CGRect? {
+        guard let descriptor = host?.descriptor(for: screenId) else { return nil }
+        return placementFrame(for: managed, on: descriptor)
+    }
+
     func hasAvailableTiledZone() -> Bool {
         guard let host else { return false }
         return emptyZoneCount(in: host.screenContexts) > 0
