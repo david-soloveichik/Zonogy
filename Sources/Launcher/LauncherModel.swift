@@ -112,9 +112,11 @@ final class LauncherModel: ObservableObject {
 
         Task.detached(priority: .utility) { [provider] in
             let apps = await provider.discoverApplications(displayNameStyle: style)
+            let configEntries = LauncherConfigurationStore.loadEntries()
+            let combined = Self.merge(apps: apps, configEntries: configEntries, displayNameStyle: style)
             await MainActor.run {
                 guard generation == self.reloadGeneration else { return }
-                self.allItems = apps.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+                self.allItems = combined.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
                 self.updateFilteredItems(preserveSelection: false)
             }
         }
@@ -306,5 +308,42 @@ final class LauncherModel: ObservableObject {
     func windowModeBundleIdentifier() -> String? {
         guard case .windowList(let bundleId, _) = mode else { return nil }
         return bundleId
+    }
+
+    // MARK: - Custom Items
+
+    nonisolated private static func merge(
+        apps: [LaunchItem],
+        configEntries: [LauncherConfigurationStore.Entry],
+        displayNameStyle: AppDisplayNameStyle
+    ) -> [LaunchItem] {
+        var aliasByPath: [String: String] = [:]
+        aliasByPath.reserveCapacity(configEntries.count)
+        for entry in configEntries {
+            guard let alias = entry.alias, !alias.isEmpty else { continue }
+            aliasByPath[normalizedPath(for: entry.url)] = alias
+        }
+
+        let appPaths = Set(apps.map { normalizedPath(for: $0.url) })
+        let appsWithAliases = apps.map { item in
+            let key = normalizedPath(for: item.url)
+            guard let alias = aliasByPath[key], !alias.isEmpty else { return item }
+            return LaunchItem(url: item.url, displayName: item.displayName, icon: item.icon, kind: item.kind, alias: alias)
+        }
+
+        var extras: [LaunchItem] = []
+        for entry in configEntries {
+            let key = normalizedPath(for: entry.url)
+            guard !appPaths.contains(key) else { continue }
+            if let item = LaunchItemBuilder.makeItem(for: entry.url, displayNameStyle: displayNameStyle, alias: entry.alias) {
+                extras.append(item)
+            }
+        }
+
+        return appsWithAliases + extras
+    }
+
+    nonisolated private static func normalizedPath(for url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 }
