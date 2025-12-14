@@ -21,7 +21,9 @@ final class LaunchItemUsageStore {
         static let maxGlobalItems: Int = 6000
         static let maxPrefixLength: Int = 32
 
-        static let queryBoostWeight: Double = 3.0
+        static let queryBoostWeight: Double = 5.0
+        static let queryDominanceWeight: Double = 8.0
+        static let queryDominanceThreshold: Double = 0.5
         static let recencyTauSeconds: TimeInterval = 60 * 60 * 24 * 10
     }
 
@@ -43,7 +45,16 @@ final class LaunchItemUsageStore {
     func combinedScore(itemURL: URL, query: String, now: Date) -> Double {
         let itemKey = Self.normalizedItemKey(for: itemURL)
         let queryKey = Self.normalizedQueryKey(query)
-        return globalScore(itemKey: itemKey, now: now) + Constants.queryBoostWeight * queryScore(itemKey: itemKey, queryKey: queryKey, now: now)
+        let global = globalScore(itemKey: itemKey, now: now)
+        let perQuery = queryScore(itemKey: itemKey, queryKey: queryKey, now: now)
+
+        // Query dominance mode: when significant query-specific history exists, let it dominate
+        if perQuery > Constants.queryDominanceThreshold {
+            return Constants.queryDominanceWeight * perQuery
+        }
+
+        // Standard mode: weighted combination
+        return global + Constants.queryBoostWeight * perQuery
     }
 
     func recordLaunch(query: String, itemURL: URL, recordQueryPreference: Bool) {

@@ -88,11 +88,28 @@ Search uses subsequence matching (like LaunchBar):
 - Example: typing "ff" matches "Firefox" (F-ire-F-ox)
 - Matching is case-insensitive
 
-### Ranking (Frecency)
+### Ranking
 
-Items are ranked by frecency - a blend of frequency and recency:
+Ranking combines **match quality** (how well the query matches the item name) with **frecency** (frequency + recency of use). This allows the launcher to learn user preferences like LaunchBar - after selecting Mail a few times for "m", it will rank above Chrome even if Chrome is used more often globally.
 
-```
+#### Match Quality Scoring
+
+Match quality (0.0 to 1.0) is based on position and density of matched characters:
+
+- **Word boundary bonus:** Matches at start of string or after whitespace score highest (+10)
+- **Delimiter bonus:** Matches after `-`, `_`, `.`, `/` score well (+8)
+- **CamelCase bonus:** Matches at uppercase letters following lowercase (+7)
+- **Consecutive bonus:** Each consecutive matched character adds bonus (+4)
+- **Gap penalties:** Gaps between matches reduce score (-3 to start, -1 per char)
+- **First character multiplier:** Bonuses on first query character are doubled (2x)
+
+Example: Query "m" scores ~0.85 for "Mail" (word start) but ~0.35 for "Chrome" (mid-word).
+
+#### Frecency Scoring
+
+Base frecency formula:
+
+```text
 frecency = log(1 + count) + exp(-ageSeconds / tauSeconds)
 ```
 
@@ -103,15 +120,26 @@ Where `tauSeconds` ≈ 10 days.
 - **Global:** How often/recently an item has been launched overall
 - **Per-query:** How often/recently an item has been launched for the current query (and prefixes)
 
-Final ranking:
+**Query Dominance Mode:** When per-query frecency exceeds a threshold (~0.5), it dominates completely:
 
+```text
+if queryFrecency > 0.5:
+    frecencyScore = 8.0 * queryFrecency  // Query history dominates
+else:
+    frecencyScore = globalFrecency + 5.0 * queryFrecency
 ```
-finalScore = globalFrecency + (queryBoostWeight * queryFrecency)
+
+This means after selecting an item 2-3 times for a specific query, that preference overrides global usage patterns.
+
+#### Combined Formula
+
+```text
+finalScore = matchQuality * (1.0 + 2.0 * frecencyScore)
 ```
 
-Where `queryBoostWeight` ≈ 3.0. When query is empty, `queryFrecency` is zero.
+Match quality acts as a multiplier - poor matches cannot be rescued by high frecency. Items are ordered by descending `finalScore`, with case-insensitive alphabetical tie-breaker.
 
-Items ordered by descending `finalScore`, with case-insensitive alphabetical tie-breaker.
+When query is empty, all items have matchQuality = 1.0 and ranking uses pure frecency.
 
 ### History Persistence
 

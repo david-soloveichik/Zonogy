@@ -15,7 +15,7 @@ final class LauncherModel: ObservableObject {
         didSet {
             switch mode {
             case .appList:
-                updateFilteredItems(preserveSelection: true)
+                updateFilteredItems(preserveSelection: false)
             case .windowList:
                 updateFilteredWindowItems()
             }
@@ -139,30 +139,51 @@ final class LauncherModel: ObservableObject {
         let previousSelection = preserveSelection ? selectedItemURL : nil
 
         if trimmedQuery.isEmpty {
+            // Empty query: show all items sorted by pure frecency
             filteredItems = allItems
+            let scoringNow = Date()
+            filteredItems.sort { lhs, rhs in
+                let lhsScore = usageStore.combinedScore(itemURL: lhs.url, query: "", now: scoringNow)
+                let rhsScore = usageStore.combinedScore(itemURL: rhs.url, query: "", now: scoringNow)
+                if lhsScore != rhsScore { return lhsScore > rhsScore }
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
         } else {
-            filteredItems = allItems.filter { item in
-                if SubsequenceMatcher.matches(query: trimmedQuery, candidate: item.displayName) {
-                    return true
-                }
-                if let alias = item.alias, SubsequenceMatcher.matches(query: trimmedQuery, candidate: alias) {
-                    return true
-                }
-                return false
-            }
-        }
+            // Non-empty query: filter with match quality scoring
+            let scoringNow = Date()
 
-        let scoringNow = Date()
-        let scoredItems = filteredItems.map { item in
-            (item: item, score: usageStore.combinedScore(itemURL: item.url, query: trimmedQuery, now: scoringNow))
-        }
-
-        filteredItems = scoredItems
-            .sorted { lhs, rhs in
-                if lhs.score != rhs.score { return lhs.score > rhs.score }
-                return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
+            // Filter and compute match quality
+            let matchedItems: [(item: LaunchItem, matchScore: Double)] = allItems.compactMap { item in
+                // Try display name first
+                let displayResult = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: item.displayName)
+                if displayResult.isMatch {
+                    return (item, displayResult.score)
+                }
+                // Try alias
+                if let alias = item.alias {
+                    let aliasResult = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: alias)
+                    if aliasResult.isMatch {
+                        return (item, aliasResult.score)
+                    }
+                }
+                return nil
             }
-            .map(\.item)
+
+            // Compute final scores combining match quality and frecency
+            let scoredItems = matchedItems.map { (item, matchScore) in
+                let frecency = usageStore.combinedScore(itemURL: item.url, query: trimmedQuery, now: scoringNow)
+                let finalScore = matchScore * (1.0 + 2.0 * frecency)
+                return (item: item, score: finalScore)
+            }
+
+            // Sort by final score
+            filteredItems = scoredItems
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
+                }
+                .map(\.item)
+        }
 
         if let previousSelection, filteredItems.contains(where: { $0.url == previousSelection }) {
             selectedItemURL = previousSelection
