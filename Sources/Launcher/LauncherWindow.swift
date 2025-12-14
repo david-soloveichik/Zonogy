@@ -71,12 +71,18 @@ final class LauncherWindow: NSPanel {
     /// Position the window centered on the specified zone frame (in screen coordinates)
     /// The zone frame uses screen coordinates (y:0 at top-left), so we convert to Cocoa coordinates
     func centerOnZone(frame zoneFrame: CGRect, screenDescriptor: ScreenDescriptor) {
-        // Convert zone frame from screen coordinates to Cocoa coordinates
         let cocoaFrame = screenDescriptor.screenToCocoa(zoneFrame)
-
+        let visibleBounds = screenDescriptor.visibleCocoaBounds
         let windowSize = self.frame.size
-        let x = cocoaFrame.midX - windowSize.width / 2
-        let y = cocoaFrame.midY - windowSize.height / 2
+
+        // Calculate centered position
+        var x = cocoaFrame.midX - windowSize.width / 2
+        var y = cocoaFrame.midY - windowSize.height / 2
+
+        // Clamp to keep window within visible screen bounds
+        x = max(visibleBounds.minX, min(x, visibleBounds.maxX - windowSize.width))
+        y = max(visibleBounds.minY, min(y, visibleBounds.maxY - windowSize.height))
+
         setFrameOrigin(NSPoint(x: x, y: y))
     }
 
