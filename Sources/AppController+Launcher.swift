@@ -48,28 +48,26 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - App Launch
 
     func launcherController(_ controller: LauncherController, didLaunchApp url: URL) {
-        // Check if app is already running with exactly 1 window
-        // If so, treat it like a window selection for proper zone placement
+        // Check if app is already running - select the preferred window
         if let bundleId = Bundle(url: url)?.bundleIdentifier,
-           let singleWindow = singleManagedWindowForRunningApp(bundleIdentifier: bundleId) {
+           let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
             // Calculate target zone frame for pre-positioning
-            let targetInfo = calculateTargetZoneFrame(for: singleWindow)
+            let targetInfo = calculateTargetZoneFrame(for: preferredWindow)
 
             // Pre-position and unminimize if needed
-            if singleWindow.isMinimized {
+            if preferredWindow.isMinimized {
                 if let (frame, descriptor) = targetInfo {
-                    prePositionMinimizedWindowForLauncher(singleWindow, to: frame, on: descriptor)
+                    prePositionMinimizedWindowForLauncher(preferredWindow, to: frame, on: descriptor)
                 }
-                windowController.unminimizeWindow(singleWindow)
+                windowController.unminimizeWindow(preferredWindow)
             }
 
             // Place in targeted zone
-            placeSelectedWindow(singleWindow)
-            Logger.debug("Launcher: Placed single window of running app \(bundleId) into targeted zone")
+            placeSelectedWindow(preferredWindow)
             return
         }
 
-        // Normal app launch
+        // Normal app launch (not running, or no eligible windows)
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
 
@@ -82,15 +80,19 @@ extension AppController: LauncherControllerDelegate {
         }
     }
 
-    /// Returns the single managed window for a running app if it has exactly 1 window
-    private func singleManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
+    /// Returns the preferred window for a running app based on configuration:
+    /// - If app has `hasMainWindow: true`: returns window with lowest Zonogy ID (first created)
+    /// - Otherwise: returns the most recently active window
+    /// - Returns nil if app has no managed windows with titles
+    private func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
         guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
             return nil
         }
 
         let pid = runningApp.processIdentifier
-        var foundWindow: ManagedWindow?
-        var count = 0
+
+        // Collect all managed windows for this app (with valid titles)
+        var eligibleWindows: [ManagedWindow] = []
 
         for window in windowController.allWindows {
             guard !window.isPlaceholder,
@@ -103,15 +105,42 @@ extension AppController: LauncherControllerDelegate {
             var titleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
-                count += 1
-                foundWindow = window
-                if count > 1 {
-                    return nil  // More than 1 window, don't use single-window logic
-                }
+                eligibleWindows.append(window)
             }
         }
 
-        return foundWindow
+        guard !eligibleWindows.isEmpty else {
+            return nil
+        }
+
+        // Check if this app prefers the "main window" (lowest Zonogy ID)
+        let prefersMainWindow = configuration.applicationExceptionPolicy.hasMainWindow(forBundleIdentifier: bundleIdentifier)
+
+        if prefersMainWindow {
+            // Sort by Zonogy ID ascending (first created = main window)
+            eligibleWindows.sort { $0.windowId < $1.windowId }
+            Logger.debug("Launcher: App \(bundleIdentifier) has hasMainWindow=true, selecting window \(eligibleWindows[0].windowId) (lowest ID)")
+        } else {
+            // Sort by last active time descending (most recent first), with Zonogy ID as tiebreaker
+            eligibleWindows.sort { lhs, rhs in
+                let lhsTime = windowController.lastActiveTime(for: lhs.windowId)
+                let rhsTime = windowController.lastActiveTime(for: rhs.windowId)
+
+                switch (lhsTime, rhsTime) {
+                case (let lhsT?, let rhsT?):
+                    return lhsT > rhsT  // More recent first
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    return lhs.windowId < rhs.windowId  // Fallback to Zonogy ID
+                }
+            }
+            Logger.debug("Launcher: App \(bundleIdentifier) selecting most recent window \(eligibleWindows[0].windowId)")
+        }
+
+        return eligibleWindows.first
     }
 
     // MARK: - App Activation (without changing window placement)

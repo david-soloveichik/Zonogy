@@ -5,6 +5,34 @@
       "bundleIdentifier": "com.valvesoftware.steam.helper",
       "ignoreActivationPolicy": true,
       "ignoreZoomButtonRequirement": true
+    },
+    {
+      "bundleIdentifier": "com.apple.mail",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.Notes",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.MobileSMS",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.iCal",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.reminders",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.Music",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.Photos",
+      "hasMainWindow": true
     }
   ]
 }

@@ -196,8 +196,11 @@ When the user selects a window or launches an application:
    - If not minimized: move window to the targeted zone (if not already there)
    - The targeted zone receives the window using standard Zonogy placement rules
 
-2. **If launching/selecting a running app with exactly 1 window:**
-   - Treat as window selection (applies pre-positioning and zone placement as above)
+2. **If selecting a running app with 1+ managed windows:**
+   - Selects the preferred window and treats as window selection (zone placement as above)
+   - **Main window apps** (`hasMainWindow: true` in config): selects window with lowest Zonogy ID (first created)
+   - **Other apps** (default): selects most recently active window
+   - Pre-configured main window apps: Mail, Notes, Messages, Calendar, Reminders, Music, Photos
 
 3. **If launching a new application:**
    - The new window will be placed into the targeted zone via normal Zonogy window capture
