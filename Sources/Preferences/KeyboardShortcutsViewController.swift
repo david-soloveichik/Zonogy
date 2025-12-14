@@ -315,6 +315,13 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         }
 
         let shortcut = KeyboardShortcut(keyCode: UInt32(event.keyCode), modifiers: carbonModifiers)
+
+        // Clear any existing assignment of this shortcut to another action
+        if let conflictingAction = KeyboardShortcutPreferences.shared.action(for: shortcut),
+           conflictingAction != action {
+            KeyboardShortcutPreferences.shared.clearShortcut(for: conflictingAction)
+        }
+
         KeyboardShortcutPreferences.shared.setShortcut(shortcut, for: action)
 
         stopRecording()
@@ -336,9 +343,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     private func stopRecording() {
-        guard let row = recordingRow else { return }
+        guard recordingRow != nil else { return }
         stopRecordingWithoutReload()
-        tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integersIn: 1...2))
+        tableView.reloadData()
     }
 
     @objc private func clearShortcut(_ sender: ClearButton) {

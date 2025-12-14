@@ -143,6 +143,15 @@ final class KeyboardShortcutPreferences: ObservableObject {
         shortcuts[action] != nil
     }
 
+    func action(for shortcut: KeyboardShortcut) -> ShortcutAction? {
+        for action in ShortcutAction.allCases {
+            if let currentShortcut = self.shortcut(for: action), currentShortcut == shortcut {
+                return action
+            }
+        }
+        return nil
+    }
+
     private func loadShortcuts() {
         guard FileManager.default.fileExists(atPath: preferencesURL.path),
               let data = try? Data(contentsOf: preferencesURL),
