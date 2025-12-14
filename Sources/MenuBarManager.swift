@@ -4,6 +4,7 @@ import AppKit
 
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
+    func menuBarManagerDidRequestReloadLauncher()
 }
 
 /// Manages the menu bar status item, including visual state (e.g. dimming during sleep/wake) and its menu.
@@ -49,6 +50,14 @@ class MenuBarManager {
         )
         preferencesItem.target = self
         menu.addItem(preferencesItem)
+
+        let reloadLauncherItem = NSMenuItem(
+            title: "Reload Launcher List",
+            action: #selector(handleReloadLauncher),
+            keyEquivalent: ""
+        )
+        reloadLauncherItem.target = self
+        menu.addItem(reloadLauncherItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -110,6 +119,11 @@ class MenuBarManager {
     @objc private func handlePreferences() {
         Logger.debug("Preferences requested from menu bar")
         PreferencesWindowController.shared.showWindow()
+    }
+
+    @objc private func handleReloadLauncher() {
+        Logger.debug("Reload Launcher List requested from menu bar")
+        delegate?.menuBarManagerDidRequestReloadLauncher()
     }
 
     @objc private func handleQuit() {

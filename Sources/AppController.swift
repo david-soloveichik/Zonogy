@@ -228,6 +228,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
         }
         refreshIndicators()
+
+        // Pre-load launcher app list in background for instant launcher opens
+        Task.detached(priority: .utility) {
+            await LauncherAppCache.shared.preload()
+        }
     }
 
     deinit {

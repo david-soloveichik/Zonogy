@@ -9,4 +9,11 @@ extension AppController {
         Logger.debug("Quit requested from menu bar - terminating application")
         NSApplication.shared.terminate(nil)
     }
+
+    func menuBarManagerDidRequestReloadLauncher() {
+        Logger.debug("Reload Launcher List requested from menu bar")
+        Task {
+            await LauncherAppCache.shared.reload()
+        }
+    }
 }

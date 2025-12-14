@@ -1,5 +1,6 @@
 /// Renders a single item row (icon + name) including selected state styling
 
+import AppKit
 import SwiftUI
 
 struct LaunchItemRowView: View {
@@ -7,6 +8,12 @@ struct LaunchItemRowView: View {
     let isSelected: Bool
     var windowCount: Int?
     var isRunning: Bool = false
+
+    @State private var loadedIcon: NSImage?
+
+    private var displayIcon: NSImage? {
+        loadedIcon ?? item.icon
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -16,7 +23,7 @@ struct LaunchItemRowView: View {
                 .frame(width: 4, height: 4)
                 .opacity(isRunning ? 1 : 0)
 
-            if let icon = item.icon {
+            if let icon = displayIcon {
                 Image(nsImage: icon)
                     .resizable()
                     .scaledToFit()
@@ -50,6 +57,11 @@ struct LaunchItemRowView: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
                     )
+            }
+        }
+        .onAppear {
+            if loadedIcon == nil && item.icon == nil {
+                loadedIcon = LauncherAppCache.shared.icon(for: item.url)
             }
         }
     }

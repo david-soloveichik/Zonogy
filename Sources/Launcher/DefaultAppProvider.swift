@@ -4,7 +4,7 @@ import AppKit
 import Foundation
 
 struct DefaultAppProvider: AppProviding {
-    func discoverApplications(displayNameStyle: AppDisplayNameStyle) async -> [LaunchItem] {
+    func discoverApplications(displayNameStyle: AppDisplayNameStyle, skipIcons: Bool = false) async -> [LaunchItem] {
         let candidateRoots: [URL] = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: "/System/Applications", isDirectory: true),
@@ -16,13 +16,13 @@ struct DefaultAppProvider: AppProviding {
         var results: [LaunchItem] = []
 
         for root in candidateRoots where FileManager.default.fileExists(atPath: root.path) {
-            results.append(contentsOf: discoverApps(under: root, displayNameStyle: displayNameStyle, seenPaths: &seen))
+            results.append(contentsOf: discoverApps(under: root, displayNameStyle: displayNameStyle, skipIcons: skipIcons, seenPaths: &seen))
         }
 
         return results
     }
 
-    private func discoverApps(under root: URL, displayNameStyle: AppDisplayNameStyle, seenPaths: inout Set<String>) -> [LaunchItem] {
+    private func discoverApps(under root: URL, displayNameStyle: AppDisplayNameStyle, skipIcons: Bool, seenPaths: inout Set<String>) -> [LaunchItem] {
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey, .localizedNameKey]
         let options: FileManager.DirectoryEnumerationOptions = [.skipsHiddenFiles, .skipsPackageDescendants]
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys), options: options)
@@ -34,7 +34,7 @@ struct DefaultAppProvider: AppProviding {
             let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
             guard seenPaths.insert(resolved.path).inserted else { continue }
 
-            if let item = LaunchItemBuilder.makeItem(for: resolved, displayNameStyle: displayNameStyle) {
+            if let item = LaunchItemBuilder.makeItem(for: resolved, displayNameStyle: displayNameStyle, skipIcon: skipIcons) {
                 apps.append(item)
             }
         }

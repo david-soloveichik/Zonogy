@@ -3,5 +3,5 @@
 import Foundation
 
 protocol AppProviding: Sendable {
-    func discoverApplications(displayNameStyle: AppDisplayNameStyle) async -> [LaunchItem]
+    func discoverApplications(displayNameStyle: AppDisplayNameStyle, skipIcons: Bool) async -> [LaunchItem]
 }
