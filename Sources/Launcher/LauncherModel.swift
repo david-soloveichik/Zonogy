@@ -202,9 +202,8 @@ final class LauncherModel: ObservableObject {
         usageStore.recordLaunch(query: trimmedQuery, itemURL: resolved, recordQueryPreference: recordQueryPreference)
         updateFilteredItems(preserveSelection: true)
 
-        // Get windows from Zonogy's tracking
-        guard let windows = windowProvider?.windowsForApp(bundleIdentifier: bundleId),
-              windows.count >= 2 else { return }
+        // Get windows from Zonogy's tracking (allow drilling into any running app)
+        let windows = windowProvider?.windowsForApp(bundleIdentifier: bundleId) ?? []
 
         savedAppQuery = query
         mode = .windowList(bundleIdentifier: bundleId, appName: item.displayName)

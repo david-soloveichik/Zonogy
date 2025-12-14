@@ -42,7 +42,7 @@ struct LaunchItemRowView: View {
 
             Spacer(minLength: 0)
 
-            if let count = windowCount, count >= 2 {
+            if isRunning {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)

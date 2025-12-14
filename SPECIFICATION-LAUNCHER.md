@@ -40,7 +40,7 @@ The launcher window should have an elegant, professional appearance matching mac
    - Icon (application icon, window glyph, or file icon)
    - Display name
    - Running indicator (small dot) for running applications
-   - Window count indicator (">") for apps with 2+ windows
+   - Expandable indicator (">") for running applications
 
 ### Empty State
 
@@ -125,7 +125,7 @@ Per-query memory is recorded when:
 
 - **Up/Down arrows:** Select item from the filtered list
 - **Enter:** Activate selected item (launch app, focus window, open file)
-- **Tab:** When app with 2+ windows is selected, drill into window list
+- **Tab:** When a running app is selected, drill into window list
 - **Shift-Tab or Escape (in window list):** Return to main app list
 - **Escape (in main list):** Dismiss launcher without action
 
