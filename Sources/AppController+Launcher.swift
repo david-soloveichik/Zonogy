@@ -193,25 +193,39 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - Private Helpers
 
     private func placeSelectedWindow(_ managed: ManagedWindow) {
-        // Remove from any current zone
-        removeWindowFromAllZones(windowId: managed.windowId, reason: "launcher-placement", retarget: true)
+        // CAPTURE the original targeted zone BEFORE any modifications
+        // (removeWindowFromAllZones with retarget:true would change the target to the emptied zone)
+        let originalTargetedKey = targetedZoneKey
+        let originalTemporaryTarget = targetedTemporaryScreenId
+
+        // Remove from any current zone (WITHOUT retargeting - we'll handle it ourselves after placement)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: "launcher-placement", retarget: false)
 
         // If targeting the temporary zone, place there
-        if let temporaryScreenId = targetedTemporaryScreenId {
+        if let temporaryScreenId = originalTemporaryTarget {
             assignWindowToTemporaryZone(managed, on: temporaryScreenId, centerWindow: true, reason: "launcher-selection")
             Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(temporaryScreenId)")
             return
         }
 
-        // Otherwise place in the targeted tiled zone
-        targetedZoneManager.ensureTargetedZone(reason: "launcher-placement")
-        guard let targetedKey = targetedZoneKey,
+        // Otherwise place in the originally targeted tiled zone
+        guard let targetedKey = originalTargetedKey,
               let context = screenContexts[targetedKey.screenId],
               let descriptor = descriptor(for: targetedKey.screenId),
               let zone = context.zoneController.zone(at: targetedKey.index) else {
             // Fallback: just activate the window without moving it
             activateWindow(managed)
             return
+        }
+
+        // Check if zone was empty before (matching WindowPlacementManager.zoneWasEmptyBeforePlacement logic)
+        // Zone is "empty" if no occupant or occupant is a placeholder
+        let zoneWasEmpty: Bool
+        if let existingId = zone.windowId,
+           let existingWindow = windowController.window(withId: existingId) {
+            zoneWasEmpty = existingWindow.isPlaceholder
+        } else {
+            zoneWasEmpty = true
         }
 
         // Displace any existing occupant
@@ -234,16 +248,18 @@ extension AppController: LauncherControllerDelegate {
         windowController.showWindow(managed, at: displayFrame, on: descriptor)
         setManagedWindow(managed, screenId: targetedKey.screenId, zoneIndex: targetedKey.index)
 
-        // Update targeting to next empty zone
-        updateTemporaryZoneTargeting(reason: "launcher-placement")
-        let nextEmpty = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(
-            screenId: targetedKey.screenId,
-            excluding: targetedKey
-        )
-        if let nextEmpty {
-            targetedZoneManager.setTargetedZone(nextEmpty, reason: "launcher-filled-zone")
-        } else {
-            targetedZoneManager.setTemporaryTarget(on: targetedKey.screenId, reason: "launcher-filled-no-empty")
+        // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
+        if zoneWasEmpty {
+            updateTemporaryZoneTargeting(reason: "launcher-placement")
+            let nextEmpty = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(
+                screenId: targetedKey.screenId,
+                excluding: targetedKey
+            )
+            if let nextEmpty {
+                targetedZoneManager.setTargetedZone(nextEmpty, reason: "launcher-filled-zone")
+            } else {
+                targetedZoneManager.setTemporaryTarget(on: targetedKey.screenId, reason: "launcher-filled-no-empty")
+            }
         }
 
         Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(targetedKey.screenId)")
