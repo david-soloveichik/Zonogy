@@ -14,6 +14,7 @@ final class PreferencesWindowController: NSWindowController {
             defer: false
         )
         window.title = "Zonogy Preferences"
+        window.level = .floating
         window.center()
 
         super.init(window: window)
@@ -42,6 +43,13 @@ final class PreferencesWindowController: NSWindowController {
         shortcutsItem.label = "Keyboard Shortcuts"
         shortcutsItem.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Shortcuts")
         tabVC.addTabViewItem(shortcutsItem)
+
+        // Launcher tab
+        let launcherVC = LauncherPreferencesViewController()
+        let launcherItem = NSTabViewItem(viewController: launcherVC)
+        launcherItem.label = "Launcher"
+        launcherItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Launcher")
+        tabVC.addTabViewItem(launcherItem)
 
         window?.contentViewController = tabVC
         self.tabViewController = tabVC

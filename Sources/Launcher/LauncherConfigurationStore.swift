@@ -25,6 +25,42 @@ enum LauncherConfigurationStore {
         return []
     }
 
+    /// Loads the full configuration (items without path resolution).
+    static func loadConfiguration() -> LauncherConfiguration {
+        ensureTemplateExists()
+
+        let url = configurationFileURL()
+        guard let data = try? Data(contentsOf: url) else {
+            return LauncherConfiguration(items: [])
+        }
+
+        let decoder = JSONDecoder()
+        if let config = try? decoder.decode(LauncherConfiguration.self, from: data) {
+            return config
+        }
+        if let items = try? decoder.decode([LauncherConfigurationItem].self, from: data) {
+            return LauncherConfiguration(items: items)
+        }
+
+        return LauncherConfiguration(items: [])
+    }
+
+    /// Saves the configuration to disk.
+    static func saveConfiguration(_ config: LauncherConfiguration) {
+        let fileURL = configurationFileURL()
+        let directoryURL = fileURL.deletingLastPathComponent()
+
+        if !FileManager.default.fileExists(atPath: directoryURL.path) {
+            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(config) {
+            try? data.write(to: fileURL, options: [.atomic])
+        }
+    }
+
     private static func resolveEntries(from items: [LauncherConfigurationItem]) -> [Entry] {
         var results: [Entry] = []
         results.reserveCapacity(items.count)
@@ -66,7 +102,7 @@ enum LauncherConfigurationStore {
         }
     }
 
-    private static func configurationFileURL() -> URL {
+    static func configurationFileURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         return base
