@@ -4,6 +4,11 @@ import AppKit
 import Foundation
 
 struct DefaultAppProvider: AppProviding {
+    /// Apps in non-standard locations that should always be included
+    private static let explicitApps: [URL] = [
+        URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
+    ]
+
     func discoverApplications(skipIcons: Bool = false) async -> [LaunchItem] {
         let candidateRoots: [URL] = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
@@ -17,6 +22,15 @@ struct DefaultAppProvider: AppProviding {
 
         for root in candidateRoots where FileManager.default.fileExists(atPath: root.path) {
             results.append(contentsOf: discoverApps(under: root, skipIcons: skipIcons, seenPaths: &seen))
+        }
+
+        // Add explicit apps that live outside standard directories
+        for url in Self.explicitApps where FileManager.default.fileExists(atPath: url.path) {
+            let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
+            guard seen.insert(resolved.path).inserted else { continue }
+            if let item = LaunchItemBuilder.makeItem(for: resolved, skipIcon: skipIcons) {
+                results.append(item)
+            }
         }
 
         return results

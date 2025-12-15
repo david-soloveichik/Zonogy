@@ -57,6 +57,7 @@ When no items match the search query, display a friendly empty state message rat
 All applications known to the OS are included:
 
 - **Discovery modes:** Directory scanning of standard application locations (default) or Spotlight database (configurable)
+- **Explicit apps:** Apps in non-standard locations (e.g., Finder.app in `/System/Library/CoreServices/`) are included via an explicit list in the code
 - **Display name:** Uses `FileManager.displayName(atPath:)` which returns the same name shown in Finder/Dock. We strip any ".app" at the end.
 
 ### Windows
