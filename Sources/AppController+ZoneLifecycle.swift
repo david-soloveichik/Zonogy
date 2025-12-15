@@ -1154,21 +1154,60 @@ extension AppController {
         Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
     }
 
-    /// Find the frontmost managed (non-placeholder) window under the cursor, based on the active application.
+    /// Find the topmost managed (non-placeholder) window under the cursor on the cursor's screen.
     private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
-        // Reuse the frontmost managed window used by the Cmd-M override,
-        // but only treat it as "under the cursor" when its frame actually contains the pointer.
-        guard let (managed, pid) = managedWindowForFrontmostApplication(
-            logPrefix: "cursor-shortcut-window-lookup"
-        ) else {
+        guard let screenId = resolveCursorScreenId(),
+              let context = screenContexts[screenId] else {
             return nil
         }
 
-        guard let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed) else {
-            return nil
+        // Temporary zone floats above all tiled zones; return immediately if cursor is within it.
+        if let tempOccupant = temporaryZoneOccupant(on: screenId),
+           case .accessibility(_, let pid, _) = tempOccupant.backing,
+           let frame = windowController.actualFrameInAccessibilityCoordinates(for: tempOccupant),
+           frame.contains(cursorPoint) {
+            return (tempOccupant, pid)
         }
 
-        return frame.contains(cursorPoint) ? (managed, pid) : nil
+        // Collect tiled zone candidates under cursor: (ManagedWindow, pid, cgWindowId).
+        var candidates: [(ManagedWindow, pid_t, Int)] = []
+        for zone in context.zoneController.allZones {
+            guard let windowId = zone.windowId,
+                  let managed = windowController.window(withId: windowId),
+                  !managed.isPlaceholder,
+                  case .accessibility(_, let pid, let cgWindowId) = managed.backing,
+                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed),
+                  frame.contains(cursorPoint) else {
+                continue
+            }
+            candidates.append((managed, pid, cgWindowId))
+        }
+
+        // Fast paths: 0 or 1 tiled candidate.
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 {
+            let (managed, pid, _) = candidates[0]
+            return (managed, pid)
+        }
+
+        // Multiple tiled candidates (e.g., ActiveFit overlap): use CG API to find topmost.
+        let candidateCGIds = Set(candidates.map { $0.2 })
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            let (managed, pid, _) = candidates[0]
+            return (managed, pid)
+        }
+
+        for windowInfo in windowList {
+            guard let cgWindowId = windowInfo[kCGWindowNumber as String] as? Int,
+                  candidateCGIds.contains(cgWindowId),
+                  let match = candidates.first(where: { $0.2 == cgWindowId }) else {
+                continue
+            }
+            return (match.0, match.1)
+        }
+
+        let (managed, pid, _) = candidates[0]
+        return (managed, pid)
     }
 
     /// Find the empty zone (placeholder frame) under the cursor, if any.
