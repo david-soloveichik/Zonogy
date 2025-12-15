@@ -52,9 +52,6 @@ final class PlaceholderContentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         controller?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
-        if event.clickCount >= 2 {
-            controller?.handlePlaceholderDoubleClick(screenId: screenId, zoneIndex: zoneIndex)
-        }
         super.mouseDown(with: event)
     }
 
@@ -222,6 +219,61 @@ extension WindowController {
 
         contentView.addSubview(closeButton)
         contentView.attachCloseButton(closeButton)
+
+        // Create search pill (opens Launcher on click)
+        let pillWidth: CGFloat = 90
+        let pillHeight: CGFloat = buttonSize
+        let pillX = (frame.width - pillWidth) / 2
+        let pillY = closeButton.frame.origin.y
+        let iconLeftPadding: CGFloat = 14
+
+        // Use a button as the container for the pill
+        let searchPill = NSButton(frame: NSRect(x: pillX, y: pillY, width: pillWidth, height: pillHeight))
+        searchPill.setButtonType(.momentaryChange)
+        searchPill.bezelStyle = .shadowlessSquare
+        searchPill.isBordered = false
+        searchPill.focusRingType = .none
+        searchPill.wantsLayer = true
+        searchPill.alphaValue = 0.9
+        searchPill.title = ""
+        searchPill.image = nil
+
+        if let layer = searchPill.layer {
+            layer.backgroundColor = NSColor.white.withAlphaComponent(0.25).cgColor
+            layer.cornerRadius = pillHeight / 2
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
+            layer.shadowColor = NSColor.black.withAlphaComponent(0.15).cgColor
+            layer.shadowOpacity = 0.15
+            layer.shadowRadius = 2
+            layer.shadowOffset = CGSize(width: 0, height: -1)
+        }
+
+        // Add icon as a separate image view with left padding
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        if let icon = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")?
+            .withSymbolConfiguration(symbolConfig) {
+            let iconSize: CGFloat = 18
+            let iconView = NSImageView(frame: NSRect(
+                x: iconLeftPadding,
+                y: (pillHeight - iconSize) / 2,
+                width: iconSize,
+                height: iconSize
+            ))
+            iconView.image = icon
+            iconView.contentTintColor = NSColor.white.withAlphaComponent(0.7)
+            iconView.imageScaling = .scaleProportionallyUpOrDown
+            iconView.autoresizingMask = [.maxXMargin, .minYMargin, .maxYMargin]
+            searchPill.addSubview(iconView)
+        }
+
+        searchPill.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+        searchPill.target = self
+        searchPill.action = #selector(handleSearchPillClick(_:))
+        searchPill.sendAction(on: .leftMouseDown)
+
+        contentView.addSubview(searchPill)
+
         window.contentView = contentView
         contentView.autoresizingMask = [.width, .height]
 
@@ -268,6 +320,16 @@ extension WindowController {
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Placeholder double-clicked for zone \(zoneIndex) on screen \(screenIndex)")
         delegate?.placeholderDoubleClicked(screenId: screenId, zoneIndex: zoneIndex)
+    }
+
+    @objc func handleSearchPillClick(_ sender: NSButton) {
+        guard let window = sender.window,
+              let contentView = window.contentView as? PlaceholderContentView else {
+            return
+        }
+        // Target the zone first, then open the launcher
+        handlePlaceholderActivation(screenId: contentView.screenId, zoneIndex: contentView.zoneIndex)
+        handlePlaceholderDoubleClick(screenId: contentView.screenId, zoneIndex: contentView.zoneIndex)
     }
 
     @objc func handlePlaceholderClose(_ sender: NSButton) {
