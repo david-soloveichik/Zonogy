@@ -35,7 +35,7 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
 
-- **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole)
+- If the window is unminimized: **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole). (We do not perform this check for minimized windows because some applications report them as AXDialogSubrole; see "Accessibility API Workarounds" below.)
 - **isMovable: T** (window position can be modified)
 - **hasZoom: T** (window has a zoom button)
 - **Height: >= 250px** (window must be at least 250 pixels tall)
@@ -298,6 +298,10 @@ Zonogy uses three narrowly scoped retry mechanisms to cope with AX timing and co
 - **(Per-application) destroyed-window validation retries (PID-scoped):** After AX-relevant lifecycle events (window focus changes, application activation/deactivation/hide, screen-topology changes, REPL/socket “validate” commands), `ValidationRetryManager` schedules a short series of PID-scoped validation passes (≈0.2–3.2s backoff) when AX-based destroyed-window detection is inconclusive. These retries are cancelled when the process exits, when all windows are pruned, or when screens go to sleep (`handleScreensDidSleep` calls `cancelAllValidationRetries()`). See also §6 “Destroyed Window Detection” for a fuller description of this pipeline.
 - **(Per-application) AX window-capture retries (PID-scoped):** When `AXWindowCreated` notifications fail to yield a manageable window (e.g., transient AX errors), `WindowCapturePipeline` schedules a small number of delayed recapture attempts per PID using `cancelAllRetries()` to tear them down when captures succeed, the app exits, or the system goes to sleep.
 - **(Per-window) AX frame application retries:** When applying a zone-aligned frame via AX leaves a window off-screen or far from the requested geometry, `WindowController` schedules a one-shot delayed frame retry for that window. These per-window timers are cancelled whenever zone topology/geometry changes or when screens go to sleep so no stale frame targets are applied later.
+
+### Window subrole for minimized windows
+
+Some applications report the subrole for their minimized windows as AXDialogSubrole even if it later becomes kAXStandardWindowSubrole upon un-minimization. So for enumeration of windows to manage, we don't check subrole for minimized windows.
 
 ## Launcher
 

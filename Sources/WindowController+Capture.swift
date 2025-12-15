@@ -220,14 +220,14 @@ extension WindowController {
 
         Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
 
-        guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId) else {
+        // Check minimized state first - minimized windows skip the subrole check
+        // (some apps like PDF Expert report AXDialog subrole for their document windows)
+        let isMinimized = isWindowMinimized(element)
+
+        guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId, skipSubroleCheck: isMinimized) else {
             Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")
             return nil
         }
-
-        // Check minimized state - we still track minimized windows for recency purposes,
-        // but don't notify delegate (so they won't be placed in zones)
-        let isMinimized = isWindowMinimized(element)
 
         if let existing = existingManagedWindow(for: element) {
             Logger.debug("captureWindowIfNeeded: Window already exists for pid \(pid), allowReturningExisting=\(allowReturningExisting)")
@@ -901,7 +901,7 @@ extension WindowController {
         return false
     }
 
-    private func isStandardWindow(_ element: AXUIElement, pid: pid_t, cgWindowId: CGWindowID) -> Bool {
+    private func isStandardWindow(_ element: AXUIElement, pid: pid_t, cgWindowId: CGWindowID, skipSubroleCheck: Bool = false) -> Bool {
         let contextPrefix = "isStandardWindow(pid: \(pid), cgWindowId: \(cgWindowId))"
 
         var roleObject: AnyObject?
@@ -916,9 +916,13 @@ extension WindowController {
         var subroleObject: AnyObject?
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
-            guard subrole == kAXStandardWindowSubrole as String else {
-                Logger.debug("\(contextPrefix): Window has non-standard subrole: \(subrole)")
-                return false
+            if skipSubroleCheck {
+                Logger.debug("\(contextPrefix): Skipping subrole check for minimized window (subrole: \(subrole))")
+            } else {
+                guard subrole == kAXStandardWindowSubrole as String else {
+                    Logger.debug("\(contextPrefix): Window has non-standard subrole: \(subrole)")
+                    return false
+                }
             }
         } else if subroleStatus != .success {
             Logger.debug("\(contextPrefix): Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
