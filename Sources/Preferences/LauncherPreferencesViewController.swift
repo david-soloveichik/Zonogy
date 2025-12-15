@@ -278,10 +278,8 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     // MARK: - Drag and Drop
 
     func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
-        // Accept drops on the table (not between rows for simplicity)
-        if dropOperation == .on {
-            return []
-        }
+        // Highlight entire table (row -1) since position doesn't matter
+        tableView.setDropRow(-1, dropOperation: .on)
         return .copy
     }
 
