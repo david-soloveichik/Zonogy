@@ -301,7 +301,7 @@ extension WindowController {
         searchPill.image = nil
 
         if let layer = searchPill.layer {
-            layer.backgroundColor = NSColor.white.withAlphaComponent(0.25).cgColor
+            layer.backgroundColor = NSColor.white.withAlphaComponent(0.4).cgColor
             layer.cornerRadius = pillHeight / 2
             layer.borderWidth = 1
             layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
