@@ -135,13 +135,15 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     // MARK: - Actions
 
     @objc private func addItem() {
+        guard let window = view.window else { return }
+
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         panel.message = "Select files or folders to add to the Launcher"
 
-        panel.begin { [weak self] response in
+        panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let self = self else { return }
 
             for url in panel.urls {
