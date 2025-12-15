@@ -40,6 +40,7 @@ extension AppController {
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
         syncWindowsToZones()
+        dismissLauncherIfActive()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
         if shouldRetarget(to: newZoneKey) {
@@ -120,6 +121,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
+        dismissLauncherIfActive()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
 
         if pendingTargetedKey == nil && !shouldTargetTemporary {
@@ -310,6 +312,8 @@ extension AppController {
     }
 
     internal func refreshIndicators() {
+        dismissLauncherIfActive()
+
         // Refresh zone indicators
         var descriptors: [ZoneIndicatorDescriptor] = []
 

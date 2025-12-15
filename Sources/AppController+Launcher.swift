@@ -165,6 +165,11 @@ extension AppController: LauncherControllerDelegate {
         Logger.debug("Launcher: Dismissed")
     }
 
+    internal func dismissLauncherIfActive() {
+        guard launcherController.isActive else { return }
+        launcherController.hide()
+    }
+
     // MARK: - Zone Frame
 
     func targetedZoneFrame() -> (CGRect, ScreenDescriptor)? {
