@@ -121,24 +121,22 @@ Where `tauSeconds` ≈ 10 days.
 - **Global:** How often/recently an item has been launched overall
 - **Per-query:** How often/recently an item has been launched for the current query (and prefixes)
 
-**Query Dominance Mode:** When per-query frecency exceeds a threshold (~0.5), it dominates completely:
-
-```text
-if queryFrecency > 0.5:
-    frecencyScore = 8.0 * queryFrecency  // Query history dominates
-else:
-    frecencyScore = globalFrecency + 5.0 * queryFrecency
-```
-
-This means after selecting an item 2-3 times for a specific query, that preference overrides global usage patterns.
+**Tie-breaker rule:** Per-query frecency always takes priority over global frecency. Global frecency is only used to break ties when the per-query frecency is equal (most commonly when both are 0 because the user has no recorded preference for that query yet).
 
 #### Combined Formula
 
 ```text
-finalScore = matchQuality * (1.0 + 2.0 * frecencyScore)
+weightedMatchQuality = matchQuality^2
+
+queryFinalScore  = weightedMatchQuality * (1.0 + 2.0 * queryFrecency)
+globalFinalScore = weightedMatchQuality * (1.0 + 2.0 * globalFrecency)
+
+Sort by:
+  1) queryFinalScore (when queryFrecency differs)
+  2) globalFinalScore (tie-breaker when queryFrecency is equal)
 ```
 
-Match quality acts as a multiplier - poor matches cannot be rescued by high frecency. Items are ordered by descending `finalScore`, with case-insensitive alphabetical tie-breaker.
+Match quality acts as a multiplier - poor matches cannot be rescued by high frecency. For non-empty queries, items are ordered by descending `queryFinalScore` when `queryFrecency` differs; when `queryFrecency` is equal, use `globalFinalScore` as the tie-breaker, and then case-insensitive alphabetical.
 
 When query is empty, all items have matchQuality = 1.0 and ranking uses pure frecency.
 
@@ -169,7 +167,7 @@ When drilling into an application's windows:
 1. The list is replaced with that application's windows
 2. Search field is cleared
 3. First actual window is selected (not the app header)
-4. Same fuzzy matching applies to window titles
+4. Same fuzzy matching applies to window titles; when searching, windows are ranked by match quality with recency order as the tie-breaker
 
 **App Header Entry:**
 

@@ -3,6 +3,11 @@
 import Foundation
 
 final class LaunchItemUsageStore {
+    struct Scores: Sendable {
+        let global: Double
+        let perQuery: Double
+    }
+
     struct UsageEntry: Codable {
         var count: Int
         var lastUsedAt: Date
@@ -21,9 +26,6 @@ final class LaunchItemUsageStore {
         static let maxGlobalItems: Int = 6000
         static let maxPrefixLength: Int = 32
 
-        static let queryBoostWeight: Double = 5.0
-        static let queryDominanceWeight: Double = 8.0
-        static let queryDominanceThreshold: Double = 0.5
         static let recencyTauSeconds: TimeInterval = 60 * 60 * 24 * 10
     }
 
@@ -38,23 +40,17 @@ final class LaunchItemUsageStore {
         self.state = Self.loadState(from: url)
     }
 
-    func combinedScore(itemURL: URL, query: String) -> Double {
-        combinedScore(itemURL: itemURL, query: query, now: now())
+    func scores(itemURL: URL, query: String) -> Scores {
+        scores(itemURL: itemURL, query: query, now: now())
     }
 
-    func combinedScore(itemURL: URL, query: String, now: Date) -> Double {
+    func scores(itemURL: URL, query: String, now: Date) -> Scores {
         let itemKey = Self.normalizedItemKey(for: itemURL)
         let queryKey = Self.normalizedQueryKey(query)
-        let global = globalScore(itemKey: itemKey, now: now)
-        let perQuery = queryScore(itemKey: itemKey, queryKey: queryKey, now: now)
-
-        // Query dominance mode: when significant query-specific history exists, let it dominate
-        if perQuery > Constants.queryDominanceThreshold {
-            return Constants.queryDominanceWeight * perQuery
-        }
-
-        // Standard mode: weighted combination
-        return global + Constants.queryBoostWeight * perQuery
+        return Scores(
+            global: globalScore(itemKey: itemKey, now: now),
+            perQuery: queryScore(itemKey: itemKey, queryKey: queryKey, now: now)
+        )
     }
 
     func recordLaunch(query: String, itemURL: URL, recordQueryPreference: Bool) {

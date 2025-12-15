@@ -53,6 +53,11 @@ final class LauncherModel: ObservableObject {
     private let usageStore: LaunchItemUsageStore
     private var workspaceObservers: [NSObjectProtocol] = []
 
+    private enum ScoringConstants {
+        static let matchExponent: Double = 2.0
+        static let frecencyMultiplier: Double = 2.0
+    }
+
     init(
         usageStore: LaunchItemUsageStore = LaunchItemUsageStore()
     ) {
@@ -140,14 +145,18 @@ final class LauncherModel: ObservableObject {
 
         if trimmedQuery.isEmpty {
             // Empty query: show all items sorted by pure frecency
-            filteredItems = allItems
             let scoringNow = Date()
-            filteredItems.sort { lhs, rhs in
-                let lhsScore = usageStore.combinedScore(itemURL: lhs.url, query: "", now: scoringNow)
-                let rhsScore = usageStore.combinedScore(itemURL: rhs.url, query: "", now: scoringNow)
-                if lhsScore != rhsScore { return lhsScore > rhsScore }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            let scoredItems = allItems.map { item in
+                let globalScore = usageStore.scores(itemURL: item.url, query: "", now: scoringNow).global
+                return (item: item, globalScore: globalScore)
             }
+
+            filteredItems = scoredItems
+                .sorted { lhs, rhs in
+                    if lhs.globalScore != rhs.globalScore { return lhs.globalScore > rhs.globalScore }
+                    return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
+                }
+                .map(\.item)
         } else {
             // Non-empty query: filter with match quality scoring
             let scoringNow = Date()
@@ -169,17 +178,24 @@ final class LauncherModel: ObservableObject {
                 return nil
             }
 
-            // Compute final scores combining match quality and frecency
+            // Compute scores; per-query frecency has priority over global frecency, with global as tie-breaker.
             let scoredItems = matchedItems.map { (item, matchScore) in
-                let frecency = usageStore.combinedScore(itemURL: item.url, query: trimmedQuery, now: scoringNow)
-                let finalScore = matchScore * (1.0 + 2.0 * frecency)
-                return (item: item, score: finalScore)
+                let scores = usageStore.scores(itemURL: item.url, query: trimmedQuery, now: scoringNow)
+                let weightedMatchScore = pow(matchScore, ScoringConstants.matchExponent)
+                let perQueryFinalScore = weightedMatchScore * (1.0 + ScoringConstants.frecencyMultiplier * scores.perQuery)
+                let globalFinalScore = weightedMatchScore * (1.0 + ScoringConstants.frecencyMultiplier * scores.global)
+                return (item: item, perQuery: scores.perQuery, perQueryFinalScore: perQueryFinalScore, globalFinalScore: globalFinalScore)
             }
 
-            // Sort by final score
             filteredItems = scoredItems
                 .sorted { lhs, rhs in
-                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    if lhs.perQuery != rhs.perQuery {
+                        if lhs.perQueryFinalScore != rhs.perQueryFinalScore { return lhs.perQueryFinalScore > rhs.perQueryFinalScore }
+                        // Extremely rare: different per-query scores but same final score.
+                        return lhs.perQuery > rhs.perQuery
+                    }
+
+                    if lhs.globalFinalScore != rhs.globalFinalScore { return lhs.globalFinalScore > rhs.globalFinalScore }
                     return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
                 }
                 .map(\.item)
@@ -262,9 +278,21 @@ final class LauncherModel: ObservableObject {
         if trimmedQuery.isEmpty {
             filteredWindowItems = windowItems
         } else {
-            filteredWindowItems = windowItems.filter {
-                SubsequenceMatcher.matches(query: trimmedQuery, candidate: $0.title)
-            }
+            let matchedItems: [(index: Int, item: LauncherWindowItem, matchScore: Double)] = windowItems
+                .enumerated()
+                .compactMap { index, item in
+                    let result = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: item.title)
+                    guard result.isMatch else { return nil }
+                    let weightedMatchScore = pow(result.score, ScoringConstants.matchExponent)
+                    return (index: index, item: item, matchScore: weightedMatchScore)
+                }
+
+            filteredWindowItems = matchedItems
+                .sorted { lhs, rhs in
+                    if lhs.matchScore != rhs.matchScore { return lhs.matchScore > rhs.matchScore }
+                    return lhs.index < rhs.index
+                }
+                .map(\.item)
         }
 
         selectedWindowId = filteredWindowItems.first?.id
