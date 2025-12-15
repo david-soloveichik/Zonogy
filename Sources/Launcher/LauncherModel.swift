@@ -245,7 +245,7 @@ final class LauncherModel: ObservableObject {
         savedAppQuery = query
         mode = .windowList(bundleIdentifier: bundleId, appName: item.displayName)
         windowModeAppIcon = item.icon ?? LauncherAppCache.shared.icon(for: item.url)
-        windowItems = windows
+        windowItems = sortWindowsMinimizedFirst(windows)
         query = ""
         updateFilteredWindowItems()
     }
@@ -287,12 +287,13 @@ final class LauncherModel: ObservableObject {
                     return (index: index, item: item, matchScore: weightedMatchScore)
                 }
 
-            filteredWindowItems = matchedItems
+            let sorted = matchedItems
                 .sorted { lhs, rhs in
                     if lhs.matchScore != rhs.matchScore { return lhs.matchScore > rhs.matchScore }
                     return lhs.index < rhs.index
                 }
                 .map(\.item)
+            filteredWindowItems = sortWindowsMinimizedFirst(sorted)
         }
 
         selectedWindowId = filteredWindowItems.first?.id
@@ -336,6 +337,11 @@ final class LauncherModel: ObservableObject {
     func windowModeBundleIdentifier() -> String? {
         guard case .windowList(let bundleId, _) = mode else { return nil }
         return bundleId
+    }
+
+    /// Reorders windows: minimized first, then unminimized, preserving relative order within each group
+    private func sortWindowsMinimizedFirst(_ windows: [LauncherWindowItem]) -> [LauncherWindowItem] {
+        windows.filter { $0.isMinimized } + windows.filter { !$0.isMinimized }
     }
 
 }

@@ -8,6 +8,7 @@ struct LaunchItemListView: View {
     let onOpenSelected: () -> Void
     var windowCountForSelected: Int?
     var runningAppURLs: Set<URL> = []
+    var onExpandApp: ((URL) -> Void)?
     @State private var selectionChangeWasMouseDriven: Bool = false
 
     var body: some View {
@@ -15,22 +16,38 @@ struct LaunchItemListView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(items) { item in
+                        let isRunning = runningAppURLs.contains(item.url)
                         LaunchItemRowView(
                             item: item,
                             isSelected: item.url == selectedItemURL,
                             windowCount: item.url == selectedItemURL ? windowCountForSelected : nil,
-                            isRunning: runningAppURLs.contains(item.url)
+                            isRunning: isRunning
                         )
-                            .overlay(
-                                MouseDownCaptureView { clickCount in
-                                    selectionChangeWasMouseDriven = (selectedItemURL != item.url)
-                                    selectedItemURL = item.url
-                                    if clickCount >= 2 {
-                                        onOpenSelected()
-                                    }
+                        .overlay(
+                            MouseDownCaptureView { clickCount in
+                                selectionChangeWasMouseDriven = (selectedItemURL != item.url)
+                                selectedItemURL = item.url
+                                if clickCount >= 2 {
+                                    onOpenSelected()
                                 }
-                            )
-                            .id(item.url)
+                            }
+                        )
+                        .overlay(alignment: .trailing) {
+                            if isRunning {
+                                Button {
+                                    onExpandApp?(item.url)
+                                } label: {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 24, height: 24)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, 6)
+                            }
+                        }
+                        .id(item.url)
                     }
                 }
                 .padding(8)

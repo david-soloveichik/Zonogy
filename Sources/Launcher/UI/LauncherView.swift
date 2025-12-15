@@ -57,7 +57,8 @@ struct LauncherView: View {
                             selectedItemURL: $model.selectedItemURL,
                             onOpenSelected: handleAppLaunch,
                             windowCountForSelected: model.cachedWindowCount,
-                            runningAppURLs: model.runningAppURLs
+                            runningAppURLs: model.runningAppURLs,
+                            onExpandApp: handleExpandApp
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -110,5 +111,10 @@ struct LauncherView: View {
         if let bundleId = model.windowModeBundleIdentifier() {
             onActivateApp(bundleId)
         }
+    }
+
+    private func handleExpandApp(_ url: URL) {
+        model.selectedItemURL = url
+        model.enterWindowMode()
     }
 }

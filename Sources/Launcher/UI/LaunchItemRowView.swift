@@ -8,6 +8,7 @@ struct LaunchItemRowView: View {
     let isSelected: Bool
     var windowCount: Int?
     var isRunning: Bool = false
+    var onChevronTap: (() -> Void)?
 
     @State private var loadedIcon: NSImage?
 
@@ -42,10 +43,17 @@ struct LaunchItemRowView: View {
 
             Spacer(minLength: 0)
 
-            if isRunning {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+            if isRunning, let onChevronTap {
+                Button {
+                    onChevronTap()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 6)
