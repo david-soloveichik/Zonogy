@@ -100,6 +100,21 @@ class TargetedZoneManager {
         delegate?.refreshIndicators()
     }
 
+    /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
+    /// on the same screen, retarget to such zone with the lowest index; if none exist,
+    /// target the temporary zone on the same screen."
+    func retargetAfterFillingZone(_ filledKey: ZoneKey, reason: String) {
+        let nextEmpty = lowestIndexEmptyZoneOnSameScreen(
+            screenId: filledKey.screenId,
+            excluding: filledKey
+        )
+        if let nextEmpty {
+            setTargetedZone(nextEmpty, reason: reason)
+        } else {
+            setTemporaryTarget(on: filledKey.screenId, reason: reason)
+        }
+    }
+
     func fallbackTargetedZone(preferredScreenId: CGDirectDisplayID?) -> ZoneKey? {
         let emptyCandidates = collectZoneCandidates(where: { $0.isEmpty })
         if let selection = selectLowestIndexZone(from: emptyCandidates, preferredScreenId: preferredScreenId) {

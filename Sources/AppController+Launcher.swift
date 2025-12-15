@@ -16,6 +16,8 @@ extension AppController: LauncherControllerDelegate {
                 if let (frame, descriptor) = targetInfo {
                     prePositionMinimizedWindowForLauncher(managed, to: frame, on: descriptor)
                 }
+                // Suppress deminiaturized notification so it doesn't trigger re-placement
+                suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
                 windowController.unminimizeWindow(managed)
             }
             // Place in targeted zone
@@ -59,6 +61,8 @@ extension AppController: LauncherControllerDelegate {
                 if let (frame, descriptor) = targetInfo {
                     prePositionMinimizedWindowForLauncher(preferredWindow, to: frame, on: descriptor)
                 }
+                // Suppress deminiaturized notification so it doesn't trigger re-placement
+                suppressNextEvents(for: [preferredWindow.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
                 windowController.unminimizeWindow(preferredWindow)
             }
 
@@ -251,15 +255,7 @@ extension AppController: LauncherControllerDelegate {
         // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
         if zoneWasEmpty {
             updateTemporaryZoneTargeting(reason: "launcher-placement")
-            let nextEmpty = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(
-                screenId: targetedKey.screenId,
-                excluding: targetedKey
-            )
-            if let nextEmpty {
-                targetedZoneManager.setTargetedZone(nextEmpty, reason: "launcher-filled-zone")
-            } else {
-                targetedZoneManager.setTemporaryTarget(on: targetedKey.screenId, reason: "launcher-filled-no-empty")
-            }
+            targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
         }
 
         Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(targetedKey.screenId)")
