@@ -26,6 +26,8 @@ final class PlaceholderContentView: NSView {
     private(set) var screenId: CGDirectDisplayID
     private(set) var zoneIndex: Int
     private var closeButton: NSButton?
+    private var searchPill: NSButton?
+    private var searchPillIconView: NSImageView?
     private var isDropHighlighted = false {
         didSet {
             if isDropHighlighted != oldValue {
@@ -71,6 +73,7 @@ final class PlaceholderContentView: NSView {
             layer.cornerRadius = 12
             updateBorderAppearance()
         }
+        updateSearchPillLayout()
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -111,6 +114,12 @@ final class PlaceholderContentView: NSView {
         updateButtonStyle()
     }
 
+    func attachSearchPill(_ pill: NSButton, iconView: NSImageView?) {
+        searchPill = pill
+        searchPillIconView = iconView
+        updateSearchPillLayout()
+    }
+
     private func updateButtonStyle() {
         guard let controller, let closeButton else { return }
 
@@ -140,6 +149,60 @@ final class PlaceholderContentView: NSView {
         guard let layer = layer else { return }
         layer.borderWidth = isDropHighlighted ? 3 : 2
         layer.borderColor = isDropHighlighted ? highlightedBorderColor : normalBorderColor
+    }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        updateSearchPillLayout()
+    }
+
+    private func updateSearchPillLayout() {
+        guard let searchPill else { return }
+
+        let pillHeight = searchPill.frame.height
+        let desiredPillWidth: CGFloat = 180
+        let edgePadding: CGFloat = 16
+        let closeButtonGap: CGFloat = 2
+
+        let boundsWidth = bounds.width
+        let leftClearance = max(edgePadding, (closeButton?.frame.maxX ?? edgePadding) + closeButtonGap)
+
+        // Try to keep the pill centered while avoiding overlap with the close button.
+        let maxWidthByEdges = max(0, boundsWidth - 2 * edgePadding)
+        let maxWidthCenteredByCloseButton = max(0, boundsWidth - 2 * leftClearance)
+        let maxCenteredWidth = min(desiredPillWidth, maxWidthByEdges, maxWidthCenteredByCloseButton)
+
+        let pillWidth: CGFloat
+        let pillX: CGFloat
+        if maxCenteredWidth > 0 {
+            pillWidth = maxCenteredWidth
+            pillX = (boundsWidth - pillWidth) / 2
+        } else {
+            // Fallback: window is too narrow to center without covering the close button.
+            let availableWidth = max(0, (boundsWidth - edgePadding) - leftClearance)
+            pillWidth = min(desiredPillWidth, availableWidth)
+            pillX = leftClearance
+        }
+
+        let pillY = closeButton?.frame.origin.y ?? searchPill.frame.origin.y
+        searchPill.frame = NSRect(x: pillX, y: pillY, width: pillWidth, height: pillHeight)
+
+        if let layer = searchPill.layer {
+            layer.cornerRadius = min(pillHeight / 2, pillWidth / 2)
+        }
+
+        if let iconView = searchPillIconView {
+            let iconSize = iconView.frame.width
+            let iconLeftPadding: CGFloat = 14
+            let iconX: CGFloat
+            if pillWidth < iconLeftPadding + iconSize {
+                iconX = max(0, (pillWidth - iconSize) / 2)
+            } else {
+                iconX = iconLeftPadding
+            }
+            iconView.frame.origin.x = iconX
+            iconView.frame.origin.y = max(0, (pillHeight - iconSize) / 2)
+        }
     }
 }
 
@@ -221,14 +284,13 @@ extension WindowController {
         contentView.attachCloseButton(closeButton)
 
         // Create search pill (opens Launcher on click)
-        let pillWidth: CGFloat = 90
+        let pillPreferredWidth: CGFloat = 180
         let pillHeight: CGFloat = buttonSize
-        let pillX = (frame.width - pillWidth) / 2
         let pillY = closeButton.frame.origin.y
         let iconLeftPadding: CGFloat = 14
 
         // Use a button as the container for the pill
-        let searchPill = NSButton(frame: NSRect(x: pillX, y: pillY, width: pillWidth, height: pillHeight))
+        let searchPill = NSButton(frame: NSRect(x: 0, y: pillY, width: pillPreferredWidth, height: pillHeight))
         searchPill.setButtonType(.momentaryChange)
         searchPill.bezelStyle = .shadowlessSquare
         searchPill.isBordered = false
@@ -250,29 +312,32 @@ extension WindowController {
         }
 
         // Add icon as a separate image view with left padding
+        var iconView: NSImageView?
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
         if let icon = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")?
             .withSymbolConfiguration(symbolConfig) {
             let iconSize: CGFloat = 18
-            let iconView = NSImageView(frame: NSRect(
+            let iconImageView = NSImageView(frame: NSRect(
                 x: iconLeftPadding,
                 y: (pillHeight - iconSize) / 2,
                 width: iconSize,
                 height: iconSize
             ))
-            iconView.image = icon
-            iconView.contentTintColor = NSColor.white.withAlphaComponent(0.7)
-            iconView.imageScaling = .scaleProportionallyUpOrDown
-            iconView.autoresizingMask = [.maxXMargin, .minYMargin, .maxYMargin]
-            searchPill.addSubview(iconView)
+            iconImageView.image = icon
+            iconImageView.contentTintColor = NSColor.white.withAlphaComponent(0.7)
+            iconImageView.imageScaling = .scaleProportionallyUpOrDown
+            iconImageView.autoresizingMask = [.maxXMargin, .minYMargin, .maxYMargin]
+            searchPill.addSubview(iconImageView)
+            iconView = iconImageView
         }
 
-        searchPill.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+        searchPill.autoresizingMask = [.minYMargin]
         searchPill.target = self
         searchPill.action = #selector(handleSearchPillClick(_:))
         searchPill.sendAction(on: .leftMouseDown)
 
         contentView.addSubview(searchPill)
+        contentView.attachSearchPill(searchPill, iconView: iconView)
 
         window.contentView = contentView
         contentView.autoresizingMask = [.width, .height]
