@@ -196,7 +196,7 @@ After selecting any item via Enter:
 When the user selects a window or launches an application:
 
 1. **If selecting an existing window:**
-   - If minimized: resize/position to target zone frame BEFORE unminimizing (so the unminimize animation shows the window restoring to the correct position), then place into the targeted zone
+   - If minimized: resize/position to target zone frame before unminimizing for smooth animation (see "Accessibility API Workarounds" in SPECIFICATION.md). Then place into the targeted zone.
    - If not minimized: move window to the targeted zone (if not already there)
    - The targeted zone receives the window using standard Zonogy placement rules
 

@@ -259,7 +259,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Restores zone configuration to the saved count and sizes (ratios).
 - Current windows not in the snapshot are minimized first (before unminimizing snapshot windows) to avoid visual overlap.
 - Unminimizes windows that were minimized (but not closed).
-- Windows are resized BEFORE unminimizing for smooth animation.
+- Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see "Accessibility API Workarounds" section).
 - Activates the previously active window.
 
 ## Implementation Details
@@ -302,6 +302,10 @@ Zonogy uses three narrowly scoped retry mechanisms to cope with AX timing and co
 ### Window subrole for minimized windows
 
 Some applications report the subrole for their minimized windows as AXDialogSubrole even if it later becomes kAXStandardWindowSubrole upon un-minimization. So for enumeration of windows to manage, we don't check subrole for minimized windows.
+
+### Async unminimize after pre-positioning ("pre-move" feature)
+
+When unminimizing a window that needs to appear at a specific position (e.g., restoring a WinShot snapshot or selecting a minimized window from Launcher), we first set the window's position and size while the window is still minimized. However, if we unminimize synchronously right after setting position/size, the window sometimes visually appears at its old location before snapping to the correct position. To address this, we default to async mode for unminimization.
 
 ## Launcher
 
