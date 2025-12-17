@@ -37,11 +37,29 @@ struct DefaultAppProvider: AppProviding {
     }
 
     private func discoverApps(under root: URL, skipIcons: Bool, seenPaths: inout Set<String>) -> [LaunchItem] {
+        var apps: [LaunchItem] = []
+
+        // First pass: scan top-level contents using the path-based API.
+        // The URL-based contentsOfDirectory(at:) has a known issue (SR-6707) where it
+        // silently omits symlinks pointing to certain locations, notably Cryptexes
+        // (e.g., Safari.app → /System/Volumes/Preboot/Cryptexes/...).
+        if let topLevelNames = try? FileManager.default.contentsOfDirectory(atPath: root.path) {
+            for name in topLevelNames where !name.hasPrefix(".") {
+                let url = root.appendingPathComponent(name)
+                guard url.pathExtension.lowercased() == "app" else { continue }
+                let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
+                guard seenPaths.insert(resolved.path).inserted else { continue }
+                if let item = LaunchItemBuilder.makeItem(for: resolved, skipIcon: skipIcons) {
+                    apps.append(item)
+                }
+            }
+        }
+
+        // Second pass: use enumerator for recursive discovery in subdirectories.
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey]
         let options: FileManager.DirectoryEnumerationOptions = [.skipsHiddenFiles, .skipsPackageDescendants]
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys), options: options)
 
-        var apps: [LaunchItem] = []
         while let url = enumerator?.nextObject() as? URL {
             guard url.pathExtension.lowercased() == "app" else { continue }
 
