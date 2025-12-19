@@ -20,7 +20,16 @@ Every non-empty zone saves the `CGWindowID` of the window it contains, and the c
 
 Triggered by: `NSWorkspace.screensDidSleepNotification`.
 
-Set `screensAsleep = true` and *cancel all pending validation retries* elsewhere in the code. We also cancel any timers described below related to wake functionality to avoid potential issues for very short wake=>sleep cycles.
+Set `screensAsleep = true` and cancel all pending timers/work items that perform AX operations or window management:
+
+- Validation retries (destroyed-window detection)
+- Wake readiness timer
+- Accessibility frame retries
+- Window capture retries
+- Screen-change recapture timers
+- Screen-change debounce timer
+
+This prevents timers scheduled just before sleep from firing during sleep when AX APIs are unavailable.
 
 ## Waking up
 

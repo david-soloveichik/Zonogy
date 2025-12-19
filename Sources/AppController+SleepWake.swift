@@ -22,6 +22,9 @@ extension AppController {
         capturePipeline.cancelAllRetries()
         // Cancel any pending screen-change recapture timers so they don't run during sleep.
         cancelAllPendingRecaptureWorkItems()
+        // Cancel any pending screen-change debounce timer.
+        pendingScreenChangeWorkItem?.cancel()
+        pendingScreenChangeWorkItem = nil
     }
 
     internal func handleScreensDidWake() {
