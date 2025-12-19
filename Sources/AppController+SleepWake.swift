@@ -20,6 +20,8 @@ extension AppController {
         windowController.cancelAllAccessibilityFrameRetries()
         // Cancel any pending window capture retries driven by AX notifications.
         capturePipeline.cancelAllRetries()
+        // Cancel any pending screen-change recapture timers so they don't run during sleep.
+        cancelAllPendingRecaptureWorkItems()
     }
 
     internal func handleScreensDidWake() {

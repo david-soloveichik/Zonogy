@@ -86,6 +86,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     internal var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []
+    /// Pending recapture work items that should be cancelled when screens go to sleep.
+    internal var pendingRecaptureWorkItems: [DispatchWorkItem] = []
     internal let screenChangeDebounceInterval: TimeInterval = 0.25
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?

@@ -11,8 +11,17 @@ extension AppController {
     /// Schedule a window recapture pass after the specified delay.
     /// Called from screen topology refresh (display changes) and wake-from-sleep.
     internal func scheduleWindowRecapture(delay: TimeInterval, reason: String) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+        // Clean up any completed work items first
+        pendingRecaptureWorkItems.removeAll { $0.isCancelled }
+
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
+
+            // Abort if screens went to sleep after this work item was scheduled
+            guard !self.screensAsleep else {
+                Logger.debug("SleepWake: aborting \(reason) recapture because screens are asleep")
+                return
+            }
 
             Logger.debug("Attempting \(reason) recapture after \(delay) seconds")
 
@@ -62,5 +71,16 @@ extension AppController {
                 Logger.debug("\(reason.capitalized) recapture after \(delay)s: captured \(capturedCount) windows, placed \(placedUnzonedCount) unzoned, managed: \(preCaptureManaged) -> \(postCaptureManaged), placeholders: \(prePlaceholders) -> \(postPlaceholders)")
             }
         }
+
+        pendingRecaptureWorkItems.append(workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    /// Cancel all pending recapture work items. Called when screens go to sleep.
+    internal func cancelAllPendingRecaptureWorkItems() {
+        for workItem in pendingRecaptureWorkItems {
+            workItem.cancel()
+        }
+        pendingRecaptureWorkItems.removeAll()
     }
 }
