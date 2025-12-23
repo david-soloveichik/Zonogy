@@ -8,7 +8,9 @@ IMPORTANT TERMINOLOGY: When we say "window" this refers to managed windows of ot
 
 Based on testing, it is safe to assume that `CGWindowID` is preserved between sleep/wake cycles. We do all our matching based on this.
 
-We track sleep/wake state with a single flag: `screensAsleep` (bool): true between `screensDidSleepNotification` and completion of the wake pipeline. When `screensAsleep = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events). This prevents AX errors during the wake => sleep transition from incorrectly pruning window references.
+We track sleep/wake state with a single flag: `screensAsleep` (bool): true between `screensDidSleepNotification` and completion of the wake pipeline. 
+
+When `screensAsleep = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events, and AX observer notifications such as focus changes). This prevents AX errors during the sleep transition from incorrectly pruning window references. Also AX observer notifications (e.g., `AXFocusedWindowChanged`, `AXMainWindowChanged`) can fire for several hundred milliseconds after the sleep notification. If processed, these trigger window validation which queries AX APIs that return transient errors during sleep, causing windows to be incorrectly pruned as "destroyed". Every delegate method that handles AX events must check `screensAsleep` and return early if true.
 
 As long as `screensAsleep = true` we also "dim" the menu bar item for better user feedback (I know it's ironic since you might think that the screens would be asleep and the user won't see it, but screensDidWakeNotification might fire while the API is not completely ready as described below.)
 

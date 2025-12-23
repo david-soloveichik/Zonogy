@@ -20,6 +20,11 @@ extension AppController {
     // MARK: - WindowControllerDelegate
 
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?) {
+        // AX focus notifications can fire after screens go to sleep; ignore them to
+        // avoid incorrect pruning of windows when AX APIs return transient errors.
+        if shouldIgnoreDueToSleepWake(event: "windowFocusChanged(pid: \(pid))") {
+            return
+        }
         dismissLauncherIfActive()
 
         // When focus changes in an application, validate its windows
