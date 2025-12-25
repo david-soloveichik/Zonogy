@@ -38,6 +38,11 @@ extension AppController {
         if let windowId = focusedWindowId {
             windowController.recordWindowActivity(windowId: windowId)
         }
+
+        // Record app activation for launcher app recency (used as tie-breaker in ranking)
+        if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier {
+            LaunchItemUsageStore.shared.recordAppActivation(bundleIdentifier: bundleId)
+        }
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {

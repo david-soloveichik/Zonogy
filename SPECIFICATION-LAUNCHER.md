@@ -88,72 +88,31 @@ Users can extend the searchable list via configuration:
 
 ### Fuzzy Matching
 
-Search uses subsequence matching (like LaunchBar):
-
-- Characters typed must appear in the item name in order, but not necessarily consecutively
-- Example: typing "ff" matches "Firefox" (F-ire-F-ox)
-- Matching is case-insensitive
+Search uses subsequence matching: characters typed must appear in the item name in order, but not necessarily consecutively. Example: "ff" matches "Firefox". Matching is case-insensitive.
 
 ### Ranking
 
-Ranking combines **match quality** (how well the query matches the item name) with **frecency** (frequency + recency of use). This allows the launcher to learn user preferences like LaunchBar - after selecting Mail a few times for "m", it will rank above Chrome even if Chrome is used more often globally.
+For non-empty queries, items are sorted by:
 
-#### Match Quality Scoring
+1. **Per-query count** (descending): How many times this item was selected for this exact query in the last 5 selections. If count ≥ 3 (majority), the item is guaranteed to rank first regardless of match quality.
+2. **Match quality** (descending): Scored based on how well the query matches the item name or alias:
+   - **Exact alias match:** If the query exactly matches an item's configured alias (case-insensitive), that item gets maximum score (1.0). This allows users to define short, memorable shortcuts.
+   - **Word boundary bonus:** Matches at start of string or after whitespace score highest
+   - **Delimiter bonus:** Matches after `-`, `_`, `.`, `/` score well
+   - **CamelCase bonus:** Matches at uppercase letters following lowercase
+   - **Consecutive bonus:** Consecutive matched characters score higher than scattered matches
+   - **Gap penalty:** Gaps between matched characters reduce score
+3. **Recency** (ascending): Position in Zonogy's application recency list (updated whenever any app becomes active via any method).
+4. **Alphabetical**: case-insensitive name.
 
-Match quality (0.0 to 1.0) is based on position and density of matched characters:
-
-- **Word boundary bonus:** Matches at start of string or after whitespace score highest (+10)
-- **Delimiter bonus:** Matches after `-`, `_`, `.`, `/` score well (+8)
-- **CamelCase bonus:** Matches at uppercase letters following lowercase (+7)
-- **Consecutive bonus:** Each consecutive matched character adds bonus (+4)
-- **Gap penalties:** Gaps between matches reduce score (-3 to start, -1 per char)
-- **First character multiplier:** Bonuses on first query character are doubled (2x)
-
-Example: Query "m" scores ~0.85 for "Mail" (word start) but ~0.35 for "Chrome" (mid-word).
-
-#### Frecency Scoring
-
-Base frecency formula:
-
-```text
-frecency = log(1 + count) + exp(-ageSeconds / tauSeconds)
-```
-
-Where `tauSeconds` ≈ 10 days.
-
-**Global vs Per-Query Frecency:**
-
-- **Global:** How often/recently an item has been launched overall
-- **Per-query:** How often/recently an item has been launched for the current query (and prefixes)
-
-**Tie-breaker rule:** Per-query frecency always takes priority over global frecency. Global frecency is only used to break ties when the per-query frecency is equal (most commonly when both are 0 because the user has no recorded preference for that query yet).
-
-#### Combined Formula
-
-```text
-weightedMatchQuality = matchQuality^2
-
-queryFinalScore  = weightedMatchQuality * (1.0 + 2.0 * queryFrecency)
-globalFinalScore = weightedMatchQuality * (1.0 + 2.0 * globalFrecency)
-
-Sort by:
-  1) queryFinalScore (when queryFrecency differs)
-  2) globalFinalScore (tie-breaker when queryFrecency is equal)
-```
-
-Match quality acts as a multiplier - poor matches cannot be rescued by high frecency. For non-empty queries, items are ordered by descending `queryFinalScore` when `queryFrecency` differs; when `queryFrecency` is equal, use `globalFinalScore` as the tie-breaker, and then case-insensitive alphabetical.
-
-When query is empty, all items have matchQuality = 1.0 and ranking uses pure frecency.
+When query is empty, ranking uses recency then alphabetical.
 
 ### History Persistence
 
-Launch history is persisted to `~/Library/Application Support/Zonogy/launcher-history.json`.
+Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
-Per-query memory is recorded when:
-
-- User launches with non-empty query
-- Launched item is not the current top-ranked result
-- Recorded for full normalized query and its prefixes (up to 32 characters)
+- **Per-query history:** Last 5 selections for each query (recorded on activation or drill-down)
+- **Application recency:** Apps ordered by last activation (updated by Zonogy's window management)
 
 ## Navigation and Interaction
 

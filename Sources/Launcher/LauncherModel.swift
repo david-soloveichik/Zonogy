@@ -50,18 +50,11 @@ final class LauncherModel: ObservableObject {
     private var windowItems: [LauncherWindowItem] = []
     private var savedAppQuery: String = ""
     private var allItems: [LaunchItem] = []
-    private let usageStore: LaunchItemUsageStore
     private var workspaceObservers: [NSObjectProtocol] = []
 
-    private enum ScoringConstants {
-        static let matchExponent: Double = 2.0
-        static let frecencyMultiplier: Double = 2.0
-    }
+    private var usageStore: LaunchItemUsageStore { LaunchItemUsageStore.shared }
 
-    init(
-        usageStore: LaunchItemUsageStore = LaunchItemUsageStore()
-    ) {
-        self.usageStore = usageStore
+    init() {
         reloadItems()
         refreshRunningApps()
         setupWorkspaceObservers()
@@ -130,12 +123,13 @@ final class LauncherModel: ObservableObject {
 
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let firstItemKey = filteredItems.first.map { $0.url.standardizedFileURL.resolvingSymlinksInPath().path }
-        let selectedItemKey = resolved.path
-        let recordQueryPreference = !trimmedQuery.isEmpty && firstItemKey != nil && firstItemKey != selectedItemKey
-        usageStore.recordLaunch(query: trimmedQuery, itemURL: resolved, recordQueryPreference: recordQueryPreference)
-        updateFilteredItems(preserveSelection: true)
 
+        // Always record selection for non-empty queries
+        if !trimmedQuery.isEmpty {
+            usageStore.recordSelection(query: trimmedQuery, itemURL: resolved)
+        }
+
+        updateFilteredItems(preserveSelection: true)
         return resolved
     }
 
@@ -144,31 +138,48 @@ final class LauncherModel: ObservableObject {
         let previousSelection = preserveSelection ? selectedItemURL : nil
 
         if trimmedQuery.isEmpty {
-            // Empty query: show all items sorted by pure frecency
-            let scoringNow = Date()
-            let scoredItems = allItems.map { item in
-                let globalScore = usageStore.scores(itemURL: item.url, query: "", now: scoringNow).global
-                return (item: item, globalScore: globalScore)
+            // Empty query: sort by recency then alphabetical
+            let scoredItems = allItems.map { item -> (item: LaunchItem, recencyRank: Int) in
+                let bundleId = Bundle(url: item.url)?.bundleIdentifier ?? ""
+                let recencyRank = usageStore.recencyRank(bundleIdentifier: bundleId)
+                return (item: item, recencyRank: recencyRank)
             }
 
             filteredItems = scoredItems
                 .sorted { lhs, rhs in
-                    if lhs.globalScore != rhs.globalScore { return lhs.globalScore > rhs.globalScore }
+                    if lhs.recencyRank != rhs.recencyRank { return lhs.recencyRank < rhs.recencyRank }
                     return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
                 }
                 .map(\.item)
         } else {
-            // Non-empty query: filter with match quality scoring
-            let scoringNow = Date()
+            // Non-empty query: filter with match quality, then sort by spec order
+            // 1. Per-query count (desc)
+            // 2. Match quality (desc)
+            // 3. Recency rank (asc)
+            // 4. Alphabetical
 
             // Filter and compute match quality
+            let normalizedQuery = trimmedQuery.lowercased()
             let matchedItems: [(item: LaunchItem, matchScore: Double)] = allItems.compactMap { item in
-                // Try display name first
+                // Check for exact alias match first (gets maximum score 1.0)
+                if let alias = item.alias, alias.lowercased() == normalizedQuery {
+                    return (item, 1.0)
+                }
+
+                // Try display name
                 let displayResult = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: item.displayName)
                 if displayResult.isMatch {
+                    // Also check alias for potentially better score
+                    if let alias = item.alias {
+                        let aliasResult = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: alias)
+                        if aliasResult.isMatch && aliasResult.score > displayResult.score {
+                            return (item, aliasResult.score)
+                        }
+                    }
                     return (item, displayResult.score)
                 }
-                // Try alias
+
+                // Try alias as fallback
                 if let alias = item.alias {
                     let aliasResult = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: alias)
                     if aliasResult.isMatch {
@@ -178,24 +189,25 @@ final class LauncherModel: ObservableObject {
                 return nil
             }
 
-            // Compute scores; per-query frecency has priority over global frecency, with global as tie-breaker.
-            let scoredItems = matchedItems.map { (item, matchScore) in
-                let scores = usageStore.scores(itemURL: item.url, query: trimmedQuery, now: scoringNow)
-                let weightedMatchScore = pow(matchScore, ScoringConstants.matchExponent)
-                let perQueryFinalScore = weightedMatchScore * (1.0 + ScoringConstants.frecencyMultiplier * scores.perQuery)
-                let globalFinalScore = weightedMatchScore * (1.0 + ScoringConstants.frecencyMultiplier * scores.global)
-                return (item: item, perQuery: scores.perQuery, perQueryFinalScore: perQueryFinalScore, globalFinalScore: globalFinalScore)
+            // Compute all scoring components
+            let scoredItems = matchedItems.map { (item, matchScore) -> (item: LaunchItem, perQueryCount: Int, matchQuality: Double, recencyRank: Int) in
+                let itemKey = LaunchItemUsageStore.normalizedItemKey(for: item.url)
+                let perQueryCount = usageStore.perQueryCount(itemKey: itemKey, query: trimmedQuery)
+                let matchQuality = matchScore * matchScore  // squared as per spec
+                let bundleId = Bundle(url: item.url)?.bundleIdentifier ?? ""
+                let recencyRank = usageStore.recencyRank(bundleIdentifier: bundleId)
+                return (item: item, perQueryCount: perQueryCount, matchQuality: matchQuality, recencyRank: recencyRank)
             }
 
             filteredItems = scoredItems
                 .sorted { lhs, rhs in
-                    if lhs.perQuery != rhs.perQuery {
-                        if lhs.perQueryFinalScore != rhs.perQueryFinalScore { return lhs.perQueryFinalScore > rhs.perQueryFinalScore }
-                        // Extremely rare: different per-query scores but same final score.
-                        return lhs.perQuery > rhs.perQuery
-                    }
-
-                    if lhs.globalFinalScore != rhs.globalFinalScore { return lhs.globalFinalScore > rhs.globalFinalScore }
+                    // 1. Per-query count (descending)
+                    if lhs.perQueryCount != rhs.perQueryCount { return lhs.perQueryCount > rhs.perQueryCount }
+                    // 2. Match quality (descending)
+                    if lhs.matchQuality != rhs.matchQuality { return lhs.matchQuality > rhs.matchQuality }
+                    // 3. Recency rank (ascending - lower is better)
+                    if lhs.recencyRank != rhs.recencyRank { return lhs.recencyRank < rhs.recencyRank }
+                    // 4. Alphabetical
                     return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
                 }
                 .map(\.item)
@@ -230,13 +242,12 @@ final class LauncherModel: ObservableObject {
               let bundle = Bundle(url: url),
               let bundleId = bundle.bundleIdentifier else { return }
 
-        // Record frecency for the app
+        // Record selection for the app (drill-down counts as activation per spec)
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let firstItemKey = filteredItems.first.map { $0.url.standardizedFileURL.resolvingSymlinksInPath().path }
-        let selectedItemKey = resolved.path
-        let recordQueryPreference = !trimmedQuery.isEmpty && firstItemKey != nil && firstItemKey != selectedItemKey
-        usageStore.recordLaunch(query: trimmedQuery, itemURL: resolved, recordQueryPreference: recordQueryPreference)
+        if !trimmedQuery.isEmpty {
+            usageStore.recordSelection(query: trimmedQuery, itemURL: resolved)
+        }
         updateFilteredItems(preserveSelection: true)
 
         // Get windows from Zonogy's tracking (allow drilling into any running app)
@@ -283,7 +294,7 @@ final class LauncherModel: ObservableObject {
                 .compactMap { index, item in
                     let result = SubsequenceMatcher.scoreMatch(query: trimmedQuery, candidate: item.title)
                     guard result.isMatch else { return nil }
-                    let weightedMatchScore = pow(result.score, ScoringConstants.matchExponent)
+                    let weightedMatchScore = result.score * result.score
                     return (index: index, item: item, matchScore: weightedMatchScore)
                 }
 
