@@ -226,18 +226,6 @@ Since Zonogy already requires accessibility permissions for window management, t
 
 ## Implementation Notes
 
-### Code Reuse
-
-The implementation can be adapted from Test-Launchbar:
-
-- **SubsequenceMatcher:** Fuzzy matching algorithm
-- **LaunchItem/WindowItem models:** Data structures for items
-- **LauncherModel:** Core logic for filtering and ranking
-- **LaunchItemUsageStore:** Frecency tracking and persistence
-- **UI components:** LauncherView, LaunchItemListView, WindowItemListView, etc.
-
-Note: Unlike Test-Launchbar, Zonogy's launcher uses `WindowController.allWindows` as the source of truth for window enumeration rather than a separate WindowEnumerationService. This ensures consistency with Zonogy's window management and uses cached state (e.g., `isMinimized`) where available.
-
 ### Window Configuration
 
 The launcher window should be configured as:
