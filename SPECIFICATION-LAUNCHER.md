@@ -12,7 +12,10 @@ The Launcher opens via:
 
 - **Control-Command-Enter** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
-- **Automatically** when an empty **tiled** zone becomes targeted (including on creation)
+- **Automatically** when the targeted zone is an empty tiled zone. This covers two cases:
+  - Targeting changes to an empty tiled zone (including on creation)
+  - The already-targeted tiled zone becomes empty (window closed, minimized, or moved away)
+- **Zone removal behavior:** When a tiled zone is removed, Launcher is dismissed first. If the new target is an empty tiled zone, Launcher auto-shows; if it's a temporary zone, Launcher stays hidden.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiled zone or the temporary target; otherwise it dismisses.
 
 ## Positioning

@@ -33,6 +33,9 @@ extension AppController {
 
         if retarget, let emptyZoneKey = emptyZoneKey {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: reason)
+            // Auto-show Launcher if the emptied zone is now the targeted zone.
+            // This handles the case where the zone was already targeted (setTargetedZone returns early).
+            autoShowLauncherIfEmptyTargetedTiledZone()
         }
 
         clearTemporaryZone(for: windowId, minimize: false, reason: reason)

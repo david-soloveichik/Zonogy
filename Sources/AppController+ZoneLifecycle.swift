@@ -75,6 +75,11 @@ extension AppController {
         // Removing a zone on this screen should clear any UnderCovers state there.
         endUnderCovers(on: screenId, reason: "remove-zone", recreatePlaceholders: false)
 
+        // Hide Launcher before zone removal: if a temporary zone becomes the new target,
+        // Launcher should not appear (auto-show only triggers for empty tiled zones).
+        // If an empty tiled zone becomes targeted, auto-show will trigger via the callback.
+        dismissLauncherIfActive()
+
         let context = context ?? screenContexts[screenId]
         guard let context else {
             return nil

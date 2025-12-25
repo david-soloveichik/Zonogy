@@ -32,14 +32,23 @@ extension AppController {
             return
         }
 
-        // Auto-show: only when an empty tiled zone becomes targeted.
-        guard case .tiled(let key) = newDestination,
-              targetedZoneManager.isZoneEmpty(key) else {
+        // Auto-show: when an empty tiled zone becomes targeted.
+        autoShowLauncherIfEmptyTargetedTiledZone()
+    }
+
+    /// Auto-show Launcher if the currently targeted zone is an empty tiled zone.
+    /// This unified helper handles both:
+    /// - When targeting changes to an empty zone (called from targetedZoneDidChange)
+    /// - When the already-targeted zone becomes empty (called from removeWindowFromAllZones)
+    internal func autoShowLauncherIfEmptyTargetedTiledZone() {
+        guard !launcherController.isActive,
+              let targetedKey = targetedZoneKey,
+              targetedZoneManager.isZoneEmpty(targetedKey) else {
             return
         }
 
         launcherController.show()
-        Logger.debug("Launcher: Auto-shown for empty zone \(key.index)")
+        Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
     }
 }
 
