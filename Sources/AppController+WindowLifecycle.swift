@@ -71,8 +71,18 @@ extension AppController {
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }
 
-    func placeholderDoubleClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        showLauncher()
+    func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Placeholder search pill clicked for zone \(zoneIndex) on screen \(screenIndex)")
+
+        minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-search-pill")
+        let key = zoneKey(for: screenId, index: zoneIndex)
+        targetedZoneManager.setTargetedZone(key, reason: "placeholder-search-pill")
+
+        // Clicking the search pill should always show the Launcher, even if the zone was already targeted.
+        if !launcherController.isActive {
+            launcherController.show()
+        }
     }
 
     func zoneIndicatorActivated(_ key: ZoneKey) {

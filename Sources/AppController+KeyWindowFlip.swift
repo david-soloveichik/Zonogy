@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Implements Control-Cmd-Enter key window flip behavior across screens.
+/// Implements Control-Cmd-\ key window flip behavior across screens.
 extension AppController {
     /// Entry point for the flip shortcut; rehomes the key window to a zone on another screen.
     func flipKeyWindowToAnotherScreen() {

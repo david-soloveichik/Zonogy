@@ -1,6 +1,48 @@
 /// Launcher window switcher and application launcher integration
 import AppKit
 
+// MARK: - Auto-Show Launcher on Empty Zone Target
+
+extension AppController {
+    /// Called when targeted zone changes. Auto-shows Launcher when an empty tiled zone becomes targeted.
+    func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
+        // Invariant: the Launcher must never remain visible while pointing at a non-targeted destination.
+        // If the target changes while the Launcher is open, either reposition it to the new target
+        // (empty tiled / temporary) or hide it (occupied tiled / cleared target).
+        if launcherController.isActive {
+            guard let newDestination else {
+                launcherController.hide()
+                Logger.debug("Launcher: Hidden because target cleared")
+                return
+            }
+
+            switch newDestination {
+            case .temporary:
+                launcherController.repositionToCurrentTarget()
+                Logger.debug("Launcher: Repositioned for temporary target")
+            case .tiled(let key):
+                if targetedZoneManager.isZoneEmpty(key) {
+                    launcherController.repositionToCurrentTarget()
+                    Logger.debug("Launcher: Repositioned for empty target zone \(key.index)")
+                } else {
+                    launcherController.hide()
+                    Logger.debug("Launcher: Hidden because target zone \(key.index) is occupied")
+                }
+            }
+            return
+        }
+
+        // Auto-show: only when an empty tiled zone becomes targeted.
+        guard case .tiled(let key) = newDestination,
+              targetedZoneManager.isZoneEmpty(key) else {
+            return
+        }
+
+        launcherController.show()
+        Logger.debug("Launcher: Auto-shown for empty zone \(key.index)")
+    }
+}
+
 extension AppController: LauncherControllerDelegate {
     // MARK: - Window Selection
 

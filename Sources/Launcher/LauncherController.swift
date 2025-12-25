@@ -34,8 +34,15 @@ final class LauncherController {
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
+    private var lastAnchor: Anchor?
 
     private(set) var isActive = false
+
+    private enum Anchor: Equatable {
+        case zone(frame: CGRect, screenId: CGDirectDisplayID)
+        case screen(screenId: CGDirectDisplayID)
+        case main
+    }
 
     func toggle() {
         if isActive {
@@ -90,12 +97,15 @@ final class LauncherController {
             // Position window on targeted zone
             if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
                 window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
+                self.lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
             } else if let screenId = delegate.targetedScreenId() {
                 window?.centerOnScreen(screenId)
+                self.lastAnchor = .screen(screenId: screenId)
             } else {
                 // Fall back to main screen
                 if NSScreen.main != nil {
                     window?.center()
+                    self.lastAnchor = .main
                 }
             }
 
@@ -116,11 +126,69 @@ final class LauncherController {
         window?.orderOut(nil)
         hostingView = nil
         model = nil
+        lastAnchor = nil
 
         isActive = false
         Logger.debug("Launcher: Closed")
 
         delegate?.launcherControllerDidDismiss(self)
+    }
+
+    func repositionToCurrentTarget() {
+        guard isActive,
+              let delegate,
+              let window else {
+            return
+        }
+
+        if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
+            window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
+            lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
+        } else if let screenId = delegate.targetedScreenId() {
+            window.centerOnScreen(screenId)
+            lastAnchor = .screen(screenId: screenId)
+        } else {
+            if NSScreen.main != nil {
+                window.center()
+            }
+            lastAnchor = .main
+        }
+    }
+
+    func repositionIfNeeded() {
+        guard isActive,
+              let delegate,
+              let window else {
+            return
+        }
+
+        let zoneInfo = delegate.targetedZoneFrame()
+        let screenId = delegate.targetedScreenId()
+
+        let newAnchor: Anchor
+        if let (zoneFrame, descriptor) = zoneInfo {
+            newAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
+        } else if let screenId {
+            newAnchor = .screen(screenId: screenId)
+        } else {
+            newAnchor = .main
+        }
+
+        guard newAnchor != lastAnchor else {
+            return
+        }
+
+        if let (zoneFrame, descriptor) = zoneInfo {
+            window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
+        } else if let screenId {
+            window.centerOnScreen(screenId)
+        } else {
+            if NSScreen.main != nil {
+                window.center()
+            }
+        }
+
+        lastAnchor = newAnchor
     }
 
     // MARK: - Event Handling

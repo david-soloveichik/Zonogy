@@ -176,7 +176,7 @@ Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
 
 ### Flip the Key Window to Another Screen
 
-Pressing shortcut Control-Cmd-Enter moves the currently active/key window to another screen (if there is more than one screen).
+Pressing shortcut Control-Cmd-\ moves the currently active/key window to another screen (if there is more than one screen).
 
 If the targeted zone is on another screen, then immediately move the key window into it, minimize any displaced window.
 
@@ -309,7 +309,7 @@ When unminimizing a window that needs to appear at a specific position (e.g., re
 
 ## Launcher
 
-For the application launcher and window switcher feature (Control-Space), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
+For the application launcher and window switcher feature (Control-Command-Enter), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
 
 ## Developer Tools
 

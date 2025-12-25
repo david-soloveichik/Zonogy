@@ -55,7 +55,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .captureTimeTravelLogs:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Z), modifiers: cmdCtrl)
             case .flipKeyWindow:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             case .clearOrResetZones:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
             case .clearOrResetZonesAtCursor:
@@ -75,7 +75,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .saveWinShotSnapshot:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Slash), modifiers: cmdCtrl)
             case .showLauncher:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey))
+                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             }
         }
     }

@@ -8,20 +8,18 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 
 ## Activation
 
-### Keyboard Shortcut
+The Launcher opens via:
 
-- **Default shortcut:** Control-Space (configurable in settings alongside other Zonogy shortcuts)
-- Pressing the shortcut toggles the launcher: if closed, opens it; if already open, closes it
+- **Control-Command-Enter** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
+- Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
+- **Automatically** when an empty **tiled** zone becomes targeted (including on creation)
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiled zone or the temporary target; otherwise it dismisses.
 
-### Placeholder Double-Click
-
-Double-clicking a placeholder window shows the Launcher, targeting that zone.
-
-### Positioning
+## Positioning
 
 The launcher window should appear:
 
-1. **Centered on the targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown.
+1. **Centered on the targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown, but it re-centers when the targeted zone or its frame changes (e.g., zone add/remove/resize).
 2. If the targeted zone is the temporary zone (which has no visible placeholder), center on the screen containing the temporary zone
 3. The launcher window should be a floating panel that stays above all other windows
 
@@ -179,6 +177,7 @@ The launcher dismisses when:
 - User activates an item (Enter on selection)
 - User clicks outside the launcher window
 - User presses the activation shortcut again (toggle behavior)
+- The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
 
 ## Configuration
 
@@ -186,7 +185,7 @@ The launcher dismisses when:
 
 Launcher settings should integrate with Zonogy's existing configuration system:
 
-- **Activation shortcut:** Control-Space (default), configurable
+- **Activation shortcut:** Control-Command-Enter (default), configurable
 - **App discovery mode:** Directory scanning or Spotlight
 
 ### Configuration Files

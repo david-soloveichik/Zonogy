@@ -381,20 +381,14 @@ extension WindowController {
         delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
     }
 
-    func handlePlaceholderDoubleClick(screenId: CGDirectDisplayID, zoneIndex: Int) {
-        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
-        Logger.debug("Placeholder double-clicked for zone \(zoneIndex) on screen \(screenIndex)")
-        delegate?.placeholderDoubleClicked(screenId: screenId, zoneIndex: zoneIndex)
-    }
-
     @objc func handleSearchPillClick(_ sender: NSButton) {
         guard let window = sender.window,
               let contentView = window.contentView as? PlaceholderContentView else {
             return
         }
-        // Target the zone first, then open the launcher
-        handlePlaceholderActivation(screenId: contentView.screenId, zoneIndex: contentView.zoneIndex)
-        handlePlaceholderDoubleClick(screenId: contentView.screenId, zoneIndex: contentView.zoneIndex)
+        let screenIndex = ScreenContextStore.screenIndex(for: contentView.screenId) ?? Int(contentView.screenId)
+        Logger.debug("Placeholder search pill clicked for zone \(contentView.zoneIndex) on screen \(screenIndex)")
+        delegate?.placeholderSearchPillClicked(screenId: contentView.screenId, zoneIndex: contentView.zoneIndex)
     }
 
     @objc func handlePlaceholderClose(_ sender: NSButton) {

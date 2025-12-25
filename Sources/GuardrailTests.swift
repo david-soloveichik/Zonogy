@@ -157,6 +157,10 @@ private enum TargetedZoneSelectionTests {
         func refreshIndicators() {
             refreshCount += 1
         }
+
+        func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
+            // No-op for tests
+        }
     }
 
     private static func makeDescriptor(displayId: CGDirectDisplayID, primaryBounds: CGRect) -> ScreenDescriptor {

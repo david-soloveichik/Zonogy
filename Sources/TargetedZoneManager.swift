@@ -9,6 +9,8 @@ protocol TargetedZoneManagerDelegate: AnyObject {
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func refreshIndicators()
+    /// Called when the targeted zone changes. Allows delegate to respond (e.g., auto-show Launcher).
+    func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?)
 }
 
 class TargetedZoneManager {
@@ -63,13 +65,15 @@ class TargetedZoneManager {
             resolvedKey = fallbackTargetedZone(preferredScreenId: candidate.screenId)
         }
 
+        let newDestination = resolvedKey.map { TargetedDestination.tiled($0) }
         if let resolvedKey,
            targetedDestination == .tiled(resolvedKey) {
             delegate?.refreshIndicators()
             return
         }
 
-        targetedDestination = resolvedKey.map { .tiled($0) }
+        let oldDestination = targetedDestination
+        targetedDestination = newDestination
 
         if let resolvedKey {
             // Convert display ID to screen index for logging
@@ -80,6 +84,7 @@ class TargetedZoneManager {
         }
 
         delegate?.refreshIndicators()
+        delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
 
     func setTemporaryTarget(on screenId: CGDirectDisplayID, reason: String) {
@@ -88,16 +93,18 @@ class TargetedZoneManager {
             return
         }
 
-        let destination = TargetedDestination.temporary(screenId: screenId)
-        if targetedDestination == destination {
+        let newDestination = TargetedDestination.temporary(screenId: screenId)
+        if targetedDestination == newDestination {
             delegate?.refreshIndicators()
             return
         }
 
-        targetedDestination = destination
+        let oldDestination = targetedDestination
+        targetedDestination = newDestination
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Targeted temporary zone set on screen \(screenIndex) due to \(reason)")
         delegate?.refreshIndicators()
+        delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
 
     /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
