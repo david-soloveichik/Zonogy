@@ -190,24 +190,26 @@ final class LauncherModel: ObservableObject {
             }
 
             // Compute all scoring components
-            let scoredItems = matchedItems.map { (item, matchScore) -> (item: LaunchItem, perQueryCount: Int, matchQuality: Double, recencyRank: Int) in
+            let scoredItems = matchedItems.map { (item, matchScore) -> (item: LaunchItem, perQueryCount: Int, combinedScore: Double) in
                 let itemKey = LaunchItemUsageStore.normalizedItemKey(for: item.url)
                 let perQueryCount = usageStore.perQueryCount(itemKey: itemKey, query: trimmedQuery)
-                let matchQuality = matchScore * matchScore  // squared as per spec
+                let matchQuality = matchScore * matchScore  // squared for emphasis
                 let bundleId = Bundle(url: item.url)?.bundleIdentifier ?? ""
                 let recencyRank = usageStore.recencyRank(bundleIdentifier: bundleId)
-                return (item: item, perQueryCount: perQueryCount, matchQuality: matchQuality, recencyRank: recencyRank)
+                // Never-used apps (Int.max) treated as rank 50 for smooth continuity
+                let effectiveRank = Double(recencyRank == Int.max ? 50 : recencyRank)
+                let recencyScore = 1.0 / (1.0 + 0.03 * effectiveRank)
+                let combinedScore = 0.7 * matchQuality + 0.3 * recencyScore
+                return (item: item, perQueryCount: perQueryCount, combinedScore: combinedScore)
             }
 
             filteredItems = scoredItems
                 .sorted { lhs, rhs in
                     // 1. Per-query count (descending)
                     if lhs.perQueryCount != rhs.perQueryCount { return lhs.perQueryCount > rhs.perQueryCount }
-                    // 2. Match quality (descending)
-                    if lhs.matchQuality != rhs.matchQuality { return lhs.matchQuality > rhs.matchQuality }
-                    // 3. Recency rank (ascending - lower is better)
-                    if lhs.recencyRank != rhs.recencyRank { return lhs.recencyRank < rhs.recencyRank }
-                    // 4. Alphabetical
+                    // 2. Combined score (descending) - blends match quality and recency
+                    if lhs.combinedScore != rhs.combinedScore { return lhs.combinedScore > rhs.combinedScore }
+                    // 3. Alphabetical (tiebreaker)
                     return lhs.item.displayName.localizedCaseInsensitiveCompare(rhs.item.displayName) == .orderedAscending
                 }
                 .map(\.item)

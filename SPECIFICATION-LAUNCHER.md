@@ -95,16 +95,18 @@ Search uses subsequence matching: characters typed must appear in the item name 
 
 For non-empty queries, items are sorted by:
 
-1. **Per-query count** (descending): How many times this item was selected for this exact query in the last 5 selections. If count ≥ 3 (majority), the item is guaranteed to rank first regardless of match quality.
-2. **Match quality** (descending): Scored based on how well the query matches the item name or alias:
-   - **Exact alias match:** If the query exactly matches an item's configured alias (case-insensitive), that item gets maximum score (1.0). This allows users to define short, memorable shortcuts.
-   - **Word boundary bonus:** Matches at start of string or after whitespace score highest
-   - **Delimiter bonus:** Matches after `-`, `_`, `.`, `/` score well
-   - **CamelCase bonus:** Matches at uppercase letters following lowercase
-   - **Consecutive bonus:** Consecutive matched characters score higher than scattered matches
-   - **Gap penalty:** Gaps between matched characters reduce score
-3. **Recency** (ascending): Position in Zonogy's application recency list (updated whenever any app becomes active via any method).
-4. **Alphabetical**: case-insensitive name.
+1. **Per-query count** (descending): How many times this item was selected for this exact query in the last 5 selections. If count ≥ 3 (majority), the item is guaranteed to rank first regardless of other factors.
+2. **Combined score** (descending): Weighted blend of match quality (70%) and recency (30%):
+   - **Match quality** (0.0–1.0): Scored based on how well the query matches the item name or alias:
+     - **Exact alias match:** Query exactly matches an item's configured alias (case-insensitive) → 1.0
+     - **Word boundary bonus:** Matches at start of string or after whitespace score highest
+     - **Delimiter bonus:** Matches after `-`, `_`, `.`, `/` score well
+     - **CamelCase bonus:** Matches at uppercase letters following lowercase
+     - **Consecutive bonus:** Consecutive matched characters score higher than scattered matches
+     - **Gap penalty:** Gaps between matched characters reduce score
+   - **Recency score** (0.0–1.0): `1 / (1 + 0.03 × rank)` where rank is position in Zonogy's app recency list. Apps never used are treated as rank 50.
+   - **Formula:** `0.7 × matchQuality + 0.3 × recencyScore`
+3. **Alphabetical**: case-insensitive name (tiebreaker).
 
 When query is empty, ranking uses recency then alphabetical.
 
