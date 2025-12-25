@@ -180,13 +180,17 @@ extension AppController {
 
     internal func handleApplicationEvent(_ application: NSRunningApplication?) {
         guard let application else {
+            Logger.debug("handleApplicationEvent: application is nil, skipping")
             return
         }
 
-        guard shouldManage(application: application) else {
+        let appDescription = "\(application.localizedName ?? "Unknown") (pid \(application.processIdentifier), bundle \(application.bundleIdentifier ?? "nil"))"
+
+        guard shouldManage(application: application, logRejection: true) else {
             return
         }
 
+        Logger.debug("handleApplicationEvent: scheduling capture for \(appDescription)")
         scheduleCapture(for: application, delay: 0.0)
         scheduleCapture(for: application, delay: 0.4)
     }
@@ -250,10 +254,16 @@ extension AppController {
     internal func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
         let pid = application.processIdentifier
         let originalBundleId = application.bundleIdentifier  // Capture bundle ID to verify identity
+        let appName = application.localizedName ?? "Unknown"
+
+        Logger.debug("scheduleCapture: scheduling capture for \(appName) (pid \(pid)) in \(delay)s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
-            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else { return }
+            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
+                Logger.debug("scheduleCapture: pid \(pid) no longer running, aborting capture")
+                return
+            }
 
             // Verify the PID still belongs to the same application
             if let originalBundleId = originalBundleId,
@@ -263,7 +273,7 @@ extension AppController {
                 return
             }
 
-            guard self.shouldManage(application: refreshedApplication) else { return }
+            guard self.shouldManage(application: refreshedApplication, logRejection: true) else { return }
 
             _ = self.captureWindows(
                 for: refreshedApplication,
@@ -273,28 +283,37 @@ extension AppController {
         }
     }
 
-    internal func shouldManage(application: NSRunningApplication, visibleBundleIds: Set<String>? = nil) -> Bool {
+    internal func shouldManage(application: NSRunningApplication, visibleBundleIds: Set<String>? = nil, logRejection: Bool = false) -> Bool {
+        let appDescription = "\(application.localizedName ?? "Unknown") (pid \(application.processIdentifier), bundle \(application.bundleIdentifier ?? "nil"))"
+
         guard !application.isTerminated else {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - application is terminated") }
             return false
         }
         if application.processIdentifier == getpid() {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - same PID as Zonogy") }
             return false
         }
         guard let bundleId = application.bundleIdentifier else {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - no bundle identifier") }
             return false
         }
         if let visibleBundleIds = visibleBundleIds,
            !visibleBundleIds.contains(bundleId) {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - not in visible bundle IDs") }
             return false
         }
         if configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - in ignored bundle identifiers") }
             return false
         }
         if application.activationPolicy != .regular &&
             !configuration.applicationExceptionPolicy.ignoresActivationPolicy(forBundleIdentifier: bundleId) {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - activationPolicy is \(application.activationPolicy.rawValue), not .regular") }
             return false
         }
         if isXpcOrHelperProcess(application) {
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - is XPC or helper process") }
             return false
         }
         return true

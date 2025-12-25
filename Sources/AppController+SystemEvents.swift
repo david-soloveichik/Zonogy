@@ -60,6 +60,8 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
+        let appDescription = application.map { "\($0.localizedName ?? "Unknown"), pid \($0.processIdentifier), bundle \($0.bundleIdentifier ?? "nil")" } ?? "nil"
+        Logger.debug("NSWorkspace notification received: didActivateApplication (\(appDescription))")
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
             return
         }
@@ -77,6 +79,8 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
+        let appDescription = application.map { "\($0.localizedName ?? "Unknown"), pid \($0.processIdentifier), bundle \($0.bundleIdentifier ?? "nil")" } ?? "nil"
+        Logger.debug("NSWorkspace notification received: didLaunchApplication (\(appDescription))")
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didLaunchApplicationNotification") {
             return
         }
