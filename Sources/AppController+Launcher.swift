@@ -47,7 +47,7 @@ extension AppController {
             return
         }
 
-        launcherController.show()
+        launcherController.autoShow()
         Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
     }
 }

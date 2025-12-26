@@ -35,8 +35,12 @@ final class LauncherController {
     private var keyMonitor: Any?
     private var clickMonitor: Any?
     private var lastAnchor: Anchor?
+    private var autoShowGraceUntil: Date?
 
     private(set) var isActive = false
+
+    /// Grace period duration for auto-show (prevents immediate dismissal from macOS auto-focus)
+    private static let autoShowGracePeriod: TimeInterval = 0.5
 
     private enum Anchor: Equatable {
         case zone(frame: CGRect, screenId: CGDirectDisplayID)
@@ -50,6 +54,20 @@ final class LauncherController {
         } else {
             show()
         }
+    }
+
+    /// Show the Launcher with a grace period that prevents immediate dismissal from focus changes.
+    /// Use this when auto-showing (e.g., zone became empty) to handle macOS auto-focus behavior.
+    func autoShow() {
+        autoShowGraceUntil = Date().addingTimeInterval(Self.autoShowGracePeriod)
+        show()
+    }
+
+    /// Returns true if the Launcher is within its auto-show grace period.
+    /// During this period, focus-based dismissals should be skipped.
+    var isInAutoShowGracePeriod: Bool {
+        guard let graceUntil = autoShowGraceUntil else { return false }
+        return Date() < graceUntil
     }
 
     func show() {
@@ -127,6 +145,7 @@ final class LauncherController {
         hostingView = nil
         model = nil
         lastAnchor = nil
+        autoShowGraceUntil = nil
 
         isActive = false
         Logger.debug("Launcher: Closed")

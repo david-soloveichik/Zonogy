@@ -27,9 +27,11 @@ extension AppController {
         }
 
         // Dismiss Launcher if focus shifts to a managed window in a zone (tiled or temporary).
+        // Skip during auto-show grace period to handle macOS auto-focus after window close/minimize.
         if let windowId = focusedWindowId,
            let managed = windowController.window(withId: windowId),
-           (managed.zoneIndex != nil || isWindowInTemporaryZone(windowId)) {
+           (managed.zoneIndex != nil || isWindowInTemporaryZone(windowId)),
+           !launcherController.isInAutoShowGracePeriod {
             dismissLauncherIfActive()
         }
 

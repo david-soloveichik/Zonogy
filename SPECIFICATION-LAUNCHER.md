@@ -226,6 +226,10 @@ Custom items config schema:
 
 ## Implementation Notes
 
+### Accessibility API Workarounds
+
+- **Auto-show grace period:** When a window is minimized or closed in a tiling zone, the Launcher auto-shows. However, macOS may automatically focus another window, which would normally trigger the Launcher to dismiss. To prevent this, the Launcher ignores focus-based dismissals for 0.5 seconds after auto-showing.
+
 ### Window Configuration
 
 The launcher window should be configured as:
