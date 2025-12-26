@@ -13,18 +13,24 @@ The Launcher opens via:
 - **Control-Command-Enter** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
-  - A tiled zone becomes empty (window closed, minimized, or moved away). Note: by targeting rules in the main spec, this implies that the zone becomes targeted.
+  - A tiled zone becomes empty (window closed, minimized, or moved away).
+    Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
+    Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice to minimize the window and remove its tiling zone.
   - After a zone is added.
 - **Zone removal behavior:** When a tiled zone is removed, Launcher is dismissed first.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiled zone or the temporary target; otherwise it dismisses.
 
 ## Dismissal
 
-The launcher dismisses when:
+The launcher dismisses when user:
 
-- User presses Escape
-- User presses the activation shortcut again (toggle behavior)
-- User activates an item (Enter on selection or double-click)
+- Presses Escape
+- Presses the activation shortcut again (toggle behavior)
+- Activates an item (Enter on selection or double-click)
+
+Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
+So the launcher automatically dismisses when:
+
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
 - Focus shifts to a managed window in a tiled or temporary zone (so the user can interact with it)
