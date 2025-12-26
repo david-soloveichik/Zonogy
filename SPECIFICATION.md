@@ -167,7 +167,7 @@ Placeholder windows and the add-zone indicator accept external drops so the user
 
 ### Minimize Active Window
 
-Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications.
+Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications. **Exception**: When the Launcher is visible, Cmd-M removes the targeted zone instead; see SPECIFICATION-LAUNCHER.md. (The big picture of this behavior is that we can use Cmd-M for two purposes: to minimize a window and to remove a zone.)
 
 Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
 

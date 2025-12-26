@@ -126,6 +126,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 - **Tab:** When a running app is selected, drill into window list
 - **Shift-Tab or Escape (in window list):** Return to main app list
 - **Escape (in main list):** Dismiss launcher without action
+- **Cmd-M:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
 
 ### Window List Mode
 
