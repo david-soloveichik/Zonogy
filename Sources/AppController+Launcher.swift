@@ -1,10 +1,11 @@
 /// Launcher window switcher and application launcher integration
 import AppKit
 
-// MARK: - Auto-Show Launcher on Empty Zone Target
+// MARK: - Launcher Target Change Handling
 
 extension AppController {
-    /// Called when targeted zone changes. Auto-shows Launcher when an empty tiled zone becomes targeted.
+    /// Called when the targeted destination changes.
+    /// Maintains the invariant that the Launcher never remains visible while pointing at a non-targeted destination.
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
         // Invariant: the Launcher must never remain visible while pointing at a non-targeted destination.
         // If the target changes while the Launcher is open, either reposition it to the new target
@@ -32,14 +33,13 @@ extension AppController {
             return
         }
 
-        // Auto-show: when an empty tiled zone becomes targeted.
-        autoShowLauncherIfEmptyTargetedTiledZone()
     }
 
     /// Auto-show Launcher if the currently targeted zone is an empty tiled zone.
-    /// This unified helper handles both:
-    /// - When targeting changes to an empty zone (called from targetedZoneDidChange)
-    /// - When the already-targeted zone becomes empty (called from removeWindowFromAllZones)
+    /// Called when:
+    /// - A tiled zone becomes empty (window closed, minimized, or moved away)
+    /// - After a zone is added
+    /// - After clear/reset zones shortcut empties zones
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
         guard !launcherController.isActive,
               let targetedKey = targetedZoneKey,

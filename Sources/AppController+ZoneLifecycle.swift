@@ -76,9 +76,9 @@ extension AppController {
         // Removing a zone on this screen should clear any UnderCovers state there.
         endUnderCovers(on: screenId, reason: "remove-zone", recreatePlaceholders: false)
 
-        // Hide Launcher before zone removal: if a temporary zone becomes the new target,
-        // Launcher should not appear (auto-show only triggers for empty tiled zones).
-        // If an empty tiled zone becomes targeted, auto-show will trigger via the callback.
+        // Spec: when a tiled zone is removed, dismiss Launcher first.
+        // Launcher does not auto-show on target changes; it only auto-shows when a tiled zone becomes empty
+        // or after a zone is added.
         dismissLauncherIfActive()
 
         let context = context ?? screenContexts[screenId]
@@ -135,7 +135,7 @@ extension AppController {
         if announce {
             print("Removed zone \(index) on \(context.descriptor.localizedName)")
         }
-        autoShowLauncherIfEmptyTargetedTiledZone()
+
         return removalResult
     }
 
@@ -1068,6 +1068,9 @@ extension AppController {
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
         }
+
+        // Auto-show Launcher after clearing zones (analogous to emptying a zone).
+        autoShowLauncherIfEmptyTargetedTiledZone()
     }
 
     internal func resolveCursorScreenId() -> CGDirectDisplayID? {

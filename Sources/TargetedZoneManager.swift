@@ -9,7 +9,7 @@ protocol TargetedZoneManagerDelegate: AnyObject {
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func refreshIndicators()
-    /// Called when the targeted zone changes. Allows delegate to respond (e.g., auto-show Launcher).
+    /// Called when the targeted destination changes. Allows delegate to respond (e.g., reposition/dismiss Launcher).
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?)
 }
 
