@@ -15,7 +15,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case clearOrResetZones
         case clearOrResetZonesAtCursor
         case targetTemporaryZone
-        case navigateUp
+        case targetTilingZone
         case navigateLeft
         case navigateRight
         case minimizeActiveWindow
@@ -32,7 +32,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .clearOrResetZones: return "Clear/Reset Zones (Active Screen)"
             case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Screen)"
             case .targetTemporaryZone: return "Target Temporary Zone"
-            case .navigateUp: return "Navigate Up"
+            case .targetTilingZone: return "Target Tiling Zone"
             case .navigateLeft: return "Navigate Left"
             case .navigateRight: return "Navigate Right"
             case .minimizeActiveWindow: return "Minimize Active Window"
@@ -62,7 +62,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrlShiftOpt)
             case .targetTemporaryZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
-            case .navigateUp:
+            case .targetTilingZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
             case .navigateLeft:
                 return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)

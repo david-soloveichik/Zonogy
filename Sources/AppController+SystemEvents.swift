@@ -33,8 +33,8 @@ extension AppController {
             Logger.debug("Hotkey clear or reset zones at cursor triggered")
         case .targetTemporaryZone:
             Logger.debug("Hotkey target temporary zone triggered")
-        case .navigateUp:
-            Logger.debug("Hotkey navigate up triggered")
+        case .targetTilingZone:
+            Logger.debug("Hotkey target tiling zone triggered")
         case .navigateLeft:
             Logger.debug("Hotkey navigate left triggered")
         case .navigateRight:

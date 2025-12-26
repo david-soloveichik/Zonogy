@@ -1255,15 +1255,15 @@ extension AppController {
         targetedZoneManager.setTemporaryTarget(on: preferredScreenId, reason: "shortcut-target-temporary")
     }
 
-    /// Navigate up: from temporary zone to normal zone on same screen
-    internal func navigateUp() {
+    /// Target tiling zone: from temporary zone to normal zone on same screen
+    internal func targetTilingZone() {
         guard let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId else {
-            Logger.debug("Navigate up: temporary zone not targeted, doing nothing")
+            Logger.debug("Target tiling zone: temporary zone not targeted, doing nothing")
             return
         }
 
         guard let context = screenContexts[targetedTemporaryScreenId] else {
-            Logger.debug("Navigate up: no context for temporary zone screen")
+            Logger.debug("Target tiling zone: no context for temporary zone screen")
             return
         }
 
@@ -1273,8 +1273,8 @@ extension AppController {
         let emptyZones = zones.filter { $0.isEmpty }.sorted { $0.index < $1.index }
         if let firstEmptyZone = emptyZones.first {
             let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstEmptyZone.index)
-            Logger.debug("Navigate up: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-navigate-up")
+            Logger.debug("Target tiling zone: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
             return
         }
 
@@ -1282,12 +1282,12 @@ extension AppController {
         let filledZones = zones.filter { !$0.isEmpty }.sorted { $0.index > $1.index }
         if let firstFilledZone = filledZones.first {
             let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstFilledZone.index)
-            Logger.debug("Navigate up: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-navigate-up")
+            Logger.debug("Target tiling zone: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
             return
         }
 
-        Logger.debug("Navigate up: no zones available on screen")
+        Logger.debug("Target tiling zone: no zones available on screen")
     }
 
     /// Navigate left: between zones or screens

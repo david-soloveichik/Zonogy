@@ -381,8 +381,8 @@ extension AppController {
                 self.clearOrResetZonesAtCursor()
             case .targetTemporaryZone:
                 self.targetTemporaryZone()
-            case .navigateUp:
-                self.navigateUp()
+            case .targetTilingZone:
+                self.targetTilingZone()
             case .navigateLeft:
                 self.navigateLeft()
             case .navigateRight:
