@@ -4,7 +4,7 @@ This specification describes the Launcher feature for Zonogy - a window switcher
 
 ## Overview
 
-The Launcher provides a quick way to switch between windows or launch applications, with the launched/selected window being placed into the targeted zone. It appears as a floating overlay, styled to match macOS aesthetics, and dismisses when an action is taken or the user cancels.
+The Launcher provides a quick way to switch between windows or launch applications, with the launched/selected window being placed into the targeted zone. The Launcher appears as a floating overlay over the currently targeted zone.
 
 ## Activation
 
@@ -19,19 +19,31 @@ The Launcher opens via:
 - **Zone removal behavior:** When a tiled zone is removed, Launcher is dismissed first. If the new target is an empty tiled zone, Launcher auto-shows; if it's a temporary zone, Launcher stays hidden.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiled zone or the temporary target; otherwise it dismisses.
 
+## Dismissal
+
+The launcher dismisses when:
+
+- User presses Escape
+- User presses the activation shortcut again (toggle behavior)
+- User activates an item (Enter on selection or double-click)
+- User clicks outside the launcher window
+- The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
+- Focus shifts to a managed window in a tiled or temporary zone (so the user can interact with it)
+- A window is placed into a zone (so the user can interact with it)
+- A zone is removed (see "Zone removal behavior")
+
 ## Positioning
 
 The launcher window should appear:
 
-1. **Centered on the targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown, but it re-centers when the targeted zone or its frame changes (e.g., zone add/remove/resize).
+1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown, but it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
 2. If the targeted zone is the temporary zone (which has no visible placeholder), center on the screen containing the temporary zone
-3. The launcher window should be a floating panel that stays above all other windows
 
 ## User Interface
 
 ### Visual Design
 
-The launcher window should have an elegant, professional appearance matching macOS design language:
+The launcher window should be a floating panel that stays above all other windows. It should have an elegant, professional appearance matching macOS design language:
 
 - **Background:** Vibrancy/blur effect (NSVisualEffectView) for a modern translucent look
 - **Shape:** Rounded rectangle with appropriate corner radius
@@ -78,7 +90,7 @@ Minimized windows are shown first, then unminimized windows. The rationale is th
 
 Within each group, windows are ordered by recency (most recently active first). Zonogy tracks when each managed window becomes active. Windows without recency data fall back to Zonogy ID order (discovery order), which typically places the main window first.
 
-### Files and Directories (Optional Extension)
+### Files and Directories
 
 Users can extend the searchable list via configuration:
 
@@ -176,19 +188,6 @@ When the user selects a window or launches an application:
 4. **If activating an app header (not a specific window):**
    - Use `app.activate(options: [.activateIgnoringOtherApps])` without changing window placement
 
-### Dismissal
-
-The launcher dismisses when:
-
-- User presses Escape
-- User activates an item (Enter on selection)
-- User clicks outside the launcher window
-- User presses the activation shortcut again (toggle behavior)
-- The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
-- Focus shifts to a managed window in a tiled or temporary zone (so the user can interact with it)
-- A window is placed into a zone (so the user can interact with it)
-- A zone is removed (see "Zone removal behavior" above)
-
 ## Configuration
 
 ### Settings Integration
@@ -219,17 +218,6 @@ Custom items config schema:
   ]
 }
 ```
-
-## Accessibility
-
-### Permissions
-
-Window enumeration requires accessibility permissions. If not granted:
-
-- The ">" indicator should not appear on any app entries
-- Attempting to drill into windows prompts user to grant accessibility in System Preferences
-
-Since Zonogy already requires accessibility permissions for window management, the launcher should leverage those existing permissions.
 
 ## Implementation Notes
 
