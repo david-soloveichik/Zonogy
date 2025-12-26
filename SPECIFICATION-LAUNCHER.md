@@ -16,8 +16,9 @@ The Launcher opens via:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice to minimize the window and remove its tiling zone.
+    (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
-- **Zone removal behavior:** When a tiling zone is removed, Launcher is dismissed first.
+- **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses.
 
 ## Dismissal

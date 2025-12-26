@@ -76,10 +76,8 @@ extension AppController {
         // Removing a zone on this screen should clear any UnderCovers state there.
         endUnderCovers(on: screenId, reason: "remove-zone", recreatePlaceholders: false)
 
-        // Spec: when a tiled zone is removed, dismiss Launcher first.
-        // Launcher does not auto-show on target changes; it only auto-shows when a tiled zone becomes empty
-        // or after a zone is added.
-        dismissLauncherIfActive()
+        // Track if Launcher was active - dismissal decision happens after computing new target
+        let launcherWasActive = launcherController.isActive
 
         let context = context ?? screenContexts[screenId]
         guard let context else {
@@ -111,6 +109,31 @@ extension AppController {
                 }
             } else if currentTarget.index > index {
                 pendingTargetedKey = ZoneKey(screenId: screenId, index: currentTarget.index - 1)
+            }
+        }
+
+        // Spec: When Launcher is open and zone is removed:
+        // - If another empty tiling zone becomes targeted → keep Launcher open
+        // - Otherwise → dismiss Launcher
+        if launcherWasActive {
+            var newTargetIsEmptyTiledZone = false
+
+            if !shouldTargetTemporary {
+                let effectiveTargetKey: ZoneKey?
+                if let pending = pendingTargetedKey {
+                    effectiveTargetKey = pending
+                } else {
+                    effectiveTargetKey = currentTarget
+                }
+
+                if let key = effectiveTargetKey {
+                    newTargetIsEmptyTiledZone = targetedZoneManager.isZoneEmpty(key)
+                }
+            }
+
+            if !newTargetIsEmptyTiledZone {
+                launcherController.hide()
+                Logger.debug("Launcher: Dismissed on zone removal (new target is not empty tiling zone)")
             }
         }
 
