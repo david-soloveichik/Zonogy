@@ -26,6 +26,13 @@ extension AppController {
             return
         }
 
+        // Dismiss Launcher if focus shifts to a managed window in a zone (tiled or temporary).
+        if let windowId = focusedWindowId,
+           let managed = windowController.window(withId: windowId),
+           (managed.zoneIndex != nil || isWindowInTemporaryZone(windowId)) {
+            dismissLauncherIfActive()
+        }
+
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")

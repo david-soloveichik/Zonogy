@@ -50,6 +50,7 @@ extension AppController {
         if announce {
             print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
         }
+        autoShowLauncherIfEmptyTargetedTiledZone()
         return newZone
     }
 
@@ -134,6 +135,7 @@ extension AppController {
         if announce {
             print("Removed zone \(index) on \(context.descriptor.localizedName)")
         }
+        autoShowLauncherIfEmptyTargetedTiledZone()
         return removalResult
     }
 
