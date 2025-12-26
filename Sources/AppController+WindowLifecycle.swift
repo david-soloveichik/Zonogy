@@ -25,7 +25,6 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowFocusChanged(pid: \(pid))") {
             return
         }
-        dismissLauncherIfActive()
 
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications

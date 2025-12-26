@@ -65,7 +65,6 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
             return
         }
-        dismissLauncherIfActive()
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
             handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
