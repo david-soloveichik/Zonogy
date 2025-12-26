@@ -195,17 +195,29 @@ final class LauncherController {
 
     private func handleAppLaunch(url: URL) {
         hide()
-        delegate?.launcherController(self, didLaunchApp: url)
+        // Dispatch async to let the UI hide before doing work
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.launcherController(self, didLaunchApp: url)
+        }
     }
 
     private func handleWindowSelection(window: LauncherWindowItem) {
         hide()
-        delegate?.launcherController(self, didSelectWindow: window)
+        // Dispatch async to let the UI hide before doing work
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.launcherController(self, didSelectWindow: window)
+        }
     }
 
     private func handleAppActivation(bundleId: String) {
         hide()
-        delegate?.launcherController(self, didActivateApp: bundleId)
+        // Dispatch async to let the UI hide before doing work
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.launcherController(self, didActivateApp: bundleId)
+        }
     }
 
     // MARK: - Key Monitoring

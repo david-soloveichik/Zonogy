@@ -185,7 +185,8 @@ The launcher dismisses when:
 - User clicks outside the launcher window
 - User presses the activation shortcut again (toggle behavior)
 - The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
-- Focus shifts to a managed window in a tiled or temporary zone
+- Focus shifts to a managed window in a tiled or temporary zone (so the user can interact with it)
+- A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior" above)
 
 ## Configuration

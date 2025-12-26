@@ -82,5 +82,6 @@ extension AppController {
 
     func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int) {
         endUnderCoversForPlacementIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: "window-placement")
+        dismissLauncherIfActive()
     }
 }
