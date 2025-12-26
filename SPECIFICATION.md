@@ -66,7 +66,7 @@ Placeholder windows must stay anchored to their zone. Dragging their surface sho
 
 ### UnderCovers (single-zone placeholder hiding)
 
-When a screen has exactly one (empty) non-temporary zone, its placeholder shows a blue "⌄" button instead of "x" to indicate temporary put-away. Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. The targeted indicators should continue to be seen and working as normal. This per-screen UnderCovers state ends (and the normal placeholder behavior resumes) when a managed window is about to be placed into zone 1 on that screen or when any of the following actions run on that screen: adding a zone, removing a zone (including clear/reset variants), or using the "minimize window or remove zone at cursor" shortcut. When UnderCovers is active, the first add-zone action on that screen just exits UnderCovers without changing the zone count; subsequent adds behave like normal zone creation.
+When a screen has exactly one (empty) tiling zone, its placeholder shows a blue "⌄" button instead of "x" to indicate temporary put-away. Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. The targeted indicators should continue to be seen and working as normal. This per-screen UnderCovers state ends (and the normal placeholder behavior resumes) when a managed window is about to be placed into zone 1 on that screen or when any of the following actions run on that screen: adding a zone, removing a zone (including clear/reset variants), or using the "minimize window or remove zone at cursor" shortcut. When UnderCovers is active, the first add-zone action on that screen just exits UnderCovers without changing the zone count; subsequent adds behave like normal zone creation.
 
 ### Layout Rules
 
@@ -80,14 +80,14 @@ Whenever zones are added or removed on a screen, the dimensions of the remaining
 
 Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
 
-**Targeted zone selection:** (in this section "zone" refers to just normal, not-temporary zones only; see below for temporary zones)
+**Targeted zone selection:** (in this section "zone" refers to just tiling zones, not temporary zones; see below for temporary zones)
 
 - Launching: target zone 1 on the primary display.
 - Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
 - Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a normal zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
-- When a new normal zone is created: target that new zone if the current target is filled or is an empty zone with a higher index; otherwise keep the current target.
-- Whenever the targeted normal zone is filled: if another empty normal zone exists on the same screen, retarget to such zone with the lowest index; if none exist, target the temporary zone on the same screen.
+- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
+- When a new tiling zone is created: target that new zone if the current target is filled or is an empty zone with a higher index; otherwise keep the current target.
+- Whenever the targeted tiling zone is filled: if another empty tiling zone exists on the same screen, retarget to such zone with the lowest index; if none exist, target the temporary zone on the same screen.
 - If the targeted zone is removed: retarget to the lowest-index empty zone on the same screen if there is one; otherwise target the temporary zone on the same screen.
 
 **Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
@@ -207,20 +207,20 @@ This behavior makes oversized right-column windows usable without permanently di
 
 ### Temporary Zones (another kind of zone)
 
-The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other (tiled) zones. It is temporary in the sense that as soon as the user directs focus to a tiled zone window, the floating occupant is cleared (window minimized). More details:
+The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other tiling zones. It is temporary in the sense that as soon as the user directs focus to a tiling zone window, the floating occupant is cleared (window minimized). More details:
 
 - Holds at most one managed window (no placeholder). This is also called the "floating window". When placed into a temporary zone, a window is centered and resized once; after that the user may freely move/resize it without changing any tiled frames.
 - Placing another window into the temporary zone minimizes the previous occupant. We minimize the floating window when another (non-placeholder managed) window on the same screen becomes active/front-most. Temporary zones on other screens stay untouched so each screen floats independently.
 - Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
 - Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.
-- Control-Command-drag can be used to drop the floating window into an existing tiled zone via the usual replace pipeline; however, unlike the usual replace pipeline, the displaced window should be minimized (now swapped into the temporary zone). We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
-- When dragging a window from a normal (tiled zoned), dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
-- Control-Command-drag can also be used to place a tiled window (ie normal zone) into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
-- When a managed window in a tiled zone on a screen is minimized (ie the zone is emptied), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Note: minimizations performed as part of internal policies should not trigger this promotion.)
-- Pressing Control-Cmd-DownArrow targets the temporary zone on the same screen as the currently targeted normal zone. If a temporary zone is already targeted, the shortcut does nothing.
-- Pressing Control-Cmd-UpArrow switches from the targeted temporary zone to a normal zone on the same screen (prefers empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
-- Pressing Control-Cmd-LeftArrow navigates left: if temporary zone is targeted, targets the temporary zone on the screen to the left; if normal zone is targeted, targets the zone with lower index on same screen, or wraps to the last zone on the previous screen.
-- Pressing Control-Cmd-RightArrow navigates right: if temporary zone is targeted, targets the temporary zone on the screen to the right; if normal zone is targeted, targets the zone with higher index on same screen, or wraps to the first zone on the next screen.
+- Control-Command-drag can be used to drop the floating window into an existing tiling zone via the usual replace pipeline; however, unlike the usual replace pipeline, the displaced window should be minimized (now swapped into the temporary zone). We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
+- When dragging a window from a tiling zone, dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
+- Control-Command-drag can also be used to place a tiling zone window into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
+- When a managed window in a tiling zone on a screen is minimized (ie the zone is emptied), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Note: minimizations performed as part of internal policies should not trigger this promotion.)
+- Pressing Control-Cmd-DownArrow targets the temporary zone on the same screen as the currently targeted tiling zone. If a temporary zone is already targeted, the shortcut does nothing.
+- Pressing Control-Cmd-UpArrow switches from the targeted temporary zone to a tiling zone on the same screen (prefers empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
+- Pressing Control-Cmd-LeftArrow navigates left: if temporary zone is targeted, targets the temporary zone on the screen to the left; if tiling zone is targeted, targets the zone with lower index on same screen, or wraps to the last zone on the previous screen.
+- Pressing Control-Cmd-RightArrow navigates right: if temporary zone is targeted, targets the temporary zone on the screen to the right; if tiling zone is targeted, targets the zone with higher index on same screen, or wraps to the first zone on the next screen.
 
 ### Screen Management
 

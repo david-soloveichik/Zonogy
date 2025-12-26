@@ -6,7 +6,7 @@ This document describes the developer tools for interacting with Zonogy programm
 
 To allow an AI Agent to test the functionality of Zonogy, expose a simple command-line interface that reads lines from `stdin` (e.g., via `DispatchSourceRead` so it cooperates with the AppKit run loop).
 
-**Note:** Zone manipulation commands (`add-zone`, `remove-zone`, `resize-zone`) operate on the currently active screen.
+**Note:** Zone manipulation commands (`add-zone`, `remove-zone`, `resize-zone`) operate on tiling zones on the currently active screen. Temporary zones are not accessible via REPL commands.
 
 Required commands:
 

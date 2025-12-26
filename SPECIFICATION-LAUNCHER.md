@@ -13,12 +13,12 @@ The Launcher opens via:
 - **Control-Command-Enter** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
-  - A tiled zone becomes empty (window closed, minimized, or moved away).
+  - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice to minimize the window and remove its tiling zone.
   - After a zone is added.
-- **Zone removal behavior:** When a tiled zone is removed, Launcher is dismissed first.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiled zone or the temporary target; otherwise it dismisses.
+- **Zone removal behavior:** When a tiling zone is removed, Launcher is dismissed first.
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses.
 
 ## Dismissal
 
@@ -32,8 +32,8 @@ Further, we don't want to steal focus from the user's intended key/active window
 So the launcher automatically dismisses when:
 
 - User clicks outside the launcher window
-- The targeted destination changes to an occupied tiled zone (to avoid showing the Launcher for non-empty zones)
-- Focus shifts to a managed window in a tiled or temporary zone (so the user can interact with it)
+- The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
+- Focus shifts to a managed window in a tiling or temporary zone (so the user can interact with it)
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
 
