@@ -37,6 +37,7 @@ final class LauncherModel: ObservableObject {
     @Published private(set) var cachedWindowCount: Int?
     @Published private(set) var windowModeAppIcon: NSImage?
     @Published private(set) var runningAppURLs: Set<URL> = []
+    @Published private(set) var focusSearchFieldToken: Int = 0
 
     var isAppHeaderSelected: Bool {
         if case .windowList = mode {
@@ -98,6 +99,10 @@ final class LauncherModel: ObservableObject {
     func reloadItems() {
         allItems = LauncherAppCache.shared.cachedItems()
         updateFilteredItems(preserveSelection: false)
+    }
+
+    func requestSearchFieldFocus() {
+        focusSearchFieldToken &+= 1
     }
 
     func moveSelection(by delta: Int) {
