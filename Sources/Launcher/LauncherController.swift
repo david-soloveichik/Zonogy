@@ -174,6 +174,25 @@ final class LauncherController {
         }
     }
 
+    /// Makes the Launcher window key if it is currently active.
+    /// Call this after system events (like wake from sleep) that may have caused the window to lose key status.
+    func makeKeyIfActive() {
+        guard isActive, window != nil else { return }
+
+        // After wake from sleep, the nonactivatingPanel may not properly receive keyboard
+        // focus with just makeKeyAndOrderFront. We need to also activate the app.
+        // NSApp.activate is asynchronous, so we must defer makeKeyAndOrderFront until
+        // the next run loop iteration when the app will be active.
+        NSApp.activate(ignoringOtherApps: true)
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isActive, let window = self.window else { return }
+            window.makeKeyAndOrderFront(nil)
+            self.model?.requestSearchFieldFocus()
+            Logger.debug("Launcher: Made key after system event - isNowKey:\(window.isKeyWindow)")
+        }
+    }
+
     func repositionIfNeeded() {
         guard isActive,
               let delegate,

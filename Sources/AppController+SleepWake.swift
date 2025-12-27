@@ -13,6 +13,7 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
         screensAsleep = true
+        wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
         validationRetryManager.cancelAllValidationRetries()
         cancelWakeReadinessTimer()
@@ -34,6 +35,7 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount)), " +
             "starting wake readiness polling"
         )
+        wakeLauncherFocusRequested = false
         startWakeReadinessPolling()
     }
 
@@ -89,6 +91,13 @@ extension AppController {
         }
         if screenLocked {
             Logger.debug("SleepWake: session screen is locked; treating environment as not ready")
+        }
+
+        if displayAwake && !screenLocked,
+           launcherController.isActive,
+           !wakeLauncherFocusRequested {
+            wakeLauncherFocusRequested = true
+            launcherController.makeKeyIfActive()
         }
 
         guard displayAwake && !screenLocked else {
