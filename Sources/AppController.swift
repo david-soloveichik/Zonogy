@@ -103,8 +103,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// When true, we ignore all external events to avoid reacting to AX errors
     /// during the sleep/wake transition.
     internal var screensAsleep: Bool = false
-    /// Ensures we only re-key the Launcher once while waiting for wake readiness.
-    internal var wakeLauncherFocusRequested: Bool = false
 
     // MARK: - ActiveFit State (reveal mode vs rest mode)
     /// Tolerance in pixels for determining if a window overflows in rest mode and needs reveal mode.

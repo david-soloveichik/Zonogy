@@ -13,7 +13,6 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
         screensAsleep = true
-        wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
         validationRetryManager.cancelAllValidationRetries()
         cancelWakeReadinessTimer()
@@ -35,7 +34,6 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount)), " +
             "starting wake readiness polling"
         )
-        wakeLauncherFocusRequested = false
         startWakeReadinessPolling()
     }
 
@@ -93,13 +91,6 @@ extension AppController {
             Logger.debug("SleepWake: session screen is locked; treating environment as not ready")
         }
 
-        if displayAwake && !screenLocked,
-           launcherController.isActive,
-           !wakeLauncherFocusRequested {
-            wakeLauncherFocusRequested = true
-            launcherController.makeKeyIfActive()
-        }
-
         guard displayAwake && !screenLocked else {
             return false
         }
@@ -153,12 +144,6 @@ extension AppController {
         // Mark screens as awake so external events are processed again.
         screensAsleep = false
         menuBarManager.setDimmed(false)
-
-        // If the Launcher is open, immediately make it key so keyboard input works.
-        // This must happen as early as possible - before the debounced topology refresh.
-        if launcherController.isActive {
-            launcherController.makeKeyIfActive()
-        }
 
         // Reuse the same code path that handles display changes:
         // this rebuilds screen topology, minimizes windows on removed displays,
