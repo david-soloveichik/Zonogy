@@ -37,7 +37,7 @@ final class LauncherController {
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
-    private var appActivationObserver: Any?
+    private var appTerminationObserver: Any?
     private var lastAnchor: Anchor?
     private var autoShowGraceUntil: Date?
 
@@ -136,7 +136,7 @@ final class LauncherController {
 
         startKeyMonitor()
         startClickMonitor()
-        startAppActivationObserver()
+        startAppTerminationObserver()
 
         isActive = true
         Logger.debug("Launcher: Opened")
@@ -145,7 +145,7 @@ final class LauncherController {
     func hide() {
         stopKeyMonitor()
         stopClickMonitor()
-        stopAppActivationObserver()
+        stopAppTerminationObserver()
 
         window?.orderOut(nil)
         hostingView = nil
@@ -453,11 +453,15 @@ final class LauncherController {
         }
     }
 
-    // MARK: - App Activation Observer
+    // MARK: - App Termination Observer
 
-    private func startAppActivationObserver() {
-        appActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
+    /// Observes app termination to restore Launcher keyboard focus.
+    /// When an app quits (e.g., via forwarded Cmd-Q), macOS activates another app,
+    /// which can cause the Launcher's nonactivatingPanel to lose keyboard focus.
+    /// This observer ensures we reclaim focus so the user can continue typing.
+    private func startAppTerminationObserver() {
+        appTerminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -465,10 +469,10 @@ final class LauncherController {
         }
     }
 
-    private func stopAppActivationObserver() {
-        if let observer = appActivationObserver {
+    private func stopAppTerminationObserver() {
+        if let observer = appTerminationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
-            appActivationObserver = nil
+            appTerminationObserver = nil
         }
     }
 }
