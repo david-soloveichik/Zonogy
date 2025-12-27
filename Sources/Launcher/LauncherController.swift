@@ -24,6 +24,9 @@ protocol LauncherControllerDelegate: AnyObject {
 
     /// Provides window information for the launcher
     var launcherWindowProvider: LauncherWindowProvider { get }
+
+    /// Returns the PID of the application that owns the menu bar (frontmost non-Zonogy app)
+    func menuBarOwnerPid() -> pid_t?
 }
 
 final class LauncherController {
@@ -34,6 +37,7 @@ final class LauncherController {
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
+    private var appActivationObserver: Any?
     private var lastAnchor: Anchor?
     private var autoShowGraceUntil: Date?
 
@@ -132,6 +136,7 @@ final class LauncherController {
 
         startKeyMonitor()
         startClickMonitor()
+        startAppActivationObserver()
 
         isActive = true
         Logger.debug("Launcher: Opened")
@@ -140,6 +145,7 @@ final class LauncherController {
     func hide() {
         stopKeyMonitor()
         stopClickMonitor()
+        stopAppActivationObserver()
 
         window?.orderOut(nil)
         hostingView = nil
@@ -172,6 +178,8 @@ final class LauncherController {
             }
             lastAnchor = .main
         }
+
+        makeKeyIfActive()
     }
 
     /// Makes the Launcher window key if it is currently active.
@@ -227,6 +235,7 @@ final class LauncherController {
         }
 
         lastAnchor = newAnchor
+        makeKeyIfActive()
     }
 
     // MARK: - Event Handling
@@ -341,9 +350,82 @@ final class LauncherController {
                 return false
 
             default:
+                // Forward specific shortcuts to the menu bar owner app
+                if forwardShortcutIfNeeded(event) {
+                    return true
+                }
                 return false
             }
         }
+    }
+
+    // MARK: - Shortcut Forwarding
+
+    /// Forwards specific keyboard shortcuts to the menu bar owner app.
+    /// Returns true if the event was forwarded, false otherwise.
+    private func forwardShortcutIfNeeded(_ event: NSEvent) -> Bool {
+        guard let targetPid = delegate?.menuBarOwnerPid() else { return false }
+
+        let modifiers = event.modifierFlags
+        let keyCode = event.keyCode
+
+        // Check for specific shortcuts to forward.
+        // Use lenient modifier matching: require certain modifiers, forbid others,
+        // but ignore caps lock, function, numericPad, and help keys.
+        let hasCommand = modifiers.contains(.command)
+        let hasShift = modifiers.contains(.shift)
+        let hasOption = modifiers.contains(.option)
+        let hasControl = modifiers.contains(.control)
+
+        let shouldForward: Bool
+        let forwardModifiers: CGEventFlags
+
+        switch keyCode {
+        case 45:  // N key
+            if hasCommand && !hasOption && !hasControl {
+                if hasShift {
+                    // Cmd-Shift-N
+                    shouldForward = true
+                    forwardModifiers = [.maskCommand, .maskShift]
+                } else {
+                    // Cmd-N
+                    shouldForward = true
+                    forwardModifiers = [.maskCommand]
+                }
+            } else {
+                shouldForward = false
+                forwardModifiers = []
+            }
+        case 12:  // Q key
+            if hasCommand && !hasShift && !hasOption && !hasControl {
+                // Cmd-Q
+                shouldForward = true
+                forwardModifiers = [.maskCommand]
+            } else {
+                shouldForward = false
+                forwardModifiers = []
+            }
+        default:
+            shouldForward = false
+            forwardModifiers = []
+        }
+
+        guard shouldForward else { return false }
+
+        // Create and post CGEvent to the target application
+        guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+              let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
+            return false
+        }
+
+        keyDownEvent.flags = forwardModifiers
+        keyUpEvent.flags = forwardModifiers
+
+        keyDownEvent.postToPid(targetPid)
+        keyUpEvent.postToPid(targetPid)
+
+        Logger.debug("Launcher: Forwarded shortcut keyCode=\(keyCode) to pid=\(targetPid)")
+        return true
     }
 
     // MARK: - Click Outside Monitoring
@@ -368,6 +450,25 @@ final class LauncherController {
         if let monitor = clickMonitor {
             NSEvent.removeMonitor(monitor)
             clickMonitor = nil
+        }
+    }
+
+    // MARK: - App Activation Observer
+
+    private func startAppActivationObserver() {
+        appActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.makeKeyIfActive()
+        }
+    }
+
+    private func stopAppActivationObserver() {
+        if let observer = appActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appActivationObserver = nil
         }
     }
 }

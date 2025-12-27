@@ -246,6 +246,12 @@ extension AppController: LauncherControllerDelegate {
         return activeScreenId()
     }
 
+    func menuBarOwnerPid() -> pid_t? {
+        // The nonactivatingPanel Launcher doesn't trigger app activation,
+        // so lastActiveApplicationPid remains the menu bar owner
+        return lastActiveApplicationPid
+    }
+
     var launcherWindowProvider: LauncherWindowProvider {
         return self
     }
