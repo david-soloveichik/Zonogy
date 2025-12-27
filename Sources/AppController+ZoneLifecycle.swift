@@ -222,19 +222,20 @@ extension AppController {
 
         let emptiedZoneKey = zoneKey(forManagedWindow: managed)
 
-        minimizeWindowProgrammatically(managed, reason: "minimize-command")
-
-        // Remove from zone and sync (delegate may not fire in CLI environment)
-        removeWindowFromAllZones(windowId: windowId, reason: "minimize-command")
+        let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+            managed,
+            minimizeReason: "minimize-command",
+            cleanupReason: "minimize-command",
+            retarget: true
+        )
         syncWindowsToZones()
-
-        if let key = emptiedZoneKey {
-            fillEmptiedZoneFromTemporaryIfAvailable(
-                emptiedZoneKey: key,
-                minimizedWindowId: windowId,
-                reason: "minimize-command"
-            )
-        }
+        scheduleMinimizeVerification(
+            windowId: managed.windowId,
+            emptiedZoneKey: emptiedZoneKey,
+            minimizeReason: "minimize-command",
+            cleanupReason: "minimize-command",
+            wasManualResizeDetached: wasManualResizeDetached
+        )
 
         print("Minimized window \(windowId)")
     }
@@ -1147,26 +1148,21 @@ extension AppController {
                 endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
             }
 
-            minimizeWindowProgrammatically(managed, reason: "cursor-shortcut-minimize")
-
-            // Mirror Cmd-M behavior: explicitly update zones and clear reveal mode state.
-            removeWindowFromAllZones(windowId: managed.windowId, reason: "cursor-shortcut-minimize", retarget: true)
+            let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+                managed,
+                minimizeReason: "cursor-shortcut-minimize",
+                cleanupReason: "cursor-shortcut-minimize",
+                retarget: true
+            )
             syncWindowsToZones()
 
-            if let key = emptiedZoneKey {
-                fillEmptiedZoneFromTemporaryIfAvailable(
-                    emptiedZoneKey: key,
-                    minimizedWindowId: managed.windowId,
-                    reason: "cursor-shortcut-minimize"
-                )
-            }
-
-            clearRevealModeForWindow(
+            scheduleMinimizeVerification(
                 windowId: managed.windowId,
-                transitionToRest: false,
-                reason: "cursor-shortcut-minimize"
+                emptiedZoneKey: emptiedZoneKey,
+                minimizeReason: "cursor-shortcut-minimize",
+                cleanupReason: "cursor-shortcut-minimize",
+                wasManualResizeDetached: wasManualResizeDetached
             )
-            activeFitClearSuppressionForWindow(managed.windowId)
             return
         }
 
@@ -1524,6 +1520,128 @@ extension AppController {
         windowController.minimizeWindow(managed)
     }
 
+    @discardableResult
+    internal func performProgrammaticMinimizeCleanup(
+        _ managed: ManagedWindow,
+        minimizeReason: String,
+        cleanupReason: String,
+        retarget: Bool = true
+    ) -> Bool {
+        let wasManualResizeDetached = manualResizeDetachedWindowIds.contains(managed.windowId)
+        minimizeWindowProgrammatically(managed, reason: minimizeReason)
+        manualResizeDetachedWindowIds.remove(managed.windowId)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: cleanupReason, retarget: retarget)
+        return wasManualResizeDetached
+    }
+
+    internal func finalizeProgrammaticMinimize(
+        windowId: Int,
+        emptiedZoneKey: ZoneKey?,
+        reason: String
+    ) {
+        if let key = emptiedZoneKey {
+            fillEmptiedZoneFromTemporaryIfAvailable(
+                emptiedZoneKey: key,
+                minimizedWindowId: windowId,
+                reason: reason
+            )
+        }
+
+        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: reason)
+        activeFitClearSuppressionForWindow(windowId)
+    }
+
+    internal func scheduleMinimizeVerification(
+        windowId: Int,
+        emptiedZoneKey: ZoneKey?,
+        minimizeReason: String,
+        cleanupReason: String,
+        wasManualResizeDetached: Bool,
+        attempt: Int = 1
+    ) {
+        let delay: TimeInterval = attempt == 1 ? 0.12 : 0.2
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            guard let managed = self.windowController.window(withId: windowId) else {
+                Logger.debug("Minimize verification: window \(windowId) no longer tracked (reason: \(cleanupReason))")
+                return
+            }
+
+            let pidDescription: String = {
+                if case .accessibility(_, let pid, let cgWindowId) = managed.backing {
+                    return "pid \(pid), cgWindowId \(cgWindowId)"
+                }
+                return "appkit"
+            }()
+            Logger.debug(
+                "Minimize verification attempt \(attempt) for window \(windowId) (\(pidDescription)), " +
+                "isMinimized=\(managed.isMinimized) (reason: \(cleanupReason))"
+            )
+
+            if managed.isMinimized {
+                Logger.debug("Minimize verification succeeded for window \(windowId) on attempt \(attempt)")
+                self.finalizeProgrammaticMinimize(
+                    windowId: windowId,
+                    emptiedZoneKey: emptiedZoneKey,
+                    reason: cleanupReason
+                )
+                return
+            }
+
+            if attempt == 1 {
+                Logger.debug("Minimize verification failed for window \(windowId); retrying (reason: \(cleanupReason))")
+                self.minimizeWindowProgrammatically(managed, reason: minimizeReason)
+                self.scheduleMinimizeVerification(
+                    windowId: windowId,
+                    emptiedZoneKey: emptiedZoneKey,
+                    minimizeReason: minimizeReason,
+                    cleanupReason: cleanupReason,
+                    wasManualResizeDetached: wasManualResizeDetached,
+                    attempt: 2
+                )
+                return
+            }
+
+            self.rollbackFailedProgrammaticMinimize(
+                managed,
+                emptiedZoneKey: emptiedZoneKey,
+                cleanupReason: cleanupReason,
+                wasManualResizeDetached: wasManualResizeDetached
+            )
+        }
+    }
+
+    private func rollbackFailedProgrammaticMinimize(
+        _ managed: ManagedWindow,
+        emptiedZoneKey: ZoneKey?,
+        cleanupReason: String,
+        wasManualResizeDetached: Bool
+    ) {
+        guard !managed.isMinimized else {
+            finalizeProgrammaticMinimize(
+                windowId: managed.windowId,
+                emptiedZoneKey: emptiedZoneKey,
+                reason: cleanupReason
+            )
+            return
+        }
+
+        if wasManualResizeDetached {
+            manualResizeDetachedWindowIds.insert(managed.windowId)
+        }
+
+        guard let key = emptiedZoneKey else {
+            Logger.debug("Minimize rollback: window \(managed.windowId) has no prior zone (reason: \(cleanupReason))")
+            return
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
+        Logger.debug(
+            "Minimize rollback: restoring window \(managed.windowId) to zone \(key.index) on screen \(screenIndex) (reason: \(cleanupReason))"
+        )
+        windowPlacementManager.placeWindow(managed, into: key, reason: "\(cleanupReason)-rollback")
+    }
+
     // Protocol convenience overload (no duration parameter)
     internal func minimizeWindowProgrammatically(
         _ managed: ManagedWindow,
@@ -1560,24 +1678,21 @@ extension AppController {
             "(\(windowTitle))"
         )
 
-        minimizeWindowProgrammatically(managed, reason: "cmd-m-override")
-
-        // Since we're suppressing the miniaturize notification to avoid feedback loops,
-        // we need to manually handle the zone removal and placeholder creation
-        removeWindowFromAllZones(windowId: managed.windowId, reason: "cmd-m-minimize", retarget: true)
+        let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+            managed,
+            minimizeReason: "cmd-m-override",
+            cleanupReason: "cmd-m-minimize",
+            retarget: true
+        )
         syncWindowsToZones()
 
-        if let key = emptiedZoneKey {
-            fillEmptiedZoneFromTemporaryIfAvailable(
-                emptiedZoneKey: key,
-                minimizedWindowId: managed.windowId,
-                reason: "cmd-m-minimize"
-            )
-        }
-
-        // Clear reveal mode state if needed (window is being minimized, no rest transition needed)
-        clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "cmd-m-minimize")
-        activeFitClearSuppressionForWindow(managed.windowId)
+        scheduleMinimizeVerification(
+            windowId: managed.windowId,
+            emptiedZoneKey: emptiedZoneKey,
+            minimizeReason: "cmd-m-override",
+            cleanupReason: "cmd-m-minimize",
+            wasManualResizeDetached: wasManualResizeDetached
+        )
     }
 
 }

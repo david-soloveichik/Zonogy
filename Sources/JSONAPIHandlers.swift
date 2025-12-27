@@ -160,17 +160,20 @@ extension AppController {
 
         let emptiedZoneKey = zoneKey(forManagedWindow: managed)
 
-        minimizeWindowProgrammatically(managed, reason: "socket-minimize")
-        removeWindowFromAllZones(windowId: windowId, reason: "socket-minimize", retarget: true)
+        let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+            managed,
+            minimizeReason: "socket-minimize",
+            cleanupReason: "socket-minimize",
+            retarget: true
+        )
         syncWindowsToZones()
-
-        if let key = emptiedZoneKey {
-            fillEmptiedZoneFromTemporaryIfAvailable(
-                emptiedZoneKey: key,
-                minimizedWindowId: windowId,
-                reason: "socket-minimize"
-            )
-        }
+        scheduleMinimizeVerification(
+            windowId: managed.windowId,
+            emptiedZoneKey: emptiedZoneKey,
+            minimizeReason: "socket-minimize",
+            cleanupReason: "socket-minimize",
+            wasManualResizeDetached: wasManualResizeDetached
+        )
 
         return ["window_id": windowId]
     }

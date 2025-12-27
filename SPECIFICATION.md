@@ -174,6 +174,10 @@ Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
 - If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
 - Otherwise, if the mouse pointer is within the frame of an empty zone (i.e., over its placeholder window), remove that zone exactly as if the blue "x" button on the placeholder had been clicked.
 
+### Application Hide
+
+When an app is hidden (via MacOS's Cmd-H or any hide action), treat every currently unminimized managed window of that app as if it were minimized by the user. This means the same downstream behavior should occur. Implementation-wise, we achieve this by observing application hide notification and immediately unhiding the app and automatically minimizing its windows.
+
 ### Flip the Key Window to Another Screen
 
 Pressing shortcut Control-Cmd-\ moves the currently active/key window to another screen (if there is more than one screen).

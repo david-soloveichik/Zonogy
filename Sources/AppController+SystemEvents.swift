@@ -104,6 +104,64 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didHideApplicationNotification") {
             return
         }
+
+        guard let application else { return }
+
+        let pid = application.processIdentifier
+
+        var hasManagedWindows = false
+        var windowsToMinimize: [(ManagedWindow, ZoneKey?)] = []
+
+        for window in windowController.allWindows {
+            guard case .accessibility(_, let windowPid, _) = window.backing,
+                  windowPid == pid,
+                  !window.isPlaceholder else {
+                continue
+            }
+
+            hasManagedWindows = true
+            if !window.isMinimized {
+                windowsToMinimize.append((window, zoneKey(forManagedWindow: window)))
+            }
+        }
+
+        // Only intercept hide for apps Zonogy manages
+        guard hasManagedWindows else {
+            // Let the hide happen normally for unmanaged apps
+            handleApplicationStateChange(application)
+            return
+        }
+
+        Logger.debug("Intercepting hide for \(application.localizedName ?? "Unknown") (pid \(pid))")
+
+        // Unhide the app immediately - we convert hide to minimize
+        application.unhide()
+
+        if windowsToMinimize.isEmpty {
+            Logger.debug("No unminimized windows to minimize for hidden app (pid \(pid))")
+        } else {
+            // Minimize all collected windows with proper cleanup
+            for (window, emptiedZoneKey) in windowsToMinimize {
+                let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+                    window,
+                    minimizeReason: "hide-to-minimize",
+                    cleanupReason: "hide-to-minimize",
+                    retarget: true
+                )
+                scheduleMinimizeVerification(
+                    windowId: window.windowId,
+                    emptiedZoneKey: emptiedZoneKey,
+                    minimizeReason: "hide-to-minimize",
+                    cleanupReason: "hide-to-minimize",
+                    wasManualResizeDetached: wasManualResizeDetached
+                )
+            }
+
+            syncWindowsToZones()
+            Logger.debug("Converted hide to minimize for \(windowsToMinimize.count) window(s)")
+        }
+
+        // Still run destroyed-window validation (the original hide handler behavior)
         handleApplicationStateChange(application)
     }
 
