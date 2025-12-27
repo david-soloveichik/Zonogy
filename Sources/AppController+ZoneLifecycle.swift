@@ -6,11 +6,15 @@ import ApplicationServices
 extension AppController {
     func addZone() {
         let screenId = activeScreenId()
-        _ = addZone(on: screenId)
+        _ = addZone(on: screenId, announce: true, promoteTemporaryOccupant: true)
     }
 
     @discardableResult
-    internal func addZone(on screenId: CGDirectDisplayID, announce: Bool = true) -> Zone? {
+    internal func addZone(
+        on screenId: CGDirectDisplayID,
+        announce: Bool = true,
+        promoteTemporaryOccupant: Bool = true
+    ) -> Zone? {
         // Special-case: if this screen is in UnderCovers and has a single empty zone 1,
         // treat the first "add zone" invocation as exiting UnderCovers without changing zone count.
         if let context = screenContexts[screenId] {
@@ -39,6 +43,9 @@ extension AppController {
         // Zone topology has changed; cancel any in-flight accessibility frame retries
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
+        if promoteTemporaryOccupant {
+            promoteTemporaryZoneOccupantIfNeeded(on: screenId, newZone: newZone)
+        }
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
@@ -52,6 +59,19 @@ extension AppController {
         }
         autoShowLauncherIfEmptyTargetedTiledZone()
         return newZone
+    }
+
+    private func promoteTemporaryZoneOccupantIfNeeded(on screenId: CGDirectDisplayID, newZone: Zone) {
+        guard newZone.isEmpty,
+              let occupant = temporaryZoneOccupant(on: screenId),
+              !occupant.isPlaceholder,
+              occupant.zoneIndex == nil else {
+            return
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Promoting temporary zone window \(occupant.windowId) into new zone \(newZone.index) on screen \(screenIndex)")
+        windowPlacementManager.placeWindow(occupant, into: ZoneKey(screenId: screenId, index: newZone.index), reason: "add-zone-promote-temporary")
     }
 
     func removeZone(at index: Int) {

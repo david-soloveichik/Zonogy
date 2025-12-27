@@ -20,7 +20,7 @@ extension AppController {
         for screenId: CGDirectDisplayID
     ) {
         guard !items.isEmpty else { return }
-        if let zone = addZone(on: screenId, announce: false) {
+        if let zone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) {
             let newZoneKey = zoneKey(for: screenId, index: zone.index)
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "add-zone-drop")
         } else {

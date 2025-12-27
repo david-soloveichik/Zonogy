@@ -64,7 +64,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func temporaryIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     @discardableResult
-    func addZone(on screenId: CGDirectDisplayID, announce: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteTemporaryOccupant: Bool) -> Zone?
 
     // Temporary zone placement
     func dropWindowIntoTemporaryZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
@@ -370,7 +370,7 @@ class DragDropCoordinator {
         guard let delegate = delegate else {
             return nil
         }
-        guard let newZone = delegate.addZone(on: screenId, announce: false) else {
+        guard let newZone = delegate.addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) else {
             Logger.debug("Failed to add zone on screen \(screenId) for drag-drop request")
             return nil
         }

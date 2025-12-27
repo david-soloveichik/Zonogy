@@ -13,7 +13,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
-    func addZone(on screenId: CGDirectDisplayID, announce: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteTemporaryOccupant: Bool) -> Zone?
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func refreshIndicators()
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
@@ -241,7 +241,7 @@ final class TemporaryZoneCoordinator {
             addZoneDropTarget(for: finalCursorPoint)
 
         if let addZoneScreenId,
-           let newZone = host.addZone(on: addZoneScreenId, announce: false) {
+           let newZone = host.addZone(on: addZoneScreenId, announce: false, promoteTemporaryOccupant: false) {
             clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
             if let result = host.windowPlacementManager.assignWindowFromDrag(
                 managed,

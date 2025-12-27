@@ -221,6 +221,7 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 - When dragging a window from a tiling zone, dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
 - Control-Command-drag can also be used to place a tiling zone window into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
 - When a managed window in a tiling zone on a screen is minimized (ie the zone is emptied), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Note: minimizations performed as part of internal policies should not trigger this promotion.)
+- When a new tiling zone is created on a screen that currently has a temporary-zone occupant, immediately move the temporary window into the newly created zone.
 - Pressing Control-Cmd-DownArrow targets the temporary zone on the same screen as the currently targeted tiling zone. If a temporary zone is already targeted, the shortcut does nothing.
 - Pressing Control-Cmd-UpArrow switches from the targeted temporary zone to a tiling zone on the same screen (prefers empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
 - Pressing Control-Cmd-LeftArrow navigates left: if temporary zone is targeted, targets the temporary zone on the screen to the left; if tiling zone is targeted, targets the zone with lower index on same screen, or wraps to the last zone on the previous screen.
@@ -243,6 +244,7 @@ The big picture is that the "temporary zone" (one per screen) provides a way for
 WinShot allows users to save and restore window arrangement snapshots. Unlike virtual screens, the same window can appear in multiple snapshots.
 
 **Creating Snapshots:**
+
 - Automatically created when pressing Clear/Reset Zones shortcut (Control-Cmd-Space or variant) when the corresponding screen has managed windows in zones.
 - Automatically created before restoring a different snapshot (if current windows differ from snapshot being restored), allowing the user to return to their previous arrangement.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
@@ -253,6 +255,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - If creating a snapshot with the same exact windows as an existing one, the old snapshot is replaced.
 
 **Chooser Window:**
+
 - Control-Cmd-Tab shows a floating horizontal strip chooser (like Command-Tab) on the active screen.
 - Hold Control-Cmd and repeatedly press Tab/Shift-Tab to cycle through snapshots in forward or reverse order (respectively).
 - Escape key or click outside to cancel.
@@ -260,6 +263,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Red "x" button on each snapshot allows deletion (appears on hover).
 
 **Snapshot Restoration:**
+
 - Restores zone configuration to the saved count and sizes (ratios).
 - Current windows not in the snapshot are minimized first (before unminimizing snapshot windows) to avoid visual overlap.
 - Unminimizes windows that were minimized (but not closed).
@@ -394,6 +398,6 @@ Fields:
   - `bundleIdentifier` – the app's bundle identifier (e.g., `"com.apple.Dictionary"`).
   - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app's `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button; such windows can still be managed if they pass the other criteria.
-  - `hasMainWindow` – when `true`, the Launcher selects the window with the lowest Zonogy ID (first created) when the user presses Enter on this running app. When `false` or unset (default), the most recently active window is selected. 
+  - `hasMainWindow` – when `true`, the Launcher selects the window with the lowest Zonogy ID (first created) when the user presses Enter on this running app. When `false` or unset (default), the most recently active window is selected.
 
 For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.
