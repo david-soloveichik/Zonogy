@@ -147,6 +147,10 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 - **Escape (in main list):** Dismiss launcher without action
 - **Cmd-M:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
 
+### Shortcut Forwarding
+
+Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmost non-Zonogy application) so users can issue common commands while the Launcher is visible: Cmd-N (new window), Cmd-Shift-N (new private window), Cmd-O (open), and Cmd-Q (quit).
+
 ### Window List Mode
 
 When drilling into an application's windows:

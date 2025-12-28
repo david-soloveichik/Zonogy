@@ -405,6 +405,15 @@ final class LauncherController {
                 shouldForward = false
                 forwardModifiers = []
             }
+        case 31:  // O key
+            if hasCommand && !hasShift && !hasOption && !hasControl {
+                // Cmd-O
+                shouldForward = true
+                forwardModifiers = [.maskCommand]
+            } else {
+                shouldForward = false
+                forwardModifiers = []
+            }
         default:
             shouldForward = false
             forwardModifiers = []
