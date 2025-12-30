@@ -2,9 +2,23 @@
 
 ## Overview
 
-Zonogy is a variation on a tiling window manager. In particular, it uses the concept of "zones" to give the user more control over tiling, essentially allowing reserving space for future windows. This also is meant to overcome a major annoyance with tiling window managers in that there is too much resizing and repositioning of windows and users close and open new windows.
+Zonogy is a variation on a tiling window manager built around the concept of **zones**. Traditional tiling managers are “twitchy”: the layout constantly reflows as you open/close windows, causing distracting resizing and repositioning. Zonogy addresses this by keeping a set of tiling zones per screen that can remain present even when empty, so the layout is stable and the user can reserve space for future windows. At any time, one destination is **targeted**, and new/unminimized windows flow into that target predictably. Zonogy also includes a (per-screen) **temporary zone** to float a single window above the tiled layout.
 
 ## Core Concepts
+
+### Zones
+
+Zonogy organizes managed windows into **zones**. Each screen has 1–3 **tiling zones** (indexed 1…zoneCount) that form the main layout, and one **temporary zone** used for floating a single window above the tiled layout.
+
+A zone contains at most one unminimized window or is empty. Minimized windows do not belong to any zone.
+
+Empty tiling zones are represented by placeholder windows (except in UnderCovers mode). Empty temporary zones have no placeholder.
+
+At any moment exactly one zone is targeted. Newly created or unminimized windows are placed into the targeted zone (moving across screens if needed).
+
+If the targeted zone already holds a managed window, the new window replaces the occupant and the displaced window is minimized. (If the tiling zone is empty and represented only by a placeholder, that placeholder is closed.)
+
+Detailed targeting controls, tiling layout rules, placeholder behavior, and temporary-zone behavior are specified in **User Interactions** below.
 
 ### **CRITICAL: Coordinate System**
 
@@ -43,117 +57,141 @@ We manage a window if it passes **all** of the following conditions (see `winman
 
 ### Window Identifiers
 
-Every managed window (placeholders, and other applications' windows) gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder panes never receive a `CGWindowID` and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the CGWindow value exists.
-
-## Zones
-
-### Zone Abstraction Basics
-
-A zone can either contain an (unminimized) window or be considered empty. There can be at most one window per zone. Minimized windows do not belong to any zone.
-Each zone has an index (for example, if there are 3 zones, then the indexes are: 1, 2, and 3).
-
-### Zone Visual Representation
-
-If a zone contains a window, then that window simply "represents" the zone and there is no placeholder window. (Note that the size of the window may not match the size of the zone. For example, certain windows cannot be resized arbitrarily.)
-
-Every empty zone should have a placeholder window created by our window manager. The placeholder windows should be semi-translucent, with no text. They should not have a title bar or any of the normal buttons (i.e., minimize, close, zoom). Instead there should be a blue button with an "x" in it, looking similar to a normal close button but larger and semi-translucent. Clicking this button should remove this zone. The border of the placeholder window should be a rounded rectangle.
-
-Both normal windows and placeholder windows should preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they should split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
-
-Placeholder windows must stay anchored to their zone. Dragging their surface should not reposition them; interaction is limited to resizing from their edges.
-
-**Usage example**: Suppose the user starts with 2 zones, zone 1 containing window A and zone 2 containing window B. To get rid of zone 1 the user can take the following actions: minimize window A, which leads to the placeholder window appearing, and then clicking on the blue "x" button on the placeholder window. Clicking the placeholder itself (outside the button) will set that zone as the targeted zone before removal if it was not already targeted.
-
-### UnderCovers (single-zone placeholder hiding)
-
-When a screen has exactly one (empty) tiling zone, its placeholder shows a blue "⌄" button instead of "x" to indicate temporary put-away. Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. The targeted indicators should continue to be seen and working as normal. This per-screen UnderCovers state ends (and the normal placeholder behavior resumes) when a managed window is about to be placed into zone 1 on that screen or when any of the following actions run on that screen: adding a zone, removing a zone (including clear/reset variants), or using the "minimize window or remove zone at cursor" shortcut. When UnderCovers is active, the first add-zone action on that screen just exits UnderCovers without changing the zone count; subsequent adds behave like normal zone creation.
-
-### Layout Rules
-
-Whenever zones are added or removed on a screen, the dimensions of the remaining zones on that screen should be adjusted. Intuitively, they should be re-"tiled" to split the screen. The tiling is as follows:
-
-- 1 zone: full screen (zone 1)
-- 2 zones: split the screen into left (zone 1) and right (zone 2)
-- 3 zones: split the screen into left (zone 1) and right/top (zone 2), right/bottom (zone 3)
-
-### Targeted Zone
-
-Exactly one zone across all screens is the *targeted zone* at any moment. Newly created or unminimized windows are *always* placed into this targeted zone, even if the window originates from another screen; windows are moved across screens as needed to satisfy this rule. If the targeted zone is not empty, then the new window replaces the old in the targeted zone. For the smoothest UI effect, we want to first move the new window to the right location, and then minimize the old window.
-
-**Targeted zone selection:** (in this section "zone" refers to just tiling zones, not temporary zones; see below for temporary zones)
-
-- Launching: target zone 1 on the primary display.
-- Clicking any zone placeholder window or a zone's target indicator (see below): target exactly that zone.
-- Control-Command + left-click anywhere inside a zone (occupied window, placeholder, or empty space) targets that zone; the gesture is consumed before it reaches the underlying application window.
-- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), immediately target that zone.
-- When a new tiling zone is created: target that new zone if the current target is filled or is an empty zone with a higher index; otherwise keep the current target.
-- Whenever the targeted tiling zone is filled: if another empty tiling zone exists on the same screen, retarget to such zone with the lowest index; if none exist, target the temporary zone on the same screen.
-- If the targeted zone is removed: retarget to the lowest-index empty zone on the same screen if there is one; otherwise target the temporary zone on the same screen.
-
-**Target indicator UI:** Every zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter to communicate focus. Indicators respond to clicks to retarget zones.
-
-**Add-zone indicator UI:** Each screen with fewer than 3 zones displays a vertical indicator (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a new zone to that specific screen.
-
-### Initial Startup Behavior
-
-When Zonogy starts, if there are already open (unminimized) eligible windows, they are immediately managed using the same placement rules as if they had appeared after launch. The initial number of zones on each screen should correspond to the number of open windows on that screen (up to max of 3; additional windows should be minimized). Run the following seeding flow independently per screen:
-
-1. For each zone in order of its index, pick the remaining window whose bounds overlap the zone the most; when nothing overlaps, fall back to the left-most remaining window.
-2. Send that window through the standard placement flow, remove it from the pool, and repeat until every zone is seeded or no eligible windows remain.
-
-There must always be at least one zone per screen even if there is no initial window on that screen at startup. (For efficient window enumeration examples, see the source code of `winmanmon`.)
+Every managed window (other applications' windows) and placeholder window gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder panes never receive a `CGWindowID` and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the CGWindow value exists.
 
 ## User Interactions
 
-### Adding and Removing Zones
+### Placeholders
 
-When adding or removing zones, the remaining zones should be reindexed. For example, if there are zones 1, 2, 3, and I remove zone 1, then zone 2 should become zone 1, and zone 3 should become zone 2.
+Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They show a blue control button used to remove the zone ("x") or to hide the placeholder in UnderCovers ("⌄").
 
-There are two ways to remove a zone:
+Clicking the placeholder (outside its blue button) targets that zone. Clicking the blue "x" removes the zone.
 
-- By pressing the blue "x" button on the placeholder window of an empty zone.
-- By pressing a keyboard shortcut Control-Cmd-[minus].
+Placeholder windows must stay anchored to their zone: dragging their surface should not reposition them, and they cannot be resized directly (resize zones via zone resize bars; see **Resizing Zones**).
 
-When invoking Control-Cmd-[minus], never remove the zone containing the currently active (aka key) window. Among the remaining zones, remove one using this priority: (1) prefer empty zones over occupied zones, (2) prefer non-targeted zones over the targeted zone, (3) break any remaining ties by choosing the zone with the highest index.
+**UnderCovers mode (single-zone placeholder hiding):** When a screen has exactly one (empty) tiling zone, its placeholder shows a blue "⌄" button instead of "x". Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. Target indicators should continue to be visible and work normally.
 
-The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
+This per-screen UnderCovers state ends (and the normal placeholder behavior resumes) when any of the following occurs on that screen:
 
-A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
+- A managed window is about to be placed into tiling zone 1.
+- A zone is added.
+- A zone is removed (including clear/reset variants).
+- The "minimize window or remove zone at cursor" shortcut is used.
 
-Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen.
+When UnderCovers is active, the first add-zone action on that screen just exits UnderCovers without changing the zone count; subsequent adds behave like normal zone creation.
 
-Pressing Shift-Option-Control-Cmd-Space performs the same steps, but works with the screen currently holding the mouse pointer.
+### Targeting
 
-### Resizing Zones
+**Targeting rule:** Exactly one zone (tiling zone or temporary zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
 
-#### Resizing Empty or Occupied Zones (via white bar)
+**Target selection:**
 
-Zones are resized by dragging a "white bar" separator located in the margin between zones. This separator is only visible when the mouse hovers over the margin between zones. Dragging this bar adjusts the layout ratios for the involved zones.
+- Clicking a tiling zone placeholder window or a tiling zone's target indicator: target that tiling zone.
+- Clicking the temporary zone indicator: target that screen's temporary zone.
+- Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
+- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
+- When a new tiling zone is created, target the new zone.
+- Whenever the targeted tiling zone is filled: if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
+- If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen.
 
-Placeholder windows inside empty zones are not resizable by dragging their edges. Their size is strictly determined by the zone dimensions.
+**Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter. Indicators respond to clicks to retarget zones.
 
-If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone separator, the white bar adapts so it does not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 2 or 3. When the window exits reveal mode (loses focus or moves to a different window), the separators return to the normal layout.
+**Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
 
-#### Resizing Managed Windows
+**Navigation shortcuts:**
 
-If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
-
-While the user is dragging a separator, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
-
-For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+- Control-Cmd-DownArrow: target the temporary zone on the same screen as the currently targeted tiling zone. If a temporary zone is already targeted, the shortcut does nothing.
+- Control-Cmd-UpArrow: switch from the targeted temporary zone to a tiling zone on the same screen (prefer empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
+- Control-Cmd-LeftArrow: navigate left. If temporary zone is targeted, target the temporary zone on the screen to the left. If tiling zone is targeted, target the zone with lower index on same screen, or wrap to the last zone on the previous screen.
+- Control-Cmd-RightArrow: navigate right. If temporary zone is targeted, target the temporary zone on the screen to the right. If tiling zone is targeted, target the zone with higher index on same screen, or wrap to the first zone on the next screen.
 
 ### Repositioning and Resizing Window to Zone
 
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
 **Important:** When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant ActiveFit feature.
 
+### Adding and Removing Zones
+
+There are two ways to remove a zone:
+
+- By pressing the blue "x" button on the placeholder window of an empty zone.
+- By pressing a keyboard shortcut Control-Cmd-[minus].
+
+When invoking Control-Cmd-[minus], never remove the zone containing the currently active (aka key) window. Among the remaining zones, remove one using this priority:
+
+1. Prefer empty zones over occupied zones.
+2. Prefer non-targeted zones over the targeted zone.
+3. Break any remaining ties by choosing the zone with the highest index.
+
+The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
+
+A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
+
+Each screen with fewer than 3 tiling zones also displays an add-zone indicator: a vertical pill (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a tiling zone to that screen.
+
+After adding a tiling zone, it becomes the target so the next window flows into it. If the screen currently has a floating window in its temporary zone, that window is moved into the newly created tiling zone (see **Temporary Zone Behavior**).
+
+Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen.
+
+Pressing Shift-Option-Control-Cmd-Space performs the same steps, but works with the screen currently holding the mouse pointer.
+
+### Tiling Layout and Spacing
+
+Tiling zones have indexes (1, 2, 3). When tiling zones are added or removed on a screen, remaining zones reindex sequentially and the tiling zones on that screen are re-tiled to split the screen as follows:
+
+- 1 zone: full screen (zone 1)
+- 2 zones: left (zone 1) and right (zone 2)
+- 3 zones: left (zone 1), right-top (zone 2), right-bottom (zone 3)
+
+Both windows and placeholders preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
+
+### Resizing Zones
+
+#### Resizing Empty or Occupied Zones (via zone resize bars)
+
+Zones are resized by dragging a zone resize bar: a thin white separator located in the margin between zones. This bar is only visible when the mouse hovers over the margin between zones. Dragging it adjusts the layout ratios for the involved zones.
+
+Placeholder windows inside empty zones are not resizable by dragging their edges. Their size is strictly determined by the zone dimensions.
+
+If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 2 or 3. When the window exits reveal mode (loses focus or moves to a different window), the bars return to the normal layout.
+
+#### Resizing Managed Windows
+
+If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
+
+While the user is dragging a zone resize bar, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
+
+For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
+
+### Temporary Zone Behavior
+
+Each screen has exactly one temporary zone for floating a single managed window over the tiled layout.
+
+When placed into the temporary zone, a window is centered and resized once. After that, the user may freely move/resize it without affecting tiled frames.
+
+Placing another window into the temporary zone minimizes the previous occupant.
+
+The temporary zone occupant is minimized when a non-placeholder managed window on the same screen becomes active/front-most. Temporary zones on other screens are unaffected.
+
+When a managed window in a tiling zone is minimized by the user (emptying its zone), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Minimizations performed as part of internal policies should not trigger this promotion.)
+
+When a new tiling zone is created via an explicit add-zone action (e.g., `Control-Cmd-=`) on a screen that currently has a temporary-zone occupant, immediately move the temporary window into the newly created zone. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the temporary occupant since the dragged window is taking that new zone.)
+
 ### Dragging Windows Between Zones
 
-When the user drags a managed window, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every zone, and highlights the zone under the mouse cursor. The drop target is whichever zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed). If the system cannot determine a drop target—either because the cursor is outside every zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
+Dragging behavior differs between tiled windows and temporary-zone (floating) windows.
+
+**Tiled window drags:** When the user drags a managed window that is currently assigned to a tiling zone, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every tiling zone, and highlights the zone under the mouse cursor. The drop target is whichever tiling zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed). If the system cannot determine a drop target—either because the cursor is outside every tiling zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
 
 If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
 
-If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it. During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
+If a tiled window is dropped onto a temporary zone indicator, place it into that screen's temporary zone (replacing and minimizing any prior temporary occupant). The temporary zone indicator should highlight when the mouse is over it during drag.
+
+**Temporary-zone window drags:** Default drags merely reposition the floating window (no zone overlays). Holding Control-Command promotes the drag into the normal zone overlay + drop pipeline. In this mode, dropping onto a tiling zone uses the usual replace pipeline, except that if the drop displaces an occupied window, the displaced window is minimized (it does not swap back into the temporary zone). You can start a normal temporary drag and then hold Control-Command to enter this mode; releasing Control-Command returns to normal temporary dragging.
+
+Holding Control-Command during a tiled drag promotes it into a temporary-zone drag (the window is moved into the temporary zone immediately). Releasing Control-Command cancels the conversion and resumes the tiled drag.
+
+If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it (works for both tiled and temporary-zone drags). During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
 ### Drag and Drop on Placeholder Windows and the Add-Zone Indicator
 
@@ -188,6 +226,12 @@ If the targeted zone is on the same screen as the active/key window then: We pic
 
 In either case, since the original zone of the window is now empty, it should become targeted after this.
 
+### Startup
+
+- On launch, Zonogy seeds tiling zones per screen from currently unminimized windows (max 3 per screen; extras are minimized). Temporary zones start empty.
+- Windows are assigned to zones in zone-index order by selecting the remaining window whose bounds overlap the zone the most (falling back to the left-most window if nothing overlaps).
+- The initial target is tiling zone 1 on the primary display. After seeding, if there is no empty tiling zone anywhere, target the temporary zone on the primary display.
+
 ## Special Features
 
 ### ActiveFit: Active Overflow Reveal for Key Windows
@@ -208,24 +252,6 @@ Some applications refuse to shrink below their minimum width/height, which means
 5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is in reveal mode, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
 
 This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
-
-### Temporary Zones (another kind of zone)
-
-The big picture is that the "temporary zone" (one per screen) provides a way for the user to temporarily float a window (eligible for management by Zonogy) over the other tiling zones. It is temporary in the sense that as soon as the user directs focus to a tiling zone window, the floating occupant is cleared (window minimized). More details:
-
-- Holds at most one managed window (no placeholder). This is also called the "floating window". When placed into a temporary zone, a window is centered and resized once; after that the user may freely move/resize it without changing any tiled frames.
-- Placing another window into the temporary zone minimizes the previous occupant. We minimize the floating window when another (non-placeholder managed) window on the same screen becomes active/front-most. Temporary zones on other screens stay untouched so each screen floats independently.
-- Each screen renders a bottom-edge pill indicator for the temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
-- Default drags merely reposition the floating window (not entering the usual replace pipeline). If the floating window is dragged to the new zone indicator (i.e., the mouse is over the new zone indicator when it's dropped), a new zone should be created and the window should be placed in it as normal.
-- Control-Command-drag can be used to drop the floating window into an existing tiling zone via the usual replace pipeline; however, unlike the usual replace pipeline, the displaced window should be minimized (now swapped into the temporary zone). We should be able to start normal dragging and then hold Control-Command to enter this mode. Releasing Control-Command should revert back to normal drag mode (simply repositioning the floating window).
-- When dragging a window from a tiling zone, dropping it onto the targeted zone indicator for the temporary zone should place that window in the temporary zone (replacing and minimizing any prior occupant). The temporary zone pill should highlight when the mouse is over it during drag matching the UI of the new zone indicator as much as possible.
-- Control-Command-drag can also be used to place a tiling zone window into the temporary zone. (Same rules as above apply wrt to pressing or releasing Control-Command in the middle of the drag).
-- When a managed window in a tiling zone on a screen is minimized (ie the zone is emptied), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Note: minimizations performed as part of internal policies should not trigger this promotion.)
-- When a new tiling zone is created on a screen that currently has a temporary-zone occupant, immediately move the temporary window into the newly created zone.
-- Pressing Control-Cmd-DownArrow targets the temporary zone on the same screen as the currently targeted tiling zone. If a temporary zone is already targeted, the shortcut does nothing.
-- Pressing Control-Cmd-UpArrow switches from the targeted temporary zone to a tiling zone on the same screen (prefers empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a temporary zone is not targeted.
-- Pressing Control-Cmd-LeftArrow navigates left: if temporary zone is targeted, targets the temporary zone on the screen to the left; if tiling zone is targeted, targets the zone with lower index on same screen, or wraps to the last zone on the previous screen.
-- Pressing Control-Cmd-RightArrow navigates right: if temporary zone is targeted, targets the temporary zone on the screen to the right; if tiling zone is targeted, targets the zone with higher index on same screen, or wraps to the first zone on the next screen.
 
 ### Screen Management
 
