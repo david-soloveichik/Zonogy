@@ -63,7 +63,7 @@ Every managed window (other applications' windows) and placeholder window gets a
 
 ### Placeholders
 
-Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They show a blue control button used to remove the zone ("x") or to hide the placeholder in UnderCovers ("⌄").
+Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button appears in the upper-left corner: "x" to remove the zone, or "⌄" to hide the placeholder in UnderCovers mode.
 
 Clicking the placeholder (outside its blue button) targets that zone. Clicking the blue "x" removes the zone.
 
@@ -90,7 +90,7 @@ When UnderCovers is active, the first add-zone action on that screen just exits 
 - Clicking the temporary zone indicator: target that screen's temporary zone.
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
-- When a new tiling zone is created, target the new zone.
+- When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.
 - Whenever the targeted tiling zone is filled: if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
 - If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen.
 
@@ -112,7 +112,7 @@ When our window manager assigns a window to a zone, the window should be moved a
 
 ### Adding and Removing Zones
 
-There are two ways to remove a zone:
+There are several ways to remove a zone, the main ones being:
 
 - By pressing the blue "x" button on the placeholder window of an empty zone.
 - By pressing a keyboard shortcut Control-Cmd-[minus].
@@ -124,6 +124,8 @@ When invoking Control-Cmd-[minus], never remove the zone containing the currentl
 3. Break any remaining ties by choosing the zone with the highest index.
 
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
+
+**Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "x" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
@@ -228,9 +230,9 @@ In either case, since the original zone of the window is now empty, it should be
 
 ### Startup
 
-- On launch, Zonogy seeds tiling zones per screen from currently unminimized windows (max 3 per screen; extras are minimized). Temporary zones start empty.
+- **Initial target:** Tiling zone 1 on the primary display. After seeding completes, if no empty tiling zone exists anywhere, target the temporary zone on the primary display instead.
+- On launch, Zonogy seeds tiling zones per screen. The initial zone count on each screen equals the number of unminimized windows on that screen (minimum 1, maximum 3); extra windows beyond 3 are minimized. Temporary zones start empty.
 - Windows are assigned to zones in zone-index order by selecting the remaining window whose bounds overlap the zone the most (falling back to the left-most window if nothing overlaps).
-- The initial target is tiling zone 1 on the primary display. After seeding, if there is no empty tiling zone anywhere, target the temporary zone on the primary display.
 
 ## Special Features
 
