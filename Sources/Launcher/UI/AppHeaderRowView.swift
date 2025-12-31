@@ -6,7 +6,6 @@ struct AppHeaderRowView: View {
     let appName: String
     let appIcon: NSImage?
     let isSelected: Bool
-    var isHovered: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +36,7 @@ struct AppHeaderRowView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 10)
             .background {
-                if isSelected || isHovered {
+                if isSelected {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(Color.accentColor.opacity(0.22))
                         .overlay(

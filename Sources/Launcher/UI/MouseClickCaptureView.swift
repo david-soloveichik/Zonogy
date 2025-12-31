@@ -1,30 +1,34 @@
-/// Captures mouse click (mouseUp) and hover events for item activation and hover highlighting
+/// Captures mouse click (mouseUp) and hover/move events for item activation and selection updates
 
 import AppKit
 import SwiftUI
 
 struct MouseClickCaptureView: NSViewRepresentable {
     let onClick: () -> Void
-    var onHover: ((Bool) -> Void)?
+    var onHover: ((Bool) -> Void)? = nil
+    var onMouseMove: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> CaptureView {
-        CaptureView(onClick: onClick, onHover: onHover)
+        CaptureView(onClick: onClick, onHover: onHover, onMouseMove: onMouseMove)
     }
 
     func updateNSView(_ nsView: CaptureView, context: Context) {
         nsView.onClick = onClick
         nsView.onHover = onHover
+        nsView.onMouseMove = onMouseMove
     }
 
     final class CaptureView: NSView {
         var onClick: () -> Void
         var onHover: ((Bool) -> Void)?
+        var onMouseMove: (() -> Void)?
         private var trackingArea: NSTrackingArea?
         private var isMouseDown = false
 
-        init(onClick: @escaping () -> Void, onHover: ((Bool) -> Void)?) {
+        init(onClick: @escaping () -> Void, onHover: ((Bool) -> Void)?, onMouseMove: (() -> Void)?) {
             self.onClick = onClick
             self.onHover = onHover
+            self.onMouseMove = onMouseMove
             super.init(frame: .zero)
         }
 
@@ -42,12 +46,16 @@ struct MouseClickCaptureView: NSViewRepresentable {
 
             let newArea = NSTrackingArea(
                 rect: bounds,
-                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
             addTrackingArea(newArea)
             trackingArea = newArea
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            onMouseMove?()
         }
 
         override func mouseEntered(with event: NSEvent) {

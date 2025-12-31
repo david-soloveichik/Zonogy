@@ -151,7 +151,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
 ### Mouse Interaction
 
-- **Hover:** Highlights item (same visual as keyboard selection)
+- **Hover:** Selects item (same visual as keyboard selection)
 - **Click:** Activates item immediately (launch app, focus window)
 - **Drill-down chevron:** Hover brightens icon; click shows press animation before drilling into window list
 

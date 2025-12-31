@@ -9,8 +9,7 @@ struct WindowItemListView: View {
     let onOpenApp: () -> Void
     let appName: String
     let appIcon: NSImage?
-    @State private var hoveredWindowId: UUID?
-    @State private var isHeaderHovered: Bool = false
+    @State private var skipNextScrollToSelected = false
 
     private let headerID = "appHeader"
 
@@ -25,17 +24,19 @@ struct WindowItemListView: View {
                     AppHeaderRowView(
                         appName: appName,
                         appIcon: appIcon,
-                        isSelected: isHeaderSelected,
-                        isHovered: isHeaderHovered
+                        isSelected: isHeaderSelected
                     )
                     .overlay(
                         MouseClickCaptureView(
                             onClick: {
+                                skipNextScrollToSelected = true
                                 selectedWindowId = nil
                                 onOpenApp()
                             },
-                            onHover: { hovering in
-                                isHeaderHovered = hovering
+                            onMouseMove: {
+                                guard selectedWindowId != nil else { return }
+                                skipNextScrollToSelected = true
+                                selectedWindowId = nil
                             }
                         )
                     )
@@ -44,21 +45,19 @@ struct WindowItemListView: View {
                     ForEach(windows) { window in
                         WindowItemRowView(
                             window: window,
-                            isSelected: window.id == selectedWindowId,
-                            isHovered: window.id == hoveredWindowId
+                            isSelected: window.id == selectedWindowId
                         )
                         .overlay(
                             MouseClickCaptureView(
                                 onClick: {
+                                    skipNextScrollToSelected = true
                                     selectedWindowId = window.id
                                     onOpenSelected()
                                 },
-                                onHover: { hovering in
-                                    if hovering {
-                                        hoveredWindowId = window.id
-                                    } else if hoveredWindowId == window.id {
-                                        hoveredWindowId = nil
-                                    }
+                                onMouseMove: {
+                                    guard selectedWindowId != window.id else { return }
+                                    skipNextScrollToSelected = true
+                                    selectedWindowId = window.id
                                 }
                             )
                         )
@@ -74,6 +73,10 @@ struct WindowItemListView: View {
                     .fill(.ultraThinMaterial)
             )
             .onChange(of: selectedWindowId) { newValue in
+                if skipNextScrollToSelected {
+                    skipNextScrollToSelected = false
+                    return
+                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     if let windowId = newValue {
                         proxy.scrollTo(windowId, anchor: .center)

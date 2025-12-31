@@ -5,7 +5,6 @@ import SwiftUI
 struct WindowItemRowView: View {
     let window: LauncherWindowItem
     let isSelected: Bool
-    var isHovered: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -30,7 +29,7 @@ struct WindowItemRowView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background {
-            if isSelected || isHovered {
+            if isSelected {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.accentColor.opacity(0.22))
                     .overlay(

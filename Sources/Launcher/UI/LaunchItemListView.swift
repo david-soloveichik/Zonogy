@@ -26,8 +26,8 @@ struct LaunchItemListView: View {
     var windowCountForSelected: Int?
     var runningAppURLs: Set<URL> = []
     var onExpandApp: ((URL) -> Void)?
-    @State private var hoveredItemURL: URL?
     @State private var chevronHoveredURL: URL?
+    @State private var skipNextScrollToSelected = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -39,21 +39,19 @@ struct LaunchItemListView: View {
                             item: item,
                             isSelected: item.url == selectedItemURL,
                             windowCount: item.url == selectedItemURL ? windowCountForSelected : nil,
-                            isRunning: isRunning,
-                            isHovered: item.url == hoveredItemURL
+                            isRunning: isRunning
                         )
                         .overlay(
                             MouseClickCaptureView(
                                 onClick: {
+                                    skipNextScrollToSelected = true
                                     selectedItemURL = item.url
                                     onOpenSelected()
                                 },
-                                onHover: { hovering in
-                                    if hovering {
-                                        hoveredItemURL = item.url
-                                    } else if hoveredItemURL == item.url {
-                                        hoveredItemURL = nil
-                                    }
+                                onMouseMove: {
+                                    guard selectedItemURL != item.url else { return }
+                                    skipNextScrollToSelected = true
+                                    selectedItemURL = item.url
                                 }
                             )
                         )
@@ -73,6 +71,10 @@ struct LaunchItemListView: View {
                                 .onHover { hovering in
                                     if hovering {
                                         chevronHoveredURL = item.url
+                                        if selectedItemURL != item.url {
+                                            skipNextScrollToSelected = true
+                                            selectedItemURL = item.url
+                                        }
                                     } else if chevronHoveredURL == item.url {
                                         chevronHoveredURL = nil
                                     }
@@ -92,6 +94,10 @@ struct LaunchItemListView: View {
             )
             .onChange(of: selectedItemURL) { newValue in
                 guard let newValue else { return }
+                if skipNextScrollToSelected {
+                    skipNextScrollToSelected = false
+                    return
+                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     proxy.scrollTo(newValue, anchor: .center)
                 }
