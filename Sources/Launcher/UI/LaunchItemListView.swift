@@ -2,6 +2,18 @@
 
 import SwiftUI
 
+/// Button style that scales down when pressed for visual feedback
+private struct ChevronPressStyle: ButtonStyle {
+    var isHovered: Bool
+
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        configuration.label
+            .foregroundStyle(isHovered ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .scaleEffect(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeInOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 struct LaunchItemListView: View {
     let items: [LaunchItem]
     @Binding var selectedItemURL: URL?
@@ -9,7 +21,8 @@ struct LaunchItemListView: View {
     var windowCountForSelected: Int?
     var runningAppURLs: Set<URL> = []
     var onExpandApp: ((URL) -> Void)?
-    @State private var selectionChangeWasMouseDriven: Bool = false
+    @State private var hoveredItemURL: URL?
+    @State private var chevronHoveredURL: URL?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -21,30 +34,44 @@ struct LaunchItemListView: View {
                             item: item,
                             isSelected: item.url == selectedItemURL,
                             windowCount: item.url == selectedItemURL ? windowCountForSelected : nil,
-                            isRunning: isRunning
+                            isRunning: isRunning,
+                            isHovered: item.url == hoveredItemURL
                         )
                         .overlay(
-                            MouseDownCaptureView { clickCount in
-                                selectionChangeWasMouseDriven = (selectedItemURL != item.url)
-                                selectedItemURL = item.url
-                                if clickCount >= 2 {
+                            MouseClickCaptureView(
+                                onClick: {
+                                    selectedItemURL = item.url
                                     onOpenSelected()
+                                },
+                                onHover: { hovering in
+                                    if hovering {
+                                        hoveredItemURL = item.url
+                                    } else if hoveredItemURL == item.url {
+                                        hoveredItemURL = nil
+                                    }
                                 }
-                            }
+                            )
                         )
                         .overlay(alignment: .trailing) {
                             if isRunning {
                                 Button {
+                                    selectedItemURL = item.url
                                     onExpandApp?(item.url)
                                 } label: {
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.secondary)
                                         .frame(width: 24, height: 24)
                                         .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(ChevronPressStyle(isHovered: chevronHoveredURL == item.url))
                                 .padding(.trailing, 6)
+                                .onHover { hovering in
+                                    if hovering {
+                                        chevronHoveredURL = item.url
+                                    } else if chevronHoveredURL == item.url {
+                                        chevronHoveredURL = nil
+                                    }
+                                }
                             }
                         }
                         .id(item.url)
@@ -60,10 +87,6 @@ struct LaunchItemListView: View {
             )
             .onChange(of: selectedItemURL) { newValue in
                 guard let newValue else { return }
-                guard !selectionChangeWasMouseDriven else {
-                    selectionChangeWasMouseDriven = false
-                    return
-                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     proxy.scrollTo(newValue, anchor: .center)
                 }

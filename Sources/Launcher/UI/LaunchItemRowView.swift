@@ -9,6 +9,7 @@ struct LaunchItemRowView: View {
     var windowCount: Int?
     var isRunning: Bool = false
     var onChevronTap: (() -> Void)?
+    var isHovered: Bool = false
 
     @State private var loadedIcon: NSImage?
 
@@ -59,7 +60,7 @@ struct LaunchItemRowView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
         .background {
-            if isSelected {
+            if isSelected || isHovered {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.accentColor.opacity(0.22))
                     .overlay(

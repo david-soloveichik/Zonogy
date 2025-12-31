@@ -9,7 +9,8 @@ struct WindowItemListView: View {
     let onOpenApp: () -> Void
     let appName: String
     let appIcon: NSImage?
-    @State private var selectionChangeWasMouseDriven: Bool = false
+    @State private var hoveredWindowId: UUID?
+    @State private var isHeaderHovered: Bool = false
 
     private let headerID = "appHeader"
 
@@ -21,30 +22,47 @@ struct WindowItemListView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    AppHeaderRowView(appName: appName, appIcon: appIcon, isSelected: isHeaderSelected)
-                        .overlay(
-                            MouseDownCaptureView { clickCount in
-                                selectionChangeWasMouseDriven = (selectedWindowId != nil)
+                    AppHeaderRowView(
+                        appName: appName,
+                        appIcon: appIcon,
+                        isSelected: isHeaderSelected,
+                        isHovered: isHeaderHovered
+                    )
+                    .overlay(
+                        MouseClickCaptureView(
+                            onClick: {
                                 selectedWindowId = nil
-                                if clickCount >= 2 {
-                                    onOpenApp()
-                                }
+                                onOpenApp()
+                            },
+                            onHover: { hovering in
+                                isHeaderHovered = hovering
                             }
                         )
-                        .id(headerID)
+                    )
+                    .id(headerID)
 
                     ForEach(windows) { window in
-                        WindowItemRowView(window: window, isSelected: window.id == selectedWindowId)
-                            .overlay(
-                                MouseDownCaptureView { clickCount in
-                                    selectionChangeWasMouseDriven = (selectedWindowId != window.id)
+                        WindowItemRowView(
+                            window: window,
+                            isSelected: window.id == selectedWindowId,
+                            isHovered: window.id == hoveredWindowId
+                        )
+                        .overlay(
+                            MouseClickCaptureView(
+                                onClick: {
                                     selectedWindowId = window.id
-                                    if clickCount >= 2 {
-                                        onOpenSelected()
+                                    onOpenSelected()
+                                },
+                                onHover: { hovering in
+                                    if hovering {
+                                        hoveredWindowId = window.id
+                                    } else if hoveredWindowId == window.id {
+                                        hoveredWindowId = nil
                                     }
                                 }
                             )
-                            .id(window.id)
+                        )
+                        .id(window.id)
                     }
                 }
                 .padding(8)
@@ -56,10 +74,6 @@ struct WindowItemListView: View {
                     .fill(.ultraThinMaterial)
             )
             .onChange(of: selectedWindowId) { newValue in
-                guard !selectionChangeWasMouseDriven else {
-                    selectionChangeWasMouseDriven = false
-                    return
-                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     if let windowId = newValue {
                         proxy.scrollTo(windowId, anchor: .center)
