@@ -271,6 +271,8 @@ extension AppController: LauncherControllerDelegate {
         if let temporaryScreenId = originalTemporaryTarget {
             assignWindowToTemporaryZone(managed, on: temporaryScreenId, centerWindow: true, reason: "launcher-selection")
             Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(temporaryScreenId)")
+            // Sync to create placeholder for the now-empty source zone
+            syncWindowsToZones()
             return
         }
 
