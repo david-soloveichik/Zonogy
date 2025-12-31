@@ -349,6 +349,22 @@ final class LauncherController {
                 }
                 return false
 
+            case 124:  // Right arrow
+                // Right arrow at end of search string = Tab (drill into window list)
+                if case .appList = model.mode, isCaretAtEndOfSearchField() {
+                    model.enterWindowMode()
+                    return true
+                }
+                return false
+
+            case 123:  // Left arrow
+                // Left arrow at start of search string = Escape (exit window list)
+                if case .windowList = model.mode, isCaretAtStartOfSearchField() {
+                    model.exitWindowMode()
+                    return true
+                }
+                return false
+
             default:
                 // Forward specific shortcuts to the menu bar owner app
                 if forwardShortcutIfNeeded(event) {
@@ -357,6 +373,44 @@ final class LauncherController {
                 return false
             }
         }
+    }
+
+    // MARK: - Cursor Position Detection
+
+    /// Returns true if the text cursor is at the end of the search field (or the field is empty).
+    @MainActor
+    private func isCaretAtEndOfSearchField() -> Bool {
+        guard let model = model else { return true }
+
+        // Try to get the field editor from the window.
+        // The first responder during text editing is the shared field editor (NSTextView).
+        if let window = window,
+           let textView = window.firstResponder as? NSTextView {
+            let selectedRange = textView.selectedRange()
+            let textLength = textView.string.count
+            // Caret is at end if selection starts at (or beyond) text length and nothing is selected
+            return selectedRange.location >= textLength && selectedRange.length == 0
+        }
+
+        // Fallback: if query is empty, right arrow should drill down
+        return model.query.isEmpty
+    }
+
+    /// Returns true if the text cursor is at the start of the search field (or the field is empty).
+    @MainActor
+    private func isCaretAtStartOfSearchField() -> Bool {
+        guard let model = model else { return true }
+
+        // Try to get the field editor from the window.
+        if let window = window,
+           let textView = window.firstResponder as? NSTextView {
+            let selectedRange = textView.selectedRange()
+            // Caret is at start if selection starts at position 0 and nothing is selected
+            return selectedRange.location == 0 && selectedRange.length == 0
+        }
+
+        // Fallback: if query is empty, left arrow should exit window mode
+        return model.query.isEmpty
     }
 
     // MARK: - Shortcut Forwarding
