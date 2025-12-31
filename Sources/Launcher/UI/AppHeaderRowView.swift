@@ -29,6 +29,10 @@ struct AppHeaderRowView: View {
                     .truncationMode(.middle)
 
                 Spacer(minLength: 0)
+
+                Text("Menu Bar")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 10)
