@@ -98,9 +98,9 @@ A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The 
 
 Each screen with fewer than 3 tiling zones also displays an add-zone indicator: a vertical pill (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a tiling zone to that screen.
 
-Pressing Control-Cmd-Space clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen.
+Pressing Control-Cmd-Delete clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen.
 
-Pressing Shift-Option-Control-Cmd-Space performs the same steps, but works with the screen currently holding the mouse pointer.
+Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with the screen currently holding the mouse pointer.
 
 ### Targeting
 
@@ -269,7 +269,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 **Creating Snapshots:**
 
-- Automatically created when pressing Clear/Reset Zones shortcut (Control-Cmd-Space or variant) when the corresponding screen has managed windows in zones.
+- Automatically created when pressing Clear/Reset Zones shortcut (Control-Cmd-Delete or variant) when the corresponding screen has managed windows in zones.
 - Automatically created before restoring a different snapshot (if current windows differ from snapshot being restored), allowing the user to return to their previous arrangement.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot.

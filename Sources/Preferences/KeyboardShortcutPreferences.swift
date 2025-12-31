@@ -57,9 +57,9 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .flipKeyWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             case .clearOrResetZones:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrl)
             case .clearOrResetZonesAtCursor:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrlShiftOpt)
+                return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrlShiftOpt)
             case .targetTemporaryZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
             case .targetTilingZone:
