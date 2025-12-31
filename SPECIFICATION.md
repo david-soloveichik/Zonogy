@@ -10,7 +10,7 @@ Zonogy is a variation on a tiling window manager built around the concept of **z
 
 Zonogy organizes managed windows into **zones**. Each screen has 1–3 **tiling zones** (indexed 1…zoneCount) that form the main layout, and one **temporary zone** used for floating a single window above the tiled layout.
 
-A zone contains at most one unminimized window or is empty. Minimized windows do not belong to any zone.
+A zone contains at most one unminimized managed window or is empty. Minimized windows do not belong to any zone. (Throughout this specification, "managed window" refers to windows from other applications that Zonogy positions.)
 
 Empty tiling zones are represented by placeholder windows (except in UnderCovers mode). Empty temporary zones have no placeholder.
 
@@ -75,7 +75,7 @@ Both windows and placeholders preserve an 8 pixel buffer at the outer screen edg
 
 Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "x" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**).
 
-Placeholders stay anchored to their zone: dragging their surface does not reposition them. Resize zones via zone resize bars (see **Resizing Zones**).
+Placeholders stay anchored to their zone: dragging their surface does not reposition them, and they cannot be resized by dragging their edges. Resize zones via zone resize bars (see **Resizing Zones**).
 
 ### Adding and Removing Zones
 
@@ -135,7 +135,7 @@ When placed into the temporary zone, a window is centered and resized once. Afte
 
 Placing another window into the temporary zone minimizes the previous occupant.
 
-The temporary zone occupant is minimized when a non-placeholder managed window on the same screen becomes active/front-most. Temporary zones on other screens are unaffected.
+The temporary zone occupant is minimized when another managed window on the same screen becomes active/front-most. Temporary zones on other screens are unaffected.
 
 When a managed window in a tiling zone is minimized by the user (emptying its zone), and that screen currently has a temporary-zone occupant, promote the temporary window into the newly emptied zone. (Minimizations performed as part of internal policies should not trigger this promotion.)
 
