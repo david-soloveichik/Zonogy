@@ -33,6 +33,10 @@
     {
       "bundleIdentifier": "com.apple.Photos",
       "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.adobe.illustrator",
+      "ignoreZoomButtonRequirement": true
     }
   ]
 }
