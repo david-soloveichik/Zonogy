@@ -26,6 +26,9 @@ extension AppController {
         // Cancel any pending screen-change debounce timer.
         pendingScreenChangeWorkItem?.cancel()
         pendingScreenChangeWorkItem = nil
+        pendingScreenChangeReason = nil
+        pendingScreenChangeIncludesWake = false
+        pendingScreenChangeDisplayIds.removeAll()
     }
 
     internal func handleScreensDidWake() {
@@ -157,7 +160,7 @@ extension AppController {
         // Reuse the same code path that handles display changes:
         // this rebuilds screen topology, minimizes windows on removed displays,
         // syncs windows to zones, and schedules recapture passes.
-        scheduleScreenTopologyRefresh(reason: "wake")
+        scheduleScreenTopologyRefresh(reason: "wake", includesWake: true)
     }
 
     // MARK: - Event gating helper

@@ -47,20 +47,8 @@ extension AppController {
                 }
             }
 
-            // Identify tracked windows that are unminimized but not in any zone
-            // (tiled or temporary) and place them using normal placement logic.
-            var placedUnzonedCount = 0
-            for window in self.windowController.allWindows {
-                guard !window.isPlaceholder,
-                      !window.isMinimized,
-                      self.zoneKey(forManagedWindow: window) == nil,
-                      !self.isWindowInTemporaryZone(window.windowId) else {
-                    continue
-                }
-                Logger.debug("\(reason.capitalized) recapture: placing tracked but unzoned window \(window.windowId)")
-                self.windowPlacementManager.placeNewWindow(window)
-                placedUnzonedCount += 1
-            }
+            // Place any tracked but unzoned windows
+            let placedUnzonedCount = self.placeTrackedButUnzonedWindows(reason: reason)
 
             // Sync if we captured new windows or placed unzoned ones
             if capturedCount > 0 || placedUnzonedCount > 0 {
@@ -82,5 +70,26 @@ extension AppController {
             workItem.cancel()
         }
         pendingRecaptureWorkItems.removeAll()
+    }
+
+    /// Places any tracked windows that are unminimized but not assigned to any zone.
+    /// Called after wake and screen changes to catch windows that
+    /// were deminiaturized or created while events were suppressed.
+    /// Returns the number of windows placed.
+    @discardableResult
+    internal func placeTrackedButUnzonedWindows(reason: String) -> Int {
+        var placedCount = 0
+        for window in windowController.allWindows {
+            guard !window.isPlaceholder,
+                  !window.isMinimized,
+                  zoneKey(forManagedWindow: window) == nil,
+                  !isWindowInTemporaryZone(window.windowId) else {
+                continue
+            }
+            Logger.debug("\(reason.capitalized): placing tracked but unzoned window \(window.windowId)")
+            windowPlacementManager.placeNewWindow(window)
+            placedCount += 1
+        }
+        return placedCount
     }
 }

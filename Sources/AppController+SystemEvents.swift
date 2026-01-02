@@ -249,13 +249,18 @@ extension AppController {
         return false
     }
 
-    internal func scheduleScreenTopologyRefresh(reason: String, affectedDisplayIds: Set<CGDirectDisplayID> = []) {
+    internal func scheduleScreenTopologyRefresh(
+        reason: String,
+        affectedDisplayIds: Set<CGDirectDisplayID> = [],
+        includesWake: Bool = false
+    ) {
         suppressManualMoveHandling(for: manualMoveSuppressionDuration, reason: reason)
         if let existingReason = pendingScreenChangeReason {
             pendingScreenChangeReason = "\(existingReason),\(reason)"
         } else {
             pendingScreenChangeReason = reason
         }
+        pendingScreenChangeIncludesWake = pendingScreenChangeIncludesWake || includesWake
 
         pendingScreenChangeDisplayIds.formUnion(affectedDisplayIds)
 
@@ -264,15 +269,25 @@ extension AppController {
             guard let self else { return }
             let hintedIds = self.pendingScreenChangeDisplayIds
             let resolvedReason = self.pendingScreenChangeReason ?? reason
+            let refreshIncludesWake = self.pendingScreenChangeIncludesWake
             self.pendingScreenChangeDisplayIds.removeAll()
             self.pendingScreenChangeReason = nil
-            self.performScreenTopologyRefresh(reason: resolvedReason, hintedDisplayIds: hintedIds)
+            self.pendingScreenChangeIncludesWake = false
+            self.performScreenTopologyRefresh(
+                reason: resolvedReason,
+                hintedDisplayIds: hintedIds,
+                includesWake: refreshIncludesWake
+            )
         }
         pendingScreenChangeWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + screenChangeDebounceInterval, execute: workItem)
     }
 
-    private func performScreenTopologyRefresh(reason: String, hintedDisplayIds: Set<CGDirectDisplayID>) {
+    private func performScreenTopologyRefresh(
+        reason: String,
+        hintedDisplayIds: Set<CGDirectDisplayID>,
+        includesWake: Bool
+    ) {
         Logger.debug("Performing screen topology refresh due to \(reason) (hinted display ids: \(hintedDisplayIds.count))")
 
         let screens = NSScreen.screens
@@ -313,10 +328,13 @@ extension AppController {
 
         syncWindowsToZones()
 
-        // Recapture after displays settle when meaningful changes occurred
-        if !rebuildResult.addedDisplayIds.isEmpty || !rebuildResult.removedContexts.isEmpty || rebuildResult.orderChanged {
-            scheduleWindowRecapture(delay: 0.5, reason: "screen-change")
-            scheduleWindowRecapture(delay: 1.5, reason: "screen-change")
+        // Recapture after displays settle when meaningful changes occurred.
+        // Always recapture after wake to catch windows that were deminiaturized or
+        // created while events were suppressed during the sleep transition.
+        if includesWake || !rebuildResult.addedDisplayIds.isEmpty || !rebuildResult.removedContexts.isEmpty || rebuildResult.orderChanged {
+            let recaptureReason = includesWake ? "wake" : "screen-change"
+            scheduleWindowRecapture(delay: 0.5, reason: recaptureReason)
+            scheduleWindowRecapture(delay: 1.5, reason: recaptureReason)
         }
     }
 

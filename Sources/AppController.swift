@@ -88,6 +88,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }()
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
+    /// True when the pending screen-topology refresh includes a wake trigger.
+    internal var pendingScreenChangeIncludesWake: Bool = false
     internal var pendingScreenChangeDisplayIds: Set<CGDirectDisplayID> = []
     /// Pending recapture work items that should be cancelled when screens go to sleep.
     internal var pendingRecaptureWorkItems: [DispatchWorkItem] = []
