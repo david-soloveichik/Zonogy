@@ -57,6 +57,7 @@ final class DockDebugBorderOverlayController {
 
     func setListFrame(accessibilityFrame: CGRect?) {
         guard let accessibilityFrame else {
+            Logger.debug("DockDebugBorderOverlayController: hiding blue frame because accessibilityFrame is invalid")
             window.orderOut(nil)
             return
         }
