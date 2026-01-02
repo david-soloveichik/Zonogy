@@ -1,5 +1,11 @@
 import Foundation
 import AppKit
+import Darwin
+
+// Enable line-buffered output so piped output (e.g., `swift run | grep`) streams in real-time
+// This avoid having to use stdbuf -oL -eL swift run ...
+setvbuf(stdout, nil, _IOLBF, 0)
+setvbuf(stderr, nil, _IOLBF, 0)
 
 // Maintain strong references so background callbacks remain valid.
 private var activeSocketServer: SocketServer?

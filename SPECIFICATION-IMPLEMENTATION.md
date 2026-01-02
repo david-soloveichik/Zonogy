@@ -19,9 +19,9 @@ When restoring layouts from either sleep/wake recovery or WinShot snapshots, we 
 - When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
 - We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers and REPL commands so we can trace zone transitions and window lifecycle without attaching Xcode.
 **Log monitoring tip:** To watch the live log output, run:
-`stdbuf -oL -eL swift run 2>&1 | grep --line-buffered "keyword"`.
+`swift run 2>&1 | grep --line-buffered "keyword"`.
 - **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
-(`stdbuf` makes `swift run` flush each line immediately, and `grep --line-buffered` streams matching lines without delay.)
+(`grep --line-buffered` streams matching lines without delay.)
 - The REPL keeps running until the process is terminated so we can script scenarios by piping command sequences (`printf "add-zone\nlist\n" | ./Zonogy`). Retain this interface in later stages for regression testing even once real-window integration is added.
 
 ## Accessibility API Workarounds
