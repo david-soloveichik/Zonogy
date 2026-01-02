@@ -95,7 +95,6 @@ final class DockClickInterceptor {
         }
 
         // Click is within the Dock frame - intercept it
-        Logger.debug("DockClickInterceptor: intercepted click at \(location)")
         delegate?.dockClickInterceptor(self, didInterceptClickAt: location)
         return nil
     }
