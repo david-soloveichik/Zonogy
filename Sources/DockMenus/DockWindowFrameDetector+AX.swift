@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-/// Accessibility-backed helpers for locating the Dock bar frame (including auto-hide scenarios).
+/// Accessibility-backed hit-testing for locating the Dock bar frame.
 extension DockWindowFrameDetector {
     func axDockBarSnapshotFromHitTest(dockPid: pid_t, screenBounds: [CGRect]) -> Snapshot? {
         guard AXIsProcessTrusted() else {
@@ -42,97 +42,7 @@ extension DockWindowFrameDetector {
             return nil
         }
 
-        return Snapshot(
-            frame: best.frame,
-            isOnScreen: true,
-            windowNumber: -3,
-            layer: Int(CGWindowLevelForKey(.dockWindow)),
-            alpha: 1.0
-        )
-    }
-
-    func axDockBarSnapshot(dockPid: pid_t, screenBounds: [CGRect]) -> Snapshot? {
-        let appElement = AXUIElementCreateApplication(dockPid)
-        var windowsValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
-        guard status == .success, let windowsValue else {
-            return nil
-        }
-
-        let anyArray: [Any]
-        if let array = windowsValue as? [Any] {
-            anyArray = array
-        } else if let array = windowsValue as? NSArray {
-            anyArray = array.compactMap { $0 }
-        } else {
-            return nil
-        }
-
-        let windows: [AXUIElement] = anyArray.compactMap { item in
-            let cf = item as CFTypeRef
-            guard CFGetTypeID(cf) == AXUIElementGetTypeID() else {
-                return nil
-            }
-            return unsafeBitCast(cf, to: AXUIElement.self)
-        }
-        guard !windows.isEmpty else {
-            return nil
-        }
-
-        var candidates: [DockAXCandidate] = []
-        candidates.reserveCapacity(windows.count)
-
-        for window in windows {
-            guard let frame = axFrame(element: window),
-                  frame.width > 0,
-                  frame.height > 0 else {
-                continue
-            }
-
-            let thickness = min(frame.width, frame.height)
-            let length = max(frame.width, frame.height)
-
-            guard thickness >= 10,
-                  thickness <= 400,
-                  length >= 200 else {
-                continue
-            }
-
-            let aspectRatio = length / max(1, thickness)
-            guard aspectRatio >= 2.0 else {
-                continue
-            }
-
-            let edgeDistance = closestEdgeDistance(frame: frame, screenBounds: screenBounds)
-            if edgeDistance.isFinite, edgeDistance > 40 {
-                continue
-            }
-
-            let visibleRatio = bestIntersectionRatio(frame: frame, screenBounds: screenBounds)
-            guard visibleRatio >= 0.3 else {
-                continue
-            }
-
-            candidates.append(DockAXCandidate(
-                frame: frame,
-                edgeDistance: edgeDistance.isFinite ? edgeDistance : 0,
-                aspectRatio: aspectRatio,
-                thickness: thickness,
-                visibleRatio: visibleRatio
-            ))
-        }
-
-        guard let best = candidates.max(by: { axScore(candidate: $0) < axScore(candidate: $1) }) else {
-            return nil
-        }
-
-        return Snapshot(
-            frame: best.frame,
-            isOnScreen: true,
-            windowNumber: -2,
-            layer: Int(CGWindowLevelForKey(.dockWindow)),
-            alpha: 1.0
-        )
+        return Snapshot(frame: best.frame)
     }
 
     // MARK: - Hit testing and candidate extraction
@@ -335,15 +245,6 @@ extension DockWindowFrameDetector {
             return nil
         }
         return unsafeBitCast(rawValue, to: AXUIElement.self)
-    }
-
-    private func axStringAttribute(element: AXUIElement, attribute: CFString) -> String? {
-        var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
-        guard status == .success, let value else {
-            return nil
-        }
-        return value as? String
     }
 
     private func mouseLocationInAccessibilityCoordinates() -> CGPoint? {

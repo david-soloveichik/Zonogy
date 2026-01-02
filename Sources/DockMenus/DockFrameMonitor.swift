@@ -122,21 +122,9 @@ final class DockFrameMonitor {
 
     private func logStateChange(snapshot: DockWindowFrameDetector.Snapshot?) {
         if let snapshot {
-            let source: String
-            switch snapshot.windowNumber {
-            case -2:
-                source = "axWindows"
-            case -3:
-                source = "axHitTest"
-            default:
-                source = "cgwindow"
-            }
-            Logger.debug(
-                "DockFrameMonitor: dock (\(source)) onScreen=\(snapshot.isOnScreen) " +
-                "alpha=\(String(format: "%.2f", snapshot.alpha)) frame=\(snapshot.frame)"
-            )
+            Logger.debug("DockFrameMonitor: dock frame=\(snapshot.frame)")
         } else {
-            Logger.debug("DockFrameMonitor: Dock window not found")
+            Logger.debug("DockFrameMonitor: Dock not found")
         }
     }
 }
