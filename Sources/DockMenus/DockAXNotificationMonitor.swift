@@ -9,6 +9,8 @@ final class DockAXNotificationMonitor {
         let listFrame: CGRect?
     }
 
+    private static let dockBundleIdentifier = "com.apple.dock"
+
     var onEvent: ((Event) -> Void)?
 
     private var observer: AXObserver?
@@ -35,7 +37,7 @@ final class DockAXNotificationMonitor {
             return
         }
 
-        guard let dockPid = NSRunningApplication.runningApplications(withBundleIdentifier: DockWindowFrameDetector.dockBundleIdentifier)
+        guard let dockPid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.dockBundleIdentifier)
             .first?
             .processIdentifier else {
             Logger.debug("DockAXNotificationMonitor: Dock process not found")

@@ -1,6 +1,6 @@
 import AppKit
 
-/// Draws debug borders around Dock frames: red for the Dock window frame, blue for the AXList frame.
+/// Draws a blue debug border around the Dock's AXList frame.
 final class DockDebugBorderOverlayController {
     private final class OverlayWindow: NSPanel {
         init() {
@@ -34,11 +34,11 @@ final class DockDebugBorderOverlayController {
     }
 
     private final class BorderView: NSView {
-        init(frame frameRect: NSRect, borderColor: NSColor) {
+        override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.borderColor = borderColor.cgColor
+            layer?.borderColor = NSColor.systemBlue.cgColor
             layer?.borderWidth = 3.0
         }
 
@@ -48,33 +48,16 @@ final class DockDebugBorderOverlayController {
     }
 
     private let primaryScreenBounds: CGRect
-    private let dockWindow = OverlayWindow()
-    private let listWindow = OverlayWindow()
+    private let window = OverlayWindow()
 
     init(primaryScreenBounds: CGRect) {
         self.primaryScreenBounds = primaryScreenBounds
-        dockWindow.contentView = BorderView(frame: .zero, borderColor: .systemRed)
-        listWindow.contentView = BorderView(frame: .zero, borderColor: .systemBlue)
-    }
-
-    func setDockFrame(accessibilityFrame: CGRect?, isVisible: Bool) {
-        guard let accessibilityFrame, isVisible else {
-            dockWindow.orderOut(nil)
-            return
-        }
-
-        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-            accessibilityFrame: accessibilityFrame,
-            primaryScreenBounds: primaryScreenBounds
-        ).integral
-
-        dockWindow.setFrame(cocoaFrame, display: true)
-        dockWindow.orderFrontRegardless()
+        window.contentView = BorderView(frame: .zero)
     }
 
     func setListFrame(accessibilityFrame: CGRect?) {
         guard let accessibilityFrame else {
-            listWindow.orderOut(nil)
+            window.orderOut(nil)
             return
         }
 
@@ -83,8 +66,8 @@ final class DockDebugBorderOverlayController {
             primaryScreenBounds: primaryScreenBounds
         ).integral
 
-        listWindow.setFrame(cocoaFrame, display: true)
-        listWindow.orderFrontRegardless()
+        window.setFrame(cocoaFrame, display: true)
+        window.orderFrontRegardless()
     }
 }
 

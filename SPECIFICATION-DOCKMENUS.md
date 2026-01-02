@@ -67,5 +67,4 @@ DockMenu dismisses when:
 - The reliable way to identify the hovered Dock app is expected to use Accessibility APIs against the Dock process (`com.apple.dock`) and/or element-at-position queries, extracting the represented app’s bundle identifier.
 - Prefer **event-driven** updates over polling: observe `AXSelectedChildrenChanged` on the Dock’s `AXList` to learn when the hovered Dock item changes.
   - Observed behavior: `AXSelectedChildrenChanged` fires both when the mouse begins hovering a Dock item **and** when it stops hovering a Dock item.
-  - Because the Dock hide/show transition is animated, the Dock bar frame can continue changing briefly **after** the notification fires. Update the Dock frame immediately, and also schedule a follow-up refresh after a short delay (eg ~0.25s) to capture the settled geometry.
 - Click interception is expected to be implemented via a global event tap. Intercept only the minimal set of events needed, and only while the cursor is over a Dock app. It is imperative that the code be as efficient as possible!

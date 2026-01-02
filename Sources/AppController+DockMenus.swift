@@ -17,8 +17,7 @@ extension AppController {
         Logger.debug("DockMenus: enabled (debugOverlay=\(dockMenusConfig.showsDockFrameOverlay))")
         let coordinator = DockMenusCoordinator(
             primaryScreenBounds: screenContextStore.primaryScreenBounds,
-            enableDebugOverlay: dockMenusConfig.showsDockFrameOverlay,
-            refreshCoalesceInterval: dockMenusConfig.refreshCoalesceInterval
+            enableDebugOverlay: dockMenusConfig.showsDockFrameOverlay
         )
         dockMenusCoordinator = coordinator
         coordinator.start()
@@ -44,8 +43,7 @@ extension AppController {
 
         return DockMenusConfiguration(
             enabled: preferences.enabled,
-            debugDockFrameOverlay: preferences.enabled,
-            refreshCoalesceIntervalSeconds: baseConfig.refreshCoalesceIntervalSeconds
+            debugDockFrameOverlay: preferences.enabled
         )
     }
 
