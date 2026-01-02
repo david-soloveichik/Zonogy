@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 import CoreGraphics
 
 /// Tracks Dock geometry changes and emits snapshots suitable for hover/click gating.
@@ -17,20 +18,23 @@ final class DockFrameMonitor {
     private var lastState: State?
     private let queue = DispatchQueue(label: "com.zonogy.dockFrameMonitor", qos: .utility)
     private let refreshCoalesceInterval: TimeInterval
+    private let animationSettleDelay: TimeInterval
     private var axNotificationMonitor: DockAXNotificationMonitor?
     private var refreshRequested = false
     private var refreshScheduled = false
+    private var settleWorkItem: DispatchWorkItem?
 
-    init(refreshCoalesceInterval: TimeInterval = 0.05) {
+    init(refreshCoalesceInterval: TimeInterval = 0.05, animationSettleDelay: TimeInterval = 0.25) {
         self.refreshCoalesceInterval = max(0.01, min(refreshCoalesceInterval, 2.0))
+        self.animationSettleDelay = max(0.01, min(animationSettleDelay, 2.0))
     }
 
     func start() {
         guard axNotificationMonitor == nil else { return }
 
         let monitor = DockAXNotificationMonitor()
-        monitor.onEvent = { [weak self] _ in
-            self?.requestRefresh(delay: self?.refreshCoalesceInterval ?? 0.05)
+        monitor.onEvent = { [weak self] event in
+            self?.handleDockEvent(event)
         }
         axNotificationMonitor = monitor
         monitor.start()
@@ -46,6 +50,8 @@ final class DockFrameMonitor {
             guard let self else { return }
             self.refreshRequested = false
             self.refreshScheduled = false
+            self.settleWorkItem?.cancel()
+            self.settleWorkItem = nil
         }
         lastState = nil
     }
@@ -59,6 +65,27 @@ final class DockFrameMonitor {
             guard let self else { return }
             self.refreshRequested = true
             self.scheduleRefreshIfNeeded(delay: delay)
+        }
+    }
+
+    private func handleDockEvent(_ event: DockAXNotificationMonitor.Event) {
+        requestRefresh(delay: 0)
+
+        if event.notification == (kAXSelectedChildrenChangedNotification as String) {
+            scheduleSettleRefresh()
+        }
+    }
+
+    private func scheduleSettleRefresh() {
+        queue.async { [weak self] in
+            guard let self else { return }
+
+            settleWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.refresh()
+            }
+            settleWorkItem = workItem
+            queue.asyncAfter(deadline: .now() + animationSettleDelay, execute: workItem)
         }
     }
 
