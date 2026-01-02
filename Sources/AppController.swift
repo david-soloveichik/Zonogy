@@ -86,6 +86,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         controller.delegate = self
         return controller
     }()
+    internal var dockMenusCoordinator: DockMenusCoordinator?
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     /// True when the pending screen-topology refresh includes a wake trigger.
@@ -227,6 +228,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
         zoneClickInterceptor.start(delegate: self)
+        startDockMenusIfConfigured()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 
@@ -250,6 +252,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.stop()
         displayMonitor.stop()
         zoneClickInterceptor.stop()
+        stopDockMenus()
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         temporaryIndicatorManager.tearDown()

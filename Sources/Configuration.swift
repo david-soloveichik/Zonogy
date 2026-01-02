@@ -6,12 +6,14 @@ struct Configuration {
     private struct FileContents: Decodable {
         let ignoredBundleIdentifiers: [String]?
         let bundleExceptions: [ApplicationExceptionRule]?
+        let dockMenus: DockMenusConfiguration?
     }
 
     private static let defaultIgnoredBundles: Set<String> = []
 
     let ignoredBundleIdentifiers: Set<String>
     let applicationExceptionPolicy: ApplicationExceptionPolicy
+    let dockMenusConfiguration: DockMenusConfiguration
 
     static func load(fileManager: FileManager = .default) -> Configuration {
         let candidateURLs = configurationFileCandidates(fileManager: fileManager)
@@ -30,10 +32,12 @@ struct Configuration {
                 let configuredIgnored = Set(decoded.ignoredBundleIdentifiers ?? [])
                 let mergedIgnored = configuredIgnored.union(finalIgnoredBundles)
                 let exceptionPolicy = ApplicationExceptionPolicy(rules: decoded.bundleExceptions ?? [])
+                let dockMenusConfiguration = decoded.dockMenus ?? .disabled
                 Logger.debug("Loaded configuration from \(url.path) with ignored bundles: \(Array(mergedIgnored))")
                 return Configuration(
                     ignoredBundleIdentifiers: mergedIgnored,
-                    applicationExceptionPolicy: exceptionPolicy
+                    applicationExceptionPolicy: exceptionPolicy,
+                    dockMenusConfiguration: dockMenusConfiguration
                 )
             }
         }
@@ -41,7 +45,8 @@ struct Configuration {
         Logger.debug("No configuration file found; using default ignored bundles: \(Array(finalIgnoredBundles))")
         return Configuration(
             ignoredBundleIdentifiers: finalIgnoredBundles,
-            applicationExceptionPolicy: .empty
+            applicationExceptionPolicy: .empty,
+            dockMenusConfiguration: .disabled
         )
     }
 

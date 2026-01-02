@@ -17,6 +17,11 @@ if arguments.contains("--self-test") {
     exit(allPassed ? 0 : 1)
 }
 
+// Always enable file logging for debugging
+Logger.clearLogFile()   // Empty out the log file for a new session
+Logger.logToFile = true
+Logger.debug("Zonogy starting - logging to \(Logger.logPath)")
+
 // Create the NSApplication
 let app = NSApplication.shared
 
@@ -25,11 +30,6 @@ app.setActivationPolicy(.accessory)
 
 // Initialize the AppController singleton
 let appController = AppController.shared
-
-// Always enable file logging for debugging
-Logger.clearLogFile()   // Empty out the log file for a new session
-Logger.logToFile = true
-Logger.debug("Zonogy starting - logging to \(Logger.logPath)")
 
 if useSocket {
     Logger.debug("Starting socket server mode")
