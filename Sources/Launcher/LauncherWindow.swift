@@ -5,7 +5,7 @@ import AppKit
 final class LauncherWindow: NSPanel {
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 550, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 450, height: 400),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
