@@ -55,16 +55,15 @@ DockMenu dismisses when:
 
 - The cursor leaves the Dock and the DockMenu (after a short grace period so the user can move into the menu).
 - The user activates an item (Dock click interception or clicking a DockMenu entry).
-- The Dock app under the cursor cannot be identified anymore (space switch, Dock hides, etc.).
 
 ## Settings
 
 - DockMenus is a distinct feature flag in settings/config.
 - Default should be conservative (off by default) until the behavior feels solid, since it changes a core system interaction (Dock clicks).
 
-## Implementation Notes (Non-normative)
+## Implementation Notes
 
-- The reliable way to identify the hovered Dock app is expected to use Accessibility APIs against the Dock process (`com.apple.dock`) and/or element-at-position queries, extracting the represented app’s bundle identifier.
-- Prefer **event-driven** updates over polling: observe `AXSelectedChildrenChanged` on the Dock’s `AXList` to learn when the hovered Dock item changes.
-  - Observed behavior: `AXSelectedChildrenChanged` fires both when the mouse begins hovering a Dock item **and** when it stops hovering a Dock item.
+- Prefer event-driven updates over polling: observe `AXSelectedChildrenChanged` on the Dock’s `AXList` to learn when the hovered Dock item changes.
+  - Observed behavior: `AXSelectedChildrenChanged` fires both when the mouse begins hovering a Dock item and when it stops hovering a Dock item.
+- The hovered Dock app is identified via receipt of `AXSelectedChildrenChanged` notification from the Dock, from which we can extract the URL to the app.
 - Click interception is expected to be implemented via a global event tap. Intercept only the minimal set of events needed, and only while the cursor is over a Dock app. It is imperative that the code be as efficient as possible!
