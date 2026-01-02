@@ -279,6 +279,10 @@ For implementation details (destroyed window detection, restore protection windo
 
 For the application launcher and window switcher feature (Control-Command-Enter), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
 
+## DockMenus
+
+For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATION-DOCKMENUS.md](SPECIFICATION-DOCKMENUS.md)**.
+
 ## Developer Tools
 
 ### REPL and Socket API
