@@ -17,6 +17,7 @@ extension WindowController {
     private func startManualDrag(for managed: ManagedWindow, with frame: CGRect, trigger: ManualDragTrigger) {
         currentDraggingWindowId = managed.windowId
         dragCandidate = nil
+        updateMouseUpGlobalMonitorInstallation()
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
         Logger.debug(
             "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), targetedZone: \(targetDescription))"
@@ -33,6 +34,7 @@ extension WindowController {
 
         guard isLeftMouseButtonDown() else {
             dragCandidate = nil
+            updateMouseUpGlobalMonitorInstallation()
             return false
         }
 
@@ -47,6 +49,7 @@ extension WindowController {
         }
 
         dragCandidate = DragCandidate(windowId: managed.windowId, originFrame: frame)
+        updateMouseUpGlobalMonitorInstallation()
         return false
     }
 
@@ -58,6 +61,10 @@ extension WindowController {
     }
 
     internal func handleMouseUp() {
+        defer {
+            updateMouseUpGlobalMonitorInstallation()
+        }
+
         // If the user never crossed the activation threshold, treat the gesture as a
         // cancelled drag and trigger a manual move end so the window snaps back.
         let cancelledCandidate = dragCandidate

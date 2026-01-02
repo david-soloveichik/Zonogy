@@ -96,9 +96,6 @@ class WindowController {
             self?.handleMouseUp()
             return event
         }
-        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
-            self?.handleMouseUp()
-        }
         accessibilityWatcher.delegate = self
     }
 
@@ -110,6 +107,34 @@ class WindowController {
         if let monitor = mouseUpGlobalMonitor {
             NSEvent.removeMonitor(monitor)
         }
+    }
+
+    internal func updateMouseUpGlobalMonitorInstallation() {
+        let needsGlobalMonitor = dragCandidate != nil || currentDraggingWindowId != nil
+        if needsGlobalMonitor {
+            installMouseUpGlobalMonitorIfNeeded()
+        } else {
+            tearDownMouseUpGlobalMonitorIfNeeded()
+        }
+    }
+
+    private func installMouseUpGlobalMonitorIfNeeded() {
+        guard mouseUpGlobalMonitor == nil else {
+            return
+        }
+
+        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
+            self?.handleMouseUp()
+        }
+    }
+
+    private func tearDownMouseUpGlobalMonitorIfNeeded() {
+        guard let monitor = mouseUpGlobalMonitor else {
+            return
+        }
+
+        NSEvent.removeMonitor(monitor)
+        mouseUpGlobalMonitor = nil
     }
 
     /// Cancel all scheduled accessibility frame retries and clear their bookkeeping.
@@ -167,10 +192,15 @@ class WindowController {
             if currentDraggingWindowId == windowId {
                 currentDraggingWindowId = nil
             }
+            if dragCandidate?.windowId == windowId {
+                dragCandidate = nil
+            }
             if resizingWindowId == windowId {
                 resizingWindowId = nil
             }
         }
+
+        updateMouseUpGlobalMonitorInstallation()
 
         // Once all managed windows for this pid are removed due to process termination,
         // tear down the associated AX observer as well.
