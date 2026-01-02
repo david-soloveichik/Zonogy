@@ -13,6 +13,7 @@ final class DockMenusCoordinator {
 
         frameMonitor.onStateChange = { [weak self] state in
             self?.debugOverlay?.setDockFrame(accessibilityFrame: state.dockFrame, isVisible: state.isDockVisible)
+            self?.debugOverlay?.setListFrame(accessibilityFrame: state.listFrame)
         }
     }
 

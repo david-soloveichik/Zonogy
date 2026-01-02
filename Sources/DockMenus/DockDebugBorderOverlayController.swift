@@ -1,6 +1,6 @@
 import AppKit
 
-/// Draws a red border around the currently detected Dock frame to validate Dock geometry tracking.
+/// Draws debug borders around Dock frames: red for the Dock window frame, blue for the AXList frame.
 final class DockDebugBorderOverlayController {
     private final class OverlayWindow: NSPanel {
         init() {
@@ -34,11 +34,11 @@ final class DockDebugBorderOverlayController {
     }
 
     private final class BorderView: NSView {
-        override init(frame frameRect: NSRect) {
+        init(frame frameRect: NSRect, borderColor: NSColor) {
             super.init(frame: frameRect)
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.borderColor = NSColor.systemRed.cgColor
+            layer?.borderColor = borderColor.cgColor
             layer?.borderWidth = 3.0
         }
 
@@ -48,16 +48,18 @@ final class DockDebugBorderOverlayController {
     }
 
     private let primaryScreenBounds: CGRect
-    private let window = OverlayWindow()
+    private let dockWindow = OverlayWindow()
+    private let listWindow = OverlayWindow()
 
     init(primaryScreenBounds: CGRect) {
         self.primaryScreenBounds = primaryScreenBounds
-        window.contentView = BorderView(frame: .zero)
+        dockWindow.contentView = BorderView(frame: .zero, borderColor: .systemRed)
+        listWindow.contentView = BorderView(frame: .zero, borderColor: .systemBlue)
     }
 
     func setDockFrame(accessibilityFrame: CGRect?, isVisible: Bool) {
         guard let accessibilityFrame, isVisible else {
-            window.orderOut(nil)
+            dockWindow.orderOut(nil)
             return
         }
 
@@ -66,8 +68,23 @@ final class DockDebugBorderOverlayController {
             primaryScreenBounds: primaryScreenBounds
         ).integral
 
-        window.setFrame(cocoaFrame, display: true)
-        window.orderFrontRegardless()
+        dockWindow.setFrame(cocoaFrame, display: true)
+        dockWindow.orderFrontRegardless()
+    }
+
+    func setListFrame(accessibilityFrame: CGRect?) {
+        guard let accessibilityFrame else {
+            listWindow.orderOut(nil)
+            return
+        }
+
+        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+            accessibilityFrame: accessibilityFrame,
+            primaryScreenBounds: primaryScreenBounds
+        ).integral
+
+        listWindow.setFrame(cocoaFrame, display: true)
+        listWindow.orderFrontRegardless()
     }
 }
 

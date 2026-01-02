@@ -10,12 +10,15 @@ final class DockFrameMonitor {
     struct State: Equatable {
         var dockFrame: CGRect?
         var isDockVisible: Bool
+        /// The AXFrame of the Dock's AXList element when AXSelectedChildrenChanged fires.
+        var listFrame: CGRect?
     }
 
     var onStateChange: ((State) -> Void)?
 
     private let detector = DockWindowFrameDetector()
     private var lastState: State?
+    private var lastListFrame: CGRect?
     private let queue = DispatchQueue(label: "com.zonogy.dockFrameMonitor", qos: .utility)
     private let refreshCoalesceInterval: TimeInterval
     private let animationSettleDelay: TimeInterval
@@ -69,11 +72,13 @@ final class DockFrameMonitor {
     }
 
     private func handleDockEvent(_ event: DockAXNotificationMonitor.Event) {
-        requestRefresh(delay: 0)
-
+        // Capture listFrame from AXSelectedChildrenChanged on AXList
         if event.notification == (kAXSelectedChildrenChangedNotification as String) {
+            lastListFrame = event.listFrame
             scheduleSettleRefresh()
         }
+
+        requestRefresh(delay: 0)
     }
 
     private func scheduleSettleRefresh() {
@@ -108,7 +113,8 @@ final class DockFrameMonitor {
         let snapshot = detector.currentDockWindowSnapshot()
         let next = State(
             dockFrame: snapshot?.frame,
-            isDockVisible: snapshot != nil
+            isDockVisible: snapshot != nil,
+            listFrame: lastListFrame
         )
 
         guard next != lastState else { return }

@@ -5,6 +5,8 @@ import ApplicationServices
 final class DockAXNotificationMonitor {
     struct Event: Equatable {
         let notification: String
+        /// The AXFrame of the AXList when AXSelectedChildrenChanged fires on an AXList element.
+        let listFrame: CGRect?
     }
 
     var onEvent: ((Event) -> Void)?
@@ -111,11 +113,50 @@ final class DockAXNotificationMonitor {
     }
 
     private func handleAXNotification(element: AXUIElement, notification: String) {
+        var listFrame: CGRect?
+
         if notification == (kAXSelectedChildrenChangedNotification as String) {
             let role = axStringAttribute(element: element, attribute: kAXRoleAttribute as CFString) ?? "?"
             Logger.debug("DockAXNotificationMonitor: AXSelectedChildrenChanged role=\(role)")
+
+            if role == (kAXListRole as String) {
+                listFrame = axFrameAttribute(element: element)
+                let orientation = axStringAttribute(element: element, attribute: kAXOrientationAttribute as CFString) ?? "nil"
+                Logger.debug("DockAXNotificationMonitor: AXList frame=\(listFrame.map { String(describing: $0) } ?? "nil") orientation=\(orientation)")
+
+                // Check first selected child for AXApplicationDockItem and log its URL
+                let selectedChildren = axSelectedChildren(of: element)
+                if let firstSelected = selectedChildren.first {
+                    let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)
+                    if subrole == "AXApplicationDockItem" {
+                        let url = axURLAttribute(element: firstSelected, attribute: kAXURLAttribute as CFString)
+                        Logger.debug("DockAXNotificationMonitor: selected item is AXApplicationDockItem, URL=\(url?.absoluteString ?? "nil")")
+                    }
+                }
+            }
         }
-        onEvent?(Event(notification: notification))
+        onEvent?(Event(notification: notification, listFrame: listFrame))
+    }
+
+    private func axFrameAttribute(element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let positionValue, let sizeValue else {
+            return nil
+        }
+
+        var position = CGPoint.zero
+        var size = CGSize.zero
+
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+            return nil
+        }
+
+        return CGRect(origin: position, size: size)
     }
 
     private func findDockListElements(appElement: AXUIElement) -> [AXUIElement] {
@@ -167,8 +208,16 @@ final class DockAXNotificationMonitor {
     }
 
     private func axChildren(of element: AXUIElement) -> [AXUIElement] {
+        return axElementArrayAttribute(element: element, attribute: kAXChildrenAttribute as CFString)
+    }
+
+    private func axSelectedChildren(of element: AXUIElement) -> [AXUIElement] {
+        return axElementArrayAttribute(element: element, attribute: kAXSelectedChildrenAttribute as CFString)
+    }
+
+    private func axElementArrayAttribute(element: AXUIElement, attribute: CFString) -> [AXUIElement] {
         var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
+        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
         guard status == .success, let value else {
             return []
         }
@@ -198,5 +247,14 @@ final class DockAXNotificationMonitor {
             return nil
         }
         return value as? String
+    }
+
+    private func axURLAttribute(element: AXUIElement, attribute: CFString) -> URL? {
+        var value: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+        guard status == .success, let value else {
+            return nil
+        }
+        return value as? URL
     }
 }
