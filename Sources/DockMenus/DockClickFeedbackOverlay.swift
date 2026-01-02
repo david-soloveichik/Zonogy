@@ -119,8 +119,8 @@ final class DockClickFeedbackOverlay {
             primaryScreenBounds: primaryScreenBounds
         )
 
-        // Make the ripple window slightly larger than the dock item for the expanding effect
-        let size = max(cocoaFrame.width, cocoaFrame.height) * 1.5
+        // Make the ripple window just slightly larger than the dock item
+        let size = max(cocoaFrame.width, cocoaFrame.height)
         let rippleFrame = CGRect(
             x: cocoaFrame.midX - size / 2,
             y: cocoaFrame.midY - size / 2,

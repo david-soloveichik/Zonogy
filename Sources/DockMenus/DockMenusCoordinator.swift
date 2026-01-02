@@ -46,7 +46,11 @@ final class DockMenusCoordinator {
 extension DockMenusCoordinator: DockClickInterceptorDelegate {
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect) {
         Logger.debug("DockMenusCoordinator: click intercepted on app \(appURL.lastPathComponent)")
+        // Start ripple feedback immediately, then dispatch delegate call to let animation begin rendering
         clickFeedback.showRipple(at: itemFrame)
-        delegate?.dockMenusCoordinator(self, didClickDockAppWithURL: appURL)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.dockMenusCoordinator(self, didClickDockAppWithURL: appURL)
+        }
     }
 }
