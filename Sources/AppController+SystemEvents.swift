@@ -75,6 +75,7 @@ extension AppController {
         handleApplicationEvent(application)
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
         handleTemporaryZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
+        updateUnmanagedFocusState()
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
@@ -188,6 +189,19 @@ extension AppController {
         }
         Logger.debug("Screen configuration change notification received from AppKit")
         scheduleScreenTopologyRefresh(reason: "appkit-notification")
+    }
+
+    /// Updates `unmanagedFocusedWindowScreenId` based on the current frontmost window.
+    /// If the focused window is unmanaged, stores its screen ID; otherwise clears the state.
+    /// Calls `refreshResizeHandles()` when the state changes.
+    internal func updateUnmanagedFocusState() {
+        let previousScreenId = unmanagedFocusedWindowScreenId
+        let newScreenId = screenIdForUnmanagedFocusedWindow()
+        unmanagedFocusedWindowScreenId = newScreenId
+
+        if previousScreenId != newScreenId {
+            refreshResizeHandles()
+        }
     }
 
     // MARK: - DisplayReconfigurationMonitorDelegate

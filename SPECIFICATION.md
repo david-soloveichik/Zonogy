@@ -151,6 +151,8 @@ If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize 
 
 When the temporary zone is occupied on a screen, hide all zone resize bars on that screen to avoid overlapping the temporary window.
 
+When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.
+
 #### Resizing Managed Windows
 
 If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.

@@ -965,6 +965,12 @@ extension AppController {
                 continue
             }
 
+            // When an unmanaged window has focus on this screen,
+            // hide all resize handles on that screen to avoid overlapping it.
+            if unmanagedFocusedWindowScreenId == screenId {
+                continue
+            }
+
             let separators = context.zoneController.separators()
 
             for sep in separators {

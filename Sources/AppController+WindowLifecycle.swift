@@ -51,6 +51,8 @@ extension AppController {
         if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier {
             LaunchItemUsageStore.shared.recordAppActivation(bundleIdentifier: bundleId)
         }
+
+        updateUnmanagedFocusState()
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {

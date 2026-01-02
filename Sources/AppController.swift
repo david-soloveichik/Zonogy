@@ -68,6 +68,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
     /// Tracks screens where the single-zone placeholder has been temporarily hidden (UnderCovers mode).
     internal var underCoversScreens: Set<CGDirectDisplayID> = []
+    /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
+    /// Used to hide zone resize bars on that screen.
+    internal var unmanagedFocusedWindowScreenId: CGDirectDisplayID?
     internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()

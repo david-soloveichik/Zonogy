@@ -127,6 +127,23 @@ extension AppController {
             return nil
         }
 
+        if let screenId = screenIdForCocoaFrame(cocoaFrame) {
+            return screenId
+        }
+
+        // Fallback: check if the frame origin is contained in any screen
+        for (screenId, context) in screenContexts {
+            if context.descriptor.cocoaBounds.contains(cocoaFrame.origin) {
+                return screenId
+            }
+        }
+
+        return nil
+    }
+
+    /// Returns the screen ID that has the largest intersection with the given Cocoa frame.
+    /// Returns nil if the frame doesn't intersect any screen.
+    internal func screenIdForCocoaFrame(_ cocoaFrame: CGRect) -> CGDirectDisplayID? {
         var bestId: CGDirectDisplayID?
         var largestArea: CGFloat = 0
 
@@ -142,17 +159,7 @@ extension AppController {
             }
         }
 
-        if let bestId, largestArea > 0 {
-            return bestId
-        }
-
-        for (screenId, context) in screenContexts {
-            if context.descriptor.cocoaBounds.contains(cocoaFrame.origin) {
-                return screenId
-            }
-        }
-
-        return nil
+        return largestArea > 0 ? bestId : nil
     }
 
     internal func cocoaFrame(for managed: ManagedWindow) -> CGRect? {
