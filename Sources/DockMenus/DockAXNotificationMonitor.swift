@@ -13,6 +13,9 @@ final class DockAXNotificationMonitor {
 
     var onEvent: ((Event) -> Void)?
 
+    /// The Dock's process ID (set when monitoring starts, nil when stopped).
+    private(set) var dockPid: pid_t?
+
     private var observer: AXObserver?
     private var observedElements: [AXUIElement] = []
     private var runLoopSource: CFRunLoopSource?
@@ -37,15 +40,17 @@ final class DockAXNotificationMonitor {
             return
         }
 
-        guard let dockPid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.dockBundleIdentifier)
+        guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.dockBundleIdentifier)
             .first?
             .processIdentifier else {
             Logger.debug("DockAXNotificationMonitor: Dock process not found")
             return
         }
 
+        self.dockPid = pid
+
         var observer: AXObserver?
-        let status = AXObserverCreate(dockPid, Self.axObserverCallback, &observer)
+        let status = AXObserverCreate(pid, Self.axObserverCallback, &observer)
         guard status == .success, let observer else {
             Logger.debug("DockAXNotificationMonitor: AXObserverCreate failed (status=\(status.rawValue))")
             return
@@ -57,7 +62,7 @@ final class DockAXNotificationMonitor {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
 
-        let appElement = AXUIElementCreateApplication(dockPid)
+        let appElement = AXUIElementCreateApplication(pid)
         var elementsToObserve: [AXUIElement] = [appElement]
         elementsToObserve.append(contentsOf: findDockListElements(appElement: appElement))
 
@@ -106,6 +111,7 @@ final class DockAXNotificationMonitor {
         observer = nil
         observedElements = []
         runLoopSource = nil
+        dockPid = nil
     }
 
     private static let axObserverCallback: AXObserverCallback = { _, element, notification, refcon in

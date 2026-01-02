@@ -19,6 +19,7 @@ extension AppController {
             primaryScreenBounds: screenContextStore.primaryScreenBounds,
             enableDebugOverlay: dockMenusConfig.showsDockFrameOverlay
         )
+        coordinator.delegate = self
         dockMenusCoordinator = coordinator
         coordinator.start()
     }
@@ -50,5 +51,14 @@ extension AppController {
     private func applyDockMenusConfiguration() {
         stopDockMenus()
         startDockMenusIfConfigured()
+    }
+}
+
+// MARK: - DockMenusCoordinatorDelegate
+
+extension AppController: DockMenusCoordinatorDelegate {
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL) {
+        Logger.debug("DockMenus: performing default Launcher action for \(appURL.lastPathComponent)")
+        performDefaultLauncherAction(for: appURL)
     }
 }

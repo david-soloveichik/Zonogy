@@ -101,6 +101,16 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - App Launch
 
     func launcherController(_ controller: LauncherController, didLaunchApp url: URL) {
+        performDefaultLauncherAction(for: url)
+    }
+
+    /// Performs the default Launcher action for an app URL.
+    /// - If the app is running with managed windows: selects preferred window (respecting hasMainWindow),
+    ///   pre-positions if minimized, unminimizes, and places in targeted zone.
+    /// - If the app is not running or has no managed windows: launches/activates the app.
+    ///
+    /// This is the shared code path used by both Launcher and DockMenus click interception.
+    internal func performDefaultLauncherAction(for url: URL) {
         // Check if app is already running - select the preferred window
         if let bundleId = Bundle(url: url)?.bundleIdentifier,
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
@@ -139,7 +149,7 @@ extension AppController: LauncherControllerDelegate {
     /// - If app has `hasMainWindow: true`: returns window with lowest Zonogy ID (first created)
     /// - Otherwise: returns the most recently active window
     /// - Returns nil if app has no managed windows with titles
-    private func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
+    internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
         guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
             return nil
         }

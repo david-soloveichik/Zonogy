@@ -1,16 +1,26 @@
 import Foundation
 import ApplicationServices
+import AppKit
 
-/// Notified when a left-click is intercepted within the Dock frame.
+/// Notified when a left-click is intercepted on a running app in the Dock.
 protocol DockClickInterceptorDelegate: AnyObject {
-    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickAt location: CGPoint)
+    /// Called when a click on a running app's Dock icon was intercepted.
+    /// - Parameters:
+    ///   - interceptor: The interceptor instance.
+    ///   - appURL: The URL of the clicked application bundle.
+    ///   - itemFrame: The accessibility frame of the clicked Dock item (origin at top-left of primary screen).
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect)
 }
 
 /// Intercepts global left-clicks within the Dock's AXList frame.
 /// Performance-critical: exits as fast as possible when the click is outside the frame.
+///
+/// Only intercepts clicks on running application Dock items (AXApplicationDockItem).
+/// Clicks on folders, files, Launchpad, Trash, or non-running apps pass through.
 final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
+        static let dockBundleIdentifier = "com.apple.dock"
     }
 
     weak var delegate: DockClickInterceptorDelegate?
@@ -18,11 +28,19 @@ final class DockClickInterceptor {
     /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary screen).
     private var interceptFrame: CGRect?
 
+    /// Cached Dock PID for accessibility queries.
+    private var dockPid: pid_t?
+
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
+    }
+
+    /// Updates the Dock PID used for accessibility queries.
+    func updateDockPid(_ pid: pid_t?) {
+        dockPid = pid
     }
 
     func start() {
@@ -89,14 +107,107 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        // Shift modifier bypasses interception
-        if event.flags.contains(.maskShift) {
+        // Shift bypasses interception (spec: allow normal Dock behavior)
+        // Control bypasses interception (spec: preserve Dock context menus)
+        let flags = event.flags
+        if flags.contains(.maskShift) || flags.contains(.maskControl) {
             return Unmanaged.passUnretained(event)
         }
 
-        // Click is within the Dock frame - intercept it
-        delegate?.dockClickInterceptor(self, didInterceptClickAt: location)
+        // Query Dock accessibility to find the clicked element
+        // Only intercept if it's a running app's Dock icon
+        guard let result = findClickedRunningApp(at: location) else {
+            // Not a running app - let click through
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Click is on a running app's Dock icon - intercept it
+        delegate?.dockClickInterceptor(self, didInterceptClickOnApp: result.url, itemFrame: result.frame)
         return nil
+    }
+
+    /// Result of finding a clicked running app in the Dock.
+    private struct ClickedAppResult {
+        let url: URL
+        let frame: CGRect
+    }
+
+    /// Queries the Dock's accessibility tree to find what's at the click position.
+    /// Returns the app URL and frame only if it's an AXApplicationDockItem for a running app.
+    private func findClickedRunningApp(at location: CGPoint) -> ClickedAppResult? {
+        // Use cached PID or look it up
+        let pid: pid_t
+        if let cached = dockPid {
+            pid = cached
+        } else if let found = NSRunningApplication.runningApplications(withBundleIdentifier: Constants.dockBundleIdentifier).first?.processIdentifier {
+            dockPid = found
+            pid = found
+        } else {
+            return nil
+        }
+
+        let dockApp = AXUIElementCreateApplication(pid)
+
+        var elementAtPosition: AXUIElement?
+        let result = AXUIElementCopyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
+
+        guard result == .success, let element = elementAtPosition else {
+            // AX query failed - possibly stale PID (Dock restarted). Clear cache so we re-fetch next time.
+            if result != .success {
+                dockPid = nil
+            }
+            return nil
+        }
+
+        // Check if it's an AXApplicationDockItem (subrole)
+        var subroleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+              let subrole = subroleRef as? String,
+              subrole == "AXApplicationDockItem" else {
+            return nil
+        }
+
+        // Get the URL
+        var urlRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &urlRef) == .success,
+              let url = urlRef as? URL else {
+            return nil
+        }
+
+        // Check if the app is running
+        guard let bundleId = Bundle(url: url)?.bundleIdentifier,
+              NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first != nil else {
+            return nil
+        }
+
+        // Get the frame
+        guard let frame = axFrame(of: element) else {
+            return nil
+        }
+
+        return ClickedAppResult(url: url, frame: frame)
+    }
+
+    /// Extracts the AXFrame (position + size) from an accessibility element.
+    private func axFrame(of element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let positionValue, let sizeValue else {
+            return nil
+        }
+
+        var position = CGPoint.zero
+        var size = CGSize.zero
+
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+            return nil
+        }
+
+        return CGRect(origin: position, size: size)
     }
 
     private static let eventCallback: CGEventTapCallBack = { proxy, type, cgEvent, userInfo in
