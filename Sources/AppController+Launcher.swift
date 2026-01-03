@@ -56,9 +56,27 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - Window Selection
 
     func launcherController(_ controller: LauncherController, didSelectWindow window: LauncherWindowItem) {
+        handleWindowSelection(window, activateInPlace: false)
+    }
+
+    /// Handles window selection from Launcher or DockMenu.
+    ///
+    /// - Parameters:
+    ///   - window: The selected window item.
+    ///   - activateInPlace: If true (DockMenus mode), windows already in a zone and not minimized
+    ///     are activated without being moved to the targeted zone.
+    internal func handleWindowSelection(_ window: LauncherWindowItem, activateInPlace: Bool) {
         // First, try to use the managed window if Zonogy already knows about it
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
+
+            // If activateInPlace: if window is already in a zone and not minimized, just activate it
+            if activateInPlace && !managed.isMinimized && managed.zoneIndex != nil {
+                Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
+                activateWindow(managed)
+                return
+            }
+
             // Calculate target zone frame for pre-positioning
             let targetInfo = calculateTargetZoneFrame(for: managed)
 

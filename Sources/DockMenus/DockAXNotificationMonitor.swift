@@ -13,6 +13,9 @@ final class DockAXNotificationMonitor {
 
     var onEvent: ((Event) -> Void)?
 
+    /// Called when the user hovers over a running app's Dock icon, or nil when hover ends.
+    var onAppHover: ((DockMenuHoverEvent?) -> Void)?
+
     /// The Dock's process ID (set when monitoring starts, nil when stopped).
     private(set) var dockPid: pid_t?
 
@@ -129,21 +132,57 @@ final class DockAXNotificationMonitor {
 
             if role == (kAXListRole as String) {
                 listFrame = axFrameAttribute(element: element)
-                let orientation = axStringAttribute(element: element, attribute: kAXOrientationAttribute as CFString) ?? "nil"
-                Logger.debug("DockAXNotificationMonitor: AXList frame=\(listFrame.map { String(describing: $0) } ?? "nil") orientation=\(orientation)")
+                let orientationStr = axStringAttribute(element: element, attribute: kAXOrientationAttribute as CFString) ?? "nil"
+                Logger.debug("DockAXNotificationMonitor: AXList frame=\(listFrame.map { String(describing: $0) } ?? "nil") orientation=\(orientationStr)")
 
-                // Check first selected child for AXApplicationDockItem and log its URL
+                // Check first selected child for AXApplicationDockItem
                 let selectedChildren = axSelectedChildren(of: element)
                 if let firstSelected = selectedChildren.first {
                     let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)
                     if subrole == "AXApplicationDockItem" {
                         let url = axURLAttribute(element: firstSelected, attribute: kAXURLAttribute as CFString)
                         Logger.debug("DockAXNotificationMonitor: selected item is AXApplicationDockItem, URL=\(url?.absoluteString ?? "nil")")
+
+                        // Emit hover event if this is a running app
+                        if let appURL = url,
+                           let listFrame,
+                           let itemFrame = axFrameAttribute(element: firstSelected),
+                           let bundleId = bundleIdentifier(for: appURL),
+                           isAppRunning(bundleIdentifier: bundleId) {
+                            let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
+                            let hoverEvent = DockMenuHoverEvent(
+                                appURL: appURL,
+                                bundleIdentifier: bundleId,
+                                itemFrame: itemFrame,
+                                listFrame: listFrame,
+                                dockOrientation: orientation
+                            )
+                            Logger.debug("DockAXNotificationMonitor: emitting hover event for \(appURL.lastPathComponent)")
+                            onAppHover?(hoverEvent)
+                        } else {
+                            // Not a running app or missing data
+                            onAppHover?(nil)
+                        }
+                    } else {
+                        // Selected item is not an app (e.g., folder, separator)
+                        onAppHover?(nil)
                     }
+                } else {
+                    // No selected children (cursor left Dock)
+                    onAppHover?(nil)
                 }
             }
         }
         onEvent?(Event(notification: notification, listFrame: listFrame))
+    }
+
+    private func bundleIdentifier(for appURL: URL) -> String? {
+        guard let bundle = Bundle(url: appURL) else { return nil }
+        return bundle.bundleIdentifier
+    }
+
+    private func isAppRunning(bundleIdentifier: String) -> Bool {
+        return !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
     }
 
     private func axFrameAttribute(element: AXUIElement) -> CGRect? {

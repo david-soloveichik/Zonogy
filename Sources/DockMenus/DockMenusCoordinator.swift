@@ -5,9 +5,18 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
     /// Called when a running app's Dock icon is clicked (intercepted).
     /// The delegate should perform the default Launcher action for this app.
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL)
+
+    /// Called to get the list of managed windows for an app.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, windowsForBundleId bundleId: String) -> [LauncherWindowItem]
+
+    /// Called when the user selects a window from the DockMenu.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectWindow window: LauncherWindowItem)
+
+    /// Called when the user selects the app header from the DockMenu.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectAppHeader bundleId: String)
 }
 
-/// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception) and isolates feature wiring.
+/// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
 final class DockMenusCoordinator {
     weak var delegate: DockMenusCoordinatorDelegate?
 
@@ -16,6 +25,8 @@ final class DockMenusCoordinator {
     private let debugOverlay: DockDebugBorderOverlayController?
     private let clickInterceptor = DockClickInterceptor()
     private let clickFeedback: DockClickFeedbackOverlay
+    private let hoverTracker = DockHoverTracker()
+    private let panelController = DockMenuPanelController()
 
     init(primaryScreenBounds: CGRect, enableDebugOverlay: Bool) {
         self.primaryScreenBounds = primaryScreenBounds
@@ -26,6 +37,20 @@ final class DockMenusCoordinator {
             self?.debugOverlay?.setListFrame(accessibilityFrame: state.listFrame)
             self?.clickInterceptor.updateFrame(state.listFrame)
         }
+
+        frameMonitor.onAppHover = { [weak self] event in
+            self?.hoverTracker.handleHoverEvent(event)
+        }
+
+        hoverTracker.onStableHover = { [weak self] event in
+            self?.showDockMenu(for: event)
+        }
+
+        hoverTracker.onHoverEnd = { [weak self] in
+            self?.hideDockMenu()
+        }
+
+        panelController.delegate = self
     }
 
     func start() {
@@ -40,17 +65,61 @@ final class DockMenusCoordinator {
         clickInterceptor.stop()
         frameMonitor.stop()
         debugOverlay?.setListFrame(accessibilityFrame: nil)
+        hoverTracker.reset()
+        panelController.hide()
+    }
+
+    // MARK: - Private
+
+    private func showDockMenu(for event: DockMenuHoverEvent) {
+        // Get windows from delegate
+        let windows = delegate?.dockMenusCoordinator(self, windowsForBundleId: event.bundleIdentifier) ?? []
+
+        Logger.debug("DockMenusCoordinator: showing DockMenu for \(event.appURL.lastPathComponent) with \(windows.count) windows")
+        panelController.show(for: event, windows: windows)
+    }
+
+    private func hideDockMenu() {
+        panelController.hide()
     }
 }
 
 extension DockMenusCoordinator: DockClickInterceptorDelegate {
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect) {
         Logger.debug("DockMenusCoordinator: click intercepted on app \(appURL.lastPathComponent)")
+
+        // Hide the DockMenu panel and reset hover state
+        hoverTracker.actionPerformed()
+
         // Start ripple feedback immediately, then dispatch delegate call to let animation begin rendering
         clickFeedback.showRipple(at: itemFrame)
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.delegate?.dockMenusCoordinator(self, didClickDockAppWithURL: appURL)
         }
+    }
+}
+
+// MARK: - DockMenuPanelControllerDelegate
+
+extension DockMenusCoordinator: DockMenuPanelControllerDelegate {
+    func dockMenuPanelController(_ controller: DockMenuPanelController, didSelectWindow window: LauncherWindowItem) {
+        Logger.debug("DockMenusCoordinator: window selected in panel")
+        hoverTracker.actionPerformed()
+        delegate?.dockMenusCoordinator(self, didSelectWindow: window)
+    }
+
+    func dockMenuPanelControllerDidSelectAppHeader(_ controller: DockMenuPanelController, bundleIdentifier: String) {
+        Logger.debug("DockMenusCoordinator: app header selected in panel")
+        hoverTracker.actionPerformed()
+        delegate?.dockMenusCoordinator(self, didSelectAppHeader: bundleIdentifier)
+    }
+
+    func dockMenuPanelControllerCursorExitedPanel(_ controller: DockMenuPanelController) {
+        hoverTracker.cursorExitedPanel()
+    }
+
+    func dockMenuPanelControllerCursorEnteredPanel(_ controller: DockMenuPanelController) {
+        hoverTracker.cursorEnteredPanel()
     }
 }

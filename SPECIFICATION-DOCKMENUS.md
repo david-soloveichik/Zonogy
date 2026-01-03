@@ -64,7 +64,35 @@ DockMenu dismisses when:
 
 ## Implementation Notes
 
-- Prefer event-driven updates over polling: observe `AXSelectedChildrenChanged` on the Dock’s `AXList` to learn when the hovered Dock item changes.
-  - Observed behavior: `AXSelectedChildrenChanged` fires both when the mouse begins hovering a Dock item and when it stops hovering a Dock item.
-- The hovered Dock app is identified via receipt of `AXSelectedChildrenChanged` notification from the Dock, from which we can extract the URL to the app.
-- Click interception is expected to be implemented via a global event tap. Intercept only the minimal set of events needed, and only while the cursor is over a Dock app. It is imperative that the code be as efficient as possible!
+### Hover Detection
+
+- Observe `AXSelectedChildrenChanged` on the Dock's `AXList` to detect hover events.
+  - Fires when mouse begins hovering a Dock item and when it stops.
+- Extract app URL from the `AXApplicationDockItem`'s `kAXURLAttribute`.
+- Check if app is running before showing DockMenu.
+- Determine Dock orientation via `kAXOrientationAttribute` on the AXList.
+
+### Debouncing
+
+- **Show delay:** 120ms after hover starts on a running app.
+- **Hide grace period:** 200ms after cursor leaves Dock/panel area.
+- Grace period allows cursor to move from Dock icon into the DockMenu panel.
+- Cancel pending show if cursor moves to different app before delay completes.
+
+### Panel Positioning
+
+- Convert accessibility coordinates (y:0 at top) to Cocoa coordinates (y:0 at bottom).
+- Panel positioned with 8pt gap from Dock icon.
+- Clamp to screen visible bounds.
+
+### Click Interception
+
+- Global event tap intercepts left-mouse-down events within Dock AXList frame.
+- Validates click is on a running app (AXApplicationDockItem subrole).
+- Respects Shift modifier (bypass) and Control (context menu).
+
+### Window Selection Semantics
+
+DockMenu differs from Launcher in how window selection works:
+- **In-zone windows:** Activated in place without moving to targeted zone.
+- **Minimized windows:** Unminimized into the currently targeted zone.

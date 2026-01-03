@@ -11,6 +11,9 @@ final class DockFrameMonitor {
 
     var onStateChange: ((State) -> Void)?
 
+    /// Called when cursor hovers over a running app's Dock icon (or nil when hover ends).
+    var onAppHover: ((DockMenuHoverEvent?) -> Void)?
+
     private var lastState: State?
     private var axNotificationMonitor: DockAXNotificationMonitor?
 
@@ -24,6 +27,9 @@ final class DockFrameMonitor {
         let monitor = DockAXNotificationMonitor()
         monitor.onEvent = { [weak self] event in
             self?.handleDockEvent(event)
+        }
+        monitor.onAppHover = { [weak self] event in
+            self?.onAppHover?(event)
         }
         axNotificationMonitor = monitor
         monitor.start()

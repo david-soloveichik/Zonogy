@@ -1,3 +1,5 @@
+import AppKit
+import ApplicationServices
 import Foundation
 
 /// DockMenus feature wiring and lifecycle management.
@@ -62,5 +64,24 @@ extension AppController: DockMenusCoordinatorDelegate {
         // DockMenus uses activateInPlace:true - windows already in a zone are activated
         // without being moved to the targeted zone (unlike the Launcher)
         performDefaultLauncherAction(for: appURL, activateInPlace: true)
+    }
+
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, windowsForBundleId bundleId: String) -> [LauncherWindowItem] {
+        // Reuse the existing LauncherWindowProvider implementation
+        return windowsForApp(bundleIdentifier: bundleId)
+    }
+
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectWindow window: LauncherWindowItem) {
+        Logger.debug("DockMenus: window selected \(window.title)")
+        // Reuse Launcher's window selection with activateInPlace semantics
+        handleWindowSelection(window, activateInPlace: true)
+    }
+
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectAppHeader bundleId: String) {
+        Logger.debug("DockMenus: app header selected for \(bundleId)")
+        // Activate the app without targeting a specific window
+        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+            app.activate(options: [.activateIgnoringOtherApps])
+        }
     }
 }
