@@ -34,8 +34,14 @@ final class DockMenusCoordinator {
         self.clickFeedback = DockClickFeedbackOverlay(primaryScreenBounds: primaryScreenBounds)
 
         frameMonitor.onStateChange = { [weak self] state in
-            self?.debugOverlay?.setListFrame(accessibilityFrame: state.listFrame)
+            // Debug overlay only shows when Dock is visible
+            self?.debugOverlay?.setListFrame(accessibilityFrame: state.isVisible ? state.listFrame : nil)
             self?.clickInterceptor.updateFrame(state.listFrame)
+            self?.clickInterceptor.updateVisibility(state.isVisible)
+        }
+
+        clickInterceptor.onDockNotFound = { [weak self] in
+            self?.frameMonitor.markDockHidden()
         }
 
         frameMonitor.onAppHover = { [weak self] event in

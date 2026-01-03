@@ -87,6 +87,15 @@ DockMenu dismisses when:
 - **Vertical Dock (left/right):** Panel vertically aligned so that moving the mouse horizontally from the Dock icon (without vertical movement) places the cursor over the first window in the window list. If the app has no windows, aligns to the app header instead.
 - Clamp to screen visible bounds.
 
+### Dock Visibility Tracking
+
+- Track Dock visibility as a boolean alongside the Dock frame.
+- The frame represents where the Dock is when visible (persists even with autohide).
+- **Visible**: Set when `AXSelectedChildrenChanged` notification fires.
+- **Hidden**: Set when click handler clicks in the Dock frame but finds no Dock element.
+- Click interception fast-exits when Dock is considered hidden.
+- Debug overlay only shows when Dock is considered visible.
+
 ### Click Interception
 
 - Global event tap intercepts left-mouse-down events within Dock AXList frame.

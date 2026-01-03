@@ -7,6 +7,8 @@ final class DockFrameMonitor {
     struct State: Equatable {
         /// The AXFrame of the Dock's AXList element when AXSelectedChildrenChanged fires.
         var listFrame: CGRect?
+        /// Whether the Dock is considered visible (vs hidden due to autohide).
+        var isVisible: Bool = false
     }
 
     var onStateChange: ((State) -> Void)?
@@ -41,6 +43,21 @@ final class DockFrameMonitor {
         lastState = nil
     }
 
+    /// Called by the click interceptor when it clicks in the Dock frame but finds no Dock element.
+    /// This indicates the Dock is hidden (autohide).
+    func markDockHidden() {
+        guard lastState?.isVisible == true else { return }
+
+        Logger.debug("DockFrameMonitor: Dock visibility changed to hidden")
+        var next = lastState ?? State()
+        next.isVisible = false
+        lastState = next
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onStateChange?(next)
+        }
+    }
+
     private func handleDockEvent(_ event: DockAXNotificationMonitor.Event) {
         Logger.debug("DockFrameMonitor: received event notification=\(event.notification) listFrame=\(event.listFrame.map { String(describing: $0) } ?? "nil")")
 
@@ -61,7 +78,8 @@ final class DockFrameMonitor {
                 effectiveFrame = nil
             }
 
-            let next = State(listFrame: effectiveFrame)
+            let wasVisible = lastState?.isVisible ?? false
+            let next = State(listFrame: effectiveFrame, isVisible: true)
 
             guard next != lastState else {
                 Logger.debug("DockFrameMonitor: state unchanged, skipping")
@@ -69,6 +87,9 @@ final class DockFrameMonitor {
             }
             lastState = next
 
+            if !wasVisible {
+                Logger.debug("DockFrameMonitor: Dock visibility changed to visible")
+            }
             Logger.debug("DockFrameMonitor: state changed, dispatching frame=\(next.listFrame.map { String(describing: $0) } ?? "nil")")
 
             DispatchQueue.main.async { [weak self] in

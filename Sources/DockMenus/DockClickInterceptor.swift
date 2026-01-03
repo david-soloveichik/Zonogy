@@ -25,8 +25,14 @@ final class DockClickInterceptor {
 
     weak var delegate: DockClickInterceptorDelegate?
 
+    /// Called when a click occurs in the Dock frame but no Dock element is found (Dock is hidden).
+    var onDockNotFound: (() -> Void)?
+
     /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary screen).
     private var interceptFrame: CGRect?
+
+    /// Whether the Dock is currently considered visible.
+    private var isDockVisible = false
 
     /// Cached Dock PID for accessibility queries.
     private var dockPid: pid_t?
@@ -36,6 +42,10 @@ final class DockClickInterceptor {
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
+    }
+
+    func updateVisibility(_ visible: Bool) {
+        isDockVisible = visible
     }
 
     /// Updates the Dock PID used for accessibility queries.
@@ -96,6 +106,11 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
+        // Fast exit: Dock is hidden (autohide)
+        guard isDockVisible else {
+            return Unmanaged.passUnretained(event)
+        }
+
         // Fast exit: no frame to intercept
         guard let frame = interceptFrame else {
             return Unmanaged.passUnretained(event)
@@ -152,10 +167,12 @@ final class DockClickInterceptor {
         let result = AXUIElementCopyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
 
         guard result == .success, let element = elementAtPosition else {
-            // AX query failed - possibly stale PID (Dock restarted). Clear cache so we re-fetch next time.
+            // AX query failed - Dock is hidden (autohide) or stale PID.
             if result != .success {
                 dockPid = nil
             }
+            // Notify that no Dock element was found at this position
+            onDockNotFound?()
             return nil
         }
 
