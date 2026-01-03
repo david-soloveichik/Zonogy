@@ -5,6 +5,8 @@ final class GeneralPreferencesViewController: NSViewController {
 
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
+    private var autoShowLauncherCheckbox: NSButton?
+    private var autoShowLauncherHintLabel: NSTextField?
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
@@ -27,6 +29,18 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(dockMenusHintLabel)
         self.dockMenusHintLabel = dockMenusHintLabel
 
+        let autoShowLauncherCheckbox = NSButton(checkboxWithTitle: "Automatically show Launcher for empty tiling zones", target: self, action: #selector(autoShowLauncherToggled(_:)))
+        autoShowLauncherCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(autoShowLauncherCheckbox)
+        self.autoShowLauncherCheckbox = autoShowLauncherCheckbox
+
+        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, Zonogy can open the Launcher automatically.")
+        autoShowLauncherHintLabel.font = NSFont.systemFont(ofSize: 12)
+        autoShowLauncherHintLabel.textColor = .secondaryLabelColor
+        autoShowLauncherHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(autoShowLauncherHintLabel)
+        self.autoShowLauncherHintLabel = autoShowLauncherHintLabel
+
         // Version info
         let versionLabel = NSTextField(labelWithString: "Zonogy Window Manager")
         versionLabel.font = NSFont.systemFont(ofSize: 11)
@@ -45,12 +59,20 @@ final class GeneralPreferencesViewController: NSViewController {
             dockMenusHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
+            autoShowLauncherCheckbox.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
+            autoShowLauncherCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            autoShowLauncherHintLabel.topAnchor.constraint(equalTo: autoShowLauncherCheckbox.bottomAnchor, constant: 6),
+            autoShowLauncherHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            autoShowLauncherHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
             versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
         syncDockMenusCheckbox()
+        syncAutoShowLauncherCheckbox()
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {
@@ -62,5 +84,16 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncDockMenusCheckbox() {
         let enabled = AppController.shared.isDockMenusEnabledInSettings
         dockMenusCheckbox?.state = enabled ? .on : .off
+    }
+
+    @objc private func autoShowLauncherToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setAutoShowLauncherForEmptyTilingZonesEnabledFromSettings(enabled)
+        syncAutoShowLauncherCheckbox()
+    }
+
+    private func syncAutoShowLauncherCheckbox() {
+        let enabled = AppController.shared.isAutoShowLauncherForEmptyTilingZonesEnabledInSettings
+        autoShowLauncherCheckbox?.state = enabled ? .on : .off
     }
 }

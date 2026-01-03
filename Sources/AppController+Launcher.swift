@@ -40,8 +40,10 @@ extension AppController {
     /// - A tiled zone becomes empty (window closed, minimized, or moved away)
     /// - After a zone is added
     /// - After clear/reset zones shortcut empties zones
+    /// - Only when the "Auto-show Launcher for empty tiling zones" preference is enabled
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
-        guard !launcherController.isActive,
+        guard autoShowLauncherForEmptyTilingZonesEnabled,
+              !launcherController.isActive,
               let targetedKey = targetedZoneKey,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
             return
