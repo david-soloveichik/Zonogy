@@ -35,12 +35,13 @@ AltTab MUST override the system app switcher for its configured shortcut. This r
 
 - **Window activation:** Releasing the modifier key activates the currently selected window
 - Activation follows the same rules and code path as the Launcher (respecting targeted zone placement, minimized window handling, etc.)
-- While AltTab is visible, clicking a window row activates that window immediately
+- While AltTab is visible, clicking a window row activates that window immediately and dismisses AltTab (even if modifiers are still held)
 
 ## Dismissal
 
 - **Activate:** Releasing the modifier key dismisses AltTab and activates the selected window
 - **Cancel:** Pressing Escape dismisses AltTab without activating any window (even if the modifier key is still held)
+- **Cancel:** Clicking outside the AltTab window dismisses AltTab without activating any window
 
 ## Settings
 

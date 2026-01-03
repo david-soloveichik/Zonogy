@@ -33,10 +33,6 @@ struct AltTabView: View {
                                         onClick: {
                                             model.selectedIndex = index
                                             onActivateSelected()
-                                        },
-                                        onMouseMove: {
-                                            guard model.selectedIndex != index else { return }
-                                            model.selectedIndex = index
                                         }
                                     )
                                 )

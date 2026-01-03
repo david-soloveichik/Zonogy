@@ -94,6 +94,11 @@ final class AltTabKeyInterceptor {
         engagedShortcut = nil
     }
 
+    func resetEngagement() {
+        isEngaged = false
+        engagedShortcut = nil
+    }
+
     private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByUserInput, .tapDisabledByTimeout:
@@ -275,4 +280,3 @@ final class AltTabKeyInterceptor {
         stop()
     }
 }
-

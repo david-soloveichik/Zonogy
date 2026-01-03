@@ -13,6 +13,7 @@ extension AppController: AltTabControllerDelegate {
 
     func altTabControllerDidDismiss(_ controller: AltTabController) {
         Logger.debug("AltTab: Dismissed")
+        altTabKeyInterceptor.resetEngagement()
     }
 
     // MARK: - All Managed Windows Provider
