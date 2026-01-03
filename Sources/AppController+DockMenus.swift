@@ -46,7 +46,7 @@ extension AppController {
 
         return DockMenusConfiguration(
             enabled: preferences.enabled,
-            debugDockFrameOverlay: preferences.enabled
+            debugDockFrameOverlay: nil
         )
     }
 
