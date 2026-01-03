@@ -187,6 +187,12 @@ extension AppController {
             return false
         }
 
+        // AltTab: while the AltTab overlay is visible, disable Control-Command click targeting
+        // to avoid conflicts with AltTab interactions.
+        if altTabController.isActive {
+            return false
+        }
+
         guard let key = zoneKey(containingScreenPoint: location) else {
             return false
         }

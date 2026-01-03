@@ -35,7 +35,10 @@ AltTab MUST override the system app switcher for its configured shortcut. This r
 
 - **Window activation:** Releasing the modifier key activates the currently selected window
 - Activation follows the same rules and code path as the Launcher (respecting targeted zone placement, minimized window handling, etc.)
-- While AltTab is visible, clicking a window row activates that window immediately and dismisses AltTab (even if modifiers are still held)
+- While AltTab is visible, clicking a window row activates that window immediately and dismisses AltTab (even if modifiers are still held).
+  Note: There is potential conflict with the "Control-Command-Click" gesture that targets zones (it is globally intercepted and consumed). So while AltTab is visible, we disable the "Control-Command-Click" targeting gesture so:
+  - Row clicks can activate as expected
+  - Outside clicks can dismiss AltTab as expected
 
 ## Dismissal
 
