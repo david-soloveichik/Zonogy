@@ -283,6 +283,10 @@ For the application launcher and window switcher feature (Control-Command-Enter)
 
 For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATION-DOCKMENUS.md](SPECIFICATION-DOCKMENUS.md)**.
 
+## AltTab
+
+For the AltTab window switcher feature, see **[SPECIFICATION-ALTTAB.md](SPECIFICATION-ALTTAB.md)**.
+
 ## Developer Tools
 
 ### REPL and Socket API
