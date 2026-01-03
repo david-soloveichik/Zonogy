@@ -58,7 +58,7 @@ final class HotkeyService {
     private let hotKeySignature: OSType = 0x4C415454 // 'LATT'
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyEventHandler: EventHandlerRef?
-    private var isSuspended = false
+    private(set) var isSuspended = false
 
     func start(delegate: HotkeyServiceDelegate) {
         self.delegate = delegate

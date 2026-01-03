@@ -222,9 +222,6 @@ extension WindowController {
         window.becomesKeyOnlyIfNeeded = false
         window.styleMask.insert(.fullSizeContentView)
         window.isReleasedWhenClosed = false
-        // AltTab filters out any window whose CoreGraphics level is not `CGWindowLevelForKey(.normalWindow)`. 
-        // We don't want it show our placeholder windows, so we may want to use: window.level = .floating
-        // But then placeholder windows always appear over other windows, which we don't want
         window.level = .normal
         window.backgroundColor = .clear
         window.isOpaque = false

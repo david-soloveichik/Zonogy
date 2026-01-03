@@ -38,6 +38,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let dragDropCoordinator = DragDropCoordinator()
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()
+    internal let altTabKeyInterceptor = AltTabKeyInterceptor()
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
@@ -83,6 +84,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }()
     internal lazy var launcherController: LauncherController = {
         let controller = LauncherController()
+        controller.delegate = self
+        return controller
+    }()
+    internal lazy var altTabController: AltTabController = {
+        let controller = AltTabController()
         controller.delegate = self
         return controller
     }()
@@ -231,6 +237,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
         zoneClickInterceptor.start(delegate: self)
+        altTabKeyInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
