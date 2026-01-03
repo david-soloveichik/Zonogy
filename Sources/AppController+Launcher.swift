@@ -110,10 +110,23 @@ extension AppController: LauncherControllerDelegate {
     /// - If the app is not running or has no managed windows: launches/activates the app.
     ///
     /// This is the shared code path used by both Launcher and DockMenus click interception.
-    internal func performDefaultLauncherAction(for url: URL) {
+    ///
+    /// - Parameter activateInPlace: If true, windows already in a zone (not minimized) are activated
+    ///   without being moved to the targeted zone. Used by DockMenus which doesn't support "moving"
+    ///   windows between zones like the Launcher does.
+    internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false) {
         // Check if app is already running - select the preferred window
         if let bundleId = Bundle(url: url)?.bundleIdentifier,
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
+
+            // If activateInPlace: if window is already in a zone and not minimized,
+            // just activate it without moving
+            if activateInPlace && !preferredWindow.isMinimized && isWindowInZone(preferredWindow) {
+                Logger.debug("Launcher: window \(preferredWindow.windowId) already in zone, activating in place")
+                activateWindow(preferredWindow)
+                return
+            }
+
             // Calculate target zone frame for pre-positioning
             let targetInfo = calculateTargetZoneFrame(for: preferredWindow)
 
@@ -143,6 +156,14 @@ extension AppController: LauncherControllerDelegate {
                 Logger.debug("Launcher: Launched \(app.localizedName ?? url.lastPathComponent)")
             }
         }
+    }
+
+    /// Returns true if the window is currently assigned to a tiling zone or temporary zone.
+    private func isWindowInZone(_ window: ManagedWindow) -> Bool {
+        if window.zoneIndex != nil {
+            return true
+        }
+        return isWindowInTemporaryZone(window.windowId)
     }
 
     /// Returns the preferred window for a running app based on configuration:

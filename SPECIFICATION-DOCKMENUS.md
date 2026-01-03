@@ -4,6 +4,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 
 - **Hover:** When the mouse moves over an application icon in the macOS Dock, show a DockMenu: a miniature Launcher UI (ie similar to our Launcher feature) pre-filtered (“drilled down”) to that application. Unlike the full Launcher, there is no keyboard navigation, no search field, and no possibility of “drill out” navigation.
 - **Click interception:** Clicking an application icon in the Dock (without Shift) does not activate the real Dock item; instead Zonogy performs the same default action as selecting that application in the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). In particular, it obeys `hasMainWindow` selection rules.
+  - **Exception**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
 - **Bypass:** **Shift-click** on a Dock application behaves exactly like a normal Dock click (Zonogy does not intercept).
 - For apps that are not running, we don't show the DockMenus, nor do we do click interceptions.
 
