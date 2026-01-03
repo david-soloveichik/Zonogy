@@ -90,7 +90,7 @@ DockMenu dismisses when:
 ### Dock Visibility Tracking
 
 - Track Dock visibility as a boolean alongside the Dock frame.
-- The frame represents where the Dock is when visible (persists even with autohide).
+- The frame represents the last Dock AXList frame that is fully within the primary screen bounds; during autohide animation (off/partially off-screen), keep using the cached in-bounds frame.
 - **Visible**: Set when `AXSelectedChildrenChanged` notification fires.
 - **Hidden**: Set when click handler clicks in the Dock frame but finds no Dock element.
 - Click interception fast-exits when Dock is considered hidden.

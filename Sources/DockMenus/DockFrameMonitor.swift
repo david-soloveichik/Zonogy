@@ -19,8 +19,8 @@ final class DockFrameMonitor {
     private var lastState: State?
     private var axNotificationMonitor: DockAXNotificationMonitor?
 
-    /// Cached frame from when the Dock was visible (non-negative x).
-    /// Used to handle autohide animation where Dock reports hidden position before animation completes.
+    /// Cached frame from when the Dock was fully within the primary screen bounds.
+    /// Used to handle autohide animation where the Dock reports an off-screen (or partially off-screen) frame.
     private var cachedVisibleFrame: CGRect?
 
     /// The stable Dock frame (where the Dock is when fully visible).
@@ -71,13 +71,13 @@ final class DockFrameMonitor {
             // Determine the effective frame, handling Dock autohide animation
             let effectiveFrame: CGRect?
             if let frame = event.listFrame {
-                if frame.origin.x >= 0 {
-                    // Dock is visible - cache this frame
+                if isFrameWithinPrimaryScreenBounds(frame) {
+                    // Dock is fully within the primary screen - cache this frame
                     cachedVisibleFrame = frame
                     effectiveFrame = frame
                 } else {
-                    // Dock reports hidden position (negative x) - use cached visible frame if available
-                    Logger.debug("DockFrameMonitor: negative x detected, using cached frame=\(cachedVisibleFrame.map { String(describing: $0) } ?? "nil")")
+                    // Dock reports an off-screen (or partially off-screen) frame during autohide animation - use cached visible frame if available
+                    Logger.debug("DockFrameMonitor: off-screen frame detected, using cached frame=\(cachedVisibleFrame.map { String(describing: $0) } ?? "nil")")
                     effectiveFrame = cachedVisibleFrame ?? frame
                 }
             } else {
@@ -102,5 +102,24 @@ final class DockFrameMonitor {
                 self?.onStateChange?(next)
             }
         }
+    }
+
+    private func isFrameWithinPrimaryScreenBounds(_ frame: CGRect) -> Bool {
+        guard let primaryScreen = NSScreen.screens.first(where: { $0.frame.origin == .zero })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first else {
+            // Fall back to the previous heuristic if we can't determine screen bounds.
+            return frame.origin.x >= 0
+        }
+
+        let primaryBoundsCocoa = primaryScreen.frame
+        let primaryBoundsAccessibility = CoordinateConversion.cocoaToAccessibility(
+            cocoaFrame: primaryBoundsCocoa,
+            primaryScreenBounds: primaryBoundsCocoa
+        )
+
+        // Allow a small tolerance for rounding during animations.
+        let tolerance: CGFloat = 2
+        return primaryBoundsAccessibility.insetBy(dx: -tolerance, dy: -tolerance).contains(frame)
     }
 }
