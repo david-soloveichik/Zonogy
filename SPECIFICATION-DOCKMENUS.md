@@ -83,6 +83,8 @@ DockMenu dismisses when:
 
 - Convert accessibility coordinates (y:0 at top) to Cocoa coordinates (y:0 at bottom).
 - Panel positioned with 8pt gap from Dock icon.
+- **Horizontal Dock (bottom):** Panel centered horizontally on the Dock icon.
+- **Vertical Dock (left/right):** Panel vertically aligned so that moving the mouse horizontally from the Dock icon (without vertical movement) places the cursor over the first window in the window list. If the app has no windows, aligns to the app header instead.
 - Clamp to screen visible bounds.
 
 ### Click Interception

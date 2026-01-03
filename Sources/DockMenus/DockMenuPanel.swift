@@ -74,10 +74,12 @@ final class DockMenuPanel: NSPanel {
     ///   - itemFrame: Accessibility frame of the Dock item (screen coordinates, y:0 at top).
     ///   - orientation: Dock orientation (horizontal for bottom, vertical for left/right).
     ///   - screenBounds: The visible screen bounds in Cocoa coordinates.
+    ///   - hasWindows: Whether the app has any windows (affects vertical alignment).
     func positionAdjacentTo(
         itemFrame: CGRect,
         orientation: DockOrientation,
-        screenBounds: NSRect
+        screenBounds: NSRect,
+        hasWindows: Bool
     ) {
         let panelSize = frame.size
         let gap: CGFloat = 8
@@ -110,7 +112,16 @@ final class DockMenuPanel: NSPanel {
                 // Dock on right: panel to left of icon
                 x = cocoaItemFrame.minX - panelSize.width - gap
             }
-            y = cocoaItemFrame.midY - panelSize.height / 2
+            // Position so target row aligns with Dock icon center.
+            let targetOffsetFromTop: CGFloat
+            if hasWindows {
+                // First window row: top padding (6) + header (40) + scroll padding (2) + half row (16) = 64pt
+                targetOffsetFromTop = 64
+            } else {
+                // App header center: top padding (6) + half header (20) = 26pt
+                targetOffsetFromTop = 26
+            }
+            y = cocoaItemFrame.midY - panelSize.height + targetOffsetFromTop
         }
 
         // Clamp to screen bounds

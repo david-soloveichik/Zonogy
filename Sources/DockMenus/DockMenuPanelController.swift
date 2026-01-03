@@ -92,7 +92,8 @@ final class DockMenuPanelController: NSObject {
         panel.positionAdjacentTo(
             itemFrame: event.itemFrame,
             orientation: event.dockOrientation,
-            screenBounds: screenBounds
+            screenBounds: screenBounds,
+            hasWindows: !windows.isEmpty
         )
 
         // Set up mouse tracking for panel
