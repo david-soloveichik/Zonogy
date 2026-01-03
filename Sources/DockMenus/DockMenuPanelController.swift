@@ -18,7 +18,8 @@ final class DockMenuPanelController: NSObject {
     private var panel: DockMenuPanel?
     private var hostingView: NSHostingView<DockMenuView>?
     private var viewModel: DockMenuViewModel?
-    private var trackingArea: NSTrackingArea?
+    private var mouseMonitor: Any?
+    private var cursorInsidePanel: Bool = false
     private var currentBundleIdentifier: String?
 
     /// Whether the panel is currently visible.
@@ -95,7 +96,7 @@ final class DockMenuPanelController: NSObject {
         )
 
         // Set up mouse tracking for panel
-        setupMouseTracking(for: panel)
+        setupMouseTracking()
 
         // Show panel with fade-in
         panel.alphaValue = 0
@@ -143,41 +144,43 @@ final class DockMenuPanelController: NSObject {
         return min(contentHeight, maxHeight)
     }
 
-    private func setupMouseTracking(for panel: NSPanel) {
-        guard let hostingView else { return }
-
+    private func setupMouseTracking() {
         removeMouseTracking()
 
-        // Add tracking area to the hostingView (not contentView) because SwiftUI's
-        // NSHostingView handles mouse events internally and would block tracking on parent views.
-        let trackingArea = NSTrackingArea(
-            rect: hostingView.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        hostingView.addTrackingArea(trackingArea)
-        self.trackingArea = trackingArea
+        // Use a local event monitor instead of NSTrackingArea because SwiftUI's
+        // NSHostingView intercepts tracking area events internally.
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+            self?.handleMouseMoved()
+            return event
+        }
+
+        // Check initial cursor position
+        handleMouseMoved()
     }
 
     private func removeMouseTracking() {
-        if let trackingArea, let hostingView {
-            hostingView.removeTrackingArea(trackingArea)
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
         }
-        trackingArea = nil
-    }
-}
-
-// MARK: - Mouse Tracking
-
-extension DockMenuPanelController {
-    @objc func mouseEntered(with event: NSEvent) {
-        Logger.debug("DockMenuPanelController: cursor entered panel")
-        delegate?.dockMenuPanelControllerCursorEnteredPanel(self)
+        mouseMonitor = nil
+        cursorInsidePanel = false
     }
 
-    @objc func mouseExited(with event: NSEvent) {
-        Logger.debug("DockMenuPanelController: cursor exited panel")
-        delegate?.dockMenuPanelControllerCursorExitedPanel(self)
+    private func handleMouseMoved() {
+        guard let panel, panel.isVisible else { return }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let isInside = panel.frame.contains(mouseLocation)
+
+        if isInside != cursorInsidePanel {
+            cursorInsidePanel = isInside
+            if isInside {
+                Logger.debug("DockMenuPanelController: cursor entered panel")
+                delegate?.dockMenuPanelControllerCursorEnteredPanel(self)
+            } else {
+                Logger.debug("DockMenuPanelController: cursor exited panel")
+                delegate?.dockMenuPanelControllerCursorExitedPanel(self)
+            }
+        }
     }
 }
