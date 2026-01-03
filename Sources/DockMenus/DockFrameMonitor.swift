@@ -23,6 +23,12 @@ final class DockFrameMonitor {
     /// Used to handle autohide animation where Dock reports hidden position before animation completes.
     private var cachedVisibleFrame: CGRect?
 
+    /// The stable Dock frame (where the Dock is when fully visible).
+    /// Use this for positioning UI elements relative to the Dock during animations.
+    var stableDockFrame: CGRect? {
+        cachedVisibleFrame
+    }
+
     func start() {
         guard axNotificationMonitor == nil else { return }
 

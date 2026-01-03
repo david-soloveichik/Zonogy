@@ -81,8 +81,11 @@ final class DockMenusCoordinator {
         // Get windows from delegate
         let windows = delegate?.dockMenusCoordinator(self, windowsForBundleId: event.bundleIdentifier) ?? []
 
+        // Use stable Dock frame for positioning (handles autohide animation)
+        let stableDockFrame = frameMonitor.stableDockFrame ?? event.listFrame
+
         Logger.debug("DockMenusCoordinator: showing DockMenu for \(event.appURL.lastPathComponent) with \(windows.count) windows")
-        panelController.show(for: event, windows: windows)
+        panelController.show(for: event, windows: windows, stableDockFrame: stableDockFrame)
     }
 
     private func hideDockMenu() {

@@ -28,7 +28,11 @@ final class DockMenuPanelController: NSObject {
     }
 
     /// Show the DockMenu panel for the given hover event.
-    func show(for event: DockMenuHoverEvent, windows: [LauncherWindowItem]) {
+    /// - Parameters:
+    ///   - event: The hover event containing item and list frames.
+    ///   - windows: The app's managed windows to display.
+    ///   - stableDockFrame: The stable Dock frame (where the Dock is when fully visible).
+    func show(for event: DockMenuHoverEvent, windows: [LauncherWindowItem], stableDockFrame: CGRect) {
         Logger.debug("DockMenuPanelController: show for \(event.appURL.lastPathComponent) with \(windows.count) windows")
 
         currentBundleIdentifier = event.bundleIdentifier
@@ -91,6 +95,7 @@ final class DockMenuPanelController: NSObject {
         let screenBounds = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         panel.positionAdjacentTo(
             itemFrame: event.itemFrame,
+            dockFrame: stableDockFrame,
             orientation: event.dockOrientation,
             screenBounds: screenBounds,
             hasWindows: !windows.isEmpty
