@@ -289,12 +289,6 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             return
         }
 
-        // Check for Escape to cancel
-        if event.keyCode == UInt16(kVK_Escape) {
-            stopRecording()
-            return
-        }
-
         // Get modifiers - convert from Cocoa to Carbon
         var carbonModifiers: UInt32 = 0
         let flags = event.modifierFlags
@@ -303,6 +297,13 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         if flags.contains(.control) { carbonModifiers |= UInt32(controlKey) }
         if flags.contains(.option) { carbonModifiers |= UInt32(optionKey) }
         if flags.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
+
+        // Check for Escape to cancel (only if no modifiers are held)
+        // This allows modifier+Escape shortcuts like ⌘⎋ to be recorded
+        if event.keyCode == UInt16(kVK_Escape) && carbonModifiers == 0 {
+            stopRecording()
+            return
+        }
 
         // Require at least one modifier (except for function keys)
         let functionKeyCodes: Set<Int> = [
