@@ -13,7 +13,8 @@ final class DockAXNotificationMonitor {
 
     var onEvent: ((Event) -> Void)?
 
-    /// Called when the user hovers over a running app's Dock icon, or nil when hover ends.
+    /// Called when hover changes: a running app's Dock icon (event), a non-running app or non-app item (nil).
+    /// Note: There is no reliable "cursor left Dock" signal from AX notifications. See SPECIFICATION-DOCKMENUS.md.
     var onAppHover: ((DockMenuHoverEvent?) -> Void)?
 
     /// The Dock's process ID (set when monitoring starts, nil when stopped).
@@ -138,9 +139,9 @@ final class DockAXNotificationMonitor {
                 // Check first selected child for AXApplicationDockItem
                 let selectedChildren = axSelectedChildren(of: element)
                 guard let firstSelected = selectedChildren.first else {
-                    // No selected children - nothing to do.
-                    // Note: AXSelectedChildrenChanged with empty selectedChildren can fire
-                    // even when user is not interacting with the Dock.
+                    // No selected children - this does NOT reliably indicate cursor left the Dock.
+                    // AXSelectedChildrenChanged with empty selection fires at unpredictable times.
+                    // Panel dismissal must rely on mouse tracking, not this signal.
                     return
                 }
                 let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)

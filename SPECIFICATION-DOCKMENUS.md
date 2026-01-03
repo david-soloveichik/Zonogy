@@ -67,7 +67,8 @@ DockMenu dismisses when:
 ### Hover Detection
 
 - Observe `AXSelectedChildrenChanged` on the Dock's `AXList` to detect hover events.
-  - Fires when mouse begins hovering a Dock item and when it stops.
+  - Fires when mouse begins hovering a Dock item or changes to a different item.
+  - **Does not reliably fire when cursor leaves the Dock.** See "Accessibility API Workarounds" below.
 - Extract app URL from the `AXApplicationDockItem`'s `kAXURLAttribute`.
 - Check if app is running before showing DockMenu.
 - Determine Dock orientation via `kAXOrientationAttribute` on the AXList.
@@ -107,3 +108,24 @@ DockMenu dismisses when:
 DockMenu differs from Launcher in how window selection works:
 - **In-zone windows:** Activated in place without moving to targeted zone.
 - **Minimized windows:** Unminimized into the currently targeted zone.
+
+## Accessibility API Workarounds
+
+### AXSelectedChildrenChanged Does Not Signal Cursor Exit
+
+The Dock's `AXSelectedChildrenChanged` notification fires when:
+- Cursor begins hovering a Dock item (selectedChildren contains that item)
+- Cursor moves to a different Dock item (selectedChildren changes to new item)
+
+However, **when the cursor leaves the Dock entirely**, `AXSelectedChildrenChanged` may fire with the **same selectedChildren as before** (the last hovered item), not an empty selection. Additionally, `AXSelectedChildrenChanged` with empty selection can fire at unpredictable times unrelated to user interaction.
+
+**Consequence:** We cannot rely on AX notifications to detect when the cursor leaves the Dock. DockMenu dismissal must be driven by cursor-in-region checks (Dock ∪ panel), not by AX hover-end.
+
+### Cursor Region Polling
+
+Because the Dock may prevent Zonogy from receiving reliable mouse enter/exit events, dismissal uses a lightweight polling timer while the panel is visible:
+
+- Polls cursor position at ~50ms intervals (using common run loop modes)
+- Treats the DockMenu as "safe" while the cursor is in the DockMenu panel, or in the Dock frame while hovering a running app item
+- When the cursor remains outside the safe region for 200ms, hides the panel
+- Prevents late-show flicker by skipping a debounced show if the cursor is no longer in the Dock when the show fires

@@ -7,8 +7,6 @@ import SwiftUI
 protocol DockMenuPanelControllerDelegate: AnyObject {
     func dockMenuPanelController(_ controller: DockMenuPanelController, didSelectWindow window: LauncherWindowItem)
     func dockMenuPanelControllerDidSelectAppHeader(_ controller: DockMenuPanelController, bundleIdentifier: String)
-    func dockMenuPanelControllerCursorExitedPanel(_ controller: DockMenuPanelController)
-    func dockMenuPanelControllerCursorEnteredPanel(_ controller: DockMenuPanelController)
 }
 
 /// Controls the DockMenu floating panel display and interaction.
@@ -18,13 +16,17 @@ final class DockMenuPanelController: NSObject {
     private var panel: DockMenuPanel?
     private var hostingView: NSHostingView<DockMenuView>?
     private var viewModel: DockMenuViewModel?
-    private var mouseMonitor: Any?
-    private var cursorInsidePanel: Bool = false
     private var currentBundleIdentifier: String?
 
     /// Whether the panel is currently visible.
     var isVisible: Bool {
         panel?.isVisible ?? false
+    }
+
+    /// The panel's frame in Cocoa coordinates, or nil if not visible.
+    var panelFrame: CGRect? {
+        guard let panel, panel.isVisible else { return nil }
+        return panel.frame
     }
 
     /// Show the DockMenu panel for the given hover event.
@@ -75,7 +77,6 @@ final class DockMenuPanelController: NSObject {
         if let visualEffectView = panel.visualEffectView {
             // Remove old hosting view
             self.hostingView?.removeFromSuperview()
-
             visualEffectView.addSubview(hostingView)
             NSLayoutConstraint.activate([
                 hostingView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
@@ -83,7 +84,6 @@ final class DockMenuPanelController: NSObject {
                 hostingView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
                 hostingView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
             ])
-
             self.hostingView = hostingView
         }
 
@@ -100,9 +100,6 @@ final class DockMenuPanelController: NSObject {
             screenBounds: screenBounds,
             hasWindows: !windows.isEmpty
         )
-
-        // Set up mouse tracking for panel
-        setupMouseTracking()
 
         // Show panel with fade-in
         panel.alphaValue = 0
@@ -123,9 +120,8 @@ final class DockMenuPanelController: NSObject {
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.1
             panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
+        }, completionHandler: {
             panel.orderOut(nil)
-            self?.removeMouseTracking()
         })
     }
 
@@ -152,43 +148,4 @@ final class DockMenuPanelController: NSObject {
         return min(contentHeight, maxHeight)
     }
 
-    private func setupMouseTracking() {
-        removeMouseTracking()
-
-        // Use a local event monitor instead of NSTrackingArea because SwiftUI's
-        // NSHostingView intercepts tracking area events internally.
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            self?.handleMouseMoved()
-            return event
-        }
-
-        // Check initial cursor position
-        handleMouseMoved()
-    }
-
-    private func removeMouseTracking() {
-        if let mouseMonitor {
-            NSEvent.removeMonitor(mouseMonitor)
-        }
-        mouseMonitor = nil
-        cursorInsidePanel = false
-    }
-
-    private func handleMouseMoved() {
-        guard let panel, panel.isVisible else { return }
-
-        let mouseLocation = NSEvent.mouseLocation
-        let isInside = panel.frame.contains(mouseLocation)
-
-        if isInside != cursorInsidePanel {
-            cursorInsidePanel = isInside
-            if isInside {
-                Logger.debug("DockMenuPanelController: cursor entered panel")
-                delegate?.dockMenuPanelControllerCursorEnteredPanel(self)
-            } else {
-                Logger.debug("DockMenuPanelController: cursor exited panel")
-                delegate?.dockMenuPanelControllerCursorExitedPanel(self)
-            }
-        }
-    }
 }

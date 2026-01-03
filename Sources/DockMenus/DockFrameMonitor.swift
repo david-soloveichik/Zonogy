@@ -13,7 +13,8 @@ final class DockFrameMonitor {
 
     var onStateChange: ((State) -> Void)?
 
-    /// Called when cursor hovers over a running app's Dock icon (or nil when hover ends).
+    /// Called when hover changes: a running app's Dock icon (event), or a non-running app/non-app item (nil).
+    /// Note: nil does NOT reliably indicate cursor left the Dock. See SPECIFICATION-DOCKMENUS.md.
     var onAppHover: ((DockMenuHoverEvent?) -> Void)?
 
     private var lastState: State?
