@@ -6,7 +6,7 @@ import AppKit
 final class DockMenuPanel: NSPanel {
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 300),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false

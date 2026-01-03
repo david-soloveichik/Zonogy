@@ -85,7 +85,7 @@ final class DockMenuPanelController: NSObject {
 
         // Calculate panel size based on content
         let contentHeight = calculateContentHeight(windowCount: windows.count)
-        panel.setContentSize(NSSize(width: 280, height: contentHeight))
+        panel.setContentSize(NSSize(width: 300, height: contentHeight))
 
         // Position panel adjacent to Dock item
         let screenBounds = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
@@ -130,17 +130,19 @@ final class DockMenuPanelController: NSObject {
     }
 
     private func calculateContentHeight(windowCount: Int) -> CGFloat {
-        // Header: ~50pt, each window row: ~44pt, padding: ~16pt
-        let headerHeight: CGFloat = 58
-        let rowHeight: CGFloat = 44
-        let padding: CGFloat = 16
+        // Header (22px icon + 12px padding + 3px divider area): ~37pt
+        // Each window row (20px icon + 10px padding): ~30pt, plus 2px spacing
+        // Top padding on outer VStack: 6pt, inner scroll: 2pt
+        let headerHeight: CGFloat = 40
+        let rowHeight: CGFloat = 32
+        let topPadding: CGFloat = 8
         let maxHeight: CGFloat = 400
 
         if windowCount == 0 {
-            return headerHeight + padding
+            return headerHeight + topPadding
         }
 
-        let contentHeight = headerHeight + CGFloat(windowCount) * rowHeight + padding
+        let contentHeight = headerHeight + CGFloat(windowCount) * rowHeight + topPadding
         return min(contentHeight, maxHeight)
     }
 

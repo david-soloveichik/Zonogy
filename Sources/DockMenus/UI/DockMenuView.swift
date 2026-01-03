@@ -49,12 +49,12 @@ struct DockMenuView: View {
                             )
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.top, 2)
                 }
             }
         }
-        .padding(.vertical, 8)
-        .frame(width: 260)
+        .padding(.top, 6)
+        .frame(width: 300)
     }
 }
 
@@ -68,34 +68,34 @@ struct DockMenuAppHeaderView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if let icon = appIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 24, height: 24)
-                        .cornerRadius(5)
+                        .frame(width: 22, height: 22)
+                        .cornerRadius(4)
                 } else {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(.quaternary)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                 }
 
                 Text(appName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.vertical, 6)
             .background {
                 if isHovered {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.accentColor.opacity(0.22))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
                         )
                 }
@@ -110,7 +110,7 @@ struct DockMenuAppHeaderView: View {
 
             Divider()
                 .padding(.horizontal, 8)
-                .padding(.top, 4)
+                .padding(.top, 2)
         }
     }
 }
@@ -123,33 +123,33 @@ struct DockMenuWindowRowView: View {
     let onTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             // Window icon glyph (or empty for minimized windows)
             if !window.isMinimized {
                 Image(systemName: "macwindow")
-                    .font(.system(size: 16))
+                    .font(.system(size: 14))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 20, height: 20)
             } else {
                 Color.clear
-                    .frame(width: 22, height: 22)
+                    .frame(width: 20, height: 20)
             }
 
             Text(window.title)
-                .font(.system(size: 14, weight: .regular))
+                .font(.system(size: 13, weight: .regular))
                 .lineLimit(1)
                 .truncationMode(.middle)
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 5)
         .background {
             if isHovered {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.accentColor.opacity(0.22))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
                     )
             }
