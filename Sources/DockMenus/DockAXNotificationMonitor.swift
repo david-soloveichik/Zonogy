@@ -137,38 +137,39 @@ final class DockAXNotificationMonitor {
 
                 // Check first selected child for AXApplicationDockItem
                 let selectedChildren = axSelectedChildren(of: element)
-                if let firstSelected = selectedChildren.first {
-                    let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)
-                    if subrole == "AXApplicationDockItem" {
-                        let url = axURLAttribute(element: firstSelected, attribute: kAXURLAttribute as CFString)
-                        Logger.debug("DockAXNotificationMonitor: selected item is AXApplicationDockItem, URL=\(url?.absoluteString ?? "nil")")
+                guard let firstSelected = selectedChildren.first else {
+                    // No selected children - nothing to do.
+                    // Note: AXSelectedChildrenChanged with empty selectedChildren can fire
+                    // even when user is not interacting with the Dock.
+                    return
+                }
+                let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)
+                if subrole == "AXApplicationDockItem" {
+                    let url = axURLAttribute(element: firstSelected, attribute: kAXURLAttribute as CFString)
+                    Logger.debug("DockAXNotificationMonitor: selected item is AXApplicationDockItem, URL=\(url?.absoluteString ?? "nil")")
 
-                        // Emit hover event if this is a running app
-                        if let appURL = url,
-                           let listFrame,
-                           let itemFrame = axFrameAttribute(element: firstSelected),
-                           let bundleId = bundleIdentifier(for: appURL),
-                           isAppRunning(bundleIdentifier: bundleId) {
-                            let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
-                            let hoverEvent = DockMenuHoverEvent(
-                                appURL: appURL,
-                                bundleIdentifier: bundleId,
-                                itemFrame: itemFrame,
-                                listFrame: listFrame,
-                                dockOrientation: orientation
-                            )
-                            Logger.debug("DockAXNotificationMonitor: emitting hover event for \(appURL.lastPathComponent)")
-                            onAppHover?(hoverEvent)
-                        } else {
-                            // Not a running app or missing data
-                            onAppHover?(nil)
-                        }
+                    // Emit hover event if this is a running app
+                    if let appURL = url,
+                       let listFrame,
+                       let itemFrame = axFrameAttribute(element: firstSelected),
+                       let bundleId = bundleIdentifier(for: appURL),
+                       isAppRunning(bundleIdentifier: bundleId) {
+                        let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
+                        let hoverEvent = DockMenuHoverEvent(
+                            appURL: appURL,
+                            bundleIdentifier: bundleId,
+                            itemFrame: itemFrame,
+                            listFrame: listFrame,
+                            dockOrientation: orientation
+                        )
+                        Logger.debug("DockAXNotificationMonitor: emitting hover event for \(appURL.lastPathComponent)")
+                        onAppHover?(hoverEvent)
                     } else {
-                        // Selected item is not an app (e.g., folder, separator)
+                        // Not a running app or missing data
                         onAppHover?(nil)
                     }
                 } else {
-                    // No selected children (cursor left Dock)
+                    // Selected item is not an app (e.g., folder, separator)
                     onAppHover?(nil)
                 }
             }
