@@ -20,7 +20,7 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(dockMenusCheckbox)
         self.dockMenusCheckbox = dockMenusCheckbox
 
-        let dockMenusHintLabel = NSTextField(wrappingLabelWithString: "Currently, enabling DockMenus draws a red border around where Zonogy detects the Dock.")
+        let dockMenusHintLabel = NSTextField(wrappingLabelWithString: "Hovering over a Dock app shows a window list. Clicking a Dock app uses Zonogy's window selection instead of the default Dock behavior. Shift-click to bypass.")
         dockMenusHintLabel.font = NSFont.systemFont(ofSize: 12)
         dockMenusHintLabel.textColor = .secondaryLabelColor
         dockMenusHintLabel.translatesAutoresizingMaskIntoConstraints = false
