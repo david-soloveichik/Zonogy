@@ -2,15 +2,16 @@
 import AppKit
 import Carbon
 
-final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, ShortcutRecordingInterceptorDelegate {
 
     private var tableView: NSTableView!
     private var scrollView: NSScrollView!
     private var resetAllButton: NSButton!
     private let actions = KeyboardShortcutPreferences.ShortcutAction.allCases
     private var recordingRow: Int?
-    private var localEventMonitor: Any?
+    private var recordingInterceptor: ShortcutRecordingInterceptor?
     private var globalClickMonitor: Any?
+    private var appDeactivationObserver: NSObjectProtocol?
 
     private var recordingAction: KeyboardShortcutPreferences.ShortcutAction? {
         guard let row = recordingRow, row < actions.count else { return nil }
@@ -247,16 +248,30 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         // Suspend global hotkeys while recording
         AppController.shared.hotkeyService.suspend()
 
-        // Start listening for key events
-        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
-            self?.handleKeyEvent(event)
-            return nil // Consume the event
+        // Start the CGEventTap-based interceptor to capture system shortcuts
+        recordingInterceptor = ShortcutRecordingInterceptor()
+        recordingInterceptor?.start(delegate: self)
+        guard recordingInterceptor?.isRunning == true else {
+            recordingInterceptor = nil
+            AppController.shared.hotkeyService.resume()
+            recordingRow = nil
+            showInputMonitoringAlert()
+            tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 1))
+            return
         }
 
         // Monitor for clicks outside the button to cancel recording
         globalClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             self?.handleClickEvent(event)
             return event
+        }
+
+        appDeactivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.stopRecording()
         }
 
         tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 1))
@@ -281,41 +296,33 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         }
     }
 
-    private func handleKeyEvent(_ event: NSEvent) {
+    // MARK: - ShortcutRecordingInterceptorDelegate
+
+    func shortcutRecordingInterceptor(
+        _ interceptor: ShortcutRecordingInterceptor,
+        didCapture keyCode: CGKeyCode,
+        modifiers: CGEventFlags
+    ) {
         guard let action = recordingAction else { return }
 
-        // Ignore pure modifier key presses
-        if event.type == .flagsChanged {
-            return
-        }
-
-        // Get modifiers - convert from Cocoa to Carbon
+        // Convert CGEventFlags to Carbon modifiers
         var carbonModifiers: UInt32 = 0
-        let flags = event.modifierFlags
-
-        if flags.contains(.command) { carbonModifiers |= UInt32(cmdKey) }
-        if flags.contains(.control) { carbonModifiers |= UInt32(controlKey) }
-        if flags.contains(.option) { carbonModifiers |= UInt32(optionKey) }
-        if flags.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
-
-        // Check for Escape to cancel (only if no modifiers are held)
-        // This allows modifier+Escape shortcuts like ⌘⎋ to be recorded
-        if event.keyCode == UInt16(kVK_Escape) && carbonModifiers == 0 {
-            stopRecording()
-            return
-        }
+        if modifiers.contains(.maskCommand) { carbonModifiers |= UInt32(cmdKey) }
+        if modifiers.contains(.maskControl) { carbonModifiers |= UInt32(controlKey) }
+        if modifiers.contains(.maskAlternate) { carbonModifiers |= UInt32(optionKey) }
+        if modifiers.contains(.maskShift) { carbonModifiers |= UInt32(shiftKey) }
 
         // Require at least one modifier (except for function keys)
         let functionKeyCodes: Set<Int> = [
             kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6,
             kVK_F7, kVK_F8, kVK_F9, kVK_F10, kVK_F11, kVK_F12
         ]
-        let isFunctionKey = functionKeyCodes.contains(Int(event.keyCode))
+        let isFunctionKey = functionKeyCodes.contains(Int(keyCode))
         if carbonModifiers == 0 && !isFunctionKey {
             return
         }
 
-        let shortcut = KeyboardShortcut(keyCode: UInt32(event.keyCode), modifiers: carbonModifiers)
+        let shortcut = KeyboardShortcut(keyCode: UInt32(keyCode), modifiers: carbonModifiers)
 
         // Clear any existing assignment of this shortcut to another action
         if let conflictingAction = KeyboardShortcutPreferences.shared.action(for: shortcut),
@@ -328,14 +335,22 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         stopRecording()
     }
 
+    func shortcutRecordingInterceptorDidCancel(_ interceptor: ShortcutRecordingInterceptor) {
+        stopRecording()
+    }
+
     private func stopRecordingWithoutReload() {
-        if let monitor = localEventMonitor {
-            NSEvent.removeMonitor(monitor)
-            localEventMonitor = nil
-        }
+        recordingInterceptor?.stop()
+        recordingInterceptor = nil
+
         if let monitor = globalClickMonitor {
             NSEvent.removeMonitor(monitor)
             globalClickMonitor = nil
+        }
+
+        if let observer = appDeactivationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            appDeactivationObserver = nil
         }
 
         // Resume global hotkeys
@@ -376,6 +391,15 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     override func viewWillDisappear() {
         super.viewWillDisappear()
         stopRecording()
+    }
+
+    private func showInputMonitoringAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Input Monitoring permission is required"
+        alert.informativeText = "Zonogy needs Input Monitoring permission to record system shortcuts like ⌘⇥ (Cmd-Tab). Enable it in System Settings ▸ Privacy & Security ▸ Input Monitoring, then try again."
+        alert.addButton(withTitle: "OK")
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 }
 
