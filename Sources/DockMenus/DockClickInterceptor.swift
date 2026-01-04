@@ -20,7 +20,11 @@ protocol DockClickInterceptorDelegate: AnyObject {
 final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
+            | (1 << CGEventType.leftMouseUp.rawValue)
         static let dockBundleIdentifier = "com.apple.dock"
+        /// Ensures we fully consume a Dock click (down + up) so no trailing events leak to the
+        /// previously-active app after we activate a new one via the click-intercept path.
+        static let clickConsumeTimeout: TimeInterval = 15.0
     }
 
     weak var delegate: DockClickInterceptorDelegate?
@@ -39,6 +43,7 @@ final class DockClickInterceptor {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var consumeLeftMouseUntil: Date?
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
@@ -58,6 +63,8 @@ final class DockClickInterceptor {
             Logger.debug("DockClickInterceptor: already running")
             return
         }
+
+        consumeLeftMouseUntil = nil
 
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
@@ -81,6 +88,7 @@ final class DockClickInterceptor {
     }
 
     func stop() {
+        consumeLeftMouseUntil = nil
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -95,14 +103,24 @@ final class DockClickInterceptor {
     }
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
-        // We only registered for leftMouseDown, so that's the expected case
-        if type != .leftMouseDown {
-            // Handle rare tap-disable events
-            if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout,
-               let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("DockClickInterceptor: re-enabled after timeout")
+        // Handle rare tap-disable events
+        if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout,
+           let tap = eventTap {
+            consumeLeftMouseUntil = nil
+            CGEvent.tapEnable(tap: tap, enable: true)
+            Logger.debug("DockClickInterceptor: re-enabled after timeout")
+            return Unmanaged.passUnretained(event)
+        }
+
+        if type == .leftMouseUp {
+            if shouldConsumeFollowupLeftMouseEvent(type: type) {
+                return nil
             }
+            return Unmanaged.passUnretained(event)
+        }
+
+        // We only intercept Dock clicks on leftMouseDown; follow-up leftMouseUp is consumed via state.
+        guard type == .leftMouseDown else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -136,9 +154,25 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
+        consumeLeftMouseUntil = Date().addingTimeInterval(Constants.clickConsumeTimeout)
+
         // Click is on a running app's Dock icon - intercept it
         delegate?.dockClickInterceptor(self, didInterceptClickOnApp: result.url, itemFrame: result.frame)
         return nil
+    }
+
+    private func shouldConsumeFollowupLeftMouseEvent(type: CGEventType) -> Bool {
+        guard let deadline = consumeLeftMouseUntil else {
+            return false
+        }
+        if Date() > deadline {
+            consumeLeftMouseUntil = nil
+            return false
+        }
+        if type == .leftMouseUp {
+            consumeLeftMouseUntil = nil
+        }
+        return true
     }
 
     /// Result of finding a clicked running app in the Dock.
