@@ -22,7 +22,6 @@ extension AppController {
         exitRevealMode(reason: "temporary-zone-assignment")
 
         temporaryZoneCoordinator.assign(managed, to: screenId, centerWindow: centerWindow, reason: reason)
-        clearTemporaryZoneProtection(windowId: managed.windowId)
         updateTemporaryZoneTargeting(reason: reason)
     }
 

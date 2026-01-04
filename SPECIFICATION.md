@@ -273,7 +273,7 @@ For the snapshot save/restore feature (Control-Cmd-Tab chooser, Control-Cmd-/ to
 
 ## Implementation Details and Accessibility API Workarounds
 
-For implementation details (destroyed window detection, restore protection windows, notification suppression) and accessibility API workarounds (retry mechanisms, subrole handling, async unminimize), see **[SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)**.
+For implementation details (destroyed window detection, temporary zone protection, notification suppression) and accessibility API workarounds (retry mechanisms, subrole handling, async unminimize), see **[SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)**.
 
 ## Launcher
 

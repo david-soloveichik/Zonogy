@@ -20,6 +20,8 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
     func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
+    func scheduleTemporaryZoneProtection(windowId: Int)
+    func clearTemporaryZoneProtection(windowId: Int)
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String)
 }
 
@@ -83,6 +85,7 @@ final class TemporaryZoneCoordinator {
         }
 
         host.activateTemporaryZoneWindow(managed, reason: reason)
+        host.scheduleTemporaryZoneProtection(windowId: managed.windowId)
 
         Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
@@ -94,6 +97,7 @@ final class TemporaryZoneCoordinator {
               let occupant = occupant(on: screenId) else {
             return
         }
+        host.clearTemporaryZoneProtection(windowId: occupant.windowId)
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
         host.minimizeWindowProgrammatically(occupant, reason: reason)
@@ -108,6 +112,7 @@ final class TemporaryZoneCoordinator {
               let entry = occupants.first(where: { $0.value == windowId }) else {
             return
         }
+        host.clearTemporaryZoneProtection(windowId: windowId)
         occupants.removeValue(forKey: entry.key)
         Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {
@@ -138,6 +143,7 @@ final class TemporaryZoneCoordinator {
             }
 
             if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
+                host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
                 continue
             }
 
@@ -172,6 +178,7 @@ final class TemporaryZoneCoordinator {
             }
 
             if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
+                host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
                 continue
             }
 

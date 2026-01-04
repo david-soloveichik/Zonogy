@@ -29,4 +29,4 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Activates the previously active window.
 
-For restore protection windows and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
+For temporary zone protection and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).

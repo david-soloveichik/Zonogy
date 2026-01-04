@@ -6,12 +6,13 @@ Not all applications emit didTerminateApplication notification upon closing (eg 
 
 After events such as application termination, workspace focus changes, or accessibility notifications, `AppController` validates every affected PID. An external window is removed immediately when either the window server stops reporting its `CGWindowNumber` or the accessibility element returns an invalid-element error. If the initial pass finds no destroyed windows but the PID still owns managed windows, the controller schedules a short series of PID-scoped revalidations with exponential backoff (≈0.2 s → 3.2 s). Retries cancel as soon as every window disappears or the process exits; no global polling timer runs.
 
-## Restore Protection Windows (WinShot + Sleep/Wake)
+## Temporary Zone Protection Windows
 
-When restoring layouts from either sleep/wake recovery or WinShot snapshots, we apply a short protection window so that internal restore operations do not fight normal layout behavior:
+When a window is placed in the temporary zone, it receives a 1-second protection window during which focus-shift events will not minimize it. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the temporary zone occupant is reactivated to maintain the invariant that it remains the active window. This prevents a newly placed window from being immediately dismissed.
 
-- The floating temporary-zone occupant is temporarily protected from auto-minimization triggered by focus shifts or new tiled placements on the same screen, so it is not immediately cleared while other windows are being recaptured.
-- For ActiveFit candidate zones, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles. The active window is first restored to its zone-aligned frame; if it no longer fits there, a later ActiveFit pass may snap it into a reveal position.
+The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
+
+For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles.
 
 ## Additional Notes
 
