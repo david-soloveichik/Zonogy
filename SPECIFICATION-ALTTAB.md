@@ -28,7 +28,7 @@ AltTab MUST override the system app switcher for its configured shortcut. This r
 - **Cycling:** While holding the configured modifier(s), pressing the shortcut key repeatedly (default: Tab) moves selection to the next window in the list
 - **Direction:** Each press moves selection down the list (toward less recently used windows). Holding Shift cycles backward.
 - Selection wraps to the top when reaching the bottom of the list
-- On first show, AltTab selects the most recently used window (index 0). If invoked with Shift held, it selects the least-recent window.
+- On first show, AltTab selects the second item (index 1), which is the previously active window (index 0 is the currently active window). If invoked with Shift held, it selects the least-recent window.
 
 ## Actions
 

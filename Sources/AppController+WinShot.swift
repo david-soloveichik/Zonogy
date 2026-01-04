@@ -447,6 +447,9 @@ extension AppController {
     }
 
     private func activateWindow(_ managed: ManagedWindow) {
+        // Record activity immediately for reliable recency tracking (don't rely on AX notification)
+        windowController.recordWindowActivity(windowId: managed.windowId)
+
         switch managed.backing {
         case .accessibility(let element, let pid, _):
             if let app = NSRunningApplication(processIdentifier: pid) {

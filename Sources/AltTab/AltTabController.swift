@@ -55,7 +55,8 @@ final class AltTabController {
 
         switch initialSelection {
         case .mostRecent:
-            model.selectedIndex = 0
+            // Start at index 1 (previous window) since index 0 is the currently active window
+            model.selectedIndex = min(1, allWindows.count - 1)
         case .leastRecent:
             model.selectedIndex = max(0, allWindows.count - 1)
         }
