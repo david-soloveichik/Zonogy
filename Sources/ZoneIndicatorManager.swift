@@ -7,7 +7,7 @@ struct ZoneIndicatorDescriptor {
 }
 
 protocol ZoneIndicatorManagerDelegate: AnyObject {
-    func zoneIndicatorActivated(_ key: ZoneKey)
+    func zoneIndicatorActivated(_ key: ZoneKey, wasAlreadyTargeted: Bool, isDoubleClick: Bool)
 }
 
 final class ZoneIndicatorManager {
@@ -107,7 +107,8 @@ final class ZoneIndicatorManager {
         }
 
         override func mouseDown(with event: NSEvent) {
-            delegate?.zoneIndicatorActivated(key)
+            let isDoubleClick = event.clickCount >= 2
+            delegate?.zoneIndicatorActivated(key, wasAlreadyTargeted: isTargeted, isDoubleClick: isDoubleClick)
         }
     }
 

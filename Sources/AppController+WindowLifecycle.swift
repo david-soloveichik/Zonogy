@@ -95,16 +95,28 @@ extension AppController {
         }
     }
 
-    func zoneIndicatorActivated(_ key: ZoneKey) {
+    func zoneIndicatorActivated(_ key: ZoneKey, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
-        Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex)")
+        Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
+
+        if isDoubleClick || wasAlreadyTargeted {
+            if !launcherController.isActive {
+                launcherController.show()
+            }
+        }
     }
 
-    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID) {
+    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Temporary zone indicator activated on screen \(screenIndex)")
+        Logger.debug("Temporary zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-indicator-clicked")
+
+        if isDoubleClick || wasAlreadyTargeted {
+            if !launcherController.isActive {
+                launcherController.show()
+            }
+        }
     }
 
     // MARK: - AddZoneIndicatorManagerDelegate

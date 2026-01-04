@@ -106,14 +106,15 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 
 **Targeting rule:** Exactly one zone (tiling zone or temporary zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
 
-**Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter. Indicators respond to clicks to retarget zones.
+**Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter.
 
-**Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone. Clicking that pill targets the temporary zone for that screen. The indicator sits flush with the screen bottom so edge clicks hit it.
+**Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone. The indicator sits flush with the screen bottom so edge clicks hit it.
+
+**Indicator click behavior (both tiling and temporary zones):** Clicking a non-targeted indicator targets that zone. Clicking an already-targeted indicator opens the Launcher. Double-clicking any indicator targets the zone and opens the Launcher.
 
 **Target selection:**
 
-- Clicking a tiling zone placeholder window or a tiling zone's target indicator: target that tiling zone.
-- Clicking the temporary zone indicator: target that screen's temporary zone.
+- Clicking a tiling zone placeholder window: target that tiling zone.
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
 - When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.

@@ -10,7 +10,7 @@ struct TemporaryZoneIndicatorDescriptor {
 }
 
 protocol TemporaryZoneIndicatorManagerDelegate: AnyObject {
-    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID)
+    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool)
 }
 
 final class TemporaryZoneIndicatorManager {
@@ -134,7 +134,8 @@ final class TemporaryZoneIndicatorManager {
         }
 
         override func mouseDown(with event: NSEvent) {
-            delegate?.temporaryZoneIndicatorActivated(screenId: screenId)
+            let isDoubleClick = event.clickCount >= 2
+            delegate?.temporaryZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: isTargeted, isDoubleClick: isDoubleClick)
         }
     }
 
