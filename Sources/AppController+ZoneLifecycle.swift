@@ -51,6 +51,11 @@ extension AppController {
         let newZoneKey = zoneKey(for: screenId, index: newZone.index)
         if shouldRetarget(to: newZoneKey) {
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
+            // If we targeted a zone that's already filled (e.g., from temporary zone promotion),
+            // retarget per spec: "Whenever the targeted tiling zone is filled..."
+            if !targetedZoneManager.isZoneEmpty(newZoneKey) {
+                targetedZoneManager.retargetAfterFillingZone(newZoneKey, reason: "zone-added-filled")
+            }
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "zone-added")
         }
