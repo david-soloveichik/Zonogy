@@ -21,8 +21,9 @@ final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
+            | (1 << CGEventType.leftMouseDragged.rawValue)
         static let dockBundleIdentifier = "com.apple.dock"
-        /// Ensures we fully consume a Dock click (down + up) so no trailing events leak to the
+        /// Ensures we fully consume a Dock click (down + drag + up) so no trailing events leak to the
         /// previously-active app after we activate a new one via the click-intercept path.
         static let clickConsumeTimeout: TimeInterval = 15.0
     }
@@ -112,14 +113,14 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        if type == .leftMouseUp {
+        if type == .leftMouseDragged || type == .leftMouseUp {
             if shouldConsumeFollowupLeftMouseEvent(type: type) {
                 return nil
             }
             return Unmanaged.passUnretained(event)
         }
 
-        // We only intercept Dock clicks on leftMouseDown; follow-up leftMouseUp is consumed via state.
+        // We only intercept Dock clicks on leftMouseDown; follow-up leftMouseDragged/up are consumed via state.
         guard type == .leftMouseDown else {
             return Unmanaged.passUnretained(event)
         }
