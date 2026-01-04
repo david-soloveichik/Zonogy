@@ -113,6 +113,8 @@ extension AppController {
     private struct TemporaryRestoreWorkItem {
         let managed: ManagedWindow
         let wasMinimized: Bool
+        let targetFrame: CGRect?
+        let descriptor: ScreenDescriptor
     }
 
     /// Restore a WinShot snapshot with parallel window operations
@@ -127,6 +129,11 @@ extension AppController {
         guard let descriptor = descriptor(for: screenId) else {
             Logger.debug("WinShot: Cannot restore - no descriptor for screen \(screenId)")
             return
+        }
+
+        // Ensure the Launcher doesn't steal focus/cover restored windows mid-restore.
+        if launcherController.isActive {
+            launcherController.hide()
         }
 
         // Auto-save current state before restoring, so user can return to it later.
@@ -181,11 +188,18 @@ extension AppController {
 
         // Prepare temporary zone work item
         if let tempIdentity = snapshot.temporaryZoneOccupant {
-            temporaryWorkItem = prepareTemporaryZoneRestore(identity: tempIdentity, on: screenId)
+            temporaryWorkItem = prepareTemporaryZoneRestore(
+                identity: tempIdentity,
+                targetFrame: snapshot.temporaryZoneFrame,
+                on: screenId,
+                descriptor: descriptor
+            )
         }
 
-        // Step 6: UNMINIMIZE PHASE - Kick off all unminimize operations in parallel.
-        // Pre-position and unminimize all minimized windows in a tight loop.
+        let restoredActiveWindowId = snapshot.activeWindowId
+        let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
+
+        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows.
         // Suppress deminiaturize notifications to prevent re-placement loops.
         let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
         if !minimizedZoneWindowIds.isEmpty {
@@ -193,12 +207,8 @@ extension AppController {
         }
         for workItem in zoneWorkItems where workItem.wasMinimized {
             prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
-            windowController.unminimizeWindow(workItem.managed)
-        }
-        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
-            // Suppress the deminiaturize notification to prevent re-placement loop
-            suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
-            windowController.unminimizeWindow(tempItem.managed)
+            let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
+            windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
         }
 
         // Step 6b: ActiveFit coordination.
@@ -216,32 +226,49 @@ extension AppController {
             scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateRevealModeFor: activeZoneWindowId)
         }
 
-        // Step 7: ASSIGNMENT PHASE - Assign all windows to their zones
+        // Step 7: ASSIGNMENT PHASE - Assign tiled windows to their zones
         for workItem in zoneWorkItems {
             context.zoneController.assignWindow(windowId: workItem.managed.windowId, toZoneIndex: workItem.zoneIndex)
             setManagedWindow(workItem.managed, screenId: screenId, zoneIndex: workItem.zoneIndex)
         }
-        if let tempItem = temporaryWorkItem {
-            // Route through the standard helper so temporary-zone assignment
-            // cooperates with ActiveFit invariants and targeting.
-            assignWindowToTemporaryZone(
-                tempItem.managed,
-                on: screenId,
-                centerWindow: true,
-                reason: "winshot-restore"
-            )
-            // Use timer-based protection to prevent focus-shift minimization during restoration
-            scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
-        }
 
-        // Step 8: POSITION PHASE - Move all zone windows to their target frames in parallel
+        // Step 8: POSITION PHASE - Move tiled windows to their target frames
         for workItem in zoneWorkItems {
             windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
         }
 
-        // Step 10: Sync and refresh
+        // Step 9: Sync and refresh
         syncWindowsToZones()
         refreshIndicators()
+
+        // Step 10: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
+        if let tempItem = temporaryWorkItem {
+            // Unminimize if needed
+            if tempItem.wasMinimized {
+                suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
+                if let targetFrame = tempItem.targetFrame {
+                    prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+                }
+                let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
+                windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
+            }
+
+            // Assign to temporary zone (only center if no stored frame)
+            let hasStoredFrame = tempItem.targetFrame != nil
+            assignWindowToTemporaryZone(
+                tempItem.managed,
+                on: screenId,
+                centerWindow: !hasStoredFrame,
+                reason: "winshot-restore"
+            )
+
+            // Position to stored frame
+            if let targetFrame = tempItem.targetFrame {
+                windowController.moveWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+            }
+
+            scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
+        }
 
         // Step 11: Activate the previously active window
         snapshot.logDebugDetails(context: "restoring")
@@ -297,7 +324,12 @@ extension AppController {
     }
 
     /// Prepare a temporary zone restoration work item
-    private func prepareTemporaryZoneRestore(identity: WindowIdentity, on screenId: CGDirectDisplayID) -> TemporaryRestoreWorkItem? {
+    private func prepareTemporaryZoneRestore(
+        identity: WindowIdentity,
+        targetFrame: CGRect?,
+        on screenId: CGDirectDisplayID,
+        descriptor: ScreenDescriptor
+    ) -> TemporaryRestoreWorkItem? {
         guard let managed = findWindowMatching(identity: identity) else {
             Logger.debug("WinShot: Cannot find window for temporary zone identity \(identity.windowId)")
             return nil
@@ -318,7 +350,9 @@ extension AppController {
 
         return TemporaryRestoreWorkItem(
             managed: managed,
-            wasMinimized: managed.isMinimized
+            wasMinimized: managed.isMinimized,
+            targetFrame: targetFrame,
+            descriptor: descriptor
         )
     }
 

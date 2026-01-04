@@ -351,14 +351,16 @@ extension WindowController {
     /// - Parameters:
     ///   - managedWindow: The window to unminimize
     ///   - synchronous: If false (default), adds a small delay to let any pre-positioning settle before the unminimize animation
-    func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false) {
+    func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false, raise: Bool = true) {
         let perform = {
             switch managedWindow.backing {
             case .appKit(let window):
                 window.deminiaturize(nil)
             case .accessibility(let element, _, _):
                 _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-                _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+                if raise {
+                    _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+                }
             }
             Logger.debug("Unminimized window \(managedWindow.windowId)")
         }

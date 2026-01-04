@@ -64,12 +64,17 @@ final class WinShotManager {
             }
         }
 
-        // Get temporary zone occupant identity
+        // Get temporary zone occupant identity and frame
         let tempIdentity: WindowIdentity?
+        let tempFrame: CGRect?
         if let tempOccupant = temporaryZoneOccupant {
             tempIdentity = WindowIdentity.make(from: tempOccupant)
+            // actualFrameInScreenCoordinates can return .zero on AX read failure; treat as no frame.
+            let frame = windowController.actualFrameInScreenCoordinates(for: tempOccupant, on: screenDescriptor)
+            tempFrame = frame == .zero ? nil : frame
         } else {
             tempIdentity = nil
+            tempFrame = nil
         }
 
         // Check eligibility: must have at least one non-placeholder window
@@ -99,6 +104,7 @@ final class WinShotManager {
             windowFrames: windowFrames,
             zoneAssignments: zoneAssignments,
             temporaryZoneOccupant: tempIdentity,
+            temporaryZoneFrame: tempFrame,
             activeWindowId: activeWindowId,
             thumbnail: thumbnail
         )

@@ -20,6 +20,9 @@ struct WinShotSnapshot {
     /// Temporary zone occupant, if any
     let temporaryZoneOccupant: WindowIdentity?
 
+    /// Frame of temporary zone window at snapshot time (in screen coordinates)
+    let temporaryZoneFrame: CGRect?
+
     /// Which window was active when snapshot was created
     let activeWindowId: Int?
 
@@ -85,8 +88,9 @@ struct WinShotSnapshot {
         if let temp = temporaryZoneOccupant {
             let bundle = temp.bundleIdentifier ?? "unknown"
             let title = temp.windowTitle ?? "untitled"
+            let frameStr = temporaryZoneFrame.map { "\($0)" } ?? "nil"
             Logger.debug(
-                "\(prefix) temporary-zone: windowId=\(temp.windowId), bundle=\(bundle), title=\(title)"
+                "\(prefix) temporary-zone: windowId=\(temp.windowId), bundle=\(bundle), title=\(title), frame=\(frameStr)"
             )
         } else {
             Logger.debug("\(prefix) temporary-zone: empty")
