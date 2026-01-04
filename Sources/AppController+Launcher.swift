@@ -72,8 +72,8 @@ extension AppController: LauncherControllerDelegate {
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
 
-            // If activateInPlace: if window is already in a zone and not minimized, just activate it
-            if activateInPlace && !managed.isMinimized && managed.zoneIndex != nil {
+            // If activateInPlace: if window is already in a zone (tiling or temp) and not minimized, just activate it
+            if activateInPlace && !managed.isMinimized && isWindowInZone(managed) {
                 Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
                 activateWindow(managed)
                 return

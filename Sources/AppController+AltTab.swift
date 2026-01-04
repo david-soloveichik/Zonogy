@@ -6,7 +6,8 @@ extension AppController: AltTabControllerDelegate {
 
     func altTabController(_ controller: AltTabController, didSelectWindow window: LauncherWindowItem) {
         // Reuse the Launcher's window selection logic
-        handleWindowSelection(window, activateInPlace: false)
+        // Unminimized windows are activated in place; minimized windows go to target zone
+        handleWindowSelection(window, activateInPlace: !window.isMinimized)
     }
 
     // MARK: - Dismissal
@@ -21,10 +22,9 @@ extension AppController: AltTabControllerDelegate {
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem] {
         var items: [LauncherWindowItem] = []
 
-        // Collect all non-placeholder minimized managed windows across all applications
+        // Collect all non-placeholder managed windows across all applications
         for window in windowController.allWindows {
             guard !window.isPlaceholder,
-                  window.isMinimized,
                   case .accessibility(let element, let pid, _) = window.backing else {
                 continue
             }
