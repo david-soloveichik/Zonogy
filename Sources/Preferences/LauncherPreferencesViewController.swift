@@ -7,12 +7,14 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     private var scrollView: NSScrollView!
     private var addButton: NSButton!
     private var removeButton: NSButton!
+    private var explanationLabel: NSTextField!
 
     private var items: [LauncherConfigurationItem] = []
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
 
+        setupExplanationLabel(in: containerView)
         setupTableView(in: containerView)
         setupButtons(in: containerView)
         setupHintLabel(in: containerView)
@@ -26,6 +28,21 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     }
 
     // MARK: - Setup
+
+    private func setupExplanationLabel(in container: NSView) {
+        explanationLabel = NSTextField(wrappingLabelWithString:
+            "The Launcher automatically includes apps from /Applications, /System/Applications, and ~/Applications. Use the list below to add additional items.")
+        explanationLabel.translatesAutoresizingMaskIntoConstraints = false
+        explanationLabel.font = NSFont.systemFont(ofSize: 11)
+        explanationLabel.textColor = .secondaryLabelColor
+        container.addSubview(explanationLabel)
+
+        NSLayoutConstraint.activate([
+            explanationLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
+            explanationLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            explanationLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+    }
 
     private func setupTableView(in container: NSView) {
         scrollView = NSScrollView()
@@ -62,7 +79,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
+            scrollView.topAnchor.constraint(equalTo: explanationLabel.bottomAnchor, constant: 12),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -70),

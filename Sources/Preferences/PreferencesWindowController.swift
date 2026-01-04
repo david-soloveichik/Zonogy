@@ -47,7 +47,7 @@ final class PreferencesWindowController: NSWindowController {
         // Launcher tab
         let launcherVC = LauncherPreferencesViewController()
         let launcherItem = NSTabViewItem(viewController: launcherVC)
-        launcherItem.label = "Launcher"
+        launcherItem.label = "Launcher Items"
         launcherItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Launcher")
         tabVC.addTabViewItem(launcherItem)
 
