@@ -17,15 +17,15 @@ protocol DockClickInterceptorDelegate: AnyObject {
 ///
 /// Only intercepts clicks on running application Dock items (AXApplicationDockItem).
 /// Clicks on folders, files, Launchpad, Trash, or non-running apps pass through.
+/// Drags are detected and allowed through so users can rearrange Dock icons.
 final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue)
         static let dockBundleIdentifier = "com.apple.dock"
-        /// Ensures we fully consume a Dock click (down + drag + up) so no trailing events leak to the
-        /// previously-active app after we activate a new one via the click-intercept path.
-        static let clickConsumeTimeout: TimeInterval = 15.0
+        /// Movement threshold in pixels - if the mouse moves more than this, it's a drag not a click.
+        static let dragThreshold: CGFloat = 5.0
     }
 
     weak var delegate: DockClickInterceptorDelegate?
@@ -44,7 +44,17 @@ final class DockClickInterceptor {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var consumeLeftMouseUntil: Date?
+
+    /// Tracks a pending click that may be intercepted on mouse-up.
+    private var pendingClick: PendingClick?
+
+    /// State for tracking a potential click that will be intercepted on mouse-up.
+    private struct PendingClick {
+        let downLocation: CGPoint
+        let appURL: URL
+        let itemFrame: CGRect
+        var isDrag: Bool = false
+    }
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
@@ -65,7 +75,7 @@ final class DockClickInterceptor {
             return
         }
 
-        consumeLeftMouseUntil = nil
+        pendingClick = nil
 
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
@@ -89,7 +99,7 @@ final class DockClickInterceptor {
     }
 
     func stop() {
-        consumeLeftMouseUntil = nil
+        pendingClick = nil
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -107,20 +117,45 @@ final class DockClickInterceptor {
         // Handle rare tap-disable events
         if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout,
            let tap = eventTap {
-            consumeLeftMouseUntil = nil
+            pendingClick = nil
             CGEvent.tapEnable(tap: tap, enable: true)
             Logger.debug("DockClickInterceptor: re-enabled after timeout")
             return Unmanaged.passUnretained(event)
         }
 
-        if type == .leftMouseDragged || type == .leftMouseUp {
-            if shouldConsumeFollowupLeftMouseEvent(type: type) {
-                return nil
+        // Track drag movement to distinguish clicks from drags
+        if type == .leftMouseDragged {
+            if var pending = pendingClick, !pending.isDrag {
+                let location = event.location
+                let dx = abs(location.x - pending.downLocation.x)
+                let dy = abs(location.y - pending.downLocation.y)
+                if dx > Constants.dragThreshold || dy > Constants.dragThreshold {
+                    pending.isDrag = true
+                    pendingClick = pending
+                }
             }
             return Unmanaged.passUnretained(event)
         }
 
-        // We only intercept Dock clicks on leftMouseDown; follow-up leftMouseDragged/up are consumed via state.
+        // On mouse-up, intercept if we have a pending click that wasn't a drag
+        if type == .leftMouseUp {
+            guard let pending = pendingClick else {
+                return Unmanaged.passUnretained(event)
+            }
+            pendingClick = nil
+
+            // If it was a drag, let the mouse-up through to complete the drag
+            if pending.isDrag {
+                return Unmanaged.passUnretained(event)
+            }
+
+            // Post a synthetic mouse-up at the original location to complete the Dock's click tracking,
+            // then perform our action. The Dock may also activate the app, which is fine.
+            postMouseUp(at: pending.downLocation)
+            delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame)
+            return nil
+        }
+
         guard type == .leftMouseDown else {
             return Unmanaged.passUnretained(event)
         }
@@ -155,25 +190,15 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        consumeLeftMouseUntil = Date().addingTimeInterval(Constants.clickConsumeTimeout)
+        // Record the pending click - we'll intercept on mouse-up if it's not a drag
+        pendingClick = PendingClick(
+            downLocation: location,
+            appURL: result.url,
+            itemFrame: result.frame
+        )
 
-        // Click is on a running app's Dock icon - intercept it
-        delegate?.dockClickInterceptor(self, didInterceptClickOnApp: result.url, itemFrame: result.frame)
-        return nil
-    }
-
-    private func shouldConsumeFollowupLeftMouseEvent(type: CGEventType) -> Bool {
-        guard let deadline = consumeLeftMouseUntil else {
-            return false
-        }
-        if Date() > deadline {
-            consumeLeftMouseUntil = nil
-            return false
-        }
-        if type == .leftMouseUp {
-            consumeLeftMouseUntil = nil
-        }
-        return true
+        // Let mouse-down through so the Dock can handle drags
+        return Unmanaged.passUnretained(event)
     }
 
     /// Result of finding a clicked running app in the Dock.
@@ -260,6 +285,20 @@ final class DockClickInterceptor {
         }
 
         return CGRect(origin: position, size: size)
+    }
+
+    /// Posts a synthetic mouse-up at the given location to complete the Dock's click tracking.
+    private func postMouseUp(at location: CGPoint) {
+        guard let mouseUp = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: location,
+            mouseButton: .left
+        ) else {
+            return
+        }
+
+        mouseUp.post(tap: .cghidEventTap)
     }
 
     private static let eventCallback: CGEventTapCallBack = { proxy, type, cgEvent, userInfo in
