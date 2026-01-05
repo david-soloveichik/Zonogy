@@ -23,6 +23,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case saveWinShotSnapshot
         case showLauncher
         case showAltTab
+        case showAltTabCurrentApp
 
         var displayName: String {
             switch self {
@@ -41,6 +42,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .saveWinShotSnapshot: return "Save WinShot Snapshot"
             case .showLauncher: return "Show Launcher"
             case .showAltTab: return "AltTab Window Switcher"
+            case .showAltTabCurrentApp: return "AltTab (Current App Only)"
             }
         }
 
@@ -80,6 +82,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .showAltTab:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: cmdOnly)
+            case .showAltTabCurrentApp:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Grave), modifiers: cmdOnly)
             }
         }
     }

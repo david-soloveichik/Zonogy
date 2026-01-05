@@ -35,30 +35,47 @@ final class AltTabController {
         case leastRecent
     }
 
+    enum AppFilter {
+        case allWindows
+        case app(bundleId: String, name: String)
+        case noWindows  // Used when frontmost app has no bundle ID
+    }
+
     @discardableResult
-    func show(initialSelection: InitialSelection = .mostRecent) -> Bool {
+    func show(initialSelection: InitialSelection = .mostRecent, appFilter: AppFilter = .allWindows) -> Bool {
         guard let delegate = delegate else {
             Logger.debug("AltTab: Cannot show - no delegate")
             return false
         }
 
         // Get all windows ordered by recency
-        let allWindows = delegate.allManagedWindowsOrderedByRecency()
+        var allWindows = delegate.allManagedWindowsOrderedByRecency()
 
-        guard !allWindows.isEmpty else {
-            Logger.debug("AltTab: No windows to show")
-            return false
+        // Determine header text and filter windows if needed
+        let headerText: String
+        switch appFilter {
+        case .allWindows:
+            headerText = "Switch Windows"
+        case .app(let bundleId, let name):
+            allWindows = allWindows.filter { $0.bundleIdentifier == bundleId }
+            headerText = "\(name) Windows"
+        case .noWindows:
+            allWindows = []
+            headerText = "Switch Windows"
         }
 
+        // Show UI even if empty (will display empty state)
         let model = AltTabModel(windows: allWindows)
         self.model = model
 
-        switch initialSelection {
-        case .mostRecent:
-            // Start at index 1 (previous window) since index 0 is the currently active window
-            model.selectedIndex = min(1, allWindows.count - 1)
-        case .leastRecent:
-            model.selectedIndex = max(0, allWindows.count - 1)
+        if !allWindows.isEmpty {
+            switch initialSelection {
+            case .mostRecent:
+                // Start at index 1 (previous window) since index 0 is the currently active window
+                model.selectedIndex = min(1, allWindows.count - 1)
+            case .leastRecent:
+                model.selectedIndex = max(0, allWindows.count - 1)
+            }
         }
 
         // Create window if needed
@@ -71,6 +88,7 @@ final class AltTabController {
         // Create the SwiftUI view
         let altTabView = AltTabView(
             model: model,
+            headerText: headerText,
             onActivateSelected: { [weak self] in self?.activateSelectedWindow() }
         )
 

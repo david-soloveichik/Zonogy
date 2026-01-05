@@ -5,12 +5,13 @@ import SwiftUI
 
 struct AltTabView: View {
     @ObservedObject var model: AltTabModel
+    let headerText: String
     let onActivateSelected: () -> Void
 
     var body: some View {
         VStack(spacing: 8) {
             // Header
-            Text("Switch Windows")
+            Text(headerText)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)

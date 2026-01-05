@@ -11,6 +11,7 @@ AltTab MUST override the system app switcher for its configured shortcut. This r
 ## Activation
 
 - **Default shortcut:** Cmd-Tab (configurable in Zonogy Preferences)
+- **App-specific shortcut:** Cmd-` (configurable in Zonogy Preferences) — shows only windows from the currently active application
 - AltTab appears in the same location as the Launcher would appear when invoked
 - The configured shortcut may include multiple modifiers (e.g. Control-Command-Tab)
 
@@ -46,9 +47,19 @@ AltTab MUST override the system app switcher for its configured shortcut. This r
 - **Cancel:** Pressing Escape dismisses AltTab without activating any window (even if the modifier key is still held)
 - **Cancel:** Clicking outside the AltTab window dismisses AltTab without activating any window
 
+## App-Specific Mode (Cmd-`)
+
+When invoked with the app-specific shortcut (default Cmd-`), AltTab shows only windows belonging to the currently active application:
+
+- **Header:** Displays "[App Name] Windows" instead of "Switch Windows"
+- **Window list:** Filtered to show only windows from the frontmost application
+- **Empty state:** If the current app has no managed windows, or if the frontmost app has no bundle identifier, the empty state is shown
+- **All other behavior** (navigation, activation, dismissal) is identical to the standard AltTab
+
 ## Settings
 
 - Keyboard shortcut configurable in Zonogy Preferences (default: Cmd-Tab)
+- App-specific shortcut configurable in Zonogy Preferences (default: Cmd-`)
 - The modifier(s) for cycling are derived from the configured shortcut
 
 ## Implementation Notes

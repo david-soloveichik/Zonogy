@@ -4,12 +4,18 @@ import ApplicationServices
 import Carbon
 import Foundation
 
+/// Mode for AltTab window filtering
+enum AltTabMode {
+    case allWindows
+    case currentAppOnly
+}
+
 protocol AltTabKeyInterceptorDelegate: AnyObject {
     /// Return true when AltTab UI is currently visible.
     func altTabKeyInterceptorIsAltTabVisible(_ interceptor: AltTabKeyInterceptor) -> Bool
 
     /// Request that AltTab be shown. Return true if it was shown.
-    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction) -> Bool
+    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction, mode: AltTabMode) -> Bool
 
     /// Cycle AltTab selection in the given direction (only called while AltTab is visible).
     func altTabKeyInterceptor(_ interceptor: AltTabKeyInterceptor, cycle direction: AltTabKeyInterceptor.Direction)
@@ -48,6 +54,7 @@ final class AltTabKeyInterceptor {
         let keyCode: CGKeyCode
         let requiredModifiers: CGEventFlags
         let shiftIsRequired: Bool
+        let mode: AltTabMode
     }
 
     func start(delegate: AltTabKeyInterceptorDelegate) {
@@ -155,16 +162,27 @@ final class AltTabKeyInterceptor {
             return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, event: event)
         }
 
-        guard let shortcut = currentAltTabShortcut() else {
-            return Unmanaged.passUnretained(event)
+        // Try both AltTab shortcuts (all windows and current app only)
+        let shortcuts: [(AltTabMode, ShortcutInfo?)] = [
+            (.allWindows, currentAltTabShortcut()),
+            (.currentAppOnly, currentAltTabCurrentAppShortcut())
+        ]
+
+        var matchedShortcut: EngagedShortcut?
+        for (mode, shortcut) in shortcuts {
+            guard let shortcut else { continue }
+            if keyCode == shortcut.keyCode && shortcutMatches(relevantFlags: relevantFlags, shortcut: shortcut) {
+                matchedShortcut = EngagedShortcut(
+                    keyCode: shortcut.keyCode,
+                    requiredModifiers: shortcut.requiredModifiers,
+                    shiftIsRequired: shortcut.shiftIsRequired,
+                    mode: mode
+                )
+                break
+            }
         }
 
-        let keyMatches = keyCode == shortcut.keyCode
-        guard keyMatches else {
-            return Unmanaged.passUnretained(event)
-        }
-
-        guard shortcutMatches(relevantFlags: relevantFlags, shortcut: shortcut) else {
+        guard let shortcut = matchedShortcut else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -176,7 +194,7 @@ final class AltTabKeyInterceptor {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            _ = self.delegate?.altTabKeyInterceptorShowAltTab(self, initialDirection: direction)
+            _ = self.delegate?.altTabKeyInterceptorShowAltTab(self, initialDirection: direction, mode: shortcut.mode)
         }
 
         // Swallow to override the system app switcher.
@@ -216,7 +234,13 @@ final class AltTabKeyInterceptor {
         return Unmanaged.passUnretained(event)
     }
 
-    private func currentAltTabShortcut() -> EngagedShortcut? {
+    private struct ShortcutInfo {
+        let keyCode: CGKeyCode
+        let requiredModifiers: CGEventFlags
+        let shiftIsRequired: Bool
+    }
+
+    private func currentAltTabShortcut() -> ShortcutInfo? {
         guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showAltTab) else {
             return nil
         }
@@ -224,14 +248,29 @@ final class AltTabKeyInterceptor {
         let requiredModifiers = cgEventFlags(fromCarbonModifiers: shortcut.modifiers)
         let shiftIsRequired = requiredModifiers.contains(.maskShift)
 
-        return EngagedShortcut(
+        return ShortcutInfo(
             keyCode: CGKeyCode(shortcut.keyCode),
             requiredModifiers: requiredModifiers,
             shiftIsRequired: shiftIsRequired
         )
     }
 
-    private func shortcutMatches(relevantFlags: CGEventFlags, shortcut: EngagedShortcut) -> Bool {
+    private func currentAltTabCurrentAppShortcut() -> ShortcutInfo? {
+        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showAltTabCurrentApp) else {
+            return nil
+        }
+
+        let requiredModifiers = cgEventFlags(fromCarbonModifiers: shortcut.modifiers)
+        let shiftIsRequired = requiredModifiers.contains(.maskShift)
+
+        return ShortcutInfo(
+            keyCode: CGKeyCode(shortcut.keyCode),
+            requiredModifiers: requiredModifiers,
+            shiftIsRequired: shiftIsRequired
+        )
+    }
+
+    private func shortcutMatches(relevantFlags: CGEventFlags, shortcut: ShortcutInfo) -> Bool {
         guard relevantFlags.contains(shortcut.requiredModifiers) else {
             return false
         }

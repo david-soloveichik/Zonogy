@@ -88,7 +88,7 @@ extension AppController: AltTabKeyInterceptorDelegate {
         altTabController.isActive
     }
 
-    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction) -> Bool {
+    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction, mode: AltTabMode) -> Bool {
         // Dismiss Launcher if active to avoid overlapping overlays.
         if launcherController.isActive {
             launcherController.hide()
@@ -102,7 +102,18 @@ extension AppController: AltTabKeyInterceptorDelegate {
             initialSelection = .leastRecent
         }
 
-        return altTabController.show(initialSelection: initialSelection)
+        switch mode {
+        case .allWindows:
+            return altTabController.show(initialSelection: initialSelection)
+        case .currentAppOnly:
+            guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
+                  let bundleId = frontmostApp.bundleIdentifier else {
+                // No frontmost app or no bundle identifier - show empty state
+                return altTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
+            }
+            let appName = frontmostApp.localizedName ?? bundleId
+            return altTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
+        }
     }
 
     func altTabKeyInterceptor(_ interceptor: AltTabKeyInterceptor, cycle direction: AltTabKeyInterceptor.Direction) {
