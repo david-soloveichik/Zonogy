@@ -136,6 +136,10 @@ extension AppController {
             launcherController.hide()
         }
 
+        // Suppress twitchy activity recording during restoration.
+        // The explicitly restored active window will bypass this via direct recordWindowActivity call.
+        scheduleActivityRecordingSuppression(reason: "winshot-restore")
+
         // Auto-save current state before restoring, so user can return to it later.
         // Only create if current windows differ from target snapshot to avoid
         // the deduplication logic deleting our target snapshot.

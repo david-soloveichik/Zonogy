@@ -29,6 +29,8 @@ extension AppController {
         pendingScreenChangeReason = nil
         pendingScreenChangeIncludesWake = false
         pendingScreenChangeDisplayIds.removeAll()
+        // Clear any activity recording suppression.
+        activityRecordingSuppressedUntil = nil
     }
 
     internal func handleScreensDidWake() {

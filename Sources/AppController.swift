@@ -132,6 +132,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneProtectionDuration: TimeInterval = 1.0
+    /// Deadline until which notification-driven window activity recording is suppressed
+    /// to prevent "twitchy" recordings during temporary zone/WinShot operations.
+    internal var activityRecordingSuppressedUntil: Date?
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {

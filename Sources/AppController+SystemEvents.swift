@@ -81,8 +81,10 @@ extension AppController {
         // AXFocusedWindowChanged notifications only fire when focus changes within an app,
         // not when the app itself is activated. So we proactively record activity here to
         // ensure the focused window appears correctly in the AltTab recency list.
+        // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations.
         if let pid = application?.processIdentifier,
-           let focused = windowController.focusedWindowIfTracked(pid: pid) {
+           let focused = windowController.focusedWindowIfTracked(pid: pid),
+           !isActivityRecordingSuppressed() {
             windowController.recordWindowActivity(windowId: focused.windowId)
         }
     }

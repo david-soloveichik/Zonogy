@@ -43,7 +43,8 @@ extension AppController {
         handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
 
         // Record window activity for launcher recency ordering
-        if let windowId = focusedWindowId {
+        // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations
+        if let windowId = focusedWindowId, !isActivityRecordingSuppressed() {
             windowController.recordWindowActivity(windowId: windowId)
         }
 
