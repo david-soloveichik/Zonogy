@@ -88,6 +88,14 @@ extension AppController {
         temporaryZoneCoordinator.hasAvailableTiledZone()
     }
 
+    func screenIdForAccessibilityFrame(_ frame: CGRect) -> CGDirectDisplayID? {
+        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+            accessibilityFrame: frame,
+            primaryScreenBounds: primaryScreenBounds
+        )
+        return screenIdForCocoaFrame(cocoaFrame)
+    }
+
     func finalizeFloatingTemporaryDrop(
         windowId: Int,
         finalFrame: CGRect,

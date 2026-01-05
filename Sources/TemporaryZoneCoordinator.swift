@@ -20,6 +20,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
+    func screenIdForAccessibilityFrame(_ frame: CGRect) -> CGDirectDisplayID?
     func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
     func scheduleTemporaryZoneProtection(windowId: Int)
     func clearTemporaryZoneProtection(windowId: Int)
@@ -265,7 +266,54 @@ final class TemporaryZoneCoordinator {
             return
         }
 
+        if handleCrossScreenFloatingDrop(managed: managed, finalFrame: finalFrame) {
+            return
+        }
+
         // Otherwise, leaving the temporary zone simply keeps the window floating.
+    }
+
+    private func handleCrossScreenFloatingDrop(managed: ManagedWindow, finalFrame: CGRect) -> Bool {
+        guard let host,
+              let originScreenId = occupants.first(where: { $0.value == managed.windowId })?.key,
+              let destinationScreenId = host.screenIdForAccessibilityFrame(finalFrame),
+              destinationScreenId != originScreenId else {
+            return false
+        }
+
+        let displacedWindow = occupants[destinationScreenId].flatMap { host.windowController.window(withId: $0) }
+        let originIndex = host.screenContextStore.loggingIndex(for: originScreenId)
+        let destinationIndex = host.screenContextStore.loggingIndex(for: destinationScreenId)
+
+        withRetargetingSuspended {
+            // Bookkeeping: move the dragged window to the destination screen's temporary zone.
+            occupants.removeValue(forKey: originScreenId)
+            occupants[destinationScreenId] = managed.windowId
+            host.setManagedWindow(managed, screenId: destinationScreenId, zoneIndex: nil)
+
+            // If the destination already had a temporary occupant, swap it back to the origin screen.
+            if let displacedWindow {
+                occupants[originScreenId] = displacedWindow.windowId
+                host.setManagedWindow(displacedWindow, screenId: originScreenId, zoneIndex: nil)
+
+                if let descriptor = host.descriptor(for: originScreenId) {
+                    let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
+                    host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor)
+                }
+
+                Logger.debug(
+                    "Swapped temporary zone occupants: window \(managed.windowId) -> screen \(destinationIndex), " +
+                        "window \(displacedWindow.windowId) -> screen \(originIndex)"
+                )
+            } else {
+                Logger.debug("Moved temporary zone window \(managed.windowId) from screen \(originIndex) to screen \(destinationIndex)")
+            }
+        }
+
+        refreshTargeting(reason: "floating-drop-cross-screen")
+        host.refreshIndicators()
+        host.refreshResizeHandles()
+        return true
     }
     
     private func addZoneDropTarget(for cursorPoint: CGPoint?) -> CGDirectDisplayID? {
