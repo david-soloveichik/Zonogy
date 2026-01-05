@@ -13,6 +13,15 @@ extension AppController {
         }
     }
 
+    func debugManagedWindowIds(for pid: pid_t) -> [Int] {
+        return windowController.allWindows.compactMap { window in
+            if case .accessibility(_, let windowPid, _) = window.backing, windowPid == pid {
+                return window.windowId
+            }
+            return nil
+        }.sorted()
+    }
+
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int] {
         return windowController.pruneDestroyedWindowsForPid(pid)
     }
@@ -24,6 +33,25 @@ extension AppController {
         // avoid incorrect pruning of windows when AX APIs return transient errors.
         if shouldIgnoreDueToSleepWake(event: "windowFocusChanged(pid: \(pid))") {
             return
+        }
+
+        let activitySuppressed = isActivityRecordingSuppressed()
+        if focusedWindowId == nil || activitySuppressed {
+            let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
+            if let windowId = focusedWindowId,
+               let managed = windowController.window(withId: windowId) {
+                let resolvedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+                let screenDescription = resolvedScreenId.map { screenContextStore.logDescription(for: $0) } ?? "unknown-screen"
+                let zoneDescription = managed.zoneIndex.map(String.init) ?? "none"
+                let tempDescription = isWindowInTemporaryZone(windowId) ? "temporary" : "not-temporary"
+                Logger.debug(
+                    "windowFocusChanged: pid \(pid) (bundle: \(bundleId)) focusedWindowId=\(windowId) zone=\(zoneDescription) temp=\(tempDescription) \(screenDescription) (activitySuppressed: \(activitySuppressed))"
+                )
+            } else {
+                Logger.debug(
+                    "windowFocusChanged: pid \(pid) (bundle: \(bundleId)) focusedWindowId=nil (activitySuppressed: \(activitySuppressed))"
+                )
+            }
         }
 
         // Dismiss Launcher if focus shifts to a managed window in a zone (tiled or temporary).

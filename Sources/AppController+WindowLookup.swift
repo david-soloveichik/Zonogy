@@ -22,7 +22,7 @@ extension AppController {
         }
 
         guard let managed = windowController.focusedWindowIfTracked(pid: pid) else {
-            Logger.debug("\(prefix)pid \(pid) has no tracked focused window")
+            Logger.debug("\(prefix)pid \(pid) has no tracked focused window (or focused window is unavailable)")
             return nil
         }
 

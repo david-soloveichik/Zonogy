@@ -369,7 +369,7 @@ extension AppController {
             // Close all placeholder windows that were on the removed display.
             let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == displayId }
             for placeholder in placeholders {
-                Logger.debug("Closing placeholder \(placeholder.windowId) for removed screen \(displayId)")
+                Logger.debug("Closing placeholder \(placeholder.windowId) for removed \(entry.context.descriptor.localizedName) [\(displayId)]")
                 windowController.closeWindow(placeholder)
                 placeholderCoordinator.forget(windowId: placeholder.windowId)
             }
@@ -382,7 +382,7 @@ extension AppController {
             // windowsOnDisplay so this is robust even if earlier syncs cleared
             // screenDisplayId for those windows.
             for managed in windowsOnDisplay {
-                Logger.debug("Minimizing window \(managed.windowId) from removed screen \(displayId) due to display-removal policy")
+                Logger.debug("Minimizing window \(managed.windowId) from removed \(entry.context.descriptor.localizedName) [\(displayId)] due to display-removal policy")
                 clearManagedWindowZone(managed)
                 minimizeWindowProgrammatically(managed, reason: "display-removal")
             }

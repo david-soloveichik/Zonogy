@@ -371,7 +371,7 @@ class DragDropCoordinator {
             return nil
         }
         guard let newZone = delegate.addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) else {
-            Logger.debug("Failed to add zone on screen \(screenId) for drag-drop request")
+            Logger.debug("Failed to add zone on \(ScreenContextStore.logDescription(for: screenId)) for drag-drop request")
             return nil
         }
         let newKey = ZoneKey(screenId: screenId, index: newZone.index)

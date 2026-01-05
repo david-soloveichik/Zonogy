@@ -66,7 +66,7 @@ struct WinShotSnapshot {
     func logDebugDetails(context: String) {
         let prefix = "WinShot snapshot \(id)"
 
-        Logger.debug("\(prefix) \(context): screenId=\(screenId), zoneCount=\(zoneCount)")
+        Logger.debug("\(prefix) \(context): screen=\(ScreenContextStore.logDescription(for: screenId)), zoneCount=\(zoneCount)")
 
         let sortedZoneIndices = zoneFrames.keys.sorted()
         for index in sortedZoneIndices {

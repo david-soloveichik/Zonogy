@@ -80,7 +80,7 @@ final class WinShotManager {
         // Check eligibility: must have at least one non-placeholder window
         let hasWindows = !zoneAssignments.isEmpty || tempIdentity != nil
         guard hasWindows else {
-            Logger.debug("WinShot: Skipping snapshot - no windows on screen \(screenId)")
+            Logger.debug("WinShot: Skipping snapshot - no windows on \(ScreenContextStore.logDescription(for: screenId))")
             return nil
         }
 
@@ -113,7 +113,7 @@ final class WinShotManager {
         addSnapshot(snapshot, for: screenId)
 
         Logger.debug(
-            "WinShot: Created snapshot \(snapshot.id) on screen \(screenId) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))"
+            "WinShot: Created snapshot \(snapshot.id) on \(ScreenContextStore.logDescription(for: screenId)) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))"
         )
         snapshot.logDebugDetails(context: "created (reason: \(reason))")
 
@@ -127,7 +127,7 @@ final class WinShotManager {
         for (screenId, screenSnapshots) in snapshots {
             if let index = screenSnapshots.firstIndex(where: { $0.id == id }) {
                 snapshots[screenId]?.remove(at: index)
-                Logger.debug("WinShot: Deleted snapshot \(id) from screen \(screenId)")
+                Logger.debug("WinShot: Deleted snapshot \(id) from \(ScreenContextStore.logDescription(for: screenId))")
                 return
             }
         }
@@ -159,7 +159,7 @@ final class WinShotManager {
         let count = snapshots[screenId]?.count ?? 0
         snapshots[screenId] = nil
         if count > 0 {
-            Logger.debug("WinShot: Cleared \(count) snapshot(s) for screen \(screenId)")
+            Logger.debug("WinShot: Cleared \(count) snapshot(s) for \(ScreenContextStore.logDescription(for: screenId))")
         }
     }
 
@@ -202,7 +202,7 @@ final class WinShotManager {
 
     private func captureScreenThumbnail(screenId: CGDirectDisplayID) -> NSImage? {
         guard let cgImage = CGDisplayCreateImage(screenId) else {
-            Logger.debug("WinShot: Failed to capture screen \(screenId)")
+            Logger.debug("WinShot: Failed to capture \(ScreenContextStore.logDescription(for: screenId))")
             return nil
         }
 

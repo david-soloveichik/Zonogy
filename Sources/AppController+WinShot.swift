@@ -14,7 +14,7 @@ extension AppController {
     @discardableResult
     internal func createWinShotSnapshot(on screenId: CGDirectDisplayID, reason: String) -> WinShotSnapshot? {
         guard let context = screenContexts[screenId] else {
-            Logger.debug("WinShot: Cannot create snapshot - no context for screen \(screenId)")
+            Logger.debug("WinShot: Cannot create snapshot - no context for \(screenContextStore.logDescription(for: screenId))")
             return nil
         }
 
@@ -79,7 +79,7 @@ extension AppController {
         let snapshots = winShotManager.snapshots(for: screenId)
 
         guard !snapshots.isEmpty else {
-            Logger.debug("WinShot: No snapshots available for screen \(screenId)")
+            Logger.debug("WinShot: No snapshots available for \(screenContextStore.logDescription(for: screenId))")
             return
         }
 
@@ -122,12 +122,12 @@ extension AppController {
         let screenId = snapshot.screenId
 
         guard let context = screenContexts[screenId] else {
-            Logger.debug("WinShot: Cannot restore - no context for screen \(screenId)")
+            Logger.debug("WinShot: Cannot restore - no context for \(screenContextStore.logDescription(for: screenId))")
             return
         }
 
         guard let descriptor = descriptor(for: screenId) else {
-            Logger.debug("WinShot: Cannot restore - no descriptor for screen \(screenId)")
+            Logger.debug("WinShot: Cannot restore - no descriptor for \(screenContextStore.logDescription(for: screenId))")
             return
         }
 
@@ -148,7 +148,7 @@ extension AppController {
             createWinShotSnapshot(on: screenId, reason: "pre-restore")
         }
 
-        Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on screen \(screenId)")
+        Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))")
 
         // Step 1: Identify current windows on this screen (excluding placeholders)
         let currentWindows = collectCurrentWindows(on: screenId)
@@ -305,7 +305,7 @@ extension AppController {
         // Remove the window from any zone it's currently in (could be on another screen)
         for (otherScreenId, otherContext) in screenContexts {
             if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
-                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore")
+                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on \(screenContextStore.logDescription(for: otherScreenId)) before restore")
                 otherContext.zoneController.removeWindow(windowId: managed.windowId)
             }
         }
@@ -342,7 +342,7 @@ extension AppController {
         // Remove from any zone it's currently in
         for (otherScreenId, otherContext) in screenContexts {
             if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
-                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on screen \(otherScreenId) before restore to temporary")
+                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on \(screenContextStore.logDescription(for: otherScreenId)) before restore to temporary")
                 otherContext.zoneController.removeWindow(windowId: managed.windowId)
             }
         }
@@ -363,22 +363,72 @@ extension AppController {
     // MARK: - Private Helpers
 
     private func resolveActiveWindowId(on screenId: CGDirectDisplayID) -> Int? {
-        // Check frontmost application
-        if let (managed, _) = managedWindowForFrontmostApplication(logPrefix: "WinShot activeWindow"),
-           let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
-           managedScreenId == screenId {
-            return managed.windowId
+        let screenDescription = screenContextStore.logDescription(for: screenId)
+
+        if let frontmost = NSWorkspace.shared.frontmostApplication {
+            let bundleId = frontmost.bundleIdentifier ?? "unknown"
+            Logger.debug(
+                "WinShot: Resolving active window id on \(screenDescription) (frontmost pid: \(frontmost.processIdentifier), bundle: \(bundleId))"
+            )
+        } else {
+            Logger.debug("WinShot: Resolving active window id on \(screenDescription) (frontmost: nil)")
         }
 
-        // Fall back to last active pid
-        if let lastPid = lastActiveApplicationPid,
-           let managed = windowController.focusedWindowIfTracked(pid: lastPid),
-           !managed.isPlaceholder,
-           let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
-           managedScreenId == screenId {
-            return managed.windowId
+        // Prefer the frontmost application's focused managed window.
+        if let (managed, pid) = managedWindowForFrontmostApplication(logPrefix: "WinShot activeWindow") {
+            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+            if let managedScreenId, managedScreenId == screenId {
+                Logger.debug("WinShot: Active window resolved to window \(managed.windowId) via frontmost pid \(pid) on \(screenDescription)")
+                return managed.windowId
+            }
+
+            if let managedScreenId {
+                let managedScreenDescription = screenContextStore.logDescription(for: managedScreenId)
+                Logger.debug(
+                    "WinShot: Frontmost focused window \(managed.windowId) (pid \(pid)) is on \(managedScreenDescription); expected \(screenDescription)"
+                )
+            } else {
+                Logger.debug(
+                    "WinShot: Frontmost focused window \(managed.windowId) (pid \(pid)) has no detectable screen; expected \(screenDescription)"
+                )
+            }
+        } else {
+            Logger.debug("WinShot: No tracked focused window for frontmost application while resolving active window on \(screenDescription)")
         }
 
+        // Fall back to last active pid.
+        guard let lastPid = lastActiveApplicationPid else {
+            Logger.debug("WinShot: lastActiveApplicationPid is nil while resolving active window on \(screenDescription)")
+            return nil
+        }
+
+        if let managed = windowController.focusedWindowIfTracked(pid: lastPid) {
+            if managed.isPlaceholder {
+                Logger.debug("WinShot: lastActiveApplicationPid \(lastPid) focused window \(managed.windowId) is a placeholder; skipping")
+                return nil
+            }
+
+            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+            if let managedScreenId, managedScreenId == screenId {
+                Logger.debug("WinShot: Active window resolved to window \(managed.windowId) via lastActiveApplicationPid \(lastPid) on \(screenDescription)")
+                return managed.windowId
+            }
+
+            if let managedScreenId {
+                let managedScreenDescription = screenContextStore.logDescription(for: managedScreenId)
+                Logger.debug(
+                    "WinShot: lastActiveApplicationPid \(lastPid) focused window \(managed.windowId) is on \(managedScreenDescription); expected \(screenDescription)"
+                )
+            } else {
+                Logger.debug(
+                    "WinShot: lastActiveApplicationPid \(lastPid) focused window \(managed.windowId) has no detectable screen; expected \(screenDescription)"
+                )
+            }
+        } else {
+            Logger.debug("WinShot: lastActiveApplicationPid \(lastPid) has no tracked focused window while resolving active window on \(screenDescription)")
+        }
+
+        Logger.debug("WinShot: Active window could not be resolved on \(screenDescription); snapshot activeWindowId will be nil")
         return nil
     }
 

@@ -45,6 +45,18 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
+### **Screen Identity and Logging**
+
+Zonogy has two different ways of referring to a “screen”, and mixing them causes very confusing logs and bugs:
+
+- **`CGDirectDisplayID` (aka `displayId`)**: stable identifier used for all internal per-screen state (zone controllers, snapshots, temporary zones, etc).
+- **Screen index (0, 1, 2, …)**: user-facing identifier used in logs/REPL (matches `winmanmon` / `NSScreen.screens` ordering). This ordering can change when displays are added/removed/rearranged.
+
+**Implementation/logging requirements:**
+
+1. Never treat a `CGDirectDisplayID` as a screen index in logs (avoid messages like “screen \(displayId)”).
+2. When logging a screen, prefer a single helper that formats something like `screen <index> (displayId <id>)` when helpful, so it’s obvious which identifier is being used.
+
 ### Window Management Criteria
 
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):

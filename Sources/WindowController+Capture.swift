@@ -29,11 +29,12 @@ extension WindowController {
     func focusedWindowIfTracked(pid: pid_t) -> ManagedWindow? {
         let managed = captureFocusedWindow(pid: pid, allowCreating: false)
         if let managed {
+            let screenDescription = managed.screenDisplayId.map { ScreenContextStore.logDescription(for: $0) } ?? "unknown-screen"
             Logger.debug(
-                "focusedWindowIfTracked: pid \(pid) -> window \(managed.windowId) (zone: \(managed.zoneIndex.map(String.init) ?? "none"), screen: \(managed.screenDisplayId.map(String.init) ?? "unknown"))"
+                "focusedWindowIfTracked: pid \(pid) -> window \(managed.windowId) (zone: \(managed.zoneIndex.map(String.init) ?? "none"), \(screenDescription))"
             )
         } else {
-            Logger.debug("focusedWindowIfTracked: pid \(pid) has no tracked focused window")
+            Logger.debug("focusedWindowIfTracked: pid \(pid) has no tracked focused window (or focused window is unavailable)")
         }
         return managed
     }
@@ -61,7 +62,10 @@ extension WindowController {
         var windowObject: CFTypeRef?
         let windowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
         guard windowResult == .success, let windowObject else {
-            Logger.debug("Failed to obtain focused window for pid \(pid) (AX error \(windowResult.rawValue))")
+            let bundleId = application.bundleIdentifier ?? "unknown"
+            Logger.debug(
+                "Failed to obtain focused window for pid \(pid) (bundle: \(bundleId), active: \(application.isActive), hidden: \(application.isHidden), finishedLaunching: \(application.isFinishedLaunching)) (AX error \(windowResult.logDescription))"
+            )
             return nil
         }
 
@@ -230,7 +234,9 @@ extension WindowController {
         }
 
         if let existing = existingManagedWindow(for: element) {
-            Logger.debug("captureWindowIfNeeded: Window already exists for pid \(pid), allowReturningExisting=\(allowReturningExisting)")
+            Logger.debug(
+                "captureWindowIfNeeded: Window already exists for pid \(pid) as managed \(existing.windowId) (CGWindowID: \(windowNumStr)), allowReturningExisting=\(allowReturningExisting)"
+            )
             return allowReturningExisting ? existing : nil
         }
 
@@ -1038,7 +1044,7 @@ extension WindowController {
         var cgWindowId: CGWindowID = 0
         let status = _AXUIElementGetWindow(element, &cgWindowId)
         guard status == .success else {
-            Logger.debug("cgWindowId(\(context)): _AXUIElementGetWindow failed for pid \(pid) with AXError \(status.rawValue)")
+            Logger.debug("cgWindowId(\(context)): _AXUIElementGetWindow failed for pid \(pid) with AXError \(status.logDescription)")
             return (nil, status)
         }
         guard cgWindowId != 0 else {
@@ -1163,6 +1169,10 @@ extension WindowController {
                 focusedWindowId = managed.windowId
             }
 
+            if focusedWindowId == nil {
+                let bundleId = NSRunningApplication(processIdentifier: targetPid)?.bundleIdentifier ?? "unknown"
+                Logger.debug("AXMainWindowChanged: unable to resolve focused window id for pid \(targetPid) (bundle: \(bundleId))")
+            }
             delegate?.windowFocusChanged(pid: targetPid, focusedWindowId: focusedWindowId)
             return
         }
@@ -1187,6 +1197,10 @@ extension WindowController {
                     focusedWindowId = captured.windowId
                 } else if let managed = managedWindow(matching: element) {
                     focusedWindowId = managed.windowId
+                }
+                if focusedWindowId == nil {
+                    let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
+                    Logger.debug("AXFocusedWindowChanged: unable to resolve focused window id for pid \(pid) (bundle: \(bundleId))")
                 }
                 delegate?.windowFocusChanged(pid: pid, focusedWindowId: focusedWindowId)
             }

@@ -16,6 +16,7 @@ struct ValidationRetry {
 
 protocol ValidationRetryManagerDelegate: AnyObject {
     func hasManagedWindows(for pid: pid_t) -> Bool
+    func debugManagedWindowIds(for pid: pid_t) -> [Int]
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int]
     func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool)
     func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>)
@@ -131,7 +132,10 @@ class ValidationRetryManager {
 
         // Check if exhausted
         if retry.attempt >= retryDelays.count {
-            Logger.debug("Validation retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(retry.reason))")
+            let managedWindowIds = delegate.debugManagedWindowIds(for: pid).sorted()
+            Logger.debug(
+                "Validation retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(retry.reason), managedWindowIds: \(managedWindowIds))"
+            )
             cancelValidationRetry(for: pid)
             return
         }
