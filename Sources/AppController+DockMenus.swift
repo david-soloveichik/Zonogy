@@ -66,6 +66,36 @@ extension AppController: DockMenusCoordinatorDelegate {
         performDefaultLauncherAction(for: appURL, activateInPlace: true)
     }
 
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, preferredDragWindowForDockAppWithURL appURL: URL) -> LauncherWindowItem? {
+        guard let bundleId = Bundle(url: appURL)?.bundleIdentifier,
+              let preferredManaged = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+            return nil
+        }
+
+        if let item = windowsForApp(bundleIdentifier: bundleId).first(where: { $0.managedWindowId == preferredManaged.windowId }) {
+            return item
+        }
+
+        // Fallback: construct a minimal LauncherWindowItem for drag feedback and placement.
+        guard case .accessibility(let element, let pid, _) = preferredManaged.backing else {
+            return nil
+        }
+
+        var titleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+        let title = (titleRef as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Window"
+
+        return LauncherWindowItem(
+            title: title,
+            isMinimized: preferredManaged.isMinimized,
+            axElement: element,
+            lastActiveTime: windowController.lastActiveTime(for: preferredManaged.windowId),
+            bundleIdentifier: bundleId,
+            pid: pid,
+            managedWindowId: preferredManaged.windowId
+        )
+    }
+
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, windowsForBundleId bundleId: String) -> [LauncherWindowItem] {
         // Reuse the existing LauncherWindowProvider implementation
         return windowsForApp(bundleIdentifier: bundleId)
@@ -110,16 +140,16 @@ extension AppController: DockMenusCoordinatorDelegate {
         )
     }
 
-    func dockMenusCoordinatorDidUpdateDrag(_ coordinator: DockMenusCoordinator) {
+    func dockMenusCoordinatorDidUpdateDrag(_ coordinator: DockMenusCoordinator, cursorPointAX: CGPoint?) {
         // Update the cursor-driven drag session
-        dragDropCoordinator.updateCursorDrivenDragSession()
+        dragDropCoordinator.updateCursorDrivenDragSession(cursorPointAX: cursorPointAX)
     }
 
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem) {
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) {
         Logger.debug("DockMenus: drag ended for window \(window.title)")
 
         // Get the drop target from DragDropCoordinator
-        let dropTarget = dragDropCoordinator.endCursorDrivenDragSession()
+        let dropTarget = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
 
         // Perform placement based on drop target
         performDockMenuDrop(for: window, target: dropTarget)

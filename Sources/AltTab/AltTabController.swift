@@ -18,6 +18,10 @@ protocol AltTabControllerDelegate: AnyObject {
 
     /// Provides all managed windows ordered by last active time
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem]
+
+    /// Returns the window ID of the currently frontmost managed window, or nil if none.
+    /// Used to determine whether to start selection at index 0 or 1.
+    func frontmostManagedWindowId() -> Int?
 }
 
 final class AltTabController {
@@ -71,8 +75,14 @@ final class AltTabController {
         if !allWindows.isEmpty {
             switch initialSelection {
             case .mostRecent:
-                // Start at index 1 (previous window) since index 0 is the currently active window
-                model.selectedIndex = min(1, allWindows.count - 1)
+                // If the frontmost window is managed and is the first entry, start at index 1 (previous window).
+                // Otherwise start at index 0 (no frontmost managed window, or it's not in the list).
+                if let frontmostId = delegate.frontmostManagedWindowId(),
+                   allWindows.first?.managedWindowId == frontmostId {
+                    model.selectedIndex = min(1, allWindows.count - 1)
+                } else {
+                    model.selectedIndex = 0
+                }
             case .leastRecent:
                 model.selectedIndex = max(0, allWindows.count - 1)
             }

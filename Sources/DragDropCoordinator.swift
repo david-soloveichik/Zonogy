@@ -85,6 +85,7 @@ class DragDropCoordinator {
 
     private(set) var dragSession: DragSession?
     private let dragOverlayManager = DragOverlayManager()
+    private var cursorPointOverrideAX: CGPoint?
 
     init() {}
 
@@ -119,6 +120,7 @@ class DragDropCoordinator {
         originScreenId: CGDirectDisplayID?,
         originatedFromTemporary: Bool = false
     ) {
+        cursorPointOverrideAX = nil
         dragSession = DragSession(
             windowId: windowId,
             originZoneKey: originZoneKey,
@@ -145,6 +147,7 @@ class DragDropCoordinator {
         originScreenId: CGDirectDisplayID?,
         originatedFromTemporary: Bool = false
     ) {
+        cursorPointOverrideAX = nil
         let cursorFrame = cursorSyntheticFrame()
         dragSession = DragSession(
             windowId: windowId,
@@ -165,8 +168,11 @@ class DragDropCoordinator {
     }
 
     /// Updates a cursor-driven drag session using current cursor position.
-    func updateCursorDrivenDragSession() {
+    func updateCursorDrivenDragSession(cursorPointAX: CGPoint? = nil) {
         guard let session = dragSession, session.isCursorDriven else { return }
+        if let cursorPointAX {
+            cursorPointOverrideAX = cursorPointAX
+        }
         let cursorFrame = cursorSyntheticFrame()
         recordDragUpdate(windowId: session.windowId, frame: cursorFrame)
     }
@@ -181,7 +187,10 @@ class DragDropCoordinator {
 
     /// Ends a cursor-driven drag session by resolving the drop target and tearing down overlays.
     /// Returns the resolved drop target; the caller is responsible for performing the actual placement.
-    func endCursorDrivenDragSession() -> CursorDrivenDropTarget {
+    func endCursorDrivenDragSession(cursorPointAX: CGPoint? = nil) -> CursorDrivenDropTarget {
+        if let cursorPointAX {
+            cursorPointOverrideAX = cursorPointAX
+        }
         guard let session = dragSession, session.isCursorDriven else {
             tearDownDragSession()
             return .cancelled
@@ -192,6 +201,7 @@ class DragDropCoordinator {
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
             Logger.debug("Cursor-driven drag aborted: unable to resolve cursor position")
             dragSession = nil
+            cursorPointOverrideAX = nil
             delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
             delegate?.updateTemporaryIndicatorHighlight(screenId: nil)
             return .cancelled
@@ -209,6 +219,7 @@ class DragDropCoordinator {
         }
 
         dragSession = nil
+        cursorPointOverrideAX = nil
         delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
         delegate?.updateTemporaryIndicatorHighlight(screenId: nil)
 
@@ -233,6 +244,7 @@ class DragDropCoordinator {
         preferredScreenId: CGDirectDisplayID?,
         displacedDisposition: DisplacedWindowDisposition
     ) {
+        cursorPointOverrideAX = nil
         guard let delegate = delegate else {
             tearDownDragSession()
             return (nil, nil, .reassign)
@@ -287,6 +299,7 @@ class DragDropCoordinator {
         }
 
         dragSession = nil
+        cursorPointOverrideAX = nil
         delegate.updateAddZoneIndicatorHighlight(screenId: nil)
         delegate.updateTemporaryIndicatorHighlight(screenId: nil)
 
@@ -297,6 +310,7 @@ class DragDropCoordinator {
     func tearDownDragSession() {
         dragOverlayManager.tearDown()
         dragSession = nil
+        cursorPointOverrideAX = nil
         delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
         delegate?.updateTemporaryIndicatorHighlight(screenId: nil)
     }
@@ -387,6 +401,7 @@ class DragDropCoordinator {
            !delegate.isControlCommandDragActive() {
             dragOverlayManager.tearDown()
             dragSession = nil
+            cursorPointOverrideAX = nil
             delegate.resumeTemporaryDrag(windowId: windowId, frame: frame, originScreenId: session.originScreenId)
             return
         }
@@ -413,6 +428,7 @@ class DragDropCoordinator {
                 ?? delegate.targetedZoneManager.targetedTemporaryScreenId
             dragOverlayManager.tearDown()
             dragSession = nil
+            cursorPointOverrideAX = nil
             delegate.updateAddZoneIndicatorHighlight(screenId: nil)
             delegate.updateTemporaryIndicatorHighlight(screenId: nil)
 
@@ -438,6 +454,9 @@ class DragDropCoordinator {
     }
 
     private func currentCursorAccessibilityPoint() -> CGPoint? {
+        if let cursorPointOverrideAX {
+            return cursorPointOverrideAX
+        }
         guard let delegate = delegate else {
             return nil
         }

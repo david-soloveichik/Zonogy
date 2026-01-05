@@ -6,7 +6,7 @@ final class DockMenuDragFeedback {
     private var feedbackWindow: NSWindow?
     private var titleLabel: NSTextField?
 
-    func show(title: String) {
+    func show(title: String, at mouseLocation: CGPoint) {
         // Create feedback window if needed
         if feedbackWindow == nil {
             createFeedbackWindow()
@@ -27,27 +27,34 @@ final class DockMenuDragFeedback {
         feedbackWindow.setContentSize(windowSize)
 
         // Position at cursor
-        updatePosition()
+        updatePosition(at: mouseLocation)
 
         // Show with fade in
         feedbackWindow.alphaValue = 0
-        feedbackWindow.orderFront(nil)
+        feedbackWindow.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.1
             feedbackWindow.animator().alphaValue = 1
         }
     }
 
-    func updatePosition() {
+    func show(title: String) {
+        show(title: title, at: NSEvent.mouseLocation)
+    }
+
+    func updatePosition(at mouseLocation: CGPoint) {
         guard let feedbackWindow else { return }
 
-        let mouseLocation = NSEvent.mouseLocation
         // Offset slightly below and to the right of cursor
         let offset = NSPoint(x: 12, y: -20)
         feedbackWindow.setFrameOrigin(NSPoint(
             x: mouseLocation.x + offset.x,
             y: mouseLocation.y + offset.y - feedbackWindow.frame.height
         ))
+    }
+
+    func updatePosition() {
+        updatePosition(at: NSEvent.mouseLocation)
     }
 
     func hide() {

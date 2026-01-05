@@ -10,6 +10,16 @@ protocol DockClickInterceptorDelegate: AnyObject {
     ///   - appURL: The URL of the clicked application bundle.
     ///   - itemFrame: The accessibility frame of the clicked Dock item (origin at top-left of primary screen).
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect)
+
+    /// Called when a drag is detected on a running app's Dock icon and Zonogy intends to intercept it.
+    /// Return true to accept handling the drag (subsequent drag events will be swallowed).
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool
+
+    /// Called repeatedly during an intercepted drag as the cursor moves.
+    func dockClickInterceptorDidUpdateDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint)
+
+    /// Called when an intercepted drag ends (mouse up).
+    func dockClickInterceptorDidEndDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint)
 }
 
 /// Intercepts global left-clicks within the Dock's AXList frame.
@@ -17,15 +27,15 @@ protocol DockClickInterceptorDelegate: AnyObject {
 ///
 /// Only intercepts clicks on running application Dock items (AXApplicationDockItem).
 /// Clicks on folders, files, Launchpad, Trash, or non-running apps pass through.
-/// Drags are detected and allowed through so users can rearrange Dock icons.
+/// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy window drag-drop.
 final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue)
         static let dockBundleIdentifier = "com.apple.dock"
-        /// Movement threshold in pixels - if the mouse moves more than this, it's a drag not a click.
-        static let dragThreshold: CGFloat = 5.0
+        /// Movement threshold in pixels to initiate a Dock drag interception.
+        static let dragThreshold: CGFloat = 8.0
     }
 
     weak var delegate: DockClickInterceptorDelegate?
@@ -48,12 +58,18 @@ final class DockClickInterceptor {
     /// Tracks a pending click that may be intercepted on mouse-up.
     private var pendingClick: PendingClick?
 
+    private enum DragState {
+        case none
+        case intercepted
+        case unhandled
+    }
+
     /// State for tracking a potential click that will be intercepted on mouse-up.
     private struct PendingClick {
         let downLocation: CGPoint
         let appURL: URL
         let itemFrame: CGRect
-        var isDrag: Bool = false
+        var dragState: DragState = .none
     }
 
     func updateFrame(_ frame: CGRect?) {
@@ -125,14 +141,36 @@ final class DockClickInterceptor {
 
         // Track drag movement to distinguish clicks from drags
         if type == .leftMouseDragged {
-            if var pending = pendingClick, !pending.isDrag {
+            if var pending = pendingClick {
+                if pending.dragState == .intercepted {
+                    delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: event.location)
+                    return nil
+                }
+
+                if pending.dragState == .unhandled {
+                    return nil
+                }
+
                 let location = event.location
                 let dx = abs(location.x - pending.downLocation.x)
                 let dy = abs(location.y - pending.downLocation.y)
                 if dx > Constants.dragThreshold || dy > Constants.dragThreshold {
-                    pending.isDrag = true
+                    let accepted = delegate?.dockClickInterceptor(self, didBeginDragOnApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+                    if accepted {
+                        pending.dragState = .intercepted
+                        pendingClick = pending
+                        delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: location)
+                        return nil
+                    }
+
+                    // Can't handle this drag - still swallow it so the Dock doesn't start rearranging.
+                    pending.dragState = .unhandled
                     pendingClick = pending
+                    return nil
                 }
+
+                // Swallow small drags so the Dock doesn't start rearranging before we decide it's a drag.
+                return nil
             }
             return Unmanaged.passUnretained(event)
         }
@@ -144,9 +182,18 @@ final class DockClickInterceptor {
             }
             pendingClick = nil
 
-            // If it was a drag, let the mouse-up through to complete the drag
-            if pending.isDrag {
-                return Unmanaged.passUnretained(event)
+            switch pending.dragState {
+            case .intercepted:
+                // Complete the Dock's click tracking, then end the intercepted drag.
+                postMouseUp(at: pending.downLocation)
+                delegate?.dockClickInterceptorDidEndDrag(self, cursorPoint: event.location)
+                return nil
+            case .unhandled:
+                // Still complete the Dock's click tracking, but don't trigger any Zonogy action.
+                postMouseUp(at: pending.downLocation)
+                return nil
+            case .none:
+                break
             }
 
             // Post a synthetic mouse-up at the original location to complete the Dock's click tracking,
@@ -197,8 +244,8 @@ final class DockClickInterceptor {
             itemFrame: result.frame
         )
 
-        // Let mouse-down through so the Dock can handle drags
-        return Unmanaged.passUnretained(event)
+        // Consume mouse-down so the Dock doesn't start a press-and-hold menu or icon drag.
+        return nil
     }
 
     /// Result of finding a clicked running app in the Dock.

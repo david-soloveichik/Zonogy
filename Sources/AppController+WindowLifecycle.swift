@@ -76,6 +76,9 @@ extension AppController {
             recordActiveWindowForHistory(windowId: windowId, reason: "focus-changed")
         }
 
+        // Track frontmost managed window for AltTab initial selection (no AX call needed at show time)
+        currentFrontmostManagedWindowId = focusedWindowId
+
         // Record app activation for launcher app recency (used as tie-breaker in ranking)
         if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier {
             LaunchItemUsageStore.shared.recordAppActivation(bundleIdentifier: bundleId)
@@ -161,6 +164,9 @@ extension AppController {
             return
         }
         Logger.debug("Window \(windowId) will close")
+        if currentFrontmostManagedWindowId == windowId {
+            currentFrontmostManagedWindowId = nil
+        }
         manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
         if let managed, managed.isPlaceholder {
@@ -189,6 +195,9 @@ extension AppController {
             return
         }
         Logger.debug("Window \(windowId) did miniaturize")
+        if currentFrontmostManagedWindowId == windowId {
+            currentFrontmostManagedWindowId = nil
+        }
         manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
 

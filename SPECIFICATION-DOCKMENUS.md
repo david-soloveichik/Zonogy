@@ -5,6 +5,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 - **Hover:** When the mouse moves over an application icon in the macOS Dock, show a DockMenu: a miniature Launcher UI (ie similar to our Launcher feature) pre-filtered (“drilled down”) to that application. Unlike the full Launcher, there is no keyboard navigation, no search field, and no possibility of “drill out” navigation.
 - **Click interception:** Clicking an application icon in the Dock (without Shift) does not activate the real Dock item; instead Zonogy performs the same default action as selecting that application in the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). In particular, it obeys `hasMainWindow` selection rules.
   - **Exception**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
+- **Dock-icon drag interception:** Dragging a running app icon in the Dock (without Shift/Control) drags that app’s preferred managed window (same selection rules as click interception) using the same overlay + drop pipeline as DockMenu window-row drags.
 - **Bypass:** **Shift-click** on a Dock application behaves exactly like a normal Dock click (Zonogy does not intercept).
 - For apps that are not running, we don't show the DockMenus, nor do we do click interceptions.
 
@@ -42,6 +43,20 @@ When the user left-clicks a Dock app **without Shift**:
 
 - **Shift-click:** Do not intercept; allow the Dock to behave normally.
 - Do not intercept right-click / control-click (Dock context menus must keep working).
+
+### Dragging the Dock App (Interception)
+
+When the user drags a running Dock app icon **without Shift/Control**:
+
+- Zonogy intercepts the drag so the Dock does not start rearranging icons or show the native Dock menu.
+- Zonogy resolves the app’s preferred managed window using the same selection rules as Dock click interception (including `hasMainWindow`).
+- The resolved window is dragged using the same overlay UI and drop targets as dragging a DockMenu window entry (see **Dragging Windows Between Zones** in [SPECIFICATION.md](SPECIFICATION.md)).
+- If the user releases the mouse without a valid drop target, the drag is cancelled and nothing changes.
+- If the app has no eligible managed window, do nothing.
+
+**Modifiers:**
+
+- **Shift-drag / control-drag:** Do not intercept; allow normal Dock behavior (rearranging icons / context menus).
 
 ### Clicking Inside DockMenu
 
@@ -109,6 +124,12 @@ DockMenu dismisses when:
 - Global event tap intercepts left-mouse-down events within Dock AXList frame.
 - Validates click is on a running app (AXApplicationDockItem subrole).
 - Respects Shift modifier (bypass) and Control (context menu).
+
+### Dock Icon Drag Interception
+
+- Use the same CGEventTap as click interception and swallow `leftMouseDown` on eligible app items so the Dock can’t start its own press-and-hold menu or icon drag.
+- Cursor-driven drags must not rely on `NSEvent.mouseLocation` (mouse events are swallowed); instead forward `CGEvent.location` (accessibility coordinates) through the drag pipeline for hit-testing and drag-preview positioning.
+- Ensure the drag-preview window is frontmost even while other apps are active (e.g., `orderFrontRegardless`).
 
 ### Window Selection Semantics
 

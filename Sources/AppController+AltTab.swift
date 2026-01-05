@@ -19,6 +19,10 @@ extension AppController: AltTabControllerDelegate {
 
     // MARK: - All Managed Windows Provider
 
+    func frontmostManagedWindowId() -> Int? {
+        currentFrontmostManagedWindowId
+    }
+
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem] {
         var items: [LauncherWindowItem] = []
 

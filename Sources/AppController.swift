@@ -72,6 +72,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
     /// Used to hide zone resize bars on that screen.
     internal var unmanagedFocusedWindowScreenId: CGDirectDisplayID?
+    /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
+    /// Updated by windowFocusChanged; used by AltTab to determine initial selection without an AX call.
+    internal var currentFrontmostManagedWindowId: Int?
     internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
