@@ -76,6 +76,15 @@ extension AppController {
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
         handleTemporaryZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
         updateUnmanagedFocusState()
+
+        // Record window activity for AltTab recency tracking.
+        // AXFocusedWindowChanged notifications only fire when focus changes within an app,
+        // not when the app itself is activated. So we proactively record activity here to
+        // ensure the focused window appears correctly in the AltTab recency list.
+        if let pid = application?.processIdentifier,
+           let focused = windowController.focusedWindowIfTracked(pid: pid) {
+            windowController.recordWindowActivity(windowId: focused.windowId)
+        }
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {
