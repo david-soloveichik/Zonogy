@@ -299,6 +299,11 @@ class WindowPlacementManager {
     ) {
         guard let delegate = delegate else { return }
 
+        // Record activity for windows placed into zones so they appear in AltTab/Launcher recency lists.
+        if !managed.isPlaceholder {
+            delegate.windowController.recordWindowActivity(windowId: managed.windowId)
+        }
+
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
         let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
