@@ -138,7 +138,7 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
 - When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.
 - Whenever the targeted tiling zone is filled (Targeting independent of focus mode): if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
-- If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen.
+- If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen. Exception: in "Targeting follows focus" mode, if there is an active window in a zone, target that zone instead (any screen).
 
 **Target navigation shortcuts:**
 

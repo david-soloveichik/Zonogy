@@ -127,11 +127,19 @@ extension AppController {
         var shouldTargetTemporary = false
         if let currentTarget, currentTarget.screenId == screenId {
             if currentTarget.index == index {
-                // The targeted zone is being removed, find a fallback on the same screen
-                pendingTargetedKey = targetedZoneManager.fallbackTargetedZoneOnSameScreen(screenId: screenId)
-                if pendingTargetedKey == nil {
-                    // No empty zones on same screen, will target temporary zone
-                    shouldTargetTemporary = true
+                // The targeted zone is being removed, find a fallback
+                if let destination = followsFocusTargetOnZoneRemoval(removedIndex: index, removedScreenId: screenId) {
+                    switch destination {
+                    case .tiled(let key):
+                        pendingTargetedKey = key
+                    case .temporary(let tempScreenId):
+                        targetedZoneManager.setTemporaryTarget(on: tempScreenId, reason: "zone-removed-follows-focus")
+                    }
+                } else {
+                    pendingTargetedKey = targetedZoneManager.fallbackTargetedZoneOnSameScreen(screenId: screenId)
+                    if pendingTargetedKey == nil {
+                        shouldTargetTemporary = true
+                    }
                 }
             } else if currentTarget.index > index {
                 pendingTargetedKey = ZoneKey(screenId: screenId, index: currentTarget.index - 1)
