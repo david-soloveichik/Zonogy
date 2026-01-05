@@ -46,7 +46,21 @@ final class TemporaryZoneIndicatorManager {
         let screenId: CGDirectDisplayID
         var isTargeted: Bool { didSet { applyStyle() } }
         var isOccupied: Bool { didSet { applyStyle() } }
-        var isDragHighlighted: Bool { didSet { applyStyle() } }
+        var isDragHighlighted: Bool {
+            didSet {
+                applyStyle()
+            }
+        }
+        private var isHovered: Bool = false {
+            didSet {
+                if isHovered != oldValue {
+                    applyStyle()
+                    interactionStateChanged?(screenId)
+                }
+            }
+        }
+
+        var interactionStateChanged: ((CGDirectDisplayID) -> Void)?
 
         private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
         private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
@@ -56,6 +70,11 @@ final class TemporaryZoneIndicatorManager {
         private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
         private let idleFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
         private let idleBorderColor = NSColor.systemBlue.withAlphaComponent(0.25)
+        private let hoverFillColor = NSColor.systemBlue.withAlphaComponent(0.3)
+        private let hoverBorderColor = NSColor.systemBlue.withAlphaComponent(0.6)
+        private let hoverShadowColor = NSColor.systemBlue.withAlphaComponent(0.55).cgColor
+        private let hoverShadowOpacity: Float = 0.55
+        private let hoverShadowRadius: CGFloat = 7
 
         init(frame frameRect: NSRect, screenId: CGDirectDisplayID, targeted: Bool, occupied: Bool, dragHighlighted: Bool) {
             self.screenId = screenId
@@ -74,9 +93,80 @@ final class TemporaryZoneIndicatorManager {
             fatalError("init(coder:) has not been implemented")
         }
 
+        private var trackingArea: NSTrackingArea?
+        private var hoverExitWorkItem: DispatchWorkItem?
+        private let hoverExitDelay: TimeInterval = 0.06
+        private let hoverHysteresisPadding: CGFloat = 2.0
+
         override func layout() {
             super.layout()
             layer?.cornerRadius = bounds.height / 2
+        }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            guard trackingArea == nil else {
+                return
+            }
+
+            let area = NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+            addTrackingArea(area)
+            trackingArea = area
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            cancelPendingHoverExit()
+            isHovered = true
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            scheduleHoverExitIfNeeded()
+        }
+
+        private func cancelPendingHoverExit() {
+            hoverExitWorkItem?.cancel()
+            hoverExitWorkItem = nil
+        }
+
+        private func scheduleHoverExitIfNeeded() {
+            cancelPendingHoverExit()
+
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.hoverExitWorkItem = nil
+                guard let window else {
+                    self.isHovered = false
+                    return
+                }
+
+                let screenPoint = NSEvent.mouseLocation
+                let windowPoint = window.convertPoint(fromScreen: screenPoint)
+                let localPoint = self.convert(windowPoint, from: nil)
+                let paddedBounds = self.bounds.insetBy(dx: -self.hoverHysteresisPadding, dy: -self.hoverHysteresisPadding)
+                if paddedBounds.contains(localPoint) {
+                    return
+                }
+
+                self.isHovered = false
+            }
+
+            hoverExitWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + hoverExitDelay, execute: workItem)
+        }
+
+        func desiredThickness() -> CGFloat {
+            if isDragHighlighted {
+                return EdgeIndicatorPillSizing.dragThickness
+            }
+            if isHovered {
+                return EdgeIndicatorPillSizing.hoverThickness
+            }
+            return EdgeIndicatorPillSizing.baseThickness
         }
 
         private func applyStyle() {
@@ -87,7 +177,6 @@ final class TemporaryZoneIndicatorManager {
             let shadowOpacity: Float
             let shadowRadius: CGFloat
             let borderWidth: CGFloat
-            let transform: CGAffineTransform
 
             if isDragHighlighted {
                 background = highlightFillColor
@@ -96,7 +185,6 @@ final class TemporaryZoneIndicatorManager {
                 shadowOpacity = 1.0
                 shadowRadius = 9
                 borderWidth = 1.9
-                transform = CGAffineTransform(scaleX: 1.12, y: 1.12)
             } else if isTargeted {
                 background = targetedFillColor
                 border = targetedBorderColor
@@ -104,7 +192,13 @@ final class TemporaryZoneIndicatorManager {
                 shadowOpacity = IndicatorPalette.targetedShadowOpacity
                 shadowRadius = IndicatorPalette.targetedShadowRadius
                 borderWidth = IndicatorPalette.defaultBorderWidth
-                transform = .identity
+            } else if isHovered {
+                background = hoverFillColor
+                border = hoverBorderColor
+                shadowColor = hoverShadowColor
+                shadowOpacity = hoverShadowOpacity
+                shadowRadius = hoverShadowRadius
+                borderWidth = IndicatorPalette.defaultBorderWidth + 0.2
             } else if isOccupied {
                 background = occupiedFillColor
                 border = occupiedBorderColor
@@ -112,7 +206,6 @@ final class TemporaryZoneIndicatorManager {
                 shadowOpacity = 0
                 shadowRadius = 0
                 borderWidth = IndicatorPalette.defaultBorderWidth
-                transform = .identity
             } else {
                 background = idleFillColor
                 border = idleBorderColor
@@ -120,7 +213,6 @@ final class TemporaryZoneIndicatorManager {
                 shadowOpacity = 0
                 shadowRadius = 0
                 borderWidth = IndicatorPalette.defaultBorderWidth
-                transform = .identity
             }
 
             layer.backgroundColor = background.cgColor
@@ -130,7 +222,6 @@ final class TemporaryZoneIndicatorManager {
             layer.shadowOpacity = shadowOpacity
             layer.shadowRadius = shadowRadius
             layer.shadowOffset = .zero
-            layer.setAffineTransform(transform)
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -142,10 +233,12 @@ final class TemporaryZoneIndicatorManager {
     private final class IndicatorHandle {
         let window: IndicatorWindow
         let view: IndicatorView
+        var baseFrame: CGRect
 
-        init(window: IndicatorWindow, view: IndicatorView) {
+        init(window: IndicatorWindow, view: IndicatorView, baseFrame: CGRect) {
             self.window = window
             self.view = view
+            self.baseFrame = baseFrame
         }
     }
 
@@ -157,35 +250,41 @@ final class TemporaryZoneIndicatorManager {
         var pendingRemoval = Set(handles.keys)
 
         for descriptor in descriptors {
-            let frame = descriptor.cocoaFrame.standardized
+            let baseFrame = descriptor.cocoaFrame.standardized
             if let handle = handles[descriptor.screenId] {
-                handle.window.setFrame(frame, display: true)
-                handle.view.frame = NSRect(origin: .zero, size: frame.size)
+                handle.baseFrame = baseFrame
                 handle.view.isTargeted = descriptor.isTargeted
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
                 handle.view.delegate = delegate
-                if descriptor.isTargeted || descriptor.isDragHighlighted {
-                    handle.window.orderFrontRegardless()
+                handle.view.interactionStateChanged = { [weak self] screenId in
+                    self?.applyIndicatorFrame(for: screenId, animated: true)
                 }
+                applyIndicatorFrame(for: descriptor.screenId, animated: false)
                 pendingRemoval.remove(descriptor.screenId)
                 continue
             }
 
-            let window = IndicatorWindow(frame: frame)
+            let window = IndicatorWindow(frame: baseFrame)
             let view = IndicatorView(
-                frame: NSRect(origin: .zero, size: frame.size),
+                frame: NSRect(origin: .zero, size: baseFrame.size),
                 screenId: descriptor.screenId,
                 targeted: descriptor.isTargeted,
                 occupied: descriptor.isOccupied,
                 dragHighlighted: descriptor.isDragHighlighted
             )
             view.delegate = delegate
+            view.autoresizingMask = [.width, .height]
+            view.interactionStateChanged = { [weak self] screenId in
+                self?.applyIndicatorFrame(for: screenId, animated: true)
+            }
             window.contentView = view
             window.orderFrontRegardless()
 
-            handles[descriptor.screenId] = IndicatorHandle(window: window, view: view)
+            handles[descriptor.screenId] = IndicatorHandle(window: window, view: view, baseFrame: baseFrame)
             pendingRemoval.remove(descriptor.screenId)
+
+            applyIndicatorFrame(for: descriptor.screenId, animated: false)
         }
 
         for key in pendingRemoval {
@@ -205,6 +304,42 @@ final class TemporaryZoneIndicatorManager {
         dragHighlightedScreenId = nil
     }
 
+    private func applyIndicatorFrame(for screenId: CGDirectDisplayID, animated: Bool) {
+        guard let handle = handles[screenId] else {
+            return
+        }
+
+        let thickness = handle.view.desiredThickness()
+        let shouldFloatOnTop = thickness > EdgeIndicatorPillSizing.baseThickness
+
+        var targetFrame = handle.baseFrame
+        if shouldFloatOnTop {
+            targetFrame.size.height = thickness
+        }
+
+        let targetLevel: NSWindow.Level = shouldFloatOnTop ? .statusBar : .floating
+        if handle.window.level != targetLevel {
+            handle.window.level = targetLevel
+        }
+        if shouldFloatOnTop || handle.view.isTargeted || handle.view.isDragHighlighted {
+            handle.window.orderFrontRegardless()
+        }
+
+        if targetFrame == handle.window.frame {
+            return
+        }
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.14
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                handle.window.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            handle.window.setFrame(targetFrame, display: true)
+        }
+    }
+
     func updateDragHighlight(screenId: CGDirectDisplayID?) {
         if dragHighlightedScreenId == screenId {
             return
@@ -212,9 +347,7 @@ final class TemporaryZoneIndicatorManager {
         dragHighlightedScreenId = screenId
         for (candidate, handle) in handles {
             handle.view.isDragHighlighted = (candidate == screenId)
-            if candidate == screenId {
-                handle.window.orderFrontRegardless()
-            }
+            applyIndicatorFrame(for: candidate, animated: true)
         }
     }
 }

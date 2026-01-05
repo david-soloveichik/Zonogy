@@ -41,6 +41,7 @@ class AddZoneIndicatorView: NSView {
         didSet {
             if isHovered != oldValue {
                 needsDisplay = true
+                manager?.updateIndicatorThickness(for: screenId, animated: true)
             }
         }
     }
@@ -55,6 +56,7 @@ class AddZoneIndicatorView: NSView {
         didSet {
             if isExternalDropHover != oldValue {
                 needsDisplay = true
+                manager?.updateIndicatorThickness(for: screenId, animated: true)
             }
         }
     }
@@ -64,6 +66,16 @@ class AddZoneIndicatorView: NSView {
     var manager: AddZoneIndicatorManager?
 
     override var acceptsFirstResponder: Bool { false }
+
+    var desiredThickness: CGFloat {
+        if isDragHighlighted || isExternalDropHover {
+            return EdgeIndicatorPillSizing.dragThickness
+        }
+        if isHovered {
+            return EdgeIndicatorPillSizing.hoverThickness
+        }
+        return EdgeIndicatorPillSizing.baseThickness
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -109,27 +121,30 @@ class AddZoneIndicatorView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        cancelPendingHoverExit()
         isHovered = true
     }
 
     override func mouseExited(with event: NSEvent) {
-        isHovered = false
+        scheduleHoverExitIfNeeded()
     }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
 
-        // Remove existing tracking areas
-        trackingAreas.forEach { removeTrackingArea($0) }
+        guard trackingArea == nil else {
+            return
+        }
 
         // Add new tracking area for hover effects
         let trackingArea = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+        self.trackingArea = trackingArea
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -170,6 +185,42 @@ class AddZoneIndicatorView: NSView {
         super.init(coder: decoder)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
     }
+
+    private var trackingArea: NSTrackingArea?
+    private var hoverExitWorkItem: DispatchWorkItem?
+    private let hoverExitDelay: TimeInterval = 0.06
+    private let hoverHysteresisPadding: CGFloat = 2.0
+
+    private func cancelPendingHoverExit() {
+        hoverExitWorkItem?.cancel()
+        hoverExitWorkItem = nil
+    }
+
+    private func scheduleHoverExitIfNeeded() {
+        cancelPendingHoverExit()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.hoverExitWorkItem = nil
+            guard let window else {
+                self.isHovered = false
+                return
+            }
+
+            let screenPoint = NSEvent.mouseLocation
+            let windowPoint = window.convertPoint(fromScreen: screenPoint)
+            let localPoint = self.convert(windowPoint, from: nil)
+            let paddedBounds = self.bounds.insetBy(dx: -self.hoverHysteresisPadding, dy: -self.hoverHysteresisPadding)
+            if paddedBounds.contains(localPoint) {
+                return
+            }
+
+            self.isHovered = false
+        }
+
+        hoverExitWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + hoverExitDelay, execute: workItem)
+    }
 }
 
 // MARK: - Indicator Descriptor
@@ -191,6 +242,7 @@ class AddZoneIndicatorManager {
 
     private var windows: [CGDirectDisplayID: AddZoneIndicatorWindow] = [:]
     private var views: [CGDirectDisplayID: AddZoneIndicatorView] = [:]
+    private var baseFrames: [CGDirectDisplayID: CGRect] = [:]
     private var dragHighlightedScreenId: CGDirectDisplayID?
 
     func present(for descriptors: [AddZoneIndicatorDescriptor]) {
@@ -203,31 +255,38 @@ class AddZoneIndicatorManager {
             windows[screenId]?.close()
             windows.removeValue(forKey: screenId)
             views.removeValue(forKey: screenId)
+            baseFrames.removeValue(forKey: screenId)
         }
 
         // Create or update indicators for each descriptor
         for descriptor in descriptors {
-            if let existingWindow = windows[descriptor.screenId],
-               let existingView = views[descriptor.screenId] {
+            let baseFrame = descriptor.frame.standardized
+            baseFrames[descriptor.screenId] = baseFrame
+
+            if let existingView = views[descriptor.screenId],
+               windows[descriptor.screenId] != nil {
                 // Update existing indicator
-                existingWindow.setFrame(descriptor.frame, display: true)
-                existingView.frame = CGRect(origin: .zero, size: descriptor.frame.size)
                 existingView.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
+                existingView.autoresizingMask = [.width, .height]
+                applyIndicatorFrame(for: descriptor.screenId, animated: false)
             } else {
                 // Create new indicator
-                let window = AddZoneIndicatorWindow(contentRect: descriptor.frame)
-                let view = AddZoneIndicatorView(frame: CGRect(origin: .zero, size: descriptor.frame.size))
+                let window = AddZoneIndicatorWindow(contentRect: baseFrame)
+                let view = AddZoneIndicatorView(frame: CGRect(origin: .zero, size: baseFrame.size))
 
                 view.delegate = delegate
                 view.screenId = descriptor.screenId
                 view.manager = self
                 view.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
+                view.autoresizingMask = [.width, .height]
 
                 window.contentView = view
                 window.orderFront(nil)
 
                 windows[descriptor.screenId] = window
                 views[descriptor.screenId] = view
+
+                applyIndicatorFrame(for: descriptor.screenId, animated: false)
             }
         }
     }
@@ -239,6 +298,50 @@ class AddZoneIndicatorManager {
         dragHighlightedScreenId = screenId
         for (candidateId, view) in views {
             view.isDragHighlighted = (candidateId == screenId)
+            applyIndicatorFrame(for: candidateId, animated: true)
+        }
+    }
+
+    func updateIndicatorThickness(for screenId: CGDirectDisplayID, animated: Bool) {
+        applyIndicatorFrame(for: screenId, animated: animated)
+    }
+
+    private func applyIndicatorFrame(for screenId: CGDirectDisplayID, animated: Bool) {
+        guard let baseFrame = baseFrames[screenId],
+              let window = windows[screenId],
+              let view = views[screenId] else {
+            return
+        }
+
+        let thickness = view.desiredThickness
+        let shouldFloatOnTop = thickness > EdgeIndicatorPillSizing.baseThickness
+
+        var targetFrame = baseFrame
+        if shouldFloatOnTop {
+            targetFrame.origin.x = baseFrame.maxX - thickness
+            targetFrame.size.width = thickness
+        }
+
+        let targetLevel: NSWindow.Level = shouldFloatOnTop ? .statusBar : .floating
+        if window.level != targetLevel {
+            window.level = targetLevel
+        }
+        if shouldFloatOnTop {
+            window.orderFrontRegardless()
+        }
+
+        if targetFrame == window.frame {
+            return
+        }
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.14
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            window.setFrame(targetFrame, display: true)
         }
     }
 
@@ -260,6 +363,7 @@ class AddZoneIndicatorManager {
         }
         windows.removeAll()
         views.removeAll()
+        baseFrames.removeAll()
         dragHighlightedScreenId = nil
     }
 }

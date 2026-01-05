@@ -464,8 +464,8 @@ extension AppController {
             return nil
         }
 
-        // Width: match the height of zone indicators (6px)
-        let indicatorWidth: CGFloat = 6
+        // Width: match the default pill thickness used by edge indicators.
+        let indicatorWidth: CGFloat = EdgeIndicatorPillSizing.baseThickness
 
         // Height: 1/3 of screen height
         let indicatorHeight = bounds.height / 3
@@ -487,7 +487,7 @@ extension AppController {
         }
 
         let width = min(max(bounds.width / 3, 80), bounds.width)
-        let height: CGFloat = 6
+        let height: CGFloat = EdgeIndicatorPillSizing.baseThickness
         var originX = bounds.midX - width / 2
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
         let originY = bounds.maxY - height
