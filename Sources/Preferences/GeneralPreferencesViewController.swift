@@ -7,6 +7,8 @@ final class GeneralPreferencesViewController: NSViewController {
     private var dockMenusHintLabel: NSTextField?
     private var autoShowLauncherCheckbox: NSButton?
     private var autoShowLauncherHintLabel: NSTextField?
+    private var targetingModePopUpButton: NSPopUpButton?
+    private var targetingModeHintLabel: NSTextField?
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
@@ -41,6 +43,26 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(autoShowLauncherHintLabel)
         self.autoShowLauncherHintLabel = autoShowLauncherHintLabel
 
+        let targetingModeLabel = NSTextField(labelWithString: "Targeting mode:")
+        targetingModeLabel.font = NSFont.systemFont(ofSize: 13)
+        targetingModeLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingModeLabel)
+
+        let targetingModePopUpButton = NSPopUpButton(frame: .zero, pullsDown: false)
+        targetingModePopUpButton.addItems(withTitles: TargetingMode.allCases.map(\.displayName))
+        targetingModePopUpButton.target = self
+        targetingModePopUpButton.action = #selector(targetingModeChanged(_:))
+        targetingModePopUpButton.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingModePopUpButton)
+        self.targetingModePopUpButton = targetingModePopUpButton
+
+        let targetingModeHintLabel = NSTextField(wrappingLabelWithString: "In follow-focus mode, the zone containing the active window becomes targeted. In independent mode, targeting follows the standard auto-retarget rules.")
+        targetingModeHintLabel.font = NSFont.systemFont(ofSize: 12)
+        targetingModeHintLabel.textColor = .secondaryLabelColor
+        targetingModeHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingModeHintLabel)
+        self.targetingModeHintLabel = targetingModeHintLabel
+
         // Version info
         let versionLabel = NSTextField(labelWithString: "Zonogy Window Manager")
         versionLabel.font = NSFont.systemFont(ofSize: 11)
@@ -66,6 +88,17 @@ final class GeneralPreferencesViewController: NSViewController {
             autoShowLauncherHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             autoShowLauncherHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
+            targetingModeLabel.topAnchor.constraint(equalTo: autoShowLauncherHintLabel.bottomAnchor, constant: 18),
+            targetingModeLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            targetingModePopUpButton.centerYAnchor.constraint(equalTo: targetingModeLabel.centerYAnchor),
+            targetingModePopUpButton.leadingAnchor.constraint(equalTo: targetingModeLabel.trailingAnchor, constant: 8),
+            targetingModePopUpButton.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -20),
+
+            targetingModeHintLabel.topAnchor.constraint(equalTo: targetingModeLabel.bottomAnchor, constant: 6),
+            targetingModeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            targetingModeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
             versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
@@ -73,6 +106,7 @@ final class GeneralPreferencesViewController: NSViewController {
         self.view = containerView
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
+        syncTargetingModeControl()
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {
@@ -95,5 +129,18 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncAutoShowLauncherCheckbox() {
         let enabled = AppController.shared.isAutoShowLauncherForEmptyTilingZonesEnabledInSettings
         autoShowLauncherCheckbox?.state = enabled ? .on : .off
+    }
+
+    @objc private func targetingModeChanged(_ sender: NSPopUpButton) {
+        let index = max(0, min(sender.indexOfSelectedItem, TargetingMode.allCases.count - 1))
+        let selected = TargetingMode.allCases[index]
+        AppController.shared.setTargetingModeFromSettings(selected)
+        syncTargetingModeControl()
+    }
+
+    private func syncTargetingModeControl() {
+        let mode = AppController.shared.targetingModeInSettings
+        let index = TargetingMode.allCases.firstIndex(of: mode) ?? 0
+        targetingModePopUpButton?.selectItem(at: index)
     }
 }

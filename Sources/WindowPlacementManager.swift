@@ -26,6 +26,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     var targetedZoneManager: TargetedZoneManager { get }
     var targetedZoneKey: ZoneKey? { get }
     var targetedTemporaryScreenId: CGDirectDisplayID? { get }
+    var targetingMode: TargetingMode { get }
 
     // Placement deferral
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
@@ -325,7 +326,9 @@ class WindowPlacementManager {
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
         delegate.updateTemporaryZoneTargeting(reason: "zone-assignment")
 
-        if zoneWasEmptyBeforeAssignment && wasTargetedZone {
+        if zoneWasEmptyBeforeAssignment,
+           wasTargetedZone,
+           delegate.targetingMode == .independentOfFocus {
             delegate.targetedZoneManager.retargetAfterFillingZone(filledZoneKey, reason: "zone-filled")
         }
     }

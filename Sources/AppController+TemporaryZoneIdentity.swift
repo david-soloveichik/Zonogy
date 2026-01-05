@@ -19,7 +19,7 @@ extension AppController {
     internal func scheduleTemporaryZoneProtection(windowId: Int) {
         // Record activity for the temp zone window before suppressing notifications.
         // This ensures the window being placed appears in AltTab recency order.
-        windowController.recordWindowActivity(windowId: windowId)
+        recordActiveWindowForHistory(windowId: windowId, reason: "temporary-zone-protection")
         temporaryZoneProtectionDeadlines[windowId] = Date().addingTimeInterval(temporaryZoneProtectionDuration)
         Logger.debug("Temporary zone protection scheduled for window \(windowId) (duration: \(temporaryZoneProtectionDuration)s)")
         scheduleActivityRecordingSuppression(reason: "temporary-zone-protection")

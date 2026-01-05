@@ -53,7 +53,8 @@ extension AppController {
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
             // If we targeted a zone that's already filled (e.g., from temporary zone promotion),
             // retarget per spec: "Whenever the targeted tiling zone is filled..."
-            if !targetedZoneManager.isZoneEmpty(newZoneKey) {
+            if targetingMode == .independentOfFocus,
+               !targetedZoneManager.isZoneEmpty(newZoneKey) {
                 targetedZoneManager.retargetAfterFillingZone(newZoneKey, reason: "zone-added-filled")
             }
         } else {

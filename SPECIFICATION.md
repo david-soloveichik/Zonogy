@@ -118,6 +118,13 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 
 **Targeting rule:** Exactly one zone (tiling zone or temporary zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
 
+**Targeting modes:** Zonogy supports two targeting modes (switchable in Zonogy Preferences → General):
+
+- **Targeting independent of focus** (default): Targeting is controlled by the rules and shortcuts below and does not automatically change when focus changes.
+- **Targeting follows focus:** Same as “Targeting independent of focus” except:
+  - When a window becomes active in a zone (tiling or temporary), that zone becomes targeted. “Active” must follow the exact same semantics as the history/recency tracking used by Launcher ordering / AltTab.
+  - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the temporary zone).
+
 **Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter.
 
 **Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone. The indicator sits flush with the screen bottom so edge clicks hit it.
@@ -130,7 +137,7 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
 - When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.
-- Whenever the targeted tiling zone is filled: if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
+- Whenever the targeted tiling zone is filled (Targeting independent of focus mode): if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
 - If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen.
 
 **Target navigation shortcuts:**

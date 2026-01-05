@@ -4,6 +4,7 @@ import AppKit
 protocol TemporaryZoneCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
     var targetedZoneManager: TargetedZoneManager { get }
+    var targetingMode: TargetingMode { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenContextStore: ScreenContextStore { get }
     var windowPlacementManager: WindowPlacementManager { get }
@@ -218,7 +219,8 @@ final class TemporaryZoneCoordinator {
             return
         }
 
-        if previousCount > 0 {
+        if previousCount > 0,
+           host.targetingMode == .independentOfFocus {
             let preferredScreen = host.targetedZoneManager.targetedZoneKey?.screenId
                 ?? host.targetedZoneManager.targetedTemporaryScreenId
                 ?? host.activeScreenId()

@@ -85,7 +85,7 @@ extension AppController {
         if let pid = application?.processIdentifier,
            let focused = windowController.focusedWindowIfTracked(pid: pid),
            !isActivityRecordingSuppressed() {
-            windowController.recordWindowActivity(windowId: focused.windowId)
+            recordActiveWindowForHistory(windowId: focused.windowId, reason: "workspace-activate")
         }
     }
 

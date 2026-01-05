@@ -370,7 +370,9 @@ extension AppController: LauncherControllerDelegate {
         // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
         if zoneWasEmpty {
             updateTemporaryZoneTargeting(reason: "launcher-placement")
-            targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
+            if targetingMode == .independentOfFocus {
+                targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
+            }
         }
 
         Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(targetedKey.screenId)")
@@ -428,7 +430,7 @@ extension AppController: LauncherControllerDelegate {
 
     private func activateWindow(_ managed: ManagedWindow) {
         // Record activity immediately for reliable recency tracking (don't rely on AX notification)
-        windowController.recordWindowActivity(windowId: managed.windowId)
+        recordActiveWindowForHistory(windowId: managed.windowId, reason: "launcher-activate")
 
         switch managed.backing {
         case .accessibility(let element, let pid, _):

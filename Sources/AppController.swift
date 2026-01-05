@@ -94,6 +94,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }()
     /// True when Launcher should auto-show for empty tiling zones.
     internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
+    internal var targetingMode: TargetingMode
     internal var dockMenusCoordinator: DockMenusCoordinator?
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
@@ -198,6 +199,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let configuration = Configuration.load()
         self.configuration = configuration
         self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadPreferences()?.autoShowLauncherForEmptyTilingZones ?? true
+        self.targetingMode = TargetingPreferencesStore.loadPreferences()?.mode ?? .independentOfFocus
 
         let screens = NSScreen.screens
         guard let contextStore = ScreenContextStore(screens: screens) else {

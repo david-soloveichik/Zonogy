@@ -73,7 +73,7 @@ extension AppController {
         // Record window activity for launcher recency ordering
         // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations
         if let windowId = focusedWindowId, !isActivityRecordingSuppressed() {
-            windowController.recordWindowActivity(windowId: windowId)
+            recordActiveWindowForHistory(windowId: windowId, reason: "focus-changed")
         }
 
         // Record app activation for launcher app recency (used as tie-breaker in ranking)
