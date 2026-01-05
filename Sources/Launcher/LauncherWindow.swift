@@ -87,7 +87,10 @@ final class LauncherWindow: NSPanel {
     }
 
     /// Position the window centered on the specified screen
-    func centerOnScreen(_ screenId: CGDirectDisplayID) {
+    /// - Parameters:
+    ///   - screenId: The display ID of the screen
+    ///   - forTemporaryZone: If true, position lower on the screen (closer to the temporary zone indicator)
+    func centerOnScreen(_ screenId: CGDirectDisplayID, forTemporaryZone: Bool = false) {
         guard let screen = NSScreen.screens.first(where: { screen in
             guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
                 return false
@@ -96,19 +99,28 @@ final class LauncherWindow: NSPanel {
         }) else {
             // Fall back to main screen
             if let mainScreen = NSScreen.main {
-                center(on: mainScreen)
+                center(on: mainScreen, forTemporaryZone: forTemporaryZone)
             }
             return
         }
 
-        center(on: screen)
+        center(on: screen, forTemporaryZone: forTemporaryZone)
     }
 
-    private func center(on screen: NSScreen) {
+    private func center(on screen: NSScreen, forTemporaryZone: Bool = false) {
         let screenFrame = screen.visibleFrame
         let windowSize = frame.size
         let x = screenFrame.midX - windowSize.width / 2
-        let y = screenFrame.midY - windowSize.height / 2
+
+        // For temporary zone, position lower on screen (closer to the bottom indicator)
+        // Use about 1/3 from bottom instead of centered
+        let y: CGFloat
+        if forTemporaryZone {
+            y = screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2
+        } else {
+            y = screenFrame.midY - windowSize.height / 2
+        }
+
         setFrameOrigin(NSPoint(x: x, y: y))
     }
 }
