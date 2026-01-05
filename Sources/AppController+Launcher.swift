@@ -384,6 +384,66 @@ extension AppController: LauncherControllerDelegate {
         refreshIndicators()
     }
 
+    /// Place a window into a specific zone (used by DockMenu drag-and-drop).
+    /// Unlike placeSelectedWindow, this takes an explicit zone key rather than using the targeted zone.
+    internal func placeWindowIntoZone(_ managed: ManagedWindow, zoneKey: ZoneKey) {
+        // Remove from any current zone (WITHOUT retargeting)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: "dockmenu-drag-placement", retarget: false)
+
+        guard let context = screenContexts[zoneKey.screenId],
+              let descriptor = descriptor(for: zoneKey.screenId),
+              let zone = context.zoneController.zone(at: zoneKey.index) else {
+            Logger.debug("placeWindowIntoZone: zone not found \(zoneKey)")
+            activateWindow(managed)
+            return
+        }
+
+        // Check if zone was empty before
+        let zoneWasEmpty: Bool
+        if let existingId = zone.windowId,
+           let existingWindow = windowController.window(withId: existingId) {
+            zoneWasEmpty = existingWindow.isPlaceholder
+        } else {
+            zoneWasEmpty = true
+        }
+
+        // Displace any existing occupant
+        if let existingId = zone.windowId,
+           existingId != managed.windowId,
+           let existingWindow = windowController.window(withId: existingId) {
+            context.zoneController.removeWindow(windowId: existingId)
+            if existingWindow.isPlaceholder {
+                windowController.closeWindow(existingWindow)
+                forgetPlaceholder(windowId: existingWindow.windowId)
+            } else {
+                clearManagedWindowZone(existingWindow)
+                minimizeWindowProgrammatically(existingWindow, reason: "dockmenu-drag-displaced")
+            }
+        }
+
+        // Assign to zone
+        context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zoneKey.index)
+        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
+        windowController.showWindow(managed, at: displayFrame, on: descriptor)
+        setManagedWindow(managed, screenId: zoneKey.screenId, zoneIndex: zoneKey.index)
+
+        // Retarget if zone was empty
+        if zoneWasEmpty {
+            updateTemporaryZoneTargeting(reason: "dockmenu-drag-placement")
+            if targetingMode == .independentOfFocus {
+                targetedZoneManager.retargetAfterFillingZone(zoneKey, reason: "dockmenu-drag-filled")
+            }
+        }
+
+        Logger.debug("placeWindowIntoZone: placed window \(managed.windowId) into zone \(zoneKey.index) on screen \(zoneKey.screenId)")
+
+        // Activate the window
+        activateWindow(managed)
+
+        syncWindowsToZones()
+        refreshIndicators()
+    }
+
     /// Calculate the target zone frame for a window being placed via Launcher
     private func calculateTargetZoneFrame(for managed: ManagedWindow) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
         // For temporary zone, calculate the centered frame

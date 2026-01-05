@@ -50,6 +50,13 @@ Clicking items inside DockMenu performs the same action as clicking the correspo
 - **Click window row:** Select/focus that window using normal Zonogy placement rules for the currently targeted zone (including minimized-window pre-positioning behavior).
 - **Click app header entry:** Activate the app without targeting a specific window (matching Launcher semantics).
 
+### Dragging Window Entries from DockMenu
+
+Window entries in the DockMenu can be dragged directly to zones. This uses the same overlay UI and drop targets as dragging actual windows (see **Dragging Windows Between Zones** in [SPECIFICATION.md](SPECIFICATION.md)).
+
+- **Drag initiation:** When the user drags a window entry (minimum 8px drag distance), the DockMenu dismisses immediately.
+- **Minimized windows:** If the dragged window is minimized, it is pre-positioned to the target zone frame before unminimizing for smooth animation.
+
 ## Dismissal / Lifetime
 
 DockMenu dismisses when:

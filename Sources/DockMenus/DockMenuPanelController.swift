@@ -7,6 +7,7 @@ import SwiftUI
 protocol DockMenuPanelControllerDelegate: AnyObject {
     func dockMenuPanelController(_ controller: DockMenuPanelController, didSelectWindow window: LauncherWindowItem)
     func dockMenuPanelControllerDidSelectAppHeader(_ controller: DockMenuPanelController, bundleIdentifier: String)
+    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem)
 }
 
 /// Controls the DockMenu floating panel display and interaction.
@@ -64,6 +65,12 @@ final class DockMenuPanelController: NSObject {
             guard let self, let bundleId = self.currentBundleIdentifier else { return }
             Logger.debug("DockMenuPanelController: app header selected")
             self.delegate?.dockMenuPanelControllerDidSelectAppHeader(self, bundleIdentifier: bundleId)
+        }
+
+        viewModel.onWindowDragStart = { [weak self] window in
+            guard let self else { return }
+            Logger.debug("DockMenuPanelController: drag started for window \(window.title)")
+            self.delegate?.dockMenuPanelController(self, didBeginDragForWindow: window)
         }
 
         self.viewModel = viewModel

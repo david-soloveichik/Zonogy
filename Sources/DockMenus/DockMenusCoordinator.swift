@@ -15,6 +15,17 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
     /// Called when the user selects the app header from the DockMenu.
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectAppHeader bundleId: String)
+
+    // MARK: - Drag-and-Drop
+
+    /// Called when a drag session begins from a DockMenu window entry.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem)
+
+    /// Called repeatedly during a drag session as the cursor moves.
+    func dockMenusCoordinatorDidUpdateDrag(_ coordinator: DockMenusCoordinator)
+
+    /// Called when a drag session ends (mouse up).
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem)
 }
 
 /// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
@@ -29,10 +40,16 @@ final class DockMenusCoordinator {
     private let hoverTracker = DockHoverTracker()
     private let panelController = DockMenuPanelController()
     private let dismissalPoller = DockMenuDismissalPoller()
+    private let dragFeedback = DockMenuDragFeedback()
 
     private var lastHoverEvent: DockMenuHoverEvent?
     private var lastDockFrameAX: CGRect?
     private static let dockSafePadding: CGFloat = 12
+
+    // Drag state
+    private var draggedWindow: LauncherWindowItem?
+    private var dragGlobalMonitor: Any?
+    private var dragLocalMonitor: Any?
 
     init(primaryScreenBounds: CGRect, enableDebugOverlay: Bool) {
         self.primaryScreenBounds = primaryScreenBounds
@@ -166,5 +183,79 @@ extension DockMenusCoordinator: DockMenuPanelControllerDelegate {
         Logger.debug("DockMenusCoordinator: app header selected in panel")
         hideDockMenu()
         delegate?.dockMenusCoordinator(self, didSelectAppHeader: bundleIdentifier)
+    }
+
+    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem) {
+        Logger.debug("DockMenusCoordinator: drag began for window \(window.title)")
+        beginDrag(for: window)
+    }
+}
+
+// MARK: - Drag Handling
+
+extension DockMenusCoordinator {
+    private func beginDrag(for window: LauncherWindowItem) {
+        // Dismiss DockMenu immediately
+        hideDockMenu()
+
+        // Store the dragged window
+        draggedWindow = window
+
+        // Show drag feedback following cursor
+        dragFeedback.show(title: window.title)
+
+        // Notify delegate to start drag session (show overlays)
+        delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window)
+
+        // Install both local and global mouse monitors for drag tracking
+        // Global monitor catches events when other apps have focus
+        dragGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handleDragMouseEvent(event)
+        }
+
+        // Local monitor catches events when our app has focus (or during transition)
+        dragLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handleDragMouseEvent(event)
+            return event  // Don't consume the event
+        }
+
+        Logger.debug("DockMenusCoordinator: drag session started, mouse monitors installed")
+    }
+
+    private func handleDragMouseEvent(_ event: NSEvent) {
+        guard let window = draggedWindow else { return }
+
+        switch event.type {
+        case .leftMouseDragged:
+            dragFeedback.updatePosition()
+            delegate?.dockMenusCoordinatorDidUpdateDrag(self)
+
+        case .leftMouseUp:
+            endDrag(for: window)
+
+        default:
+            break
+        }
+    }
+
+    private func endDrag(for window: LauncherWindowItem) {
+        Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title)")
+
+        // Hide drag feedback
+        dragFeedback.hide()
+
+        // Notify delegate to end drag session and perform placement
+        delegate?.dockMenusCoordinator(self, didEndDragForWindow: window)
+
+        // Clean up monitors
+        if let monitor = dragGlobalMonitor {
+            NSEvent.removeMonitor(monitor)
+            dragGlobalMonitor = nil
+        }
+        if let monitor = dragLocalMonitor {
+            NSEvent.removeMonitor(monitor)
+            dragLocalMonitor = nil
+        }
+        draggedWindow = nil
     }
 }

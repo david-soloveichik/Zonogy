@@ -12,6 +12,7 @@ struct DragSession {
     var hoveredAddZoneScreenId: CGDirectDisplayID?
     var hoveredTemporaryScreenId: CGDirectDisplayID?
     let originatedFromTemporary: Bool
+    let isCursorDriven: Bool  // true for DockMenu drags (no actual window frame updates)
     let beganAt: Date
 }
 
@@ -128,11 +129,99 @@ class DragDropCoordinator {
             hoveredAddZoneScreenId: nil,
             hoveredTemporaryScreenId: nil,
             originatedFromTemporary: originatedFromTemporary,
+            isCursorDriven: false,
             beganAt: Date()
         )
         Logger.debug("Drag session began for window \(windowId)")
         dragOverlayManager.present(over: zoneOverlayDescriptors())
         recordDragUpdate(windowId: windowId, frame: frame)
+    }
+
+    /// Begins a cursor-driven drag session (for DockMenu drags where no actual window is being dragged).
+    /// Updates are driven by cursor position rather than window frame changes.
+    func beginCursorDrivenDragSession(
+        windowId: Int,
+        originZoneKey: ZoneKey?,
+        originScreenId: CGDirectDisplayID?,
+        originatedFromTemporary: Bool = false
+    ) {
+        let cursorFrame = cursorSyntheticFrame()
+        dragSession = DragSession(
+            windowId: windowId,
+            originZoneKey: originZoneKey,
+            originScreenId: originScreenId,
+            originFrame: cursorFrame,
+            latestFrame: cursorFrame,
+            hoveredZoneKey: nil,
+            hoveredAddZoneScreenId: nil,
+            hoveredTemporaryScreenId: nil,
+            originatedFromTemporary: originatedFromTemporary,
+            isCursorDriven: true,
+            beganAt: Date()
+        )
+        Logger.debug("Cursor-driven drag session began for window \(windowId)")
+        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        updateCursorDrivenDragSession()
+    }
+
+    /// Updates a cursor-driven drag session using current cursor position.
+    func updateCursorDrivenDragSession() {
+        guard let session = dragSession, session.isCursorDriven else { return }
+        let cursorFrame = cursorSyntheticFrame()
+        recordDragUpdate(windowId: session.windowId, frame: cursorFrame)
+    }
+
+    /// Resolved drop target for cursor-driven drags
+    enum CursorDrivenDropTarget {
+        case tilingZone(ZoneKey)
+        case temporaryZone(CGDirectDisplayID)
+        case addZone(CGDirectDisplayID)
+        case cancelled
+    }
+
+    /// Ends a cursor-driven drag session by resolving the drop target and tearing down overlays.
+    /// Returns the resolved drop target; the caller is responsible for performing the actual placement.
+    func endCursorDrivenDragSession() -> CursorDrivenDropTarget {
+        guard let session = dragSession, session.isCursorDriven else {
+            tearDownDragSession()
+            return .cancelled
+        }
+
+        dragOverlayManager.tearDown()
+
+        guard let cursorPoint = currentCursorAccessibilityPoint() else {
+            Logger.debug("Cursor-driven drag aborted: unable to resolve cursor position")
+            dragSession = nil
+            delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate?.updateTemporaryIndicatorHighlight(screenId: nil)
+            return .cancelled
+        }
+
+        let target: CursorDrivenDropTarget
+        if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
+            target = .addZone(addZoneScreenId)
+        } else if let temporaryScreenId = session.hoveredTemporaryScreenId ?? resolveTemporaryDropTarget(cursorPoint: cursorPoint) {
+            target = .temporaryZone(temporaryScreenId)
+        } else if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint) {
+            target = .tilingZone(targetKey)
+        } else {
+            target = .cancelled
+        }
+
+        dragSession = nil
+        delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
+        delegate?.updateTemporaryIndicatorHighlight(screenId: nil)
+
+        Logger.debug("Cursor-driven drag ended with target: \(target)")
+        return target
+    }
+
+    /// Creates a synthetic 1x1 frame at the current cursor position (in accessibility coordinates).
+    private func cursorSyntheticFrame() -> CGRect {
+        if let point = currentCursorAccessibilityPoint() {
+            return CGRect(origin: point, size: CGSize(width: 1, height: 1))
+        }
+        return .zero
     }
 
     func updateDragSession(windowId: Int, frame: CGRect) {

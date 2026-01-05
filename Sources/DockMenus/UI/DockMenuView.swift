@@ -12,6 +12,7 @@ final class DockMenuViewModel: ObservableObject {
 
     var onWindowSelected: ((LauncherWindowItem) -> Void)?
     var onAppHeaderSelected: (() -> Void)?
+    var onWindowDragStart: ((LauncherWindowItem) -> Void)?
 }
 
 struct DockMenuView: View {
@@ -45,6 +46,9 @@ struct DockMenuView: View {
                                 },
                                 onTap: {
                                     viewModel.onWindowSelected?(window)
+                                },
+                                onDragStart: {
+                                    viewModel.onWindowDragStart?(window)
                                 }
                             )
                         }
@@ -119,12 +123,15 @@ struct DockMenuAppHeaderView: View {
     }
 }
 
-/// Window row for DockMenu with hover and click handling.
+/// Window row for DockMenu with hover, click, and drag handling.
 struct DockMenuWindowRowView: View {
     let window: LauncherWindowItem
     let isHovered: Bool
     let onHover: (Bool) -> Void
     let onTap: () -> Void
+    let onDragStart: () -> Void
+
+    @State private var dragStarted = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -162,6 +169,20 @@ struct DockMenuWindowRowView: View {
         .onHover { hovering in
             onHover(hovering)
         }
+        .gesture(
+            // Drag gesture: requires minimum distance to activate
+            DragGesture(minimumDistance: 8)
+                .onChanged { _ in
+                    // Trigger drag start only once
+                    if !dragStarted {
+                        dragStarted = true
+                        onDragStart()
+                    }
+                }
+                .onEnded { _ in
+                    dragStarted = false
+                }
+        )
         .onTapGesture {
             onTap()
         }
