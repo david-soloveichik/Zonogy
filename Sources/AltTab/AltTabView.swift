@@ -80,6 +80,13 @@ struct AltTabRowView: View {
                 .truncationMode(.middle)
 
             Spacer(minLength: 0)
+
+            // Unminimized indicator (shown on the right)
+            if !window.isMinimized {
+                Image(systemName: "macwindow")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
