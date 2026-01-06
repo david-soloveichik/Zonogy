@@ -258,4 +258,54 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         Logger.debug("DockMenus: pre-positioned minimized window \(managed.windowId) to \(screenFrame) before unminimizing")
     }
+
+    // MARK: - Non-Running App Drag-and-Drop
+
+    func dockMenusCoordinatorDidBeginNonRunningAppDrag(_ coordinator: DockMenusCoordinator) {
+        Logger.debug("DockMenus: non-running app drag began")
+        // Start cursor-driven drag session without a windowId
+        dragDropCoordinator.beginCursorDrivenDragSession(
+            windowId: nil,
+            originZoneKey: nil,
+            originScreenId: nil
+        )
+    }
+
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?) {
+        Logger.debug("DockMenus: non-running app drag ended for \(appURL.lastPathComponent)")
+
+        let dropTarget = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
+
+        switch dropTarget {
+        case .tilingZone(let zoneKey):
+            targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
+            launchApp(at: appURL)
+
+        case .temporaryZone(let screenId):
+            targetedZoneManager.setTemporaryTarget(on: screenId, reason: "dock-nonrunning-drag")
+            launchApp(at: appURL)
+
+        case .addZone(let screenId):
+            if let newZone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) {
+                let zoneKey = ZoneKey(screenId: screenId, index: newZone.index)
+                targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
+            }
+            launchApp(at: appURL)
+
+        case .cancelled:
+            Logger.debug("DockMenus: non-running app drag cancelled")
+        }
+    }
+
+    private func launchApp(at url: URL) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
+            if let error = error {
+                Logger.debug("DockMenus: Failed to launch \(url.lastPathComponent): \(error.localizedDescription)")
+            } else if let app = app {
+                Logger.debug("DockMenus: Launched \(app.localizedName ?? url.lastPathComponent)")
+            }
+        }
+    }
 }

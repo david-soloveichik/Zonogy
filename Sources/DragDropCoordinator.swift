@@ -3,7 +3,7 @@ import Foundation
 import Cocoa
 
 struct DragSession {
-    let windowId: Int
+    let windowId: Int?  // nil for non-running app drags
     let originZoneKey: ZoneKey?
     let originScreenId: CGDirectDisplayID?
     let originFrame: CGRect
@@ -142,7 +142,7 @@ class DragDropCoordinator {
     /// Begins a cursor-driven drag session (for DockMenu drags where no actual window is being dragged).
     /// Updates are driven by cursor position rather than window frame changes.
     func beginCursorDrivenDragSession(
-        windowId: Int,
+        windowId: Int?,
         originZoneKey: ZoneKey?,
         originScreenId: CGDirectDisplayID?,
         originatedFromTemporary: Bool = false
@@ -162,7 +162,11 @@ class DragDropCoordinator {
             isCursorDriven: true,
             beganAt: Date()
         )
-        Logger.debug("Cursor-driven drag session began for window \(windowId)")
+        if let windowId {
+            Logger.debug("Cursor-driven drag session began for window \(windowId)")
+        } else {
+            Logger.debug("Cursor-driven drag session began (no window)")
+        }
         dragOverlayManager.present(over: zoneOverlayDescriptors())
         updateCursorDrivenDragSession()
     }
@@ -392,11 +396,12 @@ class DragDropCoordinator {
         return nil
     }
 
-    private func recordDragUpdate(windowId: Int, frame: CGRect) {
+    private func recordDragUpdate(windowId: Int?, frame: CGRect) {
         guard var session = dragSession, session.windowId == windowId else {
             return
         }
-        if session.originatedFromTemporary,
+        // Temporary drag resumption only applies when there's a real window
+        if let windowId, session.originatedFromTemporary,
            let delegate = delegate,
            !delegate.isControlCommandDragActive() {
             dragOverlayManager.tearDown()
@@ -418,7 +423,8 @@ class DragDropCoordinator {
         if addZoneScreenId == nil {
             temporaryScreenId = resolveTemporaryDropTarget(cursorPoint: cursorPoint)
         }
-        if !session.originatedFromTemporary,
+        // Tiled-to-temporary promotion only applies when there's a real window
+        if let windowId, !session.originatedFromTemporary,
            let delegate,
            delegate.isControlCommandDragActive() {
             // Clear drag session BEFORE promotion so dragExcludedZones is empty
@@ -433,14 +439,14 @@ class DragDropCoordinator {
             delegate.updateTemporaryIndicatorHighlight(screenId: nil)
 
             let promoted = delegate.promoteTiledDragToTemporary(
-                windowId: session.windowId,
+                windowId: windowId,
                 frame: frame,
                 originZoneKey: session.originZoneKey,
                 originScreenId: session.originScreenId,
                 preferredTemporaryScreenId: preferredTemporaryScreenId
             )
             if !promoted {
-                Logger.debug("Control-Command drag promotion failed for window \(session.windowId)")
+                Logger.debug("Control-Command drag promotion failed for window \(windowId)")
             }
             return
         }
@@ -471,7 +477,11 @@ class DragDropCoordinator {
     }
 
     private func handleDropCancellation(session: DragSession) {
-        Logger.debug("Drag cancelled for window \(session.windowId); reverting to original assignment if needed")
+        if let windowId = session.windowId {
+            Logger.debug("Drag cancelled for window \(windowId); reverting to original assignment if needed")
+        } else {
+            Logger.debug("Drag cancelled (no window); no reversion needed")
+        }
     }
 
     private func performDropIntoNewZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
@@ -488,7 +498,8 @@ class DragDropCoordinator {
 
     private func performDropIntoTemporaryZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
         guard let delegate = delegate,
-              let managed = delegate.windowController.window(withId: session.windowId) else {
+              let windowId = session.windowId,
+              let managed = delegate.windowController.window(withId: windowId) else {
             return nil
         }
 
@@ -498,7 +509,8 @@ class DragDropCoordinator {
 
     private func performDrop(session: DragSession, targetKey: ZoneKey) -> DropResult? {
         guard let delegate = delegate,
-              let managed = delegate.windowController.window(withId: session.windowId) else {
+              let windowId = session.windowId,
+              let managed = delegate.windowController.window(withId: windowId) else {
             return nil
         }
 
@@ -507,8 +519,8 @@ class DragDropCoordinator {
             return nil
         }
 
-        if targetZone.windowId == session.windowId {
-            Logger.debug("Window \(session.windowId) already assigned to target zone \(targetKey.index); no swap needed")
+        if targetZone.windowId == windowId {
+            Logger.debug("Window \(windowId) already assigned to target zone \(targetKey.index); no swap needed")
             delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
@@ -517,22 +529,22 @@ class DragDropCoordinator {
 
         if let sourceKey,
            sourceKey == targetKey {
-            Logger.debug("Window \(session.windowId) dropped back into its original zone \(targetKey.index)")
+            Logger.debug("Window \(windowId) dropped back into its original zone \(targetKey.index)")
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
 
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId] {
-            sourceContext.zoneController.removeWindow(windowId: session.windowId)
+            sourceContext.zoneController.removeWindow(windowId: windowId)
         }
 
         guard let assignment = delegate.windowPlacementManager.assignWindowFromDrag(managed, to: targetKey) else {
-            Logger.debug("Drag drop failed: unable to assign window \(session.windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
+            Logger.debug("Drag drop failed: unable to assign window \(windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
             return nil
         }
 
         let displacedWindow = assignment.displacedWindow
-        Logger.debug("Window \(session.windowId) dropped into zone \(targetKey.index) on \(targetContext.descriptor.localizedName)")
+        Logger.debug("Window \(windowId) dropped into zone \(targetKey.index) on \(targetContext.descriptor.localizedName)")
 
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId],

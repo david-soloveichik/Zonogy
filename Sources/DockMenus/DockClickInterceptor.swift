@@ -2,9 +2,9 @@ import Foundation
 import ApplicationServices
 import AppKit
 
-/// Notified when a left-click is intercepted on a running app in the Dock.
+/// Notified when a left-click is intercepted on an app in the Dock.
 protocol DockClickInterceptorDelegate: AnyObject {
-    /// Called when a click on a running app's Dock icon was intercepted.
+    /// Called when a click on an app's Dock icon was intercepted.
     /// - Parameters:
     ///   - interceptor: The interceptor instance.
     ///   - appURL: The URL of the clicked application bundle.
@@ -14,6 +14,10 @@ protocol DockClickInterceptorDelegate: AnyObject {
     /// Called when a drag is detected on a running app's Dock icon and Zonogy intends to intercept it.
     /// Return true to accept handling the drag (subsequent drag events will be swallowed).
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool
+
+    /// Called when a drag is detected on a non-running app's Dock icon.
+    /// Return true to accept handling the drag (subsequent drag events will be swallowed).
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnNonRunningApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool
 
     /// Called repeatedly during an intercepted drag as the cursor moves.
     func dockClickInterceptorDidUpdateDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint)
@@ -25,9 +29,9 @@ protocol DockClickInterceptorDelegate: AnyObject {
 /// Intercepts global left-clicks within the Dock's AXList frame.
 /// Performance-critical: exits as fast as possible when the click is outside the frame.
 ///
-/// Only intercepts clicks on running application Dock items (AXApplicationDockItem).
-/// Clicks on folders, files, Launchpad, Trash, or non-running apps pass through.
-/// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy window drag-drop.
+/// Intercepts clicks on application Dock items (AXApplicationDockItem), both running and non-running.
+/// Clicks on folders, files, Launchpad, Trash pass through.
+/// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy.
 final class DockClickInterceptor {
     private enum Constants {
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
@@ -69,6 +73,7 @@ final class DockClickInterceptor {
         let downLocation: CGPoint
         let appURL: URL
         let itemFrame: CGRect
+        let isRunning: Bool
         var dragState: DragState = .none
     }
 
@@ -155,7 +160,14 @@ final class DockClickInterceptor {
                 let dx = abs(location.x - pending.downLocation.x)
                 let dy = abs(location.y - pending.downLocation.y)
                 if dx > Constants.dragThreshold || dy > Constants.dragThreshold {
-                    let accepted = delegate?.dockClickInterceptor(self, didBeginDragOnApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+                    // Call the appropriate delegate method based on whether the app is running
+                    let accepted: Bool
+                    if pending.isRunning {
+                        accepted = delegate?.dockClickInterceptor(self, didBeginDragOnApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+                    } else {
+                        accepted = delegate?.dockClickInterceptor(self, didBeginDragOnNonRunningApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+                    }
+
                     if accepted {
                         pending.dragState = .intercepted
                         pendingClick = pending
@@ -231,9 +243,9 @@ final class DockClickInterceptor {
         }
 
         // Query Dock accessibility to find the clicked element
-        // Only intercept if it's a running app's Dock icon
-        guard let result = findClickedRunningApp(at: location) else {
-            // Not a running app - let click through
+        // Only intercept if it's an application Dock icon
+        guard let result = findClickedAppDockItem(at: location) else {
+            // Not an app - let click through
             return Unmanaged.passUnretained(event)
         }
 
@@ -241,22 +253,24 @@ final class DockClickInterceptor {
         pendingClick = PendingClick(
             downLocation: location,
             appURL: result.url,
-            itemFrame: result.frame
+            itemFrame: result.frame,
+            isRunning: result.isRunning
         )
 
         // Consume mouse-down so the Dock doesn't start a press-and-hold menu or icon drag.
         return nil
     }
 
-    /// Result of finding a clicked running app in the Dock.
+    /// Result of finding a clicked app in the Dock.
     private struct ClickedAppResult {
         let url: URL
         let frame: CGRect
+        let isRunning: Bool
     }
 
     /// Queries the Dock's accessibility tree to find what's at the click position.
-    /// Returns the app URL and frame only if it's an AXApplicationDockItem for a running app.
-    private func findClickedRunningApp(at location: CGPoint) -> ClickedAppResult? {
+    /// Returns the app URL, frame, and running status if it's an AXApplicationDockItem.
+    private func findClickedAppDockItem(at location: CGPoint) -> ClickedAppResult? {
         // Use cached PID or look it up
         let pid: pid_t
         if let cached = dockPid {
@@ -298,18 +312,20 @@ final class DockClickInterceptor {
             return nil
         }
 
-        // Check if the app is running
-        guard let bundleId = Bundle(url: url)?.bundleIdentifier,
-              NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first != nil else {
-            return nil
-        }
-
         // Get the frame
         guard let frame = axFrame(of: element) else {
             return nil
         }
 
-        return ClickedAppResult(url: url, frame: frame)
+        // Check if the app is running
+        let isRunning: Bool
+        if let bundleId = Bundle(url: url)?.bundleIdentifier {
+            isRunning = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first != nil
+        } else {
+            isRunning = false
+        }
+
+        return ClickedAppResult(url: url, frame: frame, isRunning: isRunning)
     }
 
     /// Extracts the AXFrame (position + size) from an accessibility element.

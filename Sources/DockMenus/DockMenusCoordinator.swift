@@ -30,6 +30,14 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
     /// Called when a drag session ends (mouse up).
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?)
+
+    // MARK: - Non-Running App Drag-and-Drop
+
+    /// Called when a drag session begins from a non-running app's Dock icon.
+    func dockMenusCoordinatorDidBeginNonRunningAppDrag(_ coordinator: DockMenusCoordinator)
+
+    /// Called when a drag session ends for a non-running app.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?)
 }
 
 /// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
@@ -52,6 +60,7 @@ final class DockMenusCoordinator {
 
     // Drag state
     private var draggedWindow: LauncherWindowItem?
+    private var draggedNonRunningAppURL: URL?
     private var dragGlobalMonitor: Any?
     private var dragLocalMonitor: Any?
 
@@ -174,12 +183,12 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
     }
 
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool {
-        Logger.debug("DockMenusCoordinator: drag intercepted on app \(appURL.lastPathComponent)")
+        Logger.debug("DockMenusCoordinator: drag intercepted on running app \(appURL.lastPathComponent)")
 
         // Hide the DockMenu panel and reset hover state
         hideDockMenu()
 
-        if draggedWindow != nil {
+        if draggedWindow != nil || draggedNonRunningAppURL != nil {
             Logger.debug("DockMenusCoordinator: drag already active; ignoring new begin")
             return true
         }
@@ -194,13 +203,54 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
         return true
     }
 
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnNonRunningApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool {
+        Logger.debug("DockMenusCoordinator: drag intercepted on non-running app \(appURL.lastPathComponent)")
+
+        // Hide the DockMenu panel and reset hover state
+        hideDockMenu()
+
+        if draggedWindow != nil || draggedNonRunningAppURL != nil {
+            Logger.debug("DockMenusCoordinator: drag already active; ignoring new begin")
+            return true
+        }
+
+        // Store state for the non-running app drag
+        draggedNonRunningAppURL = appURL
+
+        // Show drag feedback with app name
+        let appName = appURL.deletingPathExtension().lastPathComponent
+        dragFeedback.show(title: appName, at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
+
+        // Notify delegate to show zone overlays (without a window)
+        delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
+        delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+        return true
+    }
+
     func dockClickInterceptorDidUpdateDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint) {
+        // Handle non-running app drag
+        if draggedNonRunningAppURL != nil {
+            dragFeedback.updatePosition(at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
+            delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+            return
+        }
+
+        // Handle running app window drag
         guard draggedWindow != nil else { return }
         dragFeedback.updatePosition(at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
         delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
     }
 
     func dockClickInterceptorDidEndDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint) {
+        // Handle non-running app drag end
+        if let appURL = draggedNonRunningAppURL {
+            dragFeedback.hide()
+            delegate?.dockMenusCoordinator(self, didEndDragForNonRunningApp: appURL, cursorPointAX: cursorPoint)
+            draggedNonRunningAppURL = nil
+            return
+        }
+
+        // Handle running app window drag end
         guard let window = draggedWindow else { return }
         endDrag(for: window, cursorPointAX: cursorPoint)
     }
