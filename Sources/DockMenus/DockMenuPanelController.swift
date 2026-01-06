@@ -98,8 +98,8 @@ final class DockMenuPanelController: NSObject {
         let contentHeight = calculateContentHeight(windowCount: windows.count)
         panel.setContentSize(NSSize(width: 300, height: contentHeight))
 
-        // Position panel adjacent to Dock item
-        let screenBounds = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Position panel adjacent to Dock item (Dock is always on the primary screen)
+        let screenBounds = NSScreen.screens.first?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         panel.positionAdjacentTo(
             itemFrame: event.itemFrame,
             dockFrame: stableDockFrame,
