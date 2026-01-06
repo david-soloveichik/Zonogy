@@ -217,7 +217,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         // Place in temporary zone
         assignWindowToTemporaryZone(managed, on: screenId, centerWindow: true, reason: "dockmenu-drag")
-        Logger.debug("DockMenus: placed window \(managed.windowId) into temporary zone on screen \(screenId)")
+        Logger.debug("DockMenus: placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: screenId))")
 
         syncWindowsToZones()
         refreshIndicators()
@@ -231,7 +231,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         // Add new zone (without promoting temporary occupant since we're dropping into it)
         guard let newZone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) else {
-            Logger.debug("DockMenus: cannot add zone on screen \(screenId)")
+            Logger.debug("DockMenus: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
             return
         }
 

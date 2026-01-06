@@ -45,7 +45,7 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 
 Never mix coordinate systems or windows will be positioned incorrectly.
 
-### **Screen Identity and Logging**
+### **IMPORTANT: Screen Identity and Logging**
 
 Zonogy has two different ways of referring to a “screen”, and mixing them causes very confusing logs and bugs:
 

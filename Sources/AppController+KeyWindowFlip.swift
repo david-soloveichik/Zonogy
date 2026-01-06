@@ -58,7 +58,7 @@ extension AppController {
         if targetedKey.screenId != originKey.screenId {
             guard let context = screenContexts[targetedKey.screenId],
                   context.zoneController.zone(at: targetedKey.index) != nil else {
-                Logger.debug("Flip key window aborted: targeted zone \(targetedKey.index) unavailable on screen \(targetedKey.screenId)")
+                Logger.debug("Flip key window aborted: targeted zone \(targetedKey.index) unavailable on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
                 return nil
             }
             return targetedKey
@@ -70,7 +70,7 @@ extension AppController {
         }
 
         guard let destinationKey = preferredZoneKey(on: destinationScreenId) else {
-            Logger.debug("Flip key window aborted: destination screen \(destinationScreenId) has no zones")
+            Logger.debug("Flip key window aborted: destination screen \(screenContextStore.loggingIndex(for: destinationScreenId)) has no zones")
             return nil
         }
 

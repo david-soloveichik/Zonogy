@@ -600,7 +600,7 @@ extension AppController {
                         // For ActiveFit reveal mode, keep the window in its
                         // current reveal frame but still treat it as assigned
                         // to this zone for bookkeeping and targeting.
-                        Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [\(screenId)] due to active ActiveFit window \(windowId)")
+                        Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: screenId))] due to active ActiveFit window \(windowId)")
                         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                         assignedWindowIds.insert(windowId)
                         continue

@@ -134,7 +134,7 @@ class WindowPlacementManager {
         guard let delegate = delegate else { return false }
 
         if originKey == destinationKey {
-            Logger.debug("Move window skipped: window \(managed.windowId) already in zone \(originKey.index) on screen \(originKey.screenId)")
+            Logger.debug("Move window skipped: window \(managed.windowId) already in zone \(originKey.index) on screen \(ScreenContextStore.loggingIndex(for: originKey.screenId))")
             return true
         }
 

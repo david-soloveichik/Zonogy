@@ -91,7 +91,7 @@ final class PlaceholderCoordinator {
                     
                     if let reusable = availablePlaceholders.popLast() {
                         placeholder = reusable
-                        Logger.debug("Reusing placeholder window \(placeholder.windowId) for zone \(zone.index) on screen \(context.descriptor.displayId)")
+                        Logger.debug("Reusing placeholder window \(placeholder.windowId) for zone \(zone.index) on screen \(ScreenContextStore.loggingIndex(for: context.descriptor.displayId))")
                     } else {
                         placeholder = windowController.createPlaceholderWindow(frame: displayFrame, zoneIndex: zone.index, on: context.descriptor)
                     }

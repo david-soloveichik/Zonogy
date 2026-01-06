@@ -51,7 +51,7 @@ extension AppController {
 
             let zoneDescription: String
             if let zoneIndex, let screenId {
-                zoneDescription = "zone \(zoneIndex) on \(screenName) [\(Int(screenId))]"
+                zoneDescription = "zone \(zoneIndex) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
             } else if let zoneIndex {
                 zoneDescription = "zone \(zoneIndex)"
             } else {

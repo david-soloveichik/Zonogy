@@ -321,7 +321,7 @@ extension AppController: LauncherControllerDelegate {
         // If targeting the temporary zone, place there
         if let temporaryScreenId = originalTemporaryTarget {
             assignWindowToTemporaryZone(managed, on: temporaryScreenId, centerWindow: true, reason: "launcher-selection")
-            Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(temporaryScreenId)")
+            Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: temporaryScreenId))")
             // Sync to create placeholder for the now-empty source zone
             syncWindowsToZones()
             return
@@ -375,7 +375,7 @@ extension AppController: LauncherControllerDelegate {
             }
         }
 
-        Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(targetedKey.screenId)")
+        Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
 
         // Activate the window
         activateWindow(managed)
@@ -435,7 +435,7 @@ extension AppController: LauncherControllerDelegate {
             }
         }
 
-        Logger.debug("placeWindowIntoZone: placed window \(managed.windowId) into zone \(zoneKey.index) on screen \(zoneKey.screenId)")
+        Logger.debug("placeWindowIntoZone: placed window \(managed.windowId) into zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
 
         // Activate the window
         activateWindow(managed)

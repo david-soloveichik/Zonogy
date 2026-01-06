@@ -448,7 +448,7 @@ extension AppController {
         let activeIndices = activeZoneIndices(on: screenId)
         let activeList = activeIndices.sorted()
         Logger.debug(
-            "Shortcut remove evaluating screen \(context.descriptor.localizedName) [\(screenId)] " +
+            "Shortcut remove evaluating screen \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: screenId))] " +
             "with active zone indices: \(activeList)"
         )
 
@@ -466,7 +466,7 @@ extension AppController {
         guard !candidates.isEmpty else {
             Logger.debug(
                 "Shortcut remove found no removable zones on \(context.descriptor.localizedName) " +
-                "[\(screenId)] (active zones: \(activeList), total zones: \(zones.count))"
+                "[screen \(screenContextStore.loggingIndex(for: screenId))] (active zones: \(activeList), total zones: \(zones.count))"
             )
             return nil
         }
@@ -485,13 +485,13 @@ extension AppController {
         if let selected = orderedCandidates.first {
             Logger.debug(
                 "Shortcut remove selected zone \(selected.index) on \(context.descriptor.localizedName) " +
-                "[\(screenId)] from candidates [\(description)]"
+                "[screen \(screenContextStore.loggingIndex(for: screenId))] from candidates [\(description)]"
             )
             return selected.index
         } else {
             Logger.debug(
                 "Shortcut remove unable to choose among candidates on \(context.descriptor.localizedName) " +
-                "[\(screenId)], descriptions: [\(description)]"
+                "[screen \(screenContextStore.loggingIndex(for: screenId))], descriptions: [\(description)]"
             )
             return nil
         }
@@ -512,7 +512,7 @@ extension AppController {
            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
            managedScreenId == screenId {
             Logger.debug(
-                "activeZoneIndices: using frontmost pid \(pid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
+                "activeZoneIndices: using frontmost pid \(pid) -> zone \(zoneIndex) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
             )
             return [zoneIndex]
         }
@@ -524,7 +524,7 @@ extension AppController {
            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
            managedScreenId == screenId {
             Logger.debug(
-                "activeZoneIndices: using last active pid \(lastPid) -> zone \(zoneIndex) on \(screenName) [\(screenId)]"
+                "activeZoneIndices: using last active pid \(lastPid) -> zone \(zoneIndex) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
             )
             return [zoneIndex]
         }
@@ -553,12 +553,12 @@ extension AppController {
                    let managedWindow = windowController.window(withId: windowId) {
                     let hasScreen = (managedWindow.screenDisplayId ?? detectScreenId(for: managedWindow)) != nil
                     Logger.debug(
-                        "activeZoneIndices: skipping zone \(zone.index) on \(screenName) [\(screenId)] " +
+                        "activeZoneIndices: skipping zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))] " +
                         "for window \(windowId) (placeholder: \(managedWindow.isPlaceholder), hasScreen: \(hasScreen))"
                     )
                 } else if zone.windowId != nil {
                     Logger.debug(
-                        "activeZoneIndices: no managed window for id \(zone.windowId!) in zone \(zone.index) on \(screenName) [\(screenId)]"
+                        "activeZoneIndices: no managed window for id \(zone.windowId!) in zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
                     )
                 }
                 continue
@@ -571,7 +571,7 @@ extension AppController {
                 } else {
                     Logger.debug(
                         "activeZoneIndices: window \(windowId) pid \(pid) not in candidate pid set \(candidatePids) " +
-                        "for zone \(zone.index) on \(screenName) [\(screenId)]"
+                        "for zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
                     )
                 }
             case .appKit(let nsWindow):
@@ -579,13 +579,13 @@ extension AppController {
                     indices.insert(zone.index)
                 } else {
                     Logger.debug(
-                        "activeZoneIndices: AppKit window \(windowId) in zone \(zone.index) is not key on \(screenName) [\(screenId)]"
+                        "activeZoneIndices: AppKit window \(windowId) in zone \(zone.index) is not key on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
                     )
                 }
             }
         }
         Logger.debug(
-            "activeZoneIndices: resolved indices \(indices.sorted()) for \(screenName) [\(screenId)] with candidate pids \(candidatePids)"
+            "activeZoneIndices: resolved indices \(indices.sorted()) for \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))] with candidate pids \(candidatePids)"
         )
         return indices
     }
