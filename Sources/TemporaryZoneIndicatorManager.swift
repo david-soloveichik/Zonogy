@@ -68,8 +68,8 @@ final class TemporaryZoneIndicatorManager {
         private let targetedBorderColor = IndicatorPalette.targetedBorderColor
         private let occupiedFillColor = NSColor.systemBlue.withAlphaComponent(0.22)
         private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
-        private let idleFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
-        private let idleBorderColor = NSColor.systemBlue.withAlphaComponent(0.25)
+        private let untargetedFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
+        private let untargetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.25)
         private let hoverFillColor = NSColor.systemBlue.withAlphaComponent(0.3)
         private let hoverBorderColor = NSColor.systemBlue.withAlphaComponent(0.6)
         private let hoverShadowColor = NSColor.systemBlue.withAlphaComponent(0.55).cgColor
@@ -207,8 +207,8 @@ final class TemporaryZoneIndicatorManager {
                 shadowRadius = 0
                 borderWidth = IndicatorPalette.defaultBorderWidth
             } else {
-                background = idleFillColor
-                border = idleBorderColor
+                background = untargetedFillColor
+                border = untargetedBorderColor
                 shadowColor = NSColor.clear.cgColor
                 shadowOpacity = 0
                 shadowRadius = 0

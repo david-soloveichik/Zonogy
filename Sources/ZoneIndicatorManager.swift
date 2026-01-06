@@ -60,8 +60,8 @@ final class ZoneIndicatorManager {
 
         private let targetedColor = IndicatorPalette.targetedFillColor
         private let targetedBorder = IndicatorPalette.targetedBorderColor
-        private let untargetedColor = NSColor.systemBlue.withAlphaComponent(0.25)
-        private let untargetedBorder = NSColor.systemBlue.withAlphaComponent(0.4)
+        private let untargetedColor = NSColor.systemBlue.withAlphaComponent(0.12)
+        private let untargetedBorder = NSColor.systemBlue.withAlphaComponent(0.25)
 
         init(frame frameRect: NSRect, key: ZoneKey, targeted: Bool) {
             self.key = key
