@@ -6,43 +6,62 @@ import Carbon
 final class KeyboardShortcutPreferences: ObservableObject {
     static let shared = KeyboardShortcutPreferences()
 
-    /// All configurable shortcut actions
+    /// All configurable shortcut actions (ordered by feature group for Preferences UI)
     enum ShortcutAction: String, CaseIterable, Codable {
+        // Zone Management
         case addZone
         case removeZone
-        case captureTimeTravelLogs
-        case flipKeyWindow
         case clearOrResetZones
         case clearOrResetZonesAtCursor
-        case targetTemporaryZone
-        case targetTilingZone
-        case navigateLeft
-        case navigateRight
+
+        // Window Actions
         case minimizeActiveWindow
         case minimizeWindowOrRemoveZoneAtCursor
-        case saveWinShotSnapshot
+        case flipKeyWindow
+
+        // Target Navigation
+        case navigateLeft
+        case navigateRight
+        case targetTemporaryZone
+        case targetTilingZone
+
+        // Window Switchers
         case showLauncher
         case showAltTab
         case showAltTabCurrentApp
 
+        // WinShot Snapshots
+        case showWinShotChooser
+        case saveWinShotSnapshot
+
+        // Developer
+        case captureTimeTravelLogs
+
         var displayName: String {
             switch self {
+            // Zone Management
             case .addZone: return "Add Zone"
             case .removeZone: return "Remove Zone"
-            case .captureTimeTravelLogs: return "Capture Time-Travel Logs"
-            case .flipKeyWindow: return "Flip Key Window to Another Screen"
             case .clearOrResetZones: return "Clear/Reset Zones (Active Screen)"
             case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Screen)"
-            case .targetTemporaryZone: return "Target Temporary Zone"
-            case .targetTilingZone: return "Target Tiling Zone"
-            case .navigateLeft: return "Navigate Left"
-            case .navigateRight: return "Navigate Right"
+            // Window Actions
             case .minimizeActiveWindow: return "Minimize Active Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
-            case .saveWinShotSnapshot: return "Save WinShot Snapshot"
+            case .flipKeyWindow: return "Flip Key Window to Another Screen"
+            // Target Navigation
+            case .navigateLeft: return "Navigate Left"
+            case .navigateRight: return "Navigate Right"
+            case .targetTemporaryZone: return "Target Temporary Zone"
+            case .targetTilingZone: return "Target Tiling Zone"
+            // Window Switchers
             case .showLauncher: return "Show Launcher"
             case .showAltTab: return "AltTab Window Switcher"
             case .showAltTabCurrentApp: return "AltTab (Current App Only)"
+            // WinShot Snapshots
+            case .showWinShotChooser: return "Show WinShot Switcher"
+            case .saveWinShotSnapshot: return "Save WinShot Snapshot"
+            // Developer
+            case .captureTimeTravelLogs: return "Capture Time-Travel Logs"
             }
         }
 
@@ -52,38 +71,46 @@ final class KeyboardShortcutPreferences: ObservableObject {
             let cmdOnly = UInt32(cmdKey)
 
             switch self {
+            // Zone Management
             case .addZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Equal), modifiers: cmdCtrl)
             case .removeZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Minus), modifiers: cmdCtrl)
-            case .captureTimeTravelLogs:
-                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Z), modifiers: cmdCtrl)
-            case .flipKeyWindow:
-                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             case .clearOrResetZones:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrl)
             case .clearOrResetZonesAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrlShiftOpt)
-            case .targetTemporaryZone:
-                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
-            case .targetTilingZone:
-                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
-            case .navigateLeft:
-                return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
-            case .navigateRight:
-                return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
+            // Window Actions
             case .minimizeActiveWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdOnly)
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrlShiftOpt)
-            case .saveWinShotSnapshot:
-                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Slash), modifiers: cmdCtrl)
+            case .flipKeyWindow:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
+            // Target Navigation
+            case .navigateLeft:
+                return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
+            case .navigateRight:
+                return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
+            case .targetTemporaryZone:
+                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
+            case .targetTilingZone:
+                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
+            // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .showAltTab:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: cmdOnly)
             case .showAltTabCurrentApp:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Grave), modifiers: cmdOnly)
+            // WinShot Snapshots
+            case .showWinShotChooser:
+                return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: cmdCtrl)
+            case .saveWinShotSnapshot:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Slash), modifiers: cmdCtrl)
+            // Developer
+            case .captureTimeTravelLogs:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Z), modifiers: cmdCtrl)
             }
         }
     }

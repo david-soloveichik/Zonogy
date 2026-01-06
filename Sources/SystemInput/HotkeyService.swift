@@ -17,10 +17,10 @@ final class HotkeyService {
         case minimizeActiveWindow = 11
         case minimizeWindowOrRemoveZoneAtCursor = 12
         case saveWinShotSnapshot = 13
-        case showWinShotChooser = 14  // Fixed shortcut (Control-Command-Tab)
+        case showWinShotChooser = 14
         case showLauncher = 15
 
-        /// Maps to the corresponding preferences action (nil for fixed shortcuts)
+        /// Maps to the corresponding preferences action
         var preferencesAction: KeyboardShortcutPreferences.ShortcutAction? {
             switch self {
             case .addZone: return .addZone
@@ -36,19 +36,15 @@ final class HotkeyService {
             case .minimizeActiveWindow: return .minimizeActiveWindow
             case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor
             case .saveWinShotSnapshot: return .saveWinShotSnapshot
-            case .showWinShotChooser: return nil  // Fixed shortcut
+            case .showWinShotChooser: return .showWinShotChooser
             case .showLauncher: return .showLauncher
             }
         }
 
         /// Returns the fixed shortcut for actions without configurable preferences
         var fixedShortcut: KeyboardShortcut? {
-            switch self {
-            case .showWinShotChooser:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey | controlKey))
-            default:
-                return nil
-            }
+            // All shortcuts are now configurable via preferences
+            return nil
         }
     }
 
