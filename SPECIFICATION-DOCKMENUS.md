@@ -3,9 +3,9 @@
 DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and switch” for an app’s windows directly from the Dock.
 
 - **Hover:** When the mouse moves over an application icon in the macOS Dock, show a DockMenu: a miniature Launcher UI (ie similar to our Launcher feature) pre-filtered (“drilled down”) to that application. Unlike the full Launcher, there is no keyboard navigation, no search field, and no possibility of “drill out” navigation.
-- **Click interception:** Clicking an application icon in the Dock (without Shift) does not activate the real Dock item; instead Zonogy performs the same default action as selecting that application in the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). In particular, it obeys `hasMainWindow` selection rules. For non-running apps, this launches the app (window appears in the targeted zone).
+- **Click interception:** Clicking an application icon in the Dock (without Shift) does not activate the real Dock item; instead Zonogy performs the same default action as selecting that application in the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). In particular, it obeys `hasMainWindow` selection rules. For non-running apps or running apps with no managed windows, this launches/activates the app (window appears in the targeted zone).
   - **Exception**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
-- **Dock-icon drag interception:** Dragging an app icon in the Dock (without Shift/Control) initiates a zone-targeting drag. For running apps, this drags the app's preferred managed window. For non-running apps, dropping on a zone targets that zone and launches the app (window appears in the newly targeted zone).
+- **Dock-icon drag interception:** Dragging an app icon in the Dock (without Shift/Control) initiates a zone-targeting drag. For running apps with managed windows, this drags the app's preferred managed window. For non-running apps or running apps with no managed windows, dropping on a zone targets that zone and launches/activates the app (window appears in the newly targeted zone).
 - **Bypass:** **Shift-click** or **Shift-drag** on a Dock application behaves exactly like a normal Dock action (Zonogy does not intercept).
 - **DockMenus (hover panels):** Only shown for running apps.
 
@@ -49,8 +49,8 @@ When the user left-clicks a Dock app **without Shift**:
 When the user drags a Dock app icon **without Shift/Control**:
 
 - Zonogy intercepts the drag so the Dock does not start rearranging icons or show the native Dock menu.
-- **Running apps:** Zonogy resolves the app's preferred managed window using the same selection rules as click interception (including `hasMainWindow`). The resolved window is dragged using the same overlay UI and drop targets as dragging a DockMenu window entry.
-- **Non-running apps:** Zone overlays appear. Dropping on a zone targets that zone and launches the app; the new window appears in the targeted zone. Dropping outside all zones cancels (app is not launched).
+- **Running apps with windows:** Zonogy resolves the app's preferred managed window using the same selection rules as click interception (including `hasMainWindow`). The resolved window is dragged using the same overlay UI and drop targets as dragging a DockMenu window entry.
+- **Non-running apps or running apps with no windows:** Zone overlays appear. Dropping on a zone targets that zone and launches/activates the app; the new window appears in the targeted zone. Dropping outside all zones cancels (app is not launched/activated).
 
 **Modifiers:**
 

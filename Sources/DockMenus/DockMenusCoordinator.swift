@@ -193,12 +193,21 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
             return true
         }
 
-        guard let window = delegate?.dockMenusCoordinator(self, preferredDragWindowForDockAppWithURL: appURL) else {
-            Logger.debug("DockMenusCoordinator: no preferred window for app drag; ignoring drag")
-            return false
+        // If app has a preferred window, drag that window
+        if let window = delegate?.dockMenusCoordinator(self, preferredDragWindowForDockAppWithURL: appURL) {
+            beginDrag(for: window, driveViaMouseMonitors: false, initialCursorPointAX: cursorPoint)
+            delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+            return true
         }
 
-        beginDrag(for: window, driveViaMouseMonitors: false, initialCursorPointAX: cursorPoint)
+        // Running app with no windows - treat like non-running app (target zone and activate)
+        Logger.debug("DockMenusCoordinator: running app has no windows; treating as non-running app drag")
+        draggedNonRunningAppURL = appURL
+
+        let appName = appURL.deletingPathExtension().lastPathComponent
+        dragFeedback.show(title: appName, at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
+
+        delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
         delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
         return true
     }
