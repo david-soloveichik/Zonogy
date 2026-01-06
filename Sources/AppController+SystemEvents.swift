@@ -87,6 +87,14 @@ extension AppController {
            !isActivityRecordingSuppressed() {
             recordActiveWindowForHistory(windowId: focused.windowId, reason: "workspace-activate")
         }
+
+        // Record app activation for Launcher app recency ordering.
+        // This is the single source of truth for app recency - triggered by NSWorkspace
+        // didActivateApplicationNotification which fires for all app activations (Dock clicks,
+        // Cmd-Tab, window clicks, Launcher, etc.) regardless of whether the app has windows.
+        if let bundleId = application?.bundleIdentifier {
+            LaunchItemUsageStore.shared.recordAppActivation(bundleIdentifier: bundleId)
+        }
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?) {

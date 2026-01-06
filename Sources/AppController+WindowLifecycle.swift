@@ -79,11 +79,6 @@ extension AppController {
         // Track frontmost managed window for AltTab initial selection (no AX call needed at show time)
         currentFrontmostManagedWindowId = focusedWindowId
 
-        // Record app activation for app recency
-        if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier {
-            LaunchItemUsageStore.shared.recordAppActivation(bundleIdentifier: bundleId)
-        }
-
         updateUnmanagedFocusState()
     }
 
