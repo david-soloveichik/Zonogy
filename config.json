@@ -37,6 +37,10 @@
     {
       "bundleIdentifier": "com.adobe.illustrator",
       "ignoreZoomButtonRequirement": true
+    },
+    {
+      "bundleIdentifier": "com.daisydiskapp.DaisyDisk",
+      "ignoreHeightRequirement": true
     }
   ]
 }

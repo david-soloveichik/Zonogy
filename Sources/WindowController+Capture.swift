@@ -1013,8 +1013,14 @@ extension WindowController {
         // Check window height (must be >= 250px tall)
         if let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) {
             if size.height < 250 {
-                Logger.debug("\(contextPrefix): Window height \(size.height) is less than 250px minimum")
-                return false
+                if let app = NSRunningApplication(processIdentifier: pid),
+                   let bundleId = app.bundleIdentifier,
+                   applicationExceptionPolicy.ignoresHeightRequirement(forBundleIdentifier: bundleId) {
+                    Logger.debug("\(contextPrefix): Window height \(size.height) is less than 250px minimum, but bundle \(bundleId) is configured to ignore height requirement; treating as standard")
+                } else {
+                    Logger.debug("\(contextPrefix): Window height \(size.height) is less than 250px minimum")
+                    return false
+                }
             }
         } else {
             // If we can't get the size, we treat it as not meeting the criteria

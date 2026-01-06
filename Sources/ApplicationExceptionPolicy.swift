@@ -7,17 +7,20 @@ struct ApplicationExceptionRule: Decodable {
     let bundleIdentifier: String
     let ignoreActivationPolicy: Bool?
     let ignoreZoomButtonRequirement: Bool?
+    let ignoreHeightRequirement: Bool?
     let hasMainWindow: Bool?
 
     init(
         bundleIdentifier: String,
         ignoreActivationPolicy: Bool? = nil,
         ignoreZoomButtonRequirement: Bool? = nil,
+        ignoreHeightRequirement: Bool? = nil,
         hasMainWindow: Bool? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.ignoreActivationPolicy = ignoreActivationPolicy
         self.ignoreZoomButtonRequirement = ignoreZoomButtonRequirement
+        self.ignoreHeightRequirement = ignoreHeightRequirement
         self.hasMainWindow = hasMainWindow
     }
 }
@@ -53,6 +56,13 @@ struct ApplicationExceptionPolicy {
             return false
         }
         return rule.ignoreZoomButtonRequirement ?? false
+    }
+
+    func ignoresHeightRequirement(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        guard let rule = rulesByBundleId[bundleIdentifier] else {
+            return false
+        }
+        return rule.ignoreHeightRequirement ?? false
     }
 
     /// Returns true if the app prefers its "main window" (lowest Zonogy ID) when multiple windows exist
