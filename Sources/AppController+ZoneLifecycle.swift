@@ -537,10 +537,11 @@ extension AppController {
     ///    not assigned this pass and is not in the temporary floating zone.
     /// 6. Refresh targeted zone state, temporary‑zone targeting, and visual
     ///    indicators so the UI matches the new layout.
-    internal func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = []) {
+    internal func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = [], recentlyPlacedInTempZone: Int? = nil) {
         // Merge explicit exclusions with zones that should not be touched while
         // a drag‑and‑drop session is in progress (origin/hovered zones).
         let effectiveExcludedZones = excludedZones.union(dragExcludedZones)
+        let tempZoneExclusion = recentlyPlacedInTempZone
 
         // Ensure only one sync runs at a time. If a sync is already underway,
         // just record that another pass is needed and the combined exclusions;
@@ -548,6 +549,9 @@ extension AppController {
         if isSyncingWindows {
             pendingSync = true
             pendingSyncExcludedZones.formUnion(effectiveExcludedZones)
+            if let recentlyPlacedInTempZone {
+                pendingSyncRecentlyPlacedInTempZone = recentlyPlacedInTempZone
+            }
             return
         }
         isSyncingWindows = true
@@ -557,7 +561,9 @@ extension AppController {
                 pendingSync = false
                 let pendingExcluded = pendingSyncExcludedZones
                 pendingSyncExcludedZones.removeAll()
-                syncWindowsToZones(excluding: pendingExcluded)
+                let pendingTempZoneExclusion = pendingSyncRecentlyPlacedInTempZone
+                pendingSyncRecentlyPlacedInTempZone = nil
+                syncWindowsToZones(excluding: pendingExcluded, recentlyPlacedInTempZone: pendingTempZoneExclusion)
             }
         }
 
@@ -679,9 +685,15 @@ extension AppController {
             clearManagedWindowZone(window)
         }
 
-        // Phase 5: ensure targeting and indicators are consistent with the new
+        // Phase 5: promote temporary zone occupants into any empty tiling zones.
+        // This implements the spec rule: "When a tiling zone on a screen becomes
+        // empty and that screen has a temporary-zone occupant, promote the
+        // temporary window into the emptied zone."
+        promoteTemporaryZoneOccupantsIfNeeded(excluding: tempZoneExclusion, reason: "sync")
+
+        // Phase 6: ensure targeting and indicators are consistent with the new
         // layout — pick a valid targeted zone if needed, keep the temporary
-        // zone’s targeting model fresh, and refresh all on‑screen adornments.
+        // zone's targeting model fresh, and refresh all on‑screen adornments.
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         updateTemporaryZoneTargeting(reason: "sync")
         refreshIndicators()
@@ -1579,13 +1591,9 @@ extension AppController {
         emptiedZoneKey: ZoneKey?,
         reason: String
     ) {
-        if let key = emptiedZoneKey {
-            fillEmptiedZoneFromTemporaryIfAvailable(
-                emptiedZoneKey: key,
-                minimizedWindowId: windowId,
-                reason: reason
-            )
-        }
+        // Note: emptiedZoneKey is no longer used - temporary zone promotion is now
+        // handled centrally by syncWindowsToZones. Keeping parameter for API stability.
+        _ = emptiedZoneKey
 
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: reason)
         activeFitClearSuppressionForWindow(windowId)

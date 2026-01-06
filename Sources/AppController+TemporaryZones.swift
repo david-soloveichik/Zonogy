@@ -25,39 +25,63 @@ extension AppController {
         updateTemporaryZoneTargeting(reason: reason)
     }
 
-    /// If a tiled zone on a screen becomes empty due to its window being minimized,
-    /// and that screen currently has a temporary-zone occupant, promote the temporary
-    /// window into the newly emptied zone.
-    func fillEmptiedZoneFromTemporaryIfAvailable(
-        emptiedZoneKey: ZoneKey,
-        minimizedWindowId: Int,
-        reason: String
-    ) {
-        guard let occupant = temporaryZoneOccupant(on: emptiedZoneKey.screenId) else {
-            return
-        }
-        // Do not attempt to reassign the minimized window itself.
-        guard occupant.windowId != minimizedWindowId else {
-            return
-        }
-
-        guard let context = screenContexts[emptiedZoneKey.screenId],
-              let zone = context.zoneController.zone(at: emptiedZoneKey.index) else {
-            return
+    /// Checks all screens for temporary zone occupants that can be promoted into empty tiling zones.
+    /// This is called automatically at the end of syncWindowsToZones.
+    ///
+    /// - Parameter excluding: Optional window ID to exclude from promotion (used when a window
+    ///   was just placed INTO the temporary zone to prevent immediately moving it back out).
+    /// - Parameter reason: Logging reason for the promotion.
+    func promoteTemporaryZoneOccupantsIfNeeded(excluding windowId: Int? = nil, reason: String) {
+        func isEffectivelyEmpty(_ zone: Zone) -> Bool {
+            guard let existingId = zone.windowId else {
+                return true
+            }
+            guard let existing = windowController.window(withId: existingId) else {
+                return false
+            }
+            return existing.isPlaceholder
         }
 
-        // Only promote into zones that are effectively empty (no occupant or placeholder only).
-        if let existingId = zone.windowId,
-           let existing = windowController.window(withId: existingId),
-           !existing.isPlaceholder {
-            return
-        }
+        for screenId in screenOrder {
+            guard let occupant = temporaryZoneOccupant(on: screenId) else {
+                continue
+            }
 
-        windowPlacementManager.placeWindow(
-            occupant,
-            into: emptiedZoneKey,
-            reason: reason
-        )
+            // Don't promote the excluded window (e.g., window just placed into temp zone)
+            if let excludeId = windowId, occupant.windowId == excludeId {
+                continue
+            }
+
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+
+            let preferredEmptyKey: ZoneKey? = {
+                guard let key = targetedZoneKey,
+                      key.screenId == screenId,
+                      let zone = context.zoneController.zone(at: key.index),
+                      isEffectivelyEmpty(zone) else {
+                    return nil
+                }
+                return key
+            }()
+
+            let fallbackEmptyKey: ZoneKey? = {
+                for zone in context.zoneController.allZones.sorted(by: { $0.index < $1.index }) {
+                    if isEffectivelyEmpty(zone) {
+                        return ZoneKey(screenId: screenId, index: zone.index)
+                    }
+                }
+                return nil
+            }()
+
+            guard let zoneKey = preferredEmptyKey ?? fallbackEmptyKey else {
+                continue
+            }
+
+            Logger.debug("Promoting temp zone occupant \(occupant.windowId) to zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
+            windowPlacementManager.placeWindow(occupant, into: zoneKey, reason: reason)
+        }
     }
 
     func minimizeTemporaryZoneOccupant(on screenId: CGDirectDisplayID, reason: String) {

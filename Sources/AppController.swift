@@ -49,6 +49,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isSyncingWindows = false
     internal var pendingSync = false
     internal var pendingSyncExcludedZones: Set<ZoneKey> = []
+    internal var pendingSyncRecentlyPlacedInTempZone: Int?
     internal var liveResizingZoneKey: ZoneKey?
     /// True while the user is actively dragging a zone separator (live zone resize).
     /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.

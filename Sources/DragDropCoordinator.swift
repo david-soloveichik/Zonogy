@@ -57,7 +57,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     var windowPlacementManager: WindowPlacementManager { get }
 
     // Synchronization
-    func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>)
+    func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>, recentlyPlacedInTempZone: Int?)
 
     // Add-zone indicator support
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
@@ -258,7 +258,7 @@ class DragDropCoordinator {
 
         guard let session = dragSession, session.windowId == windowId else {
             tearDownDragSession()
-            delegate.syncWindowsToZones(excluding: [])
+            delegate.syncWindowsToZones(excluding: [], recentlyPlacedInTempZone: nil)
             return (nil, nil, .reassign)
         }
 

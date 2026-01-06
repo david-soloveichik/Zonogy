@@ -201,12 +201,6 @@ extension AppController {
         manualResizeDetachedWindowIds.remove(windowId)
         let managed = windowController.window(withId: windowId)
 
-        // Remember the zone this window occupied before minimization.
-        let emptiedZoneKey: ZoneKey? = {
-            guard let managed else { return nil }
-            return zoneKey(forManagedWindow: managed)
-        }()
-
         if let managed, isEventSuppressed(windowId: managed.windowId, event: .miniaturized) {
             Logger.debug("Miniaturize notification suppressed for window \(managed.windowId)")
             return
@@ -216,15 +210,8 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
         }
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize", retarget: true)
+        // Sync handles temporary zone promotion automatically
         syncWindowsToZones()
-
-        if let key = emptiedZoneKey {
-            fillEmptiedZoneFromTemporaryIfAvailable(
-                emptiedZoneKey: key,
-                minimizedWindowId: windowId,
-                reason: "delegate-did-miniaturize"
-            )
-        }
 
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "miniaturize")
         activeFitClearSuppressionForWindow(windowId)

@@ -19,7 +19,7 @@ protocol ValidationRetryManagerDelegate: AnyObject {
     func debugManagedWindowIds(for pid: pid_t) -> [Int]
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int]
     func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool)
-    func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>)
+    func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>, recentlyPlacedInTempZone: Int?)
 }
 
 class ValidationRetryManager {
@@ -43,7 +43,7 @@ class ValidationRetryManager {
             for windowId in destroyedWindowIds {
                 delegate.removeWindowFromAllZones(windowId: windowId, reason: "validate-application", retarget: true)
             }
-            delegate.syncWindowsToZones(excluding: [])
+            delegate.syncWindowsToZones(excluding: [], recentlyPlacedInTempZone: nil)
             return destroyedWindowIds
         }
 
