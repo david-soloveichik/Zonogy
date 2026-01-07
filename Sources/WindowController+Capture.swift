@@ -1253,7 +1253,7 @@ extension WindowController {
             guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
                 return
             }
-            Logger.debug("External window \(managed.windowId) resized by user")
+            Logger.debug("External window \(managed.windowId) resized (non-programmatic)")
             if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
                 delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
             } else {

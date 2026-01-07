@@ -32,7 +32,7 @@ extension WindowController {
             return true
         }
 
-        guard isLeftMouseButtonDown() else {
+        guard MouseButtons.isLeftMouseButtonDown() else {
             dragCandidate = nil
             updateMouseUpGlobalMonitorInstallation()
             return false
@@ -51,13 +51,6 @@ extension WindowController {
         dragCandidate = DragCandidate(windowId: managed.windowId, originFrame: frame)
         updateMouseUpGlobalMonitorInstallation()
         return false
-    }
-
-    private func isLeftMouseButtonDown() -> Bool {
-        if NSEvent.pressedMouseButtons & 0x1 != 0 {
-            return true
-        }
-        return CGEventSource.buttonState(.combinedSessionState, button: .left)
     }
 
     internal func handleMouseUp() {

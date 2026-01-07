@@ -41,6 +41,10 @@
     {
       "bundleIdentifier": "com.daisydiskapp.DaisyDisk",
       "ignoreHeightRequirement": true
+    },
+    {
+      "bundleIdentifier": "us.zoom.xos",
+      "snapToZoneOnSelfResize": true
     }
   ]
 }

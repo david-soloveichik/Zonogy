@@ -112,6 +112,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var manualMoveSuppressionDeadline: Date?
     /// Windows that were manually resized while tiled and should snap back to their zone frame on focus loss or the next layout sync.
     internal var manualResizeDetachedWindowIds: Set<Int> = []
+    /// Debounce state for per-app self-resize snap-to-zone exceptions.
+    internal var selfResizeSnapDebouncer = WindowFrameDebouncer(minimumInterval: 0.25)
+    /// Edge proximity threshold (in pixels, screen-local) for classifying a resize as a user edge-drag.
+    internal let userResizeEdgeProximityThreshold: CGFloat = 6
+    /// Time window after mouse-up where we still classify a border-adjacent resize as user-driven.
+    internal let userResizeMouseUpGraceInterval: TimeInterval = 0.35
 
     // MARK: - Sleep/Wake State
     /// Timer used to poll for wake readiness (display awake + session unlocked).

@@ -709,7 +709,7 @@ extension AppController {
         guard case .accessibility(_, let pid, _) = managed.backing else {
             return false
         }
-        guard isLeftMouseButtonDown() else {
+        guard MouseButtons.isLeftMouseButtonDown() else {
             return false
         }
         guard let context = screenContexts[targetedZoneKey.screenId],
@@ -723,13 +723,6 @@ extension AppController {
             return false
         }
         return true
-    }
-
-    private func isLeftMouseButtonDown() -> Bool {
-        if NSEvent.pressedMouseButtons & 0x1 != 0 {
-            return true
-        }
-        return CGEventSource.buttonState(.combinedSessionState, button: .left)
     }
 
     /// Compute the frame used to render content inside a zone, honoring the spec margin

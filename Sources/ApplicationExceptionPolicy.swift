@@ -9,19 +9,22 @@ struct ApplicationExceptionRule: Decodable {
     let ignoreZoomButtonRequirement: Bool?
     let ignoreHeightRequirement: Bool?
     let hasMainWindow: Bool?
+    let snapToZoneOnSelfResize: Bool?
 
     init(
         bundleIdentifier: String,
         ignoreActivationPolicy: Bool? = nil,
         ignoreZoomButtonRequirement: Bool? = nil,
         ignoreHeightRequirement: Bool? = nil,
-        hasMainWindow: Bool? = nil
+        hasMainWindow: Bool? = nil,
+        snapToZoneOnSelfResize: Bool? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.ignoreActivationPolicy = ignoreActivationPolicy
         self.ignoreZoomButtonRequirement = ignoreZoomButtonRequirement
         self.ignoreHeightRequirement = ignoreHeightRequirement
         self.hasMainWindow = hasMainWindow
+        self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
     }
 }
 
@@ -68,5 +71,11 @@ struct ApplicationExceptionPolicy {
     /// Returns true if the app prefers its "main window" (lowest Zonogy ID) when multiple windows exist
     func hasMainWindow(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.hasMainWindow ?? false
+    }
+
+    /// Returns true if the app wants Zonogy to snap its window back to the zone
+    /// immediately after a self-initiated resize (e.g., internal UI panels opening/closing).
+    func snapsToZoneOnSelfResize(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.snapToZoneOnSelfResize ?? false
     }
 }

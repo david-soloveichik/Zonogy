@@ -163,6 +163,7 @@ extension AppController {
             currentFrontmostManagedWindowId = nil
         }
         manualResizeDetachedWindowIds.remove(windowId)
+        selfResizeSnapDebouncer.clear(windowId: windowId)
         let managed = windowController.window(withId: windowId)
         if let managed, managed.isPlaceholder {
             placeholderCoordinator.forget(windowId: windowId)
@@ -194,6 +195,7 @@ extension AppController {
             currentFrontmostManagedWindowId = nil
         }
         manualResizeDetachedWindowIds.remove(windowId)
+        selfResizeSnapDebouncer.clear(windowId: windowId)
         let managed = windowController.window(withId: windowId)
 
         if let managed, isEventSuppressed(windowId: managed.windowId, event: .miniaturized) {
@@ -241,8 +243,6 @@ extension AppController {
             return
         }
 
-        manualResizeDetachedWindowIds.insert(windowId)
-
         let resolvedScreenId: CGDirectDisplayID? = {
             if let screenId {
                 return screenId
@@ -250,12 +250,99 @@ extension AppController {
             return managed.screenDisplayId ?? detectScreenId(for: managed)
         }()
 
+        if handleSelfResizeSnapIfNeeded(
+            managed: managed,
+            screenId: resolvedScreenId,
+            zoneIndex: zoneIndex,
+            reportedFrame: frame
+        ) {
+            return
+        }
+
+        manualResizeDetachedWindowIds.insert(windowId)
+
         if let resolvedScreenId {
             let screenIndex = screenContextStore.loggingIndex(for: resolvedScreenId)
             Logger.debug("Window \(windowId) manual resize ended in zone \(zoneIndex) on screen \(screenIndex); deferring snapback until layout sync or focus loss")
         } else {
             Logger.debug("Window \(windowId) manual resize ended in zone \(zoneIndex) on unknown screen; deferring snapback until layout sync or focus loss")
         }
+    }
+
+    private func handleSelfResizeSnapIfNeeded(
+        managed: ManagedWindow,
+        screenId: CGDirectDisplayID?,
+        zoneIndex: Int,
+        reportedFrame: CGRect
+    ) -> Bool {
+        guard shouldSnapToZoneOnSelfResize(managed: managed) else {
+            return false
+        }
+
+        guard let screenId,
+              let context = screenContexts[screenId],
+              let descriptor = descriptor(for: screenId),
+              let zone = context.zoneController.zone(at: zoneIndex) else {
+            return false
+        }
+
+        // If the user manually resized this window earlier, preserve that detached
+        // state until focus loss / layout sync clears it (simplest behavior).
+        if manualResizeDetachedWindowIds.contains(managed.windowId) {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "Self-resize snap skipped for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex) (reason: manually-detached)"
+            )
+            return true
+        }
+
+        // If the cursor is near the window border and the left button is down (or just went up),
+        // assume this resize came from a user edge drag and keep the existing detach semantics.
+        let cursorPoint = currentCursorScreenPoint(on: descriptor)
+        let isLikelyUserResize = WindowResizeHeuristics.isLikelyUserEdgeDragResize(
+            cursorPoint: cursorPoint,
+            windowFrame: reportedFrame,
+            edgeProximity: userResizeEdgeProximityThreshold,
+            leftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
+            secondsSinceLeftMouseUp: MouseButtons.secondsSinceLastLeftMouseUp(),
+            mouseUpGrace: userResizeMouseUpGraceInterval
+        )
+        if isLikelyUserResize {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "Self-resize snap not applied for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex) (reason: likely-user-edge-drag)"
+            )
+            return false
+        }
+
+        let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
+        guard selfResizeSnapDebouncer.shouldAllow(windowId: managed.windowId, targetFrame: targetFrame) else {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "Self-resize snap debounced for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex)"
+            )
+            return true
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Self-resize snap: moving window \(managed.windowId) to zone \(zone.index) on screen \(screenIndex)")
+        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
+        activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+        return true
+    }
+
+    private func shouldSnapToZoneOnSelfResize(managed: ManagedWindow) -> Bool {
+        guard case .accessibility(_, let pid, _) = managed.backing,
+              let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier else {
+            return false
+        }
+        return configuration.applicationExceptionPolicy.snapsToZoneOnSelfResize(forBundleIdentifier: bundleId)
+    }
+
+    private func currentCursorScreenPoint(on descriptor: ScreenDescriptor) -> CGPoint {
+        let cocoaPoint = NSEvent.mouseLocation
+        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
+        return descriptor.cocoaToScreen(cocoaFrame).origin
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {
