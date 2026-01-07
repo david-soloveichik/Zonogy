@@ -44,7 +44,7 @@ struct AltTabView: View {
                     }
                     .onChange(of: model.selectedIndex) { newIndex in
                         withAnimation(.easeInOut(duration: 0.15)) {
-                            proxy.scrollTo(newIndex, anchor: .center)
+                            proxy.scrollTo(newIndex, anchor: nil)
                         }
                     }
                 }
@@ -52,6 +52,7 @@ struct AltTabView: View {
         }
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(red: 0.3, green: 0.5, blue: 0.8).opacity(0.12))
     }
 }
 

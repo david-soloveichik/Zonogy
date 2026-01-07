@@ -79,9 +79,9 @@ struct WindowItemListView: View {
                 }
                 withAnimation(.easeOut(duration: 0.12)) {
                     if let windowId = newValue {
-                        proxy.scrollTo(windowId, anchor: .center)
+                        proxy.scrollTo(windowId, anchor: nil)
                     } else {
-                        proxy.scrollTo(headerID, anchor: .center)
+                        proxy.scrollTo(headerID, anchor: nil)
                     }
                 }
             }

@@ -99,7 +99,7 @@ struct LaunchItemListView: View {
                     return
                 }
                 withAnimation(.easeOut(duration: 0.12)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+                    proxy.scrollTo(newValue, anchor: nil)
                 }
             }
         }

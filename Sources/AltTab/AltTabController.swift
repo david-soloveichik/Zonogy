@@ -27,7 +27,7 @@ protocol AltTabControllerDelegate: AnyObject {
 final class AltTabController {
     weak var delegate: AltTabControllerDelegate?
 
-    private var window: LauncherWindow?
+    private var window: AltTabWindow?
     private var model: AltTabModel?
     private var hostingView: NSHostingView<AltTabView>?
     private var clickMonitor: Any?
@@ -90,9 +90,7 @@ final class AltTabController {
 
         // Create window if needed
         if window == nil {
-            window = LauncherWindow()
-            // Adjust window size for AltTab (smaller than Launcher)
-            window?.setContentSize(NSSize(width: 400, height: 350))
+            window = AltTabWindow()
         }
 
         // Create the SwiftUI view

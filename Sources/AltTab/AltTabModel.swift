@@ -19,15 +19,15 @@ final class AltTabModel: ObservableObject {
         self.windows = windows
     }
 
-    /// Move selection to next window (wraps to beginning)
+    /// Move selection to next window (stops at end)
     func selectNext() {
         guard !windows.isEmpty else { return }
-        selectedIndex = (selectedIndex + 1) % windows.count
+        selectedIndex = min(selectedIndex + 1, windows.count - 1)
     }
 
-    /// Move selection to previous window (wraps to end)
+    /// Move selection to previous window (stops at beginning)
     func selectPrevious() {
         guard !windows.isEmpty else { return }
-        selectedIndex = selectedIndex == 0 ? windows.count - 1 : selectedIndex - 1
+        selectedIndex = max(selectedIndex - 1, 0)
     }
 }
