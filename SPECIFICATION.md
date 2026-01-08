@@ -158,7 +158,7 @@ Placing another window into the temporary zone minimizes the previous occupant.
 
 The temporary zone occupant is minimized when another managed window on the same screen becomes active/front-most. Temporary zones on other screens are unaffected.
 
-When a tiling zone on a screen becomes empty and that screen has a temporary-zone occupant, promote the temporary window into the emptied zone. **Exception:** If the tiling zone became empty because the user explicitly moved that zone’s window into the temporary zone (e.g., by dragging onto the temporary zone indicator, by Control-Command drag promotion, or by placing it into the temporary zone via the Launcher), do **not** promote the temporary-zone occupant *in response to that same emptying event*. (If a tiling zone later becomes empty for some other reason, the temporary-zone occupant may then be promoted normally.)
+When a tiling zone on a screen becomes empty and that screen has a temporary-zone occupant, promote the temporary window into the emptied zone. Exception: If the tiling zone became empty because the user explicitly moved that zone’s window into the temporary zone (e.g., by dragging onto the temporary zone indicator, by Control-Command drag promotion, or by placing it into the temporary zone via the Launcher), do not promote the temporary-zone occupant in response to that same emptying event.
 
 When a new tiling zone is created via an explicit add-zone action (e.g., `Control-Cmd-=`) on a screen that currently has a temporary-zone occupant, immediately move the temporary window into the newly created zone. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the temporary occupant since the dragged window is taking that new zone.)
 
