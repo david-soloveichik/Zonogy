@@ -965,6 +965,17 @@ extension WindowController {
             }
         }
 
+        // Check if this window title is excluded for this app
+        if !windowTitle.isEmpty,
+           let app = NSRunningApplication(processIdentifier: pid),
+           let bundleId = app.bundleIdentifier {
+            let excludedTitles = applicationExceptionPolicy.excludedWindowTitles(forBundleIdentifier: bundleId)
+            if excludedTitles.contains(windowTitle) {
+                Logger.debug("\(contextPrefix): Window title '\(windowTitle)' is excluded for bundle \(bundleId)")
+                return false
+            }
+        }
+
         // Check isMovable attribute (per SPECIFICATION.md)
         // Use the same approach as winmanmon: check if position is settable
         var isPositionSettable: DarwinBoolean = false

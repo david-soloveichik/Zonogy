@@ -45,6 +45,10 @@
     {
       "bundleIdentifier": "us.zoom.xos",
       "snapToZoneOnSelfResize": true
+    },
+    {
+      "bundleIdentifier": "com.hnc.Discord",
+      "excludedWindowTitles": ["Discord Updater"]
     }
   ]
 }

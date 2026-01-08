@@ -11,6 +11,7 @@ struct ApplicationExceptionRule: Decodable {
     let allowEmptyTitleWindows: Bool?
     let hasMainWindow: Bool?
     let snapToZoneOnSelfResize: Bool?
+    let excludedWindowTitles: [String]?
 
     init(
         bundleIdentifier: String,
@@ -19,7 +20,8 @@ struct ApplicationExceptionRule: Decodable {
         ignoreHeightRequirement: Bool? = nil,
         allowEmptyTitleWindows: Bool? = nil,
         hasMainWindow: Bool? = nil,
-        snapToZoneOnSelfResize: Bool? = nil
+        snapToZoneOnSelfResize: Bool? = nil,
+        excludedWindowTitles: [String]? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.ignoreActivationPolicy = ignoreActivationPolicy
@@ -28,6 +30,7 @@ struct ApplicationExceptionRule: Decodable {
         self.allowEmptyTitleWindows = allowEmptyTitleWindows
         self.hasMainWindow = hasMainWindow
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
+        self.excludedWindowTitles = excludedWindowTitles
     }
 }
 
@@ -86,5 +89,10 @@ struct ApplicationExceptionPolicy {
     /// By default, empty-title windows are ignored; set this to opt in.
     func allowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.allowEmptyTitleWindows ?? false
+    }
+
+    /// Returns the list of window titles to exclude from management for this bundle.
+    func excludedWindowTitles(forBundleIdentifier bundleIdentifier: String) -> [String] {
+        rulesByBundleId[bundleIdentifier]?.excludedWindowTitles ?? []
     }
 }
