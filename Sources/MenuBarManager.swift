@@ -5,6 +5,7 @@ import AppKit
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
     func menuBarManagerDidRequestReloadLauncher()
+    func menuBarManagerDidRequestPreferences()
 }
 
 /// Manages the menu bar status item, including visual state (e.g. dimming during sleep/wake) and its menu.
@@ -118,7 +119,7 @@ class MenuBarManager {
 
     @objc private func handlePreferences() {
         Logger.debug("Preferences requested from menu bar")
-        PreferencesWindowController.shared.showWindow()
+        delegate?.menuBarManagerDidRequestPreferences()
     }
 
     @objc private func handleReloadLauncher() {

@@ -16,4 +16,10 @@ extension AppController {
             await LauncherAppCache.shared.reload()
         }
     }
+
+    func menuBarManagerDidRequestPreferences() {
+        // Close Launcher if open to avoid overlap with Preferences window
+        dismissLauncherIfActive()
+        PreferencesWindowController.shared.showWindow()
+    }
 }
