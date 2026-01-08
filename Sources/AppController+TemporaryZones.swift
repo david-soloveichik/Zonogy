@@ -21,27 +21,28 @@ extension AppController {
         // existing ActiveFit window before assigning to the temporary zone.
         exitRevealMode(reason: "temporary-zone-assignment")
 
-        temporaryZoneCoordinator.assign(managed, to: screenId, centerWindow: centerWindow, reason: reason)
+        temporaryZoneCoordinator.assign(
+            managed,
+            to: screenId,
+            centerWindow: centerWindow,
+            reason: reason
+        )
         updateTemporaryZoneTargeting(reason: reason)
     }
 
     /// Checks all screens for temporary zone occupants that can be promoted into empty tiling zones.
-    /// This is called automatically at the end of syncWindowsToZones.
+    /// This is called automatically at the end of syncWindowsToZones when a tiling zone
+    /// became newly empty since the previous sync pass.
     ///
+    /// - Parameter newlyEmptiedZones: Zone keys that transitioned from occupied to empty since the prior sync.
     /// - Parameter excluding: Optional window ID to exclude from promotion (used when a window
     ///   was just placed INTO the temporary zone to prevent immediately moving it back out).
     /// - Parameter reason: Logging reason for the promotion.
-    func promoteTemporaryZoneOccupantsIfNeeded(excluding windowId: Int? = nil, reason: String) {
-        func isEffectivelyEmpty(_ zone: Zone) -> Bool {
-            guard let existingId = zone.windowId else {
-                return true
-            }
-            guard let existing = windowController.window(withId: existingId) else {
-                return false
-            }
-            return existing.isPlaceholder
-        }
-
+    func promoteTemporaryZoneOccupantsIfNeeded(
+        newlyEmptiedZones: Set<ZoneKey>,
+        excluding windowId: Int? = nil,
+        reason: String
+    ) {
         for screenId in screenOrder {
             guard let occupant = temporaryZoneOccupant(on: screenId) else {
                 continue
@@ -56,26 +57,37 @@ extension AppController {
                 continue
             }
 
-            let preferredEmptyKey: ZoneKey? = {
-                guard let key = targetedZoneKey,
-                      key.screenId == screenId,
-                      let zone = context.zoneController.zone(at: key.index),
-                      isEffectivelyEmpty(zone) else {
+            let candidateKeys: [ZoneKey] = newlyEmptiedZones
+                .filter { $0.screenId == screenId }
+                .sorted(by: { $0.index < $1.index })
+
+            guard !candidateKeys.isEmpty else {
+                continue
+            }
+
+            let preferredKey: ZoneKey? = {
+                guard let targeted = targetedZoneKey,
+                      targeted.screenId == screenId,
+                      candidateKeys.contains(targeted),
+                      let zone = context.zoneController.zone(at: targeted.index),
+                      isZoneEffectivelyEmpty(zone) else {
                     return nil
                 }
-                return key
+                return targeted
             }()
 
-            let fallbackEmptyKey: ZoneKey? = {
-                for zone in context.zoneController.allZones.sorted(by: { $0.index < $1.index }) {
-                    if isEffectivelyEmpty(zone) {
-                        return ZoneKey(screenId: screenId, index: zone.index)
+            let fallbackKey: ZoneKey? = {
+                for key in candidateKeys {
+                    guard let zone = context.zoneController.zone(at: key.index),
+                          isZoneEffectivelyEmpty(zone) else {
+                        continue
                     }
+                    return key
                 }
                 return nil
             }()
 
-            guard let zoneKey = preferredEmptyKey ?? fallbackEmptyKey else {
+            guard let zoneKey = preferredKey ?? fallbackKey else {
                 continue
             }
 

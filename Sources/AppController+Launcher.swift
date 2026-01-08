@@ -323,7 +323,6 @@ extension AppController: LauncherControllerDelegate {
             assignWindowToTemporaryZone(managed, on: temporaryScreenId, centerWindow: true, reason: "launcher-selection")
             Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: temporaryScreenId))")
             // Sync to create placeholder for the now-empty source zone.
-            // Exclude the window we just placed from temp zone promotion (so it doesn't immediately get promoted back out).
             syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
             return
         }

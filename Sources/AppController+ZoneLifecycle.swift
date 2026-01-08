@@ -685,11 +685,43 @@ extension AppController {
             clearManagedWindowZone(window)
         }
 
-        // Phase 5: promote temporary zone occupants into any empty tiling zones.
-        // This implements the spec rule: "When a tiling zone on a screen becomes
-        // empty and that screen has a temporary-zone occupant, promote the
-        // temporary window into the emptied zone."
-        promoteTemporaryZoneOccupantsIfNeeded(excluding: tempZoneExclusion, reason: "sync")
+        // Phase 5: promote temporary zone occupants into newly-emptied tiling zones.
+        // Spec: "When a tiling zone on a screen becomes empty and that screen has
+        // a temporary-zone occupant, promote the temporary window into the emptied zone."
+        func snapshotZoneKeys() -> (known: Set<ZoneKey>, empty: Set<ZoneKey>) {
+            var known = Set<ZoneKey>()
+            var empty = Set<ZoneKey>()
+
+            for screenId in screenOrder {
+                guard let context = screenContexts[screenId] else {
+                    continue
+                }
+                for zone in context.zoneController.allZones {
+                    let key = ZoneKey(screenId: screenId, index: zone.index)
+                    known.insert(key)
+                    if isZoneEffectivelyEmpty(zone) {
+                        empty.insert(key)
+                    }
+                }
+            }
+
+            return (known, empty)
+        }
+
+        let prePromotionSnapshot = snapshotZoneKeys()
+        let newlyEmptiedZones = prePromotionSnapshot.empty
+            .intersection(lastSyncKnownZoneKeys)
+            .subtracting(lastSyncEmptyZoneKeys)
+
+        promoteTemporaryZoneOccupantsIfNeeded(
+            newlyEmptiedZones: newlyEmptiedZones,
+            excluding: tempZoneExclusion,
+            reason: "sync"
+        )
+
+        let postPromotionSnapshot = snapshotZoneKeys()
+        lastSyncKnownZoneKeys = postPromotionSnapshot.known
+        lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
 
         // Phase 6: ensure targeting and indicators are consistent with the new
         // layout — pick a valid targeted zone if needed, keep the temporary

@@ -66,8 +66,12 @@ final class TemporaryZoneCoordinator {
     ) {
         guard let host else { return }
 
-        if isWindowInTemporaryZone(managed.windowId) {
-            clear(windowId: managed.windowId, minimize: false, reason: "temporary-zone-reassign")
+        if isWindowInTemporaryZone(managed.windowId),
+           let existingScreenId = occupants.first(where: { $0.value == managed.windowId })?.key {
+            // Reassigning a window that's already in a temporary zone (e.g. screen migration).
+            // Avoid a full clear cycle so we don't accidentally change targeting state.
+            host.clearTemporaryZoneProtection(windowId: managed.windowId)
+            occupants.removeValue(forKey: existingScreenId)
         }
 
         if let occupantId = occupants[screenId], occupantId != managed.windowId {

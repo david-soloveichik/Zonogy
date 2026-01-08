@@ -447,7 +447,11 @@ extension AppController {
         }
         clearManagedWindowZone(managed)
         assignWindowToTemporaryZone(managed, on: screenId, centerWindow: true, reason: "drag-to-temporary-zone")
-        handleZoneEmptiedByTemporaryDrag(originZoneKey: originKey, reason: "drag-to-temporary-zone")
+        handleZoneEmptiedByTemporaryDrag(
+            originZoneKey: originKey,
+            recentlyPlacedInTemporaryZone: managed.windowId,
+            reason: "drag-to-temporary-zone"
+        )
     }
 
     internal func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?) {
@@ -507,7 +511,11 @@ extension AppController {
             centerWindow: true,
             reason: "control-command-drag-to-temporary"
         )
-        handleZoneEmptiedByTemporaryDrag(originZoneKey: originZoneKey, reason: "control-command-drag-to-temporary")
+        handleZoneEmptiedByTemporaryDrag(
+            originZoneKey: originZoneKey,
+            recentlyPlacedInTemporaryZone: windowId,
+            reason: "control-command-drag-to-temporary"
+        )
 
         temporaryDragHandler.beginDrag(
             windowId: windowId,
@@ -528,15 +536,17 @@ extension AppController {
         return true
     }
 
-    private func handleZoneEmptiedByTemporaryDrag(originZoneKey: ZoneKey?, reason: String) {
-        guard let originZoneKey,
-              let originContext = screenContexts[originZoneKey.screenId],
-              originContext.zoneController.zone(at: originZoneKey.index) != nil else {
-            return
+    private func handleZoneEmptiedByTemporaryDrag(
+        originZoneKey: ZoneKey?,
+        recentlyPlacedInTemporaryZone windowId: Int,
+        reason: String
+    ) {
+        if let originZoneKey,
+           let originContext = screenContexts[originZoneKey.screenId],
+           originContext.zoneController.zone(at: originZoneKey.index) != nil {
+            targetedZoneManager.setTargetedZone(originZoneKey, reason: reason)
         }
-
-        targetedZoneManager.setTargetedZone(originZoneKey, reason: reason)
-        syncWindowsToZones()
+        syncWindowsToZones(recentlyPlacedInTempZone: windowId)
     }
 
     func revertTemporaryDragToTiled(

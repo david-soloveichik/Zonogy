@@ -219,7 +219,7 @@ extension AppController: DockMenusCoordinatorDelegate {
         assignWindowToTemporaryZone(managed, on: screenId, centerWindow: true, reason: "dockmenu-drag")
         Logger.debug("DockMenus: placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: screenId))")
 
-        syncWindowsToZones()
+        syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
         refreshIndicators()
     }
 
