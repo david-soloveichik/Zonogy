@@ -32,16 +32,11 @@
     },
     {
       "bundleIdentifier": "com.apple.Photos",
-      "hasMainWindow": true,
-      "allowEmptyTitleWindows": true
+      "hasMainWindow": true
     },
     {
-      "bundleIdentifier": "com.apple.GenerativePlaygroundApp",
-      "allowEmptyTitleWindows": true
-    },
-        {
-      "bundleIdentifier": "com.apple.podcasts",
-      "allowEmptyTitleWindows": true
+      "bundleIdentifier": "org.mozilla.firefox",
+      "disallowEmptyTitleWindows": true
     },
     {
       "bundleIdentifier": "com.adobe.illustrator",

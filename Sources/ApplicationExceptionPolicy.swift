@@ -8,7 +8,7 @@ struct ApplicationExceptionRule: Decodable {
     let ignoreActivationPolicy: Bool?
     let ignoreZoomButtonRequirement: Bool?
     let ignoreHeightRequirement: Bool?
-    let allowEmptyTitleWindows: Bool?
+    let disallowEmptyTitleWindows: Bool?
     let hasMainWindow: Bool?
     let snapToZoneOnSelfResize: Bool?
     let excludedWindowTitles: [String]?
@@ -18,7 +18,7 @@ struct ApplicationExceptionRule: Decodable {
         ignoreActivationPolicy: Bool? = nil,
         ignoreZoomButtonRequirement: Bool? = nil,
         ignoreHeightRequirement: Bool? = nil,
-        allowEmptyTitleWindows: Bool? = nil,
+        disallowEmptyTitleWindows: Bool? = nil,
         hasMainWindow: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil,
         excludedWindowTitles: [String]? = nil
@@ -27,7 +27,7 @@ struct ApplicationExceptionRule: Decodable {
         self.ignoreActivationPolicy = ignoreActivationPolicy
         self.ignoreZoomButtonRequirement = ignoreZoomButtonRequirement
         self.ignoreHeightRequirement = ignoreHeightRequirement
-        self.allowEmptyTitleWindows = allowEmptyTitleWindows
+        self.disallowEmptyTitleWindows = disallowEmptyTitleWindows
         self.hasMainWindow = hasMainWindow
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
         self.excludedWindowTitles = excludedWindowTitles
@@ -40,7 +40,7 @@ struct ApplicationExceptionRule: Decodable {
             ignoreActivationPolicy: override.ignoreActivationPolicy ?? ignoreActivationPolicy,
             ignoreZoomButtonRequirement: override.ignoreZoomButtonRequirement ?? ignoreZoomButtonRequirement,
             ignoreHeightRequirement: override.ignoreHeightRequirement ?? ignoreHeightRequirement,
-            allowEmptyTitleWindows: override.allowEmptyTitleWindows ?? allowEmptyTitleWindows,
+            disallowEmptyTitleWindows: override.disallowEmptyTitleWindows ?? disallowEmptyTitleWindows,
             hasMainWindow: override.hasMainWindow ?? hasMainWindow,
             snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
             excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
@@ -99,10 +99,10 @@ struct ApplicationExceptionPolicy {
         rulesByBundleId[bundleIdentifier]?.snapToZoneOnSelfResize ?? false
     }
 
-    /// Returns true if windows with empty titles should be managed for this bundle.
-    /// By default, empty-title windows are ignored; set this to opt in.
-    func allowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.allowEmptyTitleWindows ?? false
+    /// Returns true if windows with empty titles should be ignored for this bundle.
+    /// By default, empty-title windows are managed; set this to opt out.
+    func disallowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.disallowEmptyTitleWindows ?? false
     }
 
     /// Returns the list of window titles to exclude from management for this bundle.

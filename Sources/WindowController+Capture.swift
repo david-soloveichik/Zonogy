@@ -950,18 +950,18 @@ extension WindowController {
             Logger.debug("\(contextPrefix): Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
         }
 
-        // By default, ignore windows with empty titles (they're often dialogs misreported as AXStandardWindow)
+        // By default, manage windows with empty titles; apps can opt out via disallowEmptyTitleWindows
         var titleValue: AnyObject?
         let titleStatus = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue)
         let windowTitle = (titleStatus == .success) ? (titleValue as? String) ?? "" : ""
         if windowTitle.isEmpty {
             if let app = NSRunningApplication(processIdentifier: pid),
                let bundleId = app.bundleIdentifier,
-               applicationExceptionPolicy.allowsEmptyTitleWindows(forBundleIdentifier: bundleId) {
-                Logger.debug("\(contextPrefix): Window has empty title but bundle \(bundleId) allows empty-title windows")
-            } else {
-                Logger.debug("\(contextPrefix): Window has empty title (ignored by default)")
+               applicationExceptionPolicy.disallowsEmptyTitleWindows(forBundleIdentifier: bundleId) {
+                Logger.debug("\(contextPrefix): Window has empty title and bundle \(bundleId) disallows empty-title windows")
                 return false
+            } else {
+                Logger.debug("\(contextPrefix): Window has empty title (allowed by default)")
             }
         }
 
