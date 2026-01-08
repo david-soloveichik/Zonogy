@@ -32,6 +32,20 @@ struct ApplicationExceptionRule: Decodable {
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
         self.excludedWindowTitles = excludedWindowTitles
     }
+
+    /// Returns a new rule with this rule's values as defaults, overridden by non-nil values from `override`.
+    func merged(with override: ApplicationExceptionRule) -> ApplicationExceptionRule {
+        ApplicationExceptionRule(
+            bundleIdentifier: bundleIdentifier,
+            ignoreActivationPolicy: override.ignoreActivationPolicy ?? ignoreActivationPolicy,
+            ignoreZoomButtonRequirement: override.ignoreZoomButtonRequirement ?? ignoreZoomButtonRequirement,
+            ignoreHeightRequirement: override.ignoreHeightRequirement ?? ignoreHeightRequirement,
+            allowEmptyTitleWindows: override.allowEmptyTitleWindows ?? allowEmptyTitleWindows,
+            hasMainWindow: override.hasMainWindow ?? hasMainWindow,
+            snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
+            excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
+        )
+    }
 }
 
 /// Aggregated lookup helper for application exception rules.

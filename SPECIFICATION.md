@@ -351,14 +351,21 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 ## Configuration
 
-An optional `config.json` file lets users (a) specify bundle identifiers that the window manager should ignore entirely and (b) define per-application exception rules that tweak the default eligibility checks for specific apps. When present, it is discovered using the following search order:
+Zonogy uses a layered configuration system with bundled defaults and optional user overrides.
 
-1. The executable directory (sibling to the built binary)
-2. The current working directory
-3. `~/Library/Application Support/Zonogy/config.json`
-4. `~/.zonogy/config.json`
+### Configuration Loading
 
-The file schema:
+1. **Bundled defaults** – `Resources/defaults.json` is included in the app bundle and provides sensible defaults for common applications.
+2. **User overrides** – `~/Library/Application Support/Zonogy/config.json` (optional) lets users add their own customizations.
+
+User overrides are **merged** with bundled defaults:
+
+- `ignoredBundleIdentifiers` arrays are combined (user additions are added to defaults).
+- `bundleExceptions` are merged by bundle ID – user rules extend or override default rules for the same app. Properties not specified in the user rule inherit from the default.
+
+This means users only need to specify what they want to change, not duplicate the entire configuration.
+
+### File Schema
 
 ```json
 {

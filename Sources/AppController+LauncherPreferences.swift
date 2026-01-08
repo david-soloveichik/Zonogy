@@ -10,7 +10,7 @@ extension AppController {
     internal func setAutoShowLauncherForEmptyTilingZonesEnabledFromSettings(_ enabled: Bool) {
         Logger.debug("Launcher: settings updated autoShowForEmptyTilingZones=\(enabled)")
         autoShowLauncherForEmptyTilingZonesEnabled = enabled
-        LauncherBehaviorPreferencesStore.saveAutoShowLauncherForEmptyTilingZonesEnabled(enabled)
+        LauncherBehaviorPreferencesStore.saveAutoShowForEmptyZones(enabled)
         if enabled {
             autoShowLauncherIfEmptyTargetedTiledZone()
         }

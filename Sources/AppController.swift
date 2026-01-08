@@ -210,8 +210,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     private override init() {
         let configuration = Configuration.load()
         self.configuration = configuration
-        self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadPreferences()?.autoShowLauncherForEmptyTilingZones ?? true
-        self.targetingMode = TargetingPreferencesStore.loadPreferences()?.mode ?? .independentOfFocus
+        self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()
+        self.targetingMode = TargetingPreferencesStore.loadMode()
 
         let screens = NSScreen.screens
         guard let contextStore = ScreenContextStore(screens: screens) else {

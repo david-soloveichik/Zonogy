@@ -1,72 +1,116 @@
 import Foundation
 
-/// Top-level configuration for Zonogy, loaded from an optional config.json file.
-/// Currently supports ignored bundle identifiers and per-application exception rules.
+/// Top-level configuration for Zonogy, loaded from bundled defaults merged with optional user overrides.
+/// User config is loaded from ~/Library/Application Support/Zonogy/config.json.
+/// User values override bundled defaults; arrays are merged (union for ignoredBundleIdentifiers,
+/// merge-by-bundleId for bundleExceptions).
 struct Configuration {
     private struct FileContents: Decodable {
         let ignoredBundleIdentifiers: [String]?
         let bundleExceptions: [ApplicationExceptionRule]?
-        let dockMenus: DockMenusConfiguration?
     }
-
-    private static let defaultIgnoredBundles: Set<String> = []
 
     let ignoredBundleIdentifiers: Set<String>
     let applicationExceptionPolicy: ApplicationExceptionPolicy
-    let dockMenusConfiguration: DockMenusConfiguration
 
     static func load(fileManager: FileManager = .default) -> Configuration {
-        let candidateURLs = configurationFileCandidates(fileManager: fileManager)
+        let bundledDefaults = loadBundledDefaults()
+        let userConfig = loadUserConfig(fileManager: fileManager)
 
-        // Always ignore Zonogy's own bundle identifier to prevent managing our own windows
-        var finalIgnoredBundles = defaultIgnoredBundles
+        // Merge ignoredBundleIdentifiers (union)
+        var mergedIgnored = Set(bundledDefaults?.ignoredBundleIdentifiers ?? [])
+        mergedIgnored.formUnion(userConfig?.ignoredBundleIdentifiers ?? [])
+
+        // Always ignore Zonogy's own bundle identifier
         if let ownBundleId = Bundle.main.bundleIdentifier {
-            finalIgnoredBundles.insert(ownBundleId)
+            mergedIgnored.insert(ownBundleId)
             Logger.debug("Automatically ignoring own bundle identifier: \(ownBundleId)")
         }
 
-        for url in candidateURLs {
-            if fileManager.fileExists(atPath: url.path),
-               let data = try? Data(contentsOf: url),
-               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
-                let configuredIgnored = Set(decoded.ignoredBundleIdentifiers ?? [])
-                let mergedIgnored = configuredIgnored.union(finalIgnoredBundles)
-                let exceptionPolicy = ApplicationExceptionPolicy(rules: decoded.bundleExceptions ?? [])
-                let dockMenusConfiguration = decoded.dockMenus ?? .disabled
-                Logger.debug("Loaded configuration from \(url.path) with ignored bundles: \(Array(mergedIgnored))")
-                return Configuration(
-                    ignoredBundleIdentifiers: mergedIgnored,
-                    applicationExceptionPolicy: exceptionPolicy,
-                    dockMenusConfiguration: dockMenusConfiguration
-                )
-            }
-        }
+        // Merge bundleExceptions by bundleIdentifier
+        let mergedExceptions = mergeBundleExceptions(
+            defaults: bundledDefaults?.bundleExceptions ?? [],
+            userOverrides: userConfig?.bundleExceptions ?? []
+        )
 
-        Logger.debug("No configuration file found; using default ignored bundles: \(Array(finalIgnoredBundles))")
+        let exceptionPolicy = ApplicationExceptionPolicy(rules: mergedExceptions)
+
+        Logger.debug("Loaded configuration with \(mergedIgnored.count) ignored bundles, \(mergedExceptions.count) exception rules")
         return Configuration(
-            ignoredBundleIdentifiers: finalIgnoredBundles,
-            applicationExceptionPolicy: .empty,
-            dockMenusConfiguration: .disabled
+            ignoredBundleIdentifiers: mergedIgnored,
+            applicationExceptionPolicy: exceptionPolicy
         )
     }
 
-    private static func configurationFileCandidates(fileManager: FileManager) -> [URL] {
-        var candidates: [URL] = []
+    /// Loads bundled default configuration from Resources/defaults.json
+    /// Searches multiple filesystem locations since SwiftPM doesn't bundle resources automatically.
+    private static func loadBundledDefaults() -> FileContents? {
+        let fileName = "defaults.json"
+        let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
 
-        let executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-        candidates.append(executableURL.appendingPathComponent("config.json"))
+        let searchPaths = [
+            // Resources directory relative to working directory (for development)
+            "Resources/\(fileName)",
+            // Resources directory relative to executable (for deployed binary)
+            executablePath.deletingLastPathComponent + "/../Resources/\(fileName)",
+            // Same directory as executable
+            executablePath.deletingLastPathComponent + "/\(fileName)"
+        ]
 
-        let workingDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-        candidates.append(workingDirectory.appendingPathComponent("config.json"))
+        for path in searchPaths {
+            let expandedPath = (path as NSString).expandingTildeInPath
+            if FileManager.default.fileExists(atPath: expandedPath),
+               let data = try? Data(contentsOf: URL(fileURLWithPath: expandedPath)),
+               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
+                Logger.debug("Loaded bundled defaults from \(expandedPath)")
+                return decoded
+            }
+        }
 
-        let applicationSupport = fileManager.homeDirectoryForCurrentUser
+        Logger.debug("No bundled defaults.json found in any search path")
+        return nil
+    }
+
+    /// Loads user configuration from ~/Library/Application Support/Zonogy/config.json
+    private static func loadUserConfig(fileManager: FileManager) -> FileContents? {
+        let userConfigURL = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Zonogy/config.json")
-        candidates.append(applicationSupport)
 
-        let homeConfig = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent(".zonogy/config.json")
-        candidates.append(homeConfig)
+        guard fileManager.fileExists(atPath: userConfigURL.path) else {
+            Logger.debug("No user config.json found at \(userConfigURL.path)")
+            return nil
+        }
+        guard let data = try? Data(contentsOf: userConfigURL),
+              let decoded = try? JSONDecoder().decode(FileContents.self, from: data) else {
+            Logger.debug("Failed to decode user config.json at \(userConfigURL.path)")
+            return nil
+        }
+        Logger.debug("Loaded user config from \(userConfigURL.path)")
+        return decoded
+    }
 
-        return candidates
+    /// Merges bundleExceptions by bundleIdentifier.
+    /// User overrides extend/replace default rules for the same bundle ID.
+    private static func mergeBundleExceptions(
+        defaults: [ApplicationExceptionRule],
+        userOverrides: [ApplicationExceptionRule]
+    ) -> [ApplicationExceptionRule] {
+        var rulesByBundleId: [String: ApplicationExceptionRule] = [:]
+
+        // Add defaults first
+        for rule in defaults {
+            rulesByBundleId[rule.bundleIdentifier] = rule
+        }
+
+        // User overrides merge with existing rules or add new ones
+        for userRule in userOverrides {
+            if let existing = rulesByBundleId[userRule.bundleIdentifier] {
+                rulesByBundleId[userRule.bundleIdentifier] = existing.merged(with: userRule)
+            } else {
+                rulesByBundleId[userRule.bundleIdentifier] = userRule
+            }
+        }
+
+        return rulesByBundleId.values.sorted { $0.bundleIdentifier < $1.bundleIdentifier }
     }
 }

@@ -1,55 +1,20 @@
-/// Persists user-facing Launcher behavior preferences.
+/// Persists user-facing Launcher behavior preferences using UserDefaults.
 
 import Foundation
 
 enum LauncherBehaviorPreferencesStore {
-    struct Preferences: Codable {
-        var autoShowLauncherForEmptyTilingZones: Bool
+    private static let defaultAutoShowForEmptyZones = true
 
-        init(autoShowLauncherForEmptyTilingZones: Bool) {
-            self.autoShowLauncherForEmptyTilingZones = autoShowLauncherForEmptyTilingZones
+    static func loadAutoShowForEmptyZones() -> Bool {
+        let defaults = UserDefaults.standard
+        // If the key hasn't been set, return the default value
+        if defaults.object(forKey: UserDefaultsKeys.launcherAutoShowForEmptyZones) == nil {
+            return defaultAutoShowForEmptyZones
         }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            autoShowLauncherForEmptyTilingZones = try container.decodeIfPresent(Bool.self, forKey: .autoShowLauncherForEmptyTilingZones) ?? true
-        }
+        return defaults.bool(forKey: UserDefaultsKeys.launcherAutoShowForEmptyZones)
     }
 
-    static func loadPreferences() -> Preferences? {
-        let url = preferencesFileURL()
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else {
-            return nil
-        }
-
-        return try? JSONDecoder().decode(Preferences.self, from: data)
-    }
-
-    static func saveAutoShowLauncherForEmptyTilingZonesEnabled(_ enabled: Bool) {
-        let url = preferencesFileURL()
-        let directoryURL = url.deletingLastPathComponent()
-
-        if !FileManager.default.fileExists(atPath: directoryURL.path) {
-            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        }
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let payload = Preferences(autoShowLauncherForEmptyTilingZones: enabled)
-        guard let data = try? encoder.encode(payload) else {
-            return
-        }
-
-        try? data.write(to: url, options: [.atomic])
-    }
-
-    static func preferencesFileURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        return base
-            .appending(path: "Zonogy", directoryHint: .isDirectory)
-            .appending(path: "launcher-preferences.json", directoryHint: .notDirectory)
+    static func saveAutoShowForEmptyZones(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.launcherAutoShowForEmptyZones)
     }
 }
-

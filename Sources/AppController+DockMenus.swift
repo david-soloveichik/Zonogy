@@ -39,14 +39,9 @@ extension AppController {
     }
 
     private func effectiveDockMenusConfiguration() -> DockMenusConfiguration {
-        let baseConfig = configuration.dockMenusConfiguration
-        guard let preferences = DockMenusPreferencesStore.loadPreferences() else {
-            return baseConfig
-        }
-
-        return DockMenusConfiguration(
-            enabled: preferences.enabled,
-            debugDockFrameOverlay: nil
+        DockMenusConfiguration(
+            enabled: DockMenusPreferencesStore.loadEnabled(),
+            debugDockFrameOverlay: DockMenusPreferencesStore.loadDebugOverlay()
         )
     }
 
