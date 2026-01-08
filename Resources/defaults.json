@@ -39,6 +39,10 @@
       "bundleIdentifier": "com.apple.GenerativePlaygroundApp",
       "allowEmptyTitleWindows": true
     },
+        {
+      "bundleIdentifier": "com.apple.podcasts",
+      "allowEmptyTitleWindows": true
+    },
     {
       "bundleIdentifier": "com.adobe.illustrator",
       "ignoreZoomButtonRequirement": true
