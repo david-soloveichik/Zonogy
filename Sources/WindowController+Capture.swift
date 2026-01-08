@@ -950,6 +950,21 @@ extension WindowController {
             Logger.debug("\(contextPrefix): Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
         }
 
+        // By default, ignore windows with empty titles (they're often dialogs misreported as AXStandardWindow)
+        var titleValue: AnyObject?
+        let titleStatus = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue)
+        let windowTitle = (titleStatus == .success) ? (titleValue as? String) ?? "" : ""
+        if windowTitle.isEmpty {
+            if let app = NSRunningApplication(processIdentifier: pid),
+               let bundleId = app.bundleIdentifier,
+               applicationExceptionPolicy.allowsEmptyTitleWindows(forBundleIdentifier: bundleId) {
+                Logger.debug("\(contextPrefix): Window has empty title but bundle \(bundleId) allows empty-title windows")
+            } else {
+                Logger.debug("\(contextPrefix): Window has empty title (ignored by default)")
+                return false
+            }
+        }
+
         // Check isMovable attribute (per SPECIFICATION.md)
         // Use the same approach as winmanmon: check if position is settable
         var isPositionSettable: DarwinBoolean = false

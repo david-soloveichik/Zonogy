@@ -62,6 +62,7 @@ Zonogy has two different ways of referring to a “screen”, and mixing them ca
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
 
 - If the window is unminimized: **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole). (We do not perform this check for minimized windows because some applications report them as AXDialogSubrole; see "Accessibility API Workarounds" below.)
+- **Title: non-empty** (windows with empty titles are ignored by default)
 - **isMovable: T** (window position can be modified)
 - **hasZoom: T** (window has a zoom button)
 - **Height: >= 250px** (window must be at least 250 pixels tall)
@@ -383,7 +384,8 @@ Fields:
   - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app's `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button.
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
+  - `allowEmptyTitleWindows` – when `true`, Zonogy manages windows with empty titles from this app. By default, empty-title windows are ignored.
   - `hasMainWindow` – when `true`, the Launcher selects the window with the lowest Zonogy ID (first created) when the user presses Enter on this running app. When `false` or unset (default), the most recently active window is selected.
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still detach as usual and only snap back on focus loss or the next layout sync.)
 
-For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.
+For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, title, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

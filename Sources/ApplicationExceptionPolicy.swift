@@ -8,6 +8,7 @@ struct ApplicationExceptionRule: Decodable {
     let ignoreActivationPolicy: Bool?
     let ignoreZoomButtonRequirement: Bool?
     let ignoreHeightRequirement: Bool?
+    let allowEmptyTitleWindows: Bool?
     let hasMainWindow: Bool?
     let snapToZoneOnSelfResize: Bool?
 
@@ -16,6 +17,7 @@ struct ApplicationExceptionRule: Decodable {
         ignoreActivationPolicy: Bool? = nil,
         ignoreZoomButtonRequirement: Bool? = nil,
         ignoreHeightRequirement: Bool? = nil,
+        allowEmptyTitleWindows: Bool? = nil,
         hasMainWindow: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil
     ) {
@@ -23,6 +25,7 @@ struct ApplicationExceptionRule: Decodable {
         self.ignoreActivationPolicy = ignoreActivationPolicy
         self.ignoreZoomButtonRequirement = ignoreZoomButtonRequirement
         self.ignoreHeightRequirement = ignoreHeightRequirement
+        self.allowEmptyTitleWindows = allowEmptyTitleWindows
         self.hasMainWindow = hasMainWindow
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
     }
@@ -77,5 +80,11 @@ struct ApplicationExceptionPolicy {
     /// immediately after a self-initiated resize (e.g., internal UI panels opening/closing).
     func snapsToZoneOnSelfResize(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.snapToZoneOnSelfResize ?? false
+    }
+
+    /// Returns true if windows with empty titles should be managed for this bundle.
+    /// By default, empty-title windows are ignored; set this to opt in.
+    func allowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.allowEmptyTitleWindows ?? false
     }
 }
