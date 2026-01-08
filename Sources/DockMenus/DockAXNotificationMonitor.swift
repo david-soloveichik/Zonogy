@@ -7,6 +7,9 @@ final class DockAXNotificationMonitor {
         let notification: String
         /// The AXFrame of the AXList when AXSelectedChildrenChanged fires on an AXList element.
         let listFrame: CGRect?
+        /// The AXFrame of the first selected dock item (if available). Used to compute the offset
+        /// between the AXList frame and actual dock item bounds.
+        let itemFrame: CGRect?
     }
 
     private static let dockBundleIdentifier = "com.apple.dock"
@@ -126,6 +129,7 @@ final class DockAXNotificationMonitor {
 
     private func handleAXNotification(element: AXUIElement, notification: String) {
         var listFrame: CGRect?
+        var itemFrame: CGRect?
 
         if notification == (kAXSelectedChildrenChangedNotification as String) {
             let role = axStringAttribute(element: element, attribute: kAXRoleAttribute as CFString) ?? "?"
@@ -144,6 +148,10 @@ final class DockAXNotificationMonitor {
                     // Panel dismissal must rely on mouse tracking, not this signal.
                     return
                 }
+
+                // Get item frame for any selected dock item (used to compute list-to-item offset)
+                itemFrame = axFrameAttribute(element: firstSelected)
+
                 let subrole = axStringAttribute(element: firstSelected, attribute: kAXSubroleAttribute as CFString)
                 if subrole == "AXApplicationDockItem" {
                     let url = axURLAttribute(element: firstSelected, attribute: kAXURLAttribute as CFString)
@@ -152,7 +160,7 @@ final class DockAXNotificationMonitor {
                     // Emit hover event if this is a running app
                     if let appURL = url,
                        let listFrame,
-                       let itemFrame = axFrameAttribute(element: firstSelected),
+                       let itemFrame,
                        let bundleId = bundleIdentifier(for: appURL),
                        isAppRunning(bundleIdentifier: bundleId) {
                         let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
@@ -175,7 +183,7 @@ final class DockAXNotificationMonitor {
                 }
             }
         }
-        onEvent?(Event(notification: notification, listFrame: listFrame))
+        onEvent?(Event(notification: notification, listFrame: listFrame, itemFrame: itemFrame))
     }
 
     private func bundleIdentifier(for appURL: URL) -> String? {

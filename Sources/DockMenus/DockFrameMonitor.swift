@@ -72,10 +72,12 @@ final class DockFrameMonitor {
             // Determine the effective frame, handling Dock autohide animation
             let effectiveFrame: CGRect?
             if let frame = event.listFrame {
-                if isFrameWithinPrimaryScreenBounds(frame) {
+                // Adjust frame closer to screen edge (AXList frame doesn't fully cover dock items)
+                let adjustedFrame = adjustFrameToScreenEdge(frame, itemFrame: event.itemFrame)
+                if isFrameWithinPrimaryScreenBounds(adjustedFrame) {
                     // Dock is fully within the primary screen - cache this frame
-                    cachedVisibleFrame = frame
-                    effectiveFrame = frame
+                    cachedVisibleFrame = adjustedFrame
+                    effectiveFrame = adjustedFrame
                 } else {
                     // Dock reports an off-screen (or partially off-screen) frame during autohide animation - use cached visible frame if available
                     Logger.debug("DockFrameMonitor: off-screen frame detected, using cached frame=\(cachedVisibleFrame.map { String(describing: $0) } ?? "nil")")
@@ -122,5 +124,80 @@ final class DockFrameMonitor {
         // Allow a small tolerance for rounding during animations.
         let tolerance: CGFloat = 2
         return primaryBoundsAccessibility.insetBy(dx: -tolerance, dy: -tolerance).contains(frame)
+    }
+
+    /// Adjusts the AXList frame closer to the screen edge based on the actual dock item offset.
+    /// The Dock's AXList frame doesn't fully cover the actual dock item bounds.
+    private func adjustFrameToScreenEdge(_ frame: CGRect, itemFrame: CGRect?) -> CGRect {
+        guard let primaryScreen = NSScreen.screens.first(where: { $0.frame.origin == .zero })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first else {
+            return frame
+        }
+
+        let screenWidth = primaryScreen.frame.width
+
+        // Detect dock position based on frame geometry
+        let isVertical = frame.height > frame.width
+        let isLeftDock = frame.origin.x < screenWidth / 2
+
+        // Default offset when AX API doesn't report the actual overhang
+        let defaultEdgeOffset: CGFloat = 5
+
+        if isVertical {
+            // Vertical dock (left or right side)
+            // Compute offset from itemFrame if available, otherwise fallback to default
+            let edgeAdjustment: CGFloat
+            if let itemFrame {
+                if isLeftDock {
+                    // Left dock: items extend LEFT of list (itemFrame.x < listFrame.x)
+                    let computed = frame.origin.x - itemFrame.origin.x
+                    edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
+                } else {
+                    // Right dock: items are shifted RIGHT of list (itemFrame.x > listFrame.x)
+                    // This mirrors the left dock where items are shifted LEFT (itemFrame.x < listFrame.x)
+                    let computed = itemFrame.origin.x - frame.origin.x
+                    edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
+                }
+            } else {
+                edgeAdjustment = defaultEdgeOffset
+            }
+
+            if isLeftDock {
+                // Left dock: shift x toward 0 (left edge)
+                return CGRect(
+                    x: frame.origin.x - edgeAdjustment,
+                    y: frame.origin.y,
+                    width: frame.width,
+                    height: frame.height
+                )
+            } else {
+                // Right dock: shift x toward screen right edge
+                return CGRect(
+                    x: frame.origin.x + edgeAdjustment,
+                    y: frame.origin.y,
+                    width: frame.width,
+                    height: frame.height
+                )
+            }
+        } else {
+            // Horizontal dock (bottom)
+            // Items extend DOWN from list (itemFrame.maxY > listFrame.maxY)
+            // Note: AX API may report same maxY for list and item, so fallback to default
+            let edgeAdjustment: CGFloat
+            if let itemFrame {
+                let computed = itemFrame.maxY - frame.maxY
+                edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
+            } else {
+                edgeAdjustment = defaultEdgeOffset
+            }
+
+            return CGRect(
+                x: frame.origin.x,
+                y: frame.origin.y + edgeAdjustment,
+                width: frame.width,
+                height: frame.height
+            )
+        }
     }
 }

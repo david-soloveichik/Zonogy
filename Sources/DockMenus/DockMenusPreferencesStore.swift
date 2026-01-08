@@ -11,8 +11,8 @@ enum DockMenusPreferencesStore {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.dockMenusEnabled)
     }
 
-    static func loadDebugOverlay() -> Bool {
-        UserDefaults.standard.bool(forKey: UserDefaultsKeys.dockMenusDebugOverlay)
+    static func loadDebugOverlay() -> Bool? {
+        UserDefaults.standard.object(forKey: UserDefaultsKeys.dockMenusDebugOverlay) as? Bool
     }
 
     static func saveDebugOverlay(_ enabled: Bool) {
