@@ -208,9 +208,8 @@ final class DockClickInterceptor {
                 break
             }
 
-            // Post a synthetic mouse-up at the original location to complete the Dock's click tracking,
-            // then perform our action. The Dock may also activate the app, which is fine.
-            postMouseUp(at: pending.downLocation)
+            // Fully swallow the click - don't post any events to the Dock.
+            // See SPECIFICATION-IMPLEMENTATION.md "Dock click interception activation workaround".
             delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame)
             return nil
         }
