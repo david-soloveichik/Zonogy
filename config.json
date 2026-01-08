@@ -32,7 +32,8 @@
     },
     {
       "bundleIdentifier": "com.apple.Photos",
-      "hasMainWindow": true
+      "hasMainWindow": true,
+      "allowEmptyTitleWindows": true
     },
     {
       "bundleIdentifier": "com.adobe.illustrator",
