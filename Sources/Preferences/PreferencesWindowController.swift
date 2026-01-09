@@ -44,6 +44,13 @@ final class PreferencesWindowController: NSWindowController {
         shortcutsItem.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Shortcuts")
         tabVC.addTabViewItem(shortcutsItem)
 
+        // Exceptions tab
+        let exceptionsVC = ExceptionsPreferencesViewController()
+        let exceptionsItem = NSTabViewItem(viewController: exceptionsVC)
+        exceptionsItem.label = "Exceptions"
+        exceptionsItem.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: "Exceptions")
+        tabVC.addTabViewItem(exceptionsItem)
+
         // Launcher tab
         let launcherVC = LauncherPreferencesViewController()
         let launcherItem = NSTabViewItem(viewController: launcherVC)

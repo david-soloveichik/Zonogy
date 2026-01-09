@@ -3,7 +3,7 @@ import Foundation
 /// Configuration-driven per-application exception rules.
 /// These rules allow specific bundle identifiers to opt out of default
 /// filtering behavior (for example, activation policy checks).
-struct ApplicationExceptionRule: Decodable {
+struct ApplicationExceptionRule: Codable {
     let bundleIdentifier: String
     let ignoreActivationPolicy: Bool?
     let ignoreZoomButtonRequirement: Bool?
@@ -62,6 +62,11 @@ struct ApplicationExceptionPolicy {
     }
 
     static let empty = ApplicationExceptionPolicy()
+
+    /// Returns all rules sorted by bundle identifier
+    var allRules: [ApplicationExceptionRule] {
+        rulesByBundleId.values.sorted { $0.bundleIdentifier < $1.bundleIdentifier }
+    }
 
     func rule(forBundleIdentifier bundleIdentifier: String) -> ApplicationExceptionRule? {
         rulesByBundleId[bundleIdentifier]
