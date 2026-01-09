@@ -8,11 +8,11 @@ final class ExceptionRuleEditViewController: NSViewController {
     var onSave: ((ApplicationExceptionRule) -> Void)?
 
     // Checkbox controls for each exception type
+    private var hasMainWindowCheckbox: NSButton!
     private var ignoreActivationPolicyCheckbox: NSButton!
     private var ignoreZoomButtonCheckbox: NSButton!
     private var ignoreHeightCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
-    private var hasMainWindowCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
     private var excludedTitlesField: NSTextField!
 
@@ -38,6 +38,19 @@ final class ExceptionRuleEditViewController: NSViewController {
     private func setupUI(in container: NSView) {
         var topAnchor = container.topAnchor
 
+        // App icon
+        let icon: NSImage
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: originalRule.bundleIdentifier) {
+            icon = NSWorkspace.shared.icon(forFile: appURL.path)
+        } else {
+            icon = NSImage(systemSymbolName: "app", accessibilityDescription: "App") ?? NSImage()
+        }
+        icon.size = NSSize(width: 32, height: 32)
+
+        let iconView = NSImageView(image: icon)
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(iconView)
+
         // Bundle ID label (read-only)
         let bundleIdLabel = NSTextField(labelWithString: "Bundle Identifier:")
         bundleIdLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -52,15 +65,20 @@ final class ExceptionRuleEditViewController: NSViewController {
         container.addSubview(bundleIdValue)
 
         NSLayoutConstraint.activate([
-            bundleIdLabel.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-            bundleIdLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            iconView.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+            iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            iconView.widthAnchor.constraint(equalToConstant: 32),
+            iconView.heightAnchor.constraint(equalToConstant: 32),
 
-            bundleIdValue.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 4),
-            bundleIdValue.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            bundleIdLabel.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+            bundleIdLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
+
+            bundleIdValue.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 2),
+            bundleIdValue.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
             bundleIdValue.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
 
-        topAnchor = bundleIdValue.bottomAnchor
+        topAnchor = iconView.bottomAnchor
 
         // Separator
         let separator = NSBox()
@@ -69,14 +87,53 @@ final class ExceptionRuleEditViewController: NSViewController {
         container.addSubview(separator)
 
         NSLayoutConstraint.activate([
-            separator.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            separator.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             separator.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             separator.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
 
         topAnchor = separator.bottomAnchor
 
-        // Exception checkboxes
+        // Exception checkboxes - "Has main window" first
+        hasMainWindowCheckbox = makeCheckbox(
+            title: "Has main window",
+            tooltip: "Use first-created window instead of most-recent in Launcher"
+        )
+        container.addSubview(hasMainWindowCheckbox)
+
+        NSLayoutConstraint.activate([
+            hasMainWindowCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            hasMainWindowCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            hasMainWindowCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = hasMainWindowCheckbox.bottomAnchor
+
+        snapToZoneCheckbox = makeCheckbox(
+            title: "Snap to zone on self-resize",
+            tooltip: "Immediately snap window back when the app resizes it internally"
+        )
+        container.addSubview(snapToZoneCheckbox)
+
+        NSLayoutConstraint.activate([
+            snapToZoneCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            snapToZoneCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = snapToZoneCheckbox.bottomAnchor
+
+        disallowEmptyTitleCheckbox = makeCheckbox(
+            title: "Disallow empty title windows",
+            tooltip: "Don't manage windows with empty titles from this app"
+        )
+        container.addSubview(disallowEmptyTitleCheckbox)
+
+        NSLayoutConstraint.activate([
+            disallowEmptyTitleCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            disallowEmptyTitleCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            disallowEmptyTitleCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = disallowEmptyTitleCheckbox.bottomAnchor
+
         ignoreActivationPolicyCheckbox = makeCheckbox(
             title: "Ignore activation policy",
             tooltip: "Manage windows from helper/accessory apps that aren't .regular activation policy"
@@ -84,7 +141,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         container.addSubview(ignoreActivationPolicyCheckbox)
 
         NSLayoutConstraint.activate([
-            ignoreActivationPolicyCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            ignoreActivationPolicyCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
             ignoreActivationPolicyCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             ignoreActivationPolicyCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
@@ -115,45 +172,6 @@ final class ExceptionRuleEditViewController: NSViewController {
             ignoreHeightCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = ignoreHeightCheckbox.bottomAnchor
-
-        disallowEmptyTitleCheckbox = makeCheckbox(
-            title: "Disallow empty title windows",
-            tooltip: "Don't manage windows with empty titles from this app"
-        )
-        container.addSubview(disallowEmptyTitleCheckbox)
-
-        NSLayoutConstraint.activate([
-            disallowEmptyTitleCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            disallowEmptyTitleCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            disallowEmptyTitleCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = disallowEmptyTitleCheckbox.bottomAnchor
-
-        hasMainWindowCheckbox = makeCheckbox(
-            title: "Has main window",
-            tooltip: "Use first-created window instead of most-recent in Launcher"
-        )
-        container.addSubview(hasMainWindowCheckbox)
-
-        NSLayoutConstraint.activate([
-            hasMainWindowCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            hasMainWindowCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            hasMainWindowCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = hasMainWindowCheckbox.bottomAnchor
-
-        snapToZoneCheckbox = makeCheckbox(
-            title: "Snap to zone on self-resize",
-            tooltip: "Immediately snap window back when the app resizes it internally"
-        )
-        container.addSubview(snapToZoneCheckbox)
-
-        NSLayoutConstraint.activate([
-            snapToZoneCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            snapToZoneCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = snapToZoneCheckbox.bottomAnchor
 
         // Excluded window titles
         let excludedLabel = NSTextField(labelWithString: "Excluded window titles (comma-separated):")
@@ -207,12 +225,12 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     private func populateFields() {
+        hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
+        snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
+        disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
         ignoreActivationPolicyCheckbox.state = (originalRule.ignoreActivationPolicy == true) ? .on : .off
         ignoreZoomButtonCheckbox.state = (originalRule.ignoreZoomButtonRequirement == true) ? .on : .off
         ignoreHeightCheckbox.state = (originalRule.ignoreHeightRequirement == true) ? .on : .off
-        disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
-        hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
-        snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
 
         if let titles = originalRule.excludedWindowTitles, !titles.isEmpty {
             excludedTitlesField.stringValue = titles.joined(separator: ", ")

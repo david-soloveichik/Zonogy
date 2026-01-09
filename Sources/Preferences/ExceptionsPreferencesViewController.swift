@@ -34,7 +34,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     private func setupExplanationLabel(in container: NSView) {
         let explanationText = """
         Zonogy manages windows that have: a standard window role, a zoom button, \
-        height >= 250px, and are movable. Use this list to create exceptions for \
+        height ≥ 250px, and are movable. Use this list to create exceptions for \
         specific apps that need different behavior.
         """
         explanationLabel = NSTextField(wrappingLabelWithString: explanationText)
@@ -313,12 +313,12 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     private func summarizeExceptions(_ rule: ApplicationExceptionRule) -> String {
         var parts: [String] = []
 
+        if rule.hasMainWindow == true { parts.append("mainWin") }
+        if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
+        if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
         if rule.ignoreHeightRequirement == true { parts.append("height") }
-        if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
-        if rule.hasMainWindow == true { parts.append("mainWin") }
-        if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
         if let titles = rule.excludedWindowTitles, !titles.isEmpty {
             parts.append("excl:\(titles.count)")
         }
