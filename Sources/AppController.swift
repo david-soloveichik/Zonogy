@@ -208,6 +208,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     private override init() {
+        // Ensure config.json exists (seeded from bundled defaults if needed)
+        ExceptionsConfigurationStore.ensureConfigExists()
+
         let configuration = Configuration.load()
         self.configuration = configuration
         self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()

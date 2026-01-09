@@ -1,4 +1,5 @@
 /// Manages loading and saving the exceptions portion of the user config.json file.
+/// If config.json doesn't exist, it's created pre-filled with bundled defaults.
 
 import Foundation
 
@@ -17,21 +18,45 @@ enum ExceptionsConfigurationStore {
             .appending(path: "config.json", directoryHint: .notDirectory)
     }
 
-    /// Loads user-defined exception rules (not merged with bundled defaults).
-    /// Returns only the rules explicitly defined by the user.
-    static func loadUserRules() -> [ApplicationExceptionRule] {
+    /// Ensures config.json exists, seeding from bundled defaults if needed.
+    /// Call this before loading to ensure the file is present.
+    static func ensureConfigExists() {
         let fileURL = configurationFileURL()
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let data = try? Data(contentsOf: fileURL),
+        guard !FileManager.default.fileExists(atPath: fileURL.path) else { return }
+
+        // Create directory if needed
+        let directoryURL = fileURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: directoryURL.path) {
+            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        }
+
+        // Seed with bundled defaults
+        let defaultRules = loadBundledDefaultRules()
+        let config = UserConfig(ignoredBundleIdentifiers: nil, bundleExceptions: defaultRules.isEmpty ? nil : defaultRules)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(config) {
+            try? data.write(to: fileURL, options: [.atomic])
+        }
+    }
+
+    /// Loads exception rules from config.json.
+    /// Creates the file with bundled defaults if it doesn't exist.
+    static func loadRules() -> [ApplicationExceptionRule] {
+        ensureConfigExists()
+
+        let fileURL = configurationFileURL()
+        guard let data = try? Data(contentsOf: fileURL),
               let config = try? JSONDecoder().decode(UserConfig.self, from: data) else {
             return []
         }
         return config.bundleExceptions ?? []
     }
 
-    /// Saves user-defined exception rules to the user config.json file.
+    /// Saves exception rules to config.json.
     /// Preserves any ignoredBundleIdentifiers that may already exist in the file.
-    static func saveUserRules(_ rules: [ApplicationExceptionRule]) {
+    static func saveRules(_ rules: [ApplicationExceptionRule]) {
         let fileURL = configurationFileURL()
         let directoryURL = fileURL.deletingLastPathComponent()
 
@@ -41,7 +66,7 @@ enum ExceptionsConfigurationStore {
         }
 
         // Load existing config to preserve other fields
-        var existingConfig: UserConfig = UserConfig()
+        var existingConfig = UserConfig()
         if FileManager.default.fileExists(atPath: fileURL.path),
            let data = try? Data(contentsOf: fileURL),
            let decoded = try? JSONDecoder().decode(UserConfig.self, from: data) {
@@ -60,7 +85,7 @@ enum ExceptionsConfigurationStore {
     }
 
     /// Returns the bundled default rules from Resources/defaults.json
-    static func loadBundledDefaultRules() -> [ApplicationExceptionRule] {
+    private static func loadBundledDefaultRules() -> [ApplicationExceptionRule] {
         let fileName = "defaults.json"
         let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
 

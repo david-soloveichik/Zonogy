@@ -63,11 +63,6 @@ struct ApplicationExceptionPolicy {
 
     static let empty = ApplicationExceptionPolicy()
 
-    /// Returns all rules sorted by bundle identifier
-    var allRules: [ApplicationExceptionRule] {
-        rulesByBundleId.values.sorted { $0.bundleIdentifier < $1.bundleIdentifier }
-    }
-
     func rule(forBundleIdentifier bundleIdentifier: String) -> ApplicationExceptionRule? {
         rulesByBundleId[bundleIdentifier]
     }

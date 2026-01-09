@@ -10,10 +10,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     private var removeButton: NSButton!
     private var explanationLabel: NSTextField!
 
-    /// User-defined exception rules (editable)
-    private var userRules: [ApplicationExceptionRule] = []
-    /// Bundle IDs from bundled defaults (shown as read-only reference)
-    private var bundledDefaultBundleIds: Set<String> = []
+    /// Exception rules loaded from config.json
+    private var rules: [ApplicationExceptionRule] = []
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
@@ -140,14 +138,12 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     // MARK: - Data Management
 
     private func loadConfiguration() {
-        userRules = ExceptionsConfigurationStore.loadUserRules()
-        let bundledRules = ExceptionsConfigurationStore.loadBundledDefaultRules()
-        bundledDefaultBundleIds = Set(bundledRules.map { $0.bundleIdentifier })
+        rules = ExceptionsConfigurationStore.loadRules()
         tableView.reloadData()
     }
 
     private func saveConfiguration() {
-        ExceptionsConfigurationStore.saveUserRules(userRules)
+        ExceptionsConfigurationStore.saveRules(rules)
     }
 
     // MARK: - Actions
@@ -156,19 +152,19 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         guard let window = view.window else { return }
 
         let addAppVC = AddAppViewController()
-        addAppVC.existingBundleIds = Set(userRules.map { $0.bundleIdentifier })
+        addAppVC.existingBundleIds = Set(rules.map { $0.bundleIdentifier })
         addAppVC.onAppSelected = { [weak self] bundleId in
             guard let self = self else { return }
 
             // Create a new rule with just the bundle ID
             let newRule = ApplicationExceptionRule(bundleIdentifier: bundleId)
-            self.userRules.append(newRule)
-            self.userRules.sort { $0.bundleIdentifier < $1.bundleIdentifier }
+            self.rules.append(newRule)
+            self.rules.sort { $0.bundleIdentifier < $1.bundleIdentifier }
             self.tableView.reloadData()
             self.saveConfiguration()
 
             // Select the new row and open edit dialog
-            if let index = self.userRules.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
+            if let index = self.rules.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
                 self.tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
                 self.editException(at: index)
             }
@@ -188,7 +184,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
         // Remove in reverse order to maintain indices
         for index in selectedRows.reversed() {
-            userRules.remove(at: index)
+            rules.remove(at: index)
         }
 
         tableView.reloadData()
@@ -196,32 +192,22 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     }
 
     @objc private func openConfigFile() {
+        // Ensure config.json exists (seeded from defaults if needed)
+        ExceptionsConfigurationStore.ensureConfigExists()
+
         let configURL = ExceptionsConfigurationStore.configurationFileURL()
-
-        // Ensure directory exists
-        let directoryURL = configURL.deletingLastPathComponent()
-        if !FileManager.default.fileExists(atPath: directoryURL.path) {
-            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        }
-
-        // Ensure file exists with at least empty content
-        if !FileManager.default.fileExists(atPath: configURL.path) {
-            let emptyConfig = "{\n}\n"
-            try? emptyConfig.write(to: configURL, atomically: true, encoding: .utf8)
-        }
-
         NSWorkspace.shared.activateFileViewerSelecting([configURL])
         view.window?.close()
     }
 
     private func editException(at row: Int) {
-        guard row >= 0, row < userRules.count, let window = view.window else { return }
+        guard row >= 0, row < rules.count, let window = view.window else { return }
 
-        let rule = userRules[row]
+        let rule = rules[row]
         let editVC = ExceptionRuleEditViewController(rule: rule)
         editVC.onSave = { [weak self] updatedRule in
             guard let self = self else { return }
-            self.userRules[row] = updatedRule
+            self.rules[row] = updatedRule
             self.tableView.reloadData()
             self.saveConfiguration()
         }
@@ -237,13 +223,13 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     // MARK: - NSTableViewDataSource
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        userRules.count
+        rules.count
     }
 
     // MARK: - NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let rule = userRules[row]
+        let rule = rules[row]
 
         switch tableColumn?.identifier.rawValue {
         case "bundleId":
@@ -282,11 +268,6 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         textField.font = NSFont.systemFont(ofSize: 12)
         textField.lineBreakMode = .byTruncatingMiddle
         textField.translatesAutoresizingMaskIntoConstraints = false
-
-        // Show bundled defaults in a different color
-        if bundledDefaultBundleIds.contains(rule.bundleIdentifier) {
-            textField.textColor = .secondaryLabelColor
-        }
 
         cell.addSubview(imageView)
         cell.addSubview(textField)

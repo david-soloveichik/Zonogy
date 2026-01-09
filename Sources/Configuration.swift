@@ -1,9 +1,7 @@
 import Foundation
 
-/// Top-level configuration for Zonogy, loaded from bundled defaults merged with optional user overrides.
-/// User config is loaded from ~/Library/Application Support/Zonogy/config.json.
-/// User values override bundled defaults; arrays are merged (union for ignoredBundleIdentifiers,
-/// merge-by-bundleId for bundleExceptions).
+/// Top-level configuration for Zonogy, loaded from ~/Library/Application Support/Zonogy/config.json.
+/// If config.json doesn't exist, it's created at startup with bundled defaults (see ExceptionsConfigurationStore).
 struct Configuration {
     private struct FileContents: Decodable {
         let ignoredBundleIdentifiers: [String]?
@@ -14,103 +12,41 @@ struct Configuration {
     let applicationExceptionPolicy: ApplicationExceptionPolicy
 
     static func load(fileManager: FileManager = .default) -> Configuration {
-        let bundledDefaults = loadBundledDefaults()
-        let userConfig = loadUserConfig(fileManager: fileManager)
+        let config = loadUserConfig(fileManager: fileManager)
 
-        // Merge ignoredBundleIdentifiers (union)
-        var mergedIgnored = Set(bundledDefaults?.ignoredBundleIdentifiers ?? [])
-        mergedIgnored.formUnion(userConfig?.ignoredBundleIdentifiers ?? [])
+        var ignoredBundles = Set(config?.ignoredBundleIdentifiers ?? [])
 
         // Always ignore Zonogy's own bundle identifier
         if let ownBundleId = Bundle.main.bundleIdentifier {
-            mergedIgnored.insert(ownBundleId)
+            ignoredBundles.insert(ownBundleId)
             Logger.debug("Automatically ignoring own bundle identifier: \(ownBundleId)")
         }
 
-        // Merge bundleExceptions by bundleIdentifier
-        let mergedExceptions = mergeBundleExceptions(
-            defaults: bundledDefaults?.bundleExceptions ?? [],
-            userOverrides: userConfig?.bundleExceptions ?? []
-        )
+        let exceptionRules = config?.bundleExceptions ?? []
+        let exceptionPolicy = ApplicationExceptionPolicy(rules: exceptionRules)
 
-        let exceptionPolicy = ApplicationExceptionPolicy(rules: mergedExceptions)
-
-        Logger.debug("Loaded configuration with \(mergedIgnored.count) ignored bundles, \(mergedExceptions.count) exception rules")
+        Logger.debug("Loaded configuration with \(ignoredBundles.count) ignored bundles, \(exceptionRules.count) exception rules")
         return Configuration(
-            ignoredBundleIdentifiers: mergedIgnored,
+            ignoredBundleIdentifiers: ignoredBundles,
             applicationExceptionPolicy: exceptionPolicy
         )
     }
 
-    /// Loads bundled default configuration from Resources/defaults.json
-    /// Searches multiple filesystem locations since SwiftPM doesn't bundle resources automatically.
-    private static func loadBundledDefaults() -> FileContents? {
-        let fileName = "defaults.json"
-        let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
-
-        let searchPaths = [
-            // Resources directory relative to working directory (for development)
-            "Resources/\(fileName)",
-            // Resources directory relative to executable (for deployed binary)
-            executablePath.deletingLastPathComponent + "/../Resources/\(fileName)",
-            // Same directory as executable
-            executablePath.deletingLastPathComponent + "/\(fileName)"
-        ]
-
-        for path in searchPaths {
-            let expandedPath = (path as NSString).expandingTildeInPath
-            if FileManager.default.fileExists(atPath: expandedPath),
-               let data = try? Data(contentsOf: URL(fileURLWithPath: expandedPath)),
-               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
-                Logger.debug("Loaded bundled defaults from \(expandedPath)")
-                return decoded
-            }
-        }
-
-        Logger.debug("No bundled defaults.json found in any search path")
-        return nil
-    }
-
-    /// Loads user configuration from ~/Library/Application Support/Zonogy/config.json
+    /// Loads configuration from ~/Library/Application Support/Zonogy/config.json
     private static func loadUserConfig(fileManager: FileManager) -> FileContents? {
         let userConfigURL = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Zonogy/config.json")
 
         guard fileManager.fileExists(atPath: userConfigURL.path) else {
-            Logger.debug("No user config.json found at \(userConfigURL.path)")
+            Logger.debug("No config.json found at \(userConfigURL.path)")
             return nil
         }
         guard let data = try? Data(contentsOf: userConfigURL),
               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) else {
-            Logger.debug("Failed to decode user config.json at \(userConfigURL.path)")
+            Logger.debug("Failed to decode config.json at \(userConfigURL.path)")
             return nil
         }
-        Logger.debug("Loaded user config from \(userConfigURL.path)")
+        Logger.debug("Loaded config from \(userConfigURL.path)")
         return decoded
-    }
-
-    /// Merges bundleExceptions by bundleIdentifier.
-    /// User overrides extend/replace default rules for the same bundle ID.
-    private static func mergeBundleExceptions(
-        defaults: [ApplicationExceptionRule],
-        userOverrides: [ApplicationExceptionRule]
-    ) -> [ApplicationExceptionRule] {
-        var rulesByBundleId: [String: ApplicationExceptionRule] = [:]
-
-        // Add defaults first
-        for rule in defaults {
-            rulesByBundleId[rule.bundleIdentifier] = rule
-        }
-
-        // User overrides merge with existing rules or add new ones
-        for userRule in userOverrides {
-            if let existing = rulesByBundleId[userRule.bundleIdentifier] {
-                rulesByBundleId[userRule.bundleIdentifier] = existing.merged(with: userRule)
-            } else {
-                rulesByBundleId[userRule.bundleIdentifier] = userRule
-            }
-        }
-
-        return rulesByBundleId.values.sorted { $0.bundleIdentifier < $1.bundleIdentifier }
     }
 }
