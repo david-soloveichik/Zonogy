@@ -18,6 +18,14 @@ extension AppController {
     }
 
     func hotkeyService(_ service: HotkeyService, didTrigger action: HotkeyService.Action) {
+        // If WinShot chooser is active, dismiss it instead of triggering other actions.
+        // Exception: showWinShotChooser cycles to the next snapshot (handled in showWinShotChooser()).
+        if winShotChooserController.isActive && action != .showWinShotChooser {
+            Logger.debug("Hotkey \(action) dismissed WinShot chooser")
+            winShotChooserController.hide()
+            return
+        }
+
         switch action {
         case .addZone:
             Logger.debug("Hotkey add zone triggered")
