@@ -36,6 +36,9 @@ Brewfile.lock.json
 .clang-module-cache/
 .swiftpm-cache/
 
+# Built app bundle
+*.app
+
 PLANNING/
 EXPERIMENTS/
 log.txt
