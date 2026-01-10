@@ -3,6 +3,8 @@ import AppKit
 
 final class GeneralPreferencesViewController: NSViewController {
 
+    private var launchAtLoginCheckbox: NSButton?
+    private var launchAtLoginHintLabel: NSTextField?
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
     private var autoShowLauncherCheckbox: NSButton?
@@ -18,6 +20,18 @@ final class GeneralPreferencesViewController: NSViewController {
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
+
+        let launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch Zonogy at login", target: self, action: #selector(launchAtLoginToggled(_:)))
+        launchAtLoginCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(launchAtLoginCheckbox)
+        self.launchAtLoginCheckbox = launchAtLoginCheckbox
+
+        let launchAtLoginHintLabel = NSTextField(wrappingLabelWithString: "Automatically start Zonogy when you log in to your Mac.")
+        launchAtLoginHintLabel.font = NSFont.systemFont(ofSize: 12)
+        launchAtLoginHintLabel.textColor = .secondaryLabelColor
+        launchAtLoginHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(launchAtLoginHintLabel)
+        self.launchAtLoginHintLabel = launchAtLoginHintLabel
 
         let dockMenusCheckbox = NSButton(checkboxWithTitle: "Enable DockMenus", target: self, action: #selector(dockMenusToggled(_:)))
         dockMenusCheckbox.translatesAutoresizingMaskIntoConstraints = false
@@ -74,7 +88,14 @@ final class GeneralPreferencesViewController: NSViewController {
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            dockMenusCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 24),
+            launchAtLoginCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 24),
+            launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            launchAtLoginHintLabel.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 6),
+            launchAtLoginHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            launchAtLoginHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            dockMenusCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
             dockMenusCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusHintLabel.topAnchor.constraint(equalTo: dockMenusCheckbox.bottomAnchor, constant: 6),
@@ -104,9 +125,21 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
+        syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
         syncTargetingModeControl()
+    }
+
+    @objc private func launchAtLoginToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setLaunchAtLoginEnabledFromSettings(enabled)
+        syncLaunchAtLoginCheckbox()
+    }
+
+    private func syncLaunchAtLoginCheckbox() {
+        let enabled = AppController.shared.isLaunchAtLoginEnabledInSettings
+        launchAtLoginCheckbox?.state = enabled ? .on : .off
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {
