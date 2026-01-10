@@ -83,10 +83,10 @@ extension AppController {
         wakeReadinessTimer = nil
     }
 
-    /// Returns true when the display, session, and AX focused application are ready for Accessibility work.
+    /// Returns true when the display, session, and frontmost application are ready for Accessibility work.
     /// - Display must not be asleep (CGDisplayIsAsleep == false)
     /// - Session must not be locked (CGSSessionScreenIsLocked == false)
-    /// - AX must be able to return a focused application (when Accessibility permissions are granted)
+    /// - NSWorkspace must be able to return a frontmost application
     private func isWakeEnvironmentReady() -> Bool {
         let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
         let screenLocked = isScreenLocked()
@@ -109,26 +109,10 @@ extension AppController {
             return false
         }
 
-        // If Accessibility is not trusted, do not block wake readiness on AX-focused-app checks;
-        // the rest of the pipeline will still behave defensively.
-        guard AXIsProcessTrusted() else {
-            Logger.debug("SleepWake: Accessibility not trusted; skipping AX focused-application readiness check")
-            return true
-        }
-
-        let systemWideElement = AXUIElementCreateSystemWide()
-        var focusedAppValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(
-            systemWideElement,
-            kAXFocusedApplicationAttribute as CFString,
-            &focusedAppValue
-        )
-        guard status == .success, let value = focusedAppValue else {
-            Logger.debug("SleepWake: AX focused application unavailable (AX error \(status.rawValue)); treating environment as not ready")
-            return false
-        }
-        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            Logger.debug("SleepWake: AX focused element is not an application; treating environment as not ready")
+        // Use NSWorkspace to check for frontmost application instead of AX API,
+        // which can hang indefinitely with some apps (e.g., VS Code/Electron).
+        guard NSWorkspace.shared.frontmostApplication != nil else {
+            Logger.debug("SleepWake: frontmost application unavailable; treating environment as not ready")
             return false
         }
 
