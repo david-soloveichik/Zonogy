@@ -27,7 +27,6 @@ extension AppController {
             centerWindow: centerWindow,
             reason: reason
         )
-        updateTemporaryZoneTargeting(reason: reason)
     }
 
     /// Checks all screens for temporary zone occupants that can be promoted into empty tiling zones.
@@ -106,10 +105,6 @@ extension AppController {
     func clearTemporaryZone(for windowId: Int, minimize: Bool, reason: String) {
         temporaryZoneCoordinator.clear(windowId: windowId, minimize: minimize, reason: reason)
         clearTemporaryZoneProtection(windowId: windowId)
-    }
-
-    func updateTemporaryZoneTargeting(reason: String) {
-        temporaryZoneCoordinator.refreshTargeting(reason: reason)
     }
 
     func handleTemporaryZoneFocusChange(pid: pid_t, focusedWindowId: Int?) {

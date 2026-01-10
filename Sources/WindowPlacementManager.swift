@@ -38,7 +38,6 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         centerWindow: Bool,
         reason: String
     )
-    func updateTemporaryZoneTargeting(reason: String)
     func emptyTemporaryZoneForNewTiledPlacement(
         on screenId: CGDirectDisplayID,
         excluding windowId: Int,
@@ -324,7 +323,6 @@ class WindowPlacementManager {
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
-        delegate.updateTemporaryZoneTargeting(reason: "zone-assignment")
 
         if zoneWasEmptyBeforeAssignment,
            wasTargetedZone,

@@ -724,10 +724,8 @@ extension AppController {
         lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
 
         // Phase 6: ensure targeting and indicators are consistent with the new
-        // layout — pick a valid targeted zone if needed, keep the temporary
-        // zone's targeting model fresh, and refresh all on‑screen adornments.
+        // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
         targetedZoneManager.ensureTargetedZone(reason: "sync")
-        updateTemporaryZoneTargeting(reason: "sync")
         refreshIndicators()
         refreshResizeHandles()
         launcherController.repositionIfNeeded()

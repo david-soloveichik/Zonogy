@@ -38,9 +38,6 @@ final class TemporaryZoneCoordinator {
     weak var host: TemporaryZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
-    private var lastEmptyZoneCount: Int?
-    // Counts nested critical sections that must not trigger auto-retargeting (e.g. while swapping floating occupants).
-    private var retargetingSuspensionCount = 0
 
     init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
@@ -75,10 +72,7 @@ final class TemporaryZoneCoordinator {
         }
 
         if let occupantId = occupants[screenId], occupantId != managed.windowId {
-            // Replacing the floating window is an internal housekeeping step; keep targeting stable during it.
-            withRetargetingSuspended {
-                minimizeOccupant(on: screenId, reason: "replace-with-new-window")
-            }
+            minimizeOccupant(on: screenId, reason: "replace-with-new-window")
         }
 
         occupants[screenId] = managed.windowId
@@ -108,7 +102,6 @@ final class TemporaryZoneCoordinator {
         host.clearManagedWindowZone(occupant)
         host.minimizeWindowProgrammatically(occupant, reason: reason)
         Logger.debug("Temporary zone minimized occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
-        refreshTargeting(reason: reason)
         host.refreshIndicators()
         host.refreshResizeHandles()
     }
@@ -125,7 +118,6 @@ final class TemporaryZoneCoordinator {
             host.clearManagedWindowZone(window)
             host.minimizeWindowProgrammatically(window, reason: reason)
         }
-        refreshTargeting(reason: reason)
         host.refreshIndicators()
         host.refreshResizeHandles()
     }
@@ -197,49 +189,6 @@ final class TemporaryZoneCoordinator {
         }
     }
 
-    func refreshTargeting(reason: String) {
-        guard let host else { return }
-
-        let emptyCount = emptyZoneCount(in: host.screenContexts)
-        let previousCount = lastEmptyZoneCount ?? emptyCount
-        defer { lastEmptyZoneCount = emptyCount }
-        if retargetingSuspensionCount > 0 {
-            return
-        }
-
-        if emptyCount > 0 {
-            guard let targetedTempScreen = host.targetedZoneManager.targetedTemporaryScreenId else {
-                return
-            }
-
-            if let occupantId = occupants[targetedTempScreen],
-               host.windowController.window(withId: occupantId) != nil {
-                // Temporary zone stays targeted while it still holds a window, even if tiled zones reopen.
-                return
-            }
-
-            let preferred = host.targetedZoneManager.targetedZoneKey?.screenId ?? host.activeScreenId()
-            let fallback = host.targetedZoneManager.fallbackTargetedZone(preferredScreenId: preferred)
-            host.targetedZoneManager.setTargetedZone(fallback, reason: reason)
-            return
-        }
-
-        if previousCount > 0,
-           host.targetingMode == .independentOfFocus {
-            let preferredScreen = host.targetedZoneManager.targetedZoneKey?.screenId
-                ?? host.targetedZoneManager.targetedTemporaryScreenId
-                ?? host.activeScreenId()
-            host.targetedZoneManager.setTemporaryTarget(on: preferredScreen, reason: reason)
-        }
-    }
-
-    /// Runs the supplied block while suppressing fallback retargeting decisions.
-    private func withRetargetingSuspended(_ perform: () -> Void) {
-        retargetingSuspensionCount += 1
-        defer { retargetingSuspensionCount = max(0, retargetingSuspensionCount - 1) }
-        perform()
-    }
-
     func finalizeFloatingDrop(
         windowId: Int,
         _ finalFrame: CGRect,
@@ -289,32 +238,29 @@ final class TemporaryZoneCoordinator {
         let originIndex = host.screenContextStore.loggingIndex(for: originScreenId)
         let destinationIndex = host.screenContextStore.loggingIndex(for: destinationScreenId)
 
-        withRetargetingSuspended {
-            // Bookkeeping: move the dragged window to the destination screen's temporary zone.
-            occupants.removeValue(forKey: originScreenId)
-            occupants[destinationScreenId] = managed.windowId
-            host.setManagedWindow(managed, screenId: destinationScreenId, zoneIndex: nil)
+        // Bookkeeping: move the dragged window to the destination screen's temporary zone.
+        occupants.removeValue(forKey: originScreenId)
+        occupants[destinationScreenId] = managed.windowId
+        host.setManagedWindow(managed, screenId: destinationScreenId, zoneIndex: nil)
 
-            // If the destination already had a temporary occupant, swap it back to the origin screen.
-            if let displacedWindow {
-                occupants[originScreenId] = displacedWindow.windowId
-                host.setManagedWindow(displacedWindow, screenId: originScreenId, zoneIndex: nil)
+        // If the destination already had a temporary occupant, swap it back to the origin screen.
+        if let displacedWindow {
+            occupants[originScreenId] = displacedWindow.windowId
+            host.setManagedWindow(displacedWindow, screenId: originScreenId, zoneIndex: nil)
 
-                if let descriptor = host.descriptor(for: originScreenId) {
-                    let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
-                    host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor)
-                }
-
-                Logger.debug(
-                    "Swapped temporary zone occupants: window \(managed.windowId) -> screen \(destinationIndex), " +
-                        "window \(displacedWindow.windowId) -> screen \(originIndex)"
-                )
-            } else {
-                Logger.debug("Moved temporary zone window \(managed.windowId) from screen \(originIndex) to screen \(destinationIndex)")
+            if let descriptor = host.descriptor(for: originScreenId) {
+                let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
+                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor)
             }
+
+            Logger.debug(
+                "Swapped temporary zone occupants: window \(managed.windowId) -> screen \(destinationIndex), " +
+                    "window \(displacedWindow.windowId) -> screen \(originIndex)"
+            )
+        } else {
+            Logger.debug("Moved temporary zone window \(managed.windowId) from screen \(originIndex) to screen \(destinationIndex)")
         }
 
-        refreshTargeting(reason: "floating-drop-cross-screen")
         host.refreshIndicators()
         host.refreshResizeHandles()
         return true

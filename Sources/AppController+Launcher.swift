@@ -368,11 +368,8 @@ extension AppController: LauncherControllerDelegate {
         setManagedWindow(managed, screenId: targetedKey.screenId, zoneIndex: targetedKey.index)
 
         // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
-        if zoneWasEmpty {
-            updateTemporaryZoneTargeting(reason: "launcher-placement")
-            if targetingMode == .independentOfFocus {
-                targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
-            }
+        if zoneWasEmpty, targetingMode == .independentOfFocus {
+            targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
         }
 
         Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
@@ -433,11 +430,8 @@ extension AppController: LauncherControllerDelegate {
         setManagedWindow(managed, screenId: zoneKey.screenId, zoneIndex: zoneKey.index)
 
         // Retarget if zone was empty
-        if zoneWasEmpty {
-            updateTemporaryZoneTargeting(reason: "dockmenu-drag-placement")
-            if targetingMode == .independentOfFocus {
-                targetedZoneManager.retargetAfterFillingZone(zoneKey, reason: "dockmenu-drag-filled")
-            }
+        if zoneWasEmpty, targetingMode == .independentOfFocus {
+            targetedZoneManager.retargetAfterFillingZone(zoneKey, reason: "dockmenu-drag-filled")
         }
 
         Logger.debug("placeWindowIntoZone: placed window \(managed.windowId) into zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
