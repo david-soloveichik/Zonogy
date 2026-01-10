@@ -78,7 +78,8 @@ final class GeneralPreferencesViewController: NSViewController {
         self.targetingModeHintLabel = targetingModeHintLabel
 
         // Version info
-        let versionLabel = NSTextField(labelWithString: "Zonogy Window Manager")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let versionLabel = NSTextField(labelWithString: "Zonogy Window Manager \(version)")
         versionLabel.font = NSFont.systemFont(ofSize: 11)
         versionLabel.textColor = .tertiaryLabelColor
         versionLabel.translatesAutoresizingMaskIntoConstraints = false
