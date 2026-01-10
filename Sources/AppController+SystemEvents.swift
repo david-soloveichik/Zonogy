@@ -314,6 +314,7 @@ extension AppController {
 
         if rebuildResult.addedDisplayIds.isEmpty,
            rebuildResult.removedContexts.isEmpty,
+           rebuildResult.visibleFrameChangedDisplayIds.isEmpty,
            !rebuildResult.orderChanged {
             Logger.debug("Screen topology unchanged after refresh request (\(reason))")
         }
@@ -325,6 +326,10 @@ extension AppController {
         if !rebuildResult.removedContexts.isEmpty {
             let removedIds = rebuildResult.removedContexts.map { $0.displayId }
             Logger.debug("Detected removed display ids: \(removedIds)")
+        }
+
+        if !rebuildResult.visibleFrameChangedDisplayIds.isEmpty {
+            Logger.debug("Active screen area changed: \(rebuildResult.visibleFrameChangedDisplayIds)")
         }
 
         if !rebuildResult.removedContexts.isEmpty {
@@ -350,7 +355,7 @@ extension AppController {
         // Recapture after displays settle when meaningful changes occurred.
         // Always recapture after wake to catch windows that were deminiaturized or
         // created while events were suppressed during the sleep transition.
-        if includesWake || !rebuildResult.addedDisplayIds.isEmpty || !rebuildResult.removedContexts.isEmpty || rebuildResult.orderChanged {
+        if includesWake || !rebuildResult.addedDisplayIds.isEmpty || !rebuildResult.removedContexts.isEmpty || !rebuildResult.visibleFrameChangedDisplayIds.isEmpty || rebuildResult.orderChanged {
             let recaptureReason = includesWake ? "wake" : "screen-change"
             scheduleWindowRecapture(delay: 0.5, reason: recaptureReason)
             scheduleWindowRecapture(delay: 1.5, reason: recaptureReason)

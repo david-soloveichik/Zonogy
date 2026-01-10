@@ -6,6 +6,7 @@ final class SystemEventMonitor {
 
     private var localMonitor: Any?
     private var workspaceObservers: [NSObjectProtocol] = []
+    private var defaultCenterObservers: [NSObjectProtocol] = []
 
     func start(delegate: SystemEventMonitorDelegate) {
         self.delegate = delegate
@@ -20,11 +21,17 @@ final class SystemEventMonitor {
             localMonitor = nil
         }
 
-        let center = NSWorkspace.shared.notificationCenter
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
         for observer in workspaceObservers {
-            center.removeObserver(observer)
+            workspaceCenter.removeObserver(observer)
         }
         workspaceObservers.removeAll()
+
+        let defaultCenter = NotificationCenter.default
+        for observer in defaultCenterObservers {
+            defaultCenter.removeObserver(observer)
+        }
+        defaultCenterObservers.removeAll()
     }
 
     private func installLocalMonitor() {
@@ -66,8 +73,9 @@ final class SystemEventMonitor {
         }
         workspaceObservers.append(screensDidWake)
 
-        // Screen configuration changes
-        let screenChanged = center.addObserver(
+        // Screen configuration changes, includes when Dock position/size changes
+        // NSApplication.didChangeScreenParametersNotification is posted to the default center
+        let screenChanged = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
@@ -75,7 +83,7 @@ final class SystemEventMonitor {
             guard let self else { return }
             self.delegate?.systemEventMonitorScreensDidChange(self)
         }
-        workspaceObservers.append(screenChanged)
+        defaultCenterObservers.append(screenChanged)
 
         let activation = center.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,

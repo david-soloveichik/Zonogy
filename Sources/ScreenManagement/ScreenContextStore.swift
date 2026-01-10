@@ -15,6 +15,8 @@ final class ScreenContextStore {
         let addedDisplayIds: [CGDirectDisplayID]
         let removedContexts: [RemovedContext]
         let updatedDisplayIds: [CGDirectDisplayID]
+        /// Displays where visibleFrame changed
+        let visibleFrameChangedDisplayIds: [CGDirectDisplayID]
         let orderChanged: Bool
     }
 
@@ -96,6 +98,7 @@ final class ScreenContextStore {
         let previousOrder = order
         var addedDisplayIds: [CGDirectDisplayID] = []
         var updatedDisplayIds: [CGDirectDisplayID] = []
+        var visibleFrameChangedDisplayIds: [CGDirectDisplayID] = []
         var removedContexts: [RebuildResult.RemovedContext] = []
 
         var updatedContexts: [CGDirectDisplayID: ScreenContext] = [:]
@@ -115,8 +118,16 @@ final class ScreenContextStore {
             )
 
             if var existing = contexts[displayId] {
+                let previousBounds = existing.descriptor.visibleScreenBounds
+                let newBounds = descriptor.visibleScreenBounds
                 existing.descriptor = descriptor
-                existing.zoneController.updateScreenFrame(descriptor.visibleScreenBounds)
+
+                // Trigger zone relayout if active screen area changed
+                if previousBounds != newBounds {
+                    existing.zoneController.updateScreenFrame(newBounds)
+                    visibleFrameChangedDisplayIds.append(displayId)
+                }
+
                 updatedContexts[displayId] = existing
                 updatedDisplayIds.append(displayId)
             } else {
@@ -141,6 +152,7 @@ final class ScreenContextStore {
             addedDisplayIds: addedDisplayIds,
             removedContexts: removedContexts,
             updatedDisplayIds: updatedDisplayIds,
+            visibleFrameChangedDisplayIds: visibleFrameChangedDisplayIds,
             orderChanged: updatedOrder != previousOrder
         )
     }
