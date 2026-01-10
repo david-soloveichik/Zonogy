@@ -17,22 +17,6 @@ extension AppController {
                 return
             }
 
-            // Per spec: "A window is placed into a zone" should dismiss the Launcher.
-            // When the old target (tiled or temporary) is now occupied (meaning a window was just placed there),
-            // dismiss the Launcher instead of repositioning.
-            switch oldDestination {
-            case .tiled(let oldKey) where !targetedZoneManager.isZoneEmpty(oldKey):
-                launcherController.hide()
-                Logger.debug("Launcher: Hidden because window was placed into zone \(oldKey.index)")
-                return
-            case .temporary(let oldScreenId) where temporaryZoneOccupant(on: oldScreenId) != nil:
-                launcherController.hide()
-                Logger.debug("Launcher: Hidden because window was placed into temporary zone")
-                return
-            default:
-                break
-            }
-
             switch newDestination {
             case .temporary:
                 launcherController.repositionToCurrentTarget()
@@ -437,6 +421,10 @@ extension AppController: LauncherControllerDelegate {
                 minimizeWindowProgrammatically(existingWindow, reason: "dockmenu-drag-displaced")
             }
         }
+
+        // Dismiss Launcher before zone assignment to prevent visual glitch
+        // (Launcher briefly jumping to new target before focus-change dismissal)
+        dismissLauncherIfActive()
 
         // Assign to zone
         context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zoneKey.index)
