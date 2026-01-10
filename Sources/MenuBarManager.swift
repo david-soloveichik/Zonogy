@@ -114,7 +114,7 @@ class MenuBarManager {
         isDimmed = dimmed
 
         guard let button = statusItem?.button else { return }
-        button.alphaValue = dimmed ? 0.4 : 1.0
+        button.alphaValue = dimmed ? 0.25 : 1.0
     }
 
     @objc private func handlePreferences() {
