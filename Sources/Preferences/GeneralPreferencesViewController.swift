@@ -56,7 +56,7 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(targetingModePopUpButton)
         self.targetingModePopUpButton = targetingModePopUpButton
 
-        let targetingModeHintLabel = NSTextField(wrappingLabelWithString: "In follow-focus mode, the zone containing the active window becomes targeted. In independent mode, targeting follows the standard auto-retarget rules.")
+        let targetingModeHintLabel = NSTextField(wrappingLabelWithString: "In follow-focus mode, the zone containing the active window becomes targeted. In independent mode, targeting follows priority rules.")
         targetingModeHintLabel.font = NSFont.systemFont(ofSize: 12)
         targetingModeHintLabel.textColor = .secondaryLabelColor
         targetingModeHintLabel.translatesAutoresizingMaskIntoConstraints = false
