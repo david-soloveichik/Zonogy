@@ -19,7 +19,7 @@ The Launcher opens via:
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses.
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses. (Exception: zone removal applies its own rule above, which takes precedence.)
 
 ## Dismissal
 
@@ -205,6 +205,8 @@ When the user selects a window or launches an application:
 
 4. **If activating an app header (not a specific window):**
    - Use `app.activate(options: [.activateIgnoringOtherApps])` without changing window placement
+
+**Note:** When Launcher moves a window out of its source zone, that zone becoming empty does not trigger the normal "target the emptied zone" or auto-show behaviors—the user's intended target is preserved.
 
 ## Configuration
 

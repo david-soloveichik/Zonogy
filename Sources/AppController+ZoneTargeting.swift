@@ -24,7 +24,7 @@ extension AppController {
                 )
                 context.zoneController.removeWindow(windowId: windowId)
                 removed = true
-                // Specification: Newly empty zones should become targeted when the current target is filled or has a higher index.
+                // Specification: Whenever a tiling zone becomes empty, target that zone.
                 emptyZoneKey = ZoneKey(screenId: screenId, index: zone.index)
             } else {
                 context.zoneController.removeWindow(windowId: windowId)
