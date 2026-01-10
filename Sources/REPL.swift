@@ -12,6 +12,12 @@ class REPL {
     }
 
     func start() {
+        // Skip REPL when not running in a terminal (e.g., launched from Finder)
+        guard isatty(STDIN_FILENO) != 0 else {
+            Logger.debug("No TTY detected, skipping REPL (GUI mode)")
+            return
+        }
+
         printWelcome()
         setupStdinReader()
     }

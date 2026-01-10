@@ -32,6 +32,7 @@ cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/"
 
 # Copy resources
 cp "$PROJECT_DIR/Resources/defaults.json" "$APP_BUNDLE/Contents/Resources/"
+cp "$PROJECT_DIR/Resources/icon_menubar.svg" "$APP_BUNDLE/Contents/Resources/"
 
 # Create app icon from PNG
 echo "Creating app icon..."
