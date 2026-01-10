@@ -53,7 +53,7 @@ class MenuBarManager {
         menu.addItem(preferencesItem)
 
         let reloadLauncherItem = NSMenuItem(
-            title: "Reload Launcher List",
+            title: "Reload Launcher Items",
             action: #selector(handleReloadLauncher),
             keyEquivalent: ""
         )
@@ -123,7 +123,7 @@ class MenuBarManager {
     }
 
     @objc private func handleReloadLauncher() {
-        Logger.debug("Reload Launcher List requested from menu bar")
+        Logger.debug("Reload Launcher Items requested from menu bar")
         delegate?.menuBarManagerDidRequestReloadLauncher()
     }
 
