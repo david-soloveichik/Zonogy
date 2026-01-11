@@ -265,7 +265,14 @@ final class PlaceholderContentView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        manager?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+        let locationInView = convert(event.locationInWindow, from: nil)
+
+        // Don't trigger zone activation if clicking on the close/UnderCovers button
+        let isOnCloseButton = closeButton?.frame.contains(locationInView) == true
+
+        if !isOnCloseButton {
+            manager?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+        }
         super.mouseDown(with: event)
     }
 
