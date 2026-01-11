@@ -64,6 +64,6 @@ Some applications report the subrole for their minimized windows as AXDialogSubr
 
 When unminimizing a window that needs to appear at a specific position (e.g., restoring a WinShot snapshot or selecting a minimized window from Launcher), we first set the window's position and size while the window is still minimized. However, if we unminimize synchronously right after setting position/size, the window sometimes visually appears at its old location before snapping to the correct position. To address this, we default to async mode for unminimization.
 
-### Dock click interception activation workaround
+### Window activation workaround
 
-When Zonogy intercepts a Dock left-click, the managed window we bring up may appear but fail to receive focus. The workaround that seems to work is to call `NSApp.activate(ignoringOtherApps: true)` before performing the window action. This makes Zonogy the active app, removing focus from something else (and thus, presumably, allowing the managed window to become focused).
+When Zonogy programmatically activates a managed window (e.g., Dock click interception, temporary zone placement), the window may appear but fail to receive focus. The workaround is to call `NSApp.activate(ignoringOtherApps: true)` before performing the window action, making Zonogy the active app and releasing focus. Additionally, we yield to the run loop via `DispatchQueue.main.async` before activating the target app; without this yield, the activation may fail.

@@ -161,19 +161,23 @@ extension AppController {
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String) {
         let logPrefix = "Temporary zone activation"
         let pid = managed.backing.pid
+        let element = managed.backing.element
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
             Logger.debug("\(logPrefix): unable to resolve application for pid \(pid) (reason: \(reason))")
             return
         }
-        let activate = {
-            let result = app.activate(options: [.activateIgnoringOtherApps])
+
+        // Activate Zonogy first to release focus. See SPECIFICATION-IMPLEMENTATION.md
+        // "Dock click interception activation workaround" for details.
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Yield to runloop before activating target app (matches DockMenus pattern)
+        DispatchQueue.main.async {
+            let result = app.activate()
+            // Explicitly raise the window via AX (matches Launcher/DockMenus activation pattern)
+            AXUIElementPerformAction(element, kAXRaiseAction as CFString)
             Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")
-        }
-        if Thread.isMainThread {
-            activate()
-        } else {
-            DispatchQueue.main.async(execute: activate)
         }
     }
 }
