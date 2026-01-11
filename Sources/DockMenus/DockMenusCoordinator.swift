@@ -174,10 +174,6 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
         // Hide the DockMenu panel and reset hover state
         hideDockMenu()
 
-        // Activate Zonogy before performing our action. See SPECIFICATION-IMPLEMENTATION.md
-        // "Dock click interception activation workaround" for details.
-        NSApp.activate(ignoringOtherApps: true)
-
         // Start ripple feedback immediately, then dispatch delegate call to let animation begin rendering
         clickFeedback.showRipple(at: itemFrame)
 

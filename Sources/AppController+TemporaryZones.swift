@@ -168,14 +168,11 @@ extension AppController {
             return
         }
 
-        // Activate Zonogy first to release focus. See SPECIFICATION-IMPLEMENTATION.md
-        // "Dock click interception activation workaround" for details.
+        // Workaround: without this, the window may appear behind tiled windows.
+        // See SPECIFICATION-IMPLEMENTATION.md "Temporary zone activation workaround".
         NSApp.activate(ignoringOtherApps: true)
-
-        // Yield to runloop before activating target app (matches DockMenus pattern)
         DispatchQueue.main.async {
             let result = app.activate()
-            // Explicitly raise the window via AX (matches Launcher/DockMenus activation pattern)
             AXUIElementPerformAction(element, kAXRaiseAction as CFString)
             Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")
         }
