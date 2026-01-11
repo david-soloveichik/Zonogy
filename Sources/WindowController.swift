@@ -15,11 +15,6 @@ let axResizedNotificationName = kAXResizedNotification as String
 let axWindowCreatedNotificationName = kAXWindowCreatedNotification as String
 let axMainWindowChangedNotificationName = kAXMainWindowChangedNotification as String
 
-struct PlaceholderTarget {
-    let screenId: CGDirectDisplayID
-    let zoneIndex: Int
-}
-
 struct DragCandidate {
     let windowId: Int
     let originFrame: CGRect
@@ -47,23 +42,18 @@ class WindowController {
 
     internal let windowRegistry = ManagedWindowRegistry()
     internal let accessibilityWatcher: AccessibilityWatcher
-    internal var windowDelegates: [Int: ManagedWindowDelegate] = [:]
     internal var externalWindows: [ExternalWindowIdentifier: ManagedWindow] = [:]
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
     internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
     internal var accessibilityFrameRetryWorkItems: [Int: DispatchWorkItem] = [:]
-    internal var lastRequestedAppKitFrames: [Int: CGRect] = [:] // New: For AppKit windows, to avoid frame read race conditions
     internal var ignoredBundleIdentifiers: Set<String>
-    /// Optional provider for choosing the placeholder button mode (e.g., normal close vs UnderCovers put-away).
-    internal var placeholderButtonModeProvider: ((CGDirectDisplayID, Int) -> PlaceholderButtonMode)?
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
     internal var currentDraggingWindowId: Int?
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
-    internal var resizingWindowId: Int?
     internal let primaryScreenBounds: CGRect
     internal let applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
@@ -161,16 +151,11 @@ class WindowController {
         return pruneDestroyedWindows(pidFilter: pid)
     }
 
-    /// Remove all accessibility-backed managed windows for a terminated process.
+    /// Remove all managed windows for a terminated process.
     /// - Parameter pid: The process identifier whose windows should be discarded.
     /// - Returns: The window identifiers that were removed.
     func removeAllWindows(forPid pid: pid_t) -> [Int] {
-        let windowsForPid = windowRegistry.allWindows.filter { window in
-            guard case .accessibility(_, let windowPid, _) = window.backing else {
-                return false
-            }
-            return windowPid == pid
-        }
+        let windowsForPid = windowRegistry.allWindows.filter { $0.backing.pid == pid }
 
         guard !windowsForPid.isEmpty else {
             return []
@@ -182,9 +167,7 @@ class WindowController {
             let windowId = managed.windowId
             Logger.debug("Removing external window \(windowId) for terminated pid \(pid)")
             removeAccessibilityTracking(for: managed)
-            if let identifier = managed.externalIdentifier {
-                externalWindows.removeValue(forKey: identifier)
-            }
+            externalWindows.removeValue(forKey: managed.externalIdentifier)
             windowRegistry.removeWindow(withId: windowId)
             programmaticUpdateWindowIds.remove(windowId)
             programmaticUpdateWorkItems[windowId]?.cancel()
@@ -194,9 +177,6 @@ class WindowController {
             }
             if dragCandidate?.windowId == windowId {
                 dragCandidate = nil
-            }
-            if resizingWindowId == windowId {
-                resizingWindowId = nil
             }
         }
 
@@ -218,9 +198,8 @@ class WindowController {
 
         for managed in windowRegistry.allWindows {
             let windowId = managed.windowId
-            guard case .accessibility(_, let windowPid, let cgWindowId) = managed.backing else {
-                continue
-            }
+            let windowPid = managed.backing.pid
+            let cgWindowId = managed.backing.cgWindowId
 
             if let pidFilter, windowPid != pidFilter {
                 continue
@@ -242,18 +221,11 @@ class WindowController {
 
         var removedWindowIds: [Int] = []
         for (windowId, managed, reason) in stale {
-            let pidContext: String
-            if case .accessibility(_, let pid, _) = managed.backing {
-                pidContext = " pid \(pid)"
-            } else {
-                pidContext = ""
-            }
-            Logger.debug("Detected destroyed external window \(windowId)\(pidContext) (reason: \(reason)); pruning")
+            let pid = managed.backing.pid
+            Logger.debug("Detected destroyed external window \(windowId) pid \(pid) (reason: \(reason)); pruning")
             removeAccessibilityTracking(for: managed)
             windowRegistry.removeWindow(withId: windowId)
-            if let identifier = managed.externalIdentifier {
-                externalWindows.removeValue(forKey: identifier)
-            }
+            externalWindows.removeValue(forKey: managed.externalIdentifier)
             removedWindowIds.append(windowId)
             Logger.debug("Pruned destroyed external window \(windowId)")
         }
@@ -320,9 +292,7 @@ class WindowController {
     }
 
     private func isAccessibilityElementAlive(_ managed: ManagedWindow) -> Bool {
-        guard case .accessibility(let element, _, _) = managed.backing else {
-            return true
-        }
+        let element = managed.backing.element
 
         func statusIndicatesInvalid(_ status: AXError) -> Bool {
             switch status {
@@ -357,25 +327,13 @@ class WindowController {
 
     /// Get the actual frame of a window in screen-local coordinates
     func actualFrameInScreenCoordinates(for managedWindow: ManagedWindow, on screen: ScreenDescriptor) -> CGRect {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            // If this window is currently undergoing a programmatic update, prefer our last requested frame.
-            // This avoids race conditions where AppKit hasn't yet updated window.frame but we're reading it.
-            if programmaticUpdateWindowIds.contains(managedWindow.windowId),
-               let lastFrame = lastRequestedAppKitFrames[managedWindow.windowId] {
-                // The lastFrame is in Cocoa coordinates as stored. Convert to screen.
-                return screen.cocoaToScreen(lastFrame)
-            }
-            let cocoaFrame = window.frame
-            return screen.cocoaToScreen(cocoaFrame)
-        case .accessibility(let element, _, _):
-            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
-                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
-                return .zero
-            }
-            let accessibilityFrame = CGRect(origin: position, size: size)
-            return screen.accessibilityToScreen(accessibilityFrame)
+        let element = managedWindow.backing.element
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return .zero
         }
+        let accessibilityFrame = CGRect(origin: position, size: size)
+        return screen.accessibilityToScreen(accessibilityFrame)
     }
 
     /// Convenience helper that resolves the screen descriptor via the delegate.
@@ -389,20 +347,12 @@ class WindowController {
 
     /// Get the actual frame expressed in accessibility coordinates (origin at primary display top-left).
     func actualFrameInAccessibilityCoordinates(for managedWindow: ManagedWindow) -> CGRect? {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            let cocoaFrame = window.frame
-            return CoordinateConversion.cocoaToAccessibility(
-                cocoaFrame: cocoaFrame,
-                primaryScreenBounds: primaryScreenBounds
-            )
-        case .accessibility(let element, _, _):
-            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
-                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
-                return nil
-            }
-            return CGRect(origin: position, size: size)
+        let element = managedWindow.backing.element
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return nil
         }
+        return CGRect(origin: position, size: size)
     }
 
     /// Get all managed windows
@@ -469,10 +419,6 @@ extension ManagedWindow {
 
 /// Delegate protocol for window controller events
 protocol WindowControllerDelegate: AnyObject {
-    func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
-    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int)
-    func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int)
-    func placeholderReceivedExternalDrop(screenId: CGDirectDisplayID, zoneIndex: Int, items: [ExternalDropItem])
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
@@ -488,55 +434,4 @@ protocol WindowControllerDelegate: AnyObject {
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool
     func isZoneResizeDragInProgress() -> Bool
-}
-
-/// NSWindowDelegate for tracking window events
-class ManagedWindowDelegate: NSObject, NSWindowDelegate {
-    let windowId: Int
-    weak var controller: WindowController?
-
-    init(windowId: Int, controller: WindowController) {
-        self.windowId = windowId
-        self.controller = controller
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        controller?.delegate?.windowWillClose(windowId: windowId)
-    }
-
-    func windowDidMiniaturize(_ notification: Notification) {
-        controller?.delegate?.windowDidMiniaturize(windowId: windowId)
-    }
-
-    func windowDidDeminiaturize(_ notification: Notification) {
-        controller?.delegate?.windowDidDeminiaturize(windowId: windowId)
-    }
-
-    func windowWillStartLiveResize(_ notification: Notification) {
-        controller?.windowWillStartLiveResize(windowId: windowId)
-    }
-
-    func windowDidResize(_ notification: Notification) {
-        controller?.windowDidResize(windowId: windowId)
-    }
-
-    func windowDidEndLiveResize(_ notification: Notification) {
-        controller?.windowDidEndLiveResize(windowId: windowId)
-    }
-
-    func windowWillMove(_ notification: Notification) {
-        controller?.windowWillMove(windowId: windowId)
-    }
-
-    func windowDidMove(_ notification: Notification) {
-        controller?.windowDidMove(windowId: windowId)
-    }
-
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        return controller?.constrainedPlaceholderSize(
-            for: windowId,
-            proposedSize: frameSize,
-            currentSize: sender.frame.size
-        ) ?? frameSize
-    }
 }

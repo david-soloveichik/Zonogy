@@ -26,11 +26,6 @@ extension AppController {
             return nil
         }
 
-        guard !managed.isPlaceholder else {
-            Logger.debug("\(prefix)focused managed window \(managed.windowId) is a placeholder")
-            return nil
-        }
-
         return (managed, pid)
     }
 
@@ -80,8 +75,7 @@ extension AppController {
         }
 
         // Check if the focused window is tracked and managed
-        if let managed = windowController.focusedWindowIfTracked(pid: pid),
-           !managed.isPlaceholder {
+        if let managed = windowController.focusedWindowIfTracked(pid: pid) {
             // Window is tracked; check if it's actually managed (has zone assignment or is in temporary zone)
             if managed.zoneIndex != nil || isWindowInTemporaryZone(managed.windowId) {
                 return nil  // Managed window - don't hide resize bars

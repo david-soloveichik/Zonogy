@@ -54,9 +54,8 @@ final class WinShotManager {
         for zone in zones {
             zoneFrames[zone.index] = zone.frame
 
-            if let windowId = zone.windowId,
-               let managed = windowController.window(withId: windowId),
-               !managed.isPlaceholder {
+            if let windowId = zone.occupantWindowId,
+               let managed = windowController.window(withId: windowId) {
                 zoneAssignments[zone.index] = WindowIdentity.make(from: managed)
                 // Capture the window's actual frame in screen coordinates for potential future use.
                 let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)

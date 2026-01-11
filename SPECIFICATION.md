@@ -70,7 +70,7 @@ We manage a window if it passes **all** of the following conditions (see `winman
 
 ### Window Identifiers
 
-Every managed window (other applications' windows) and placeholder window gets a sequential `windowId` that the zone controller uses as its source of truth, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder panes never receive a `CGWindowID` and real windows can temporarily lack one, so always retain the internal `windowId` while logging both identifiers whenever the CGWindow value exists.
+Every managed window (from other applications) receives a sequential `windowId` used as the source of truth for zone assignments, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder windows do not have windowIds—they are owned directly by zones. Always log both identifiers when the CGWindowID value exists.
 
 ## User Interactions
 

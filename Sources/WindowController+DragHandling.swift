@@ -6,12 +6,6 @@ import ApplicationServices
 extension WindowController {
     private enum ManualDragTrigger: String {
         case accessibility = "ax-moved"
-        case appKit = "window-will-move"
-    }
-
-    func constrainedPlaceholderSize(for windowId: Int, proposedSize: NSSize, currentSize: NSSize) -> NSSize {
-        // Placeholders are not resizable by dragging edges anymore.
-        return currentSize
     }
 
     private func startManualDrag(for managed: ManagedWindow, with frame: CGRect, trigger: ManualDragTrigger) {
@@ -66,7 +60,7 @@ extension WindowController {
         if let windowId = currentDraggingWindowId {
             currentDraggingWindowId = nil
 
-            guard let managed = windowRegistry.window(withId: windowId), !managed.isPlaceholder else {
+            guard let managed = windowRegistry.window(withId: windowId) else {
                 // Inform the delegate that the drag died because the backing window disappeared.
                 delegate?.windowManualMoveDidAbort(windowId: windowId)
                 return
@@ -79,8 +73,7 @@ extension WindowController {
         }
 
         guard let candidate = cancelledCandidate,
-              let managed = windowRegistry.window(withId: candidate.windowId),
-              !managed.isPlaceholder else {
+              let managed = windowRegistry.window(withId: candidate.windowId) else {
             return
         }
 
@@ -89,54 +82,4 @@ extension WindowController {
         delegate?.windowManualMoveDidEnd(windowId: managed.windowId, finalFrame: accessibilityFrame)
     }
 
-    func windowWillStartLiveResize(windowId: Int) {
-        guard let managed = windowRegistry.window(withId: windowId) else {
-            return
-        }
-
-        if !managed.isPlaceholder {
-            resizingWindowId = windowId
-        }
-    }
-
-    func windowDidResize(windowId: Int) {
-        // No-op for placeholders as they are resized programmatically or via handles.
-    }
-
-    func windowDidEndLiveResize(windowId: Int) {
-        guard let managed = windowRegistry.window(withId: windowId) else {
-            return
-        }
-
-        if !managed.isPlaceholder {
-            guard resizingWindowId == windowId else {
-                return
-            }
-            resizingWindowId = nil
-            Logger.debug("Finished resizing window \(windowId), notifying delegate")
-            if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
-                delegate?.windowManualResizeDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: screenFrame)
-            } else {
-                delegate?.windowManualResizeDidEnd(windowId: windowId, screenId: managed.screenDisplayId, frame: .zero)
-            }
-        }
-    }
-
-    func windowWillMove(windowId: Int) {
-        guard let managed = windowRegistry.window(withId: windowId), !managed.isPlaceholder else {
-            return
-        }
-
-        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
-        startManualDrag(for: managed, with: accessibilityFrame, trigger: .appKit)
-    }
-
-    func windowDidMove(windowId: Int) {
-        guard currentDraggingWindowId == windowId,
-              let managed = windowRegistry.window(withId: windowId),
-              let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) else {
-            return
-        }
-        delegate?.windowManualMoveDidUpdate(windowId: windowId, frame: accessibilityFrame)
-    }
 }

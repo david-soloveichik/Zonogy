@@ -12,45 +12,33 @@ extension AppController {
 
     func placeholderCoordinator(
         _ coordinator: PlaceholderCoordinator,
-        prepareToShow placeholder: ManagedWindow,
+        prepareToShow placeholder: PlaceholderWindow,
         at frame: CGRect,
         on descriptor: ScreenDescriptor,
         isExcluded: Bool
     ) {
         let screenIndex = screenContextStore.loggingIndex(for: descriptor.displayId)
-        Logger.debug("Preparing to show placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (excluded: \(isExcluded))")
+        Logger.debug("Preparing to show placeholder for zone \(placeholder.zoneIndex) on screen \(screenIndex) (excluded: \(isExcluded))")
 
         if isExcluded {
-            Logger.debug("Hiding excluded placeholder \(placeholder.windowId) using hideWindow")
-            windowController.hideWindow(placeholder, reason: .zoneExcluded)
+            Logger.debug("Hiding excluded placeholder using hide()")
+            placeholder.hide()
             return
         }
 
-        Logger.debug("Showing placeholder \(placeholder.windowId) using ensurePlaceholderVisibilityAndPosition")
-        windowController.ensurePlaceholderVisibilityAndPosition(placeholder, at: frame, on: descriptor)
+        Logger.debug("Showing placeholder using show()")
+        placeholder.show(at: frame, on: descriptor)
         placeholder.screenDisplayId = descriptor.displayId
-        if let zoneIndex = placeholder.zoneIndex {
-            setManagedWindow(placeholder, screenId: descriptor.displayId, zoneIndex: zoneIndex)
-        }
     }
 
     func placeholderCoordinator(
         _ coordinator: PlaceholderCoordinator,
-        prepareToHide placeholder: ManagedWindow,
+        prepareToHide placeholder: PlaceholderWindow,
         reason: PlaceholderCoordinator.HideReason
     ) {
-        let screenIndex = placeholder.screenDisplayId.map { screenContextStore.loggingIndex(for: $0) } ?? -1
-        Logger.debug("Preparing to hide placeholder window \(placeholder.windowId) for zone \(placeholder.zoneIndex ?? -1) on screen \(screenIndex) (reason: \(reason))")
-
-        let hideReason: WindowController.HideReason
-        switch reason {
-        case .replacedByWindow:
-            hideReason = .replacedByOccupant
-        case .idle:
-            hideReason = .inactiveZone
-        }
-        Logger.debug("Hiding placeholder \(placeholder.windowId) (reason: \(hideReason))")
-        windowController.hideWindow(placeholder, reason: hideReason)
+        let screenIndex = screenContextStore.loggingIndex(for: placeholder.screenDisplayId)
+        Logger.debug("Preparing to hide placeholder for zone \(placeholder.zoneIndex) on screen \(screenIndex) (reason: \(reason))")
+        // Placeholder's hide() is called by PlaceholderCoordinator after this callback
     }
 
     func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, didResizeZone key: ZoneKey, finalize: Bool) {
@@ -63,8 +51,9 @@ extension AppController {
         }
     }
 
-    func placeholderCoordinator(_ coordinator: PlaceholderCoordinator, clearManagedZoneFor managed: ManagedWindow) {
-        clearManagedWindowZone(managed)
-    }
+    // MARK: - PlaceholderManagerDelegate
 
+    func placeholderButtonMode(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode {
+        placeholderButtonMode(for: screenId, zoneIndex: zoneIndex)
+    }
 }

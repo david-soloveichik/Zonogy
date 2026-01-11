@@ -43,7 +43,6 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
-    func forgetPlaceholder(windowId: Int)
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
 
     // Zone management
@@ -519,7 +518,7 @@ class DragDropCoordinator {
             return nil
         }
 
-        if targetZone.windowId == windowId {
+        if targetZone.occupantWindowId == windowId {
             Logger.debug("Window \(windowId) already assigned to target zone \(targetKey.index); no swap needed")
             delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
@@ -556,12 +555,6 @@ class DragDropCoordinator {
         }
 
         if let displaced = displacedWindow {
-            if displaced.isPlaceholder {
-                Logger.debug("Closing displaced placeholder \(displaced.windowId) after drop")
-                delegate.windowController.closeWindow(displaced)
-                delegate.forgetPlaceholder(windowId: displaced.windowId)
-                return DropResult(displacedWindow: nil, preferredScreenId: nil)
-            }
             delegate.clearManagedWindowZone(displaced)
             Logger.debug("Window \(displaced.windowId) displaced from zone \(targetKey.index); will reassign later")
             return DropResult(

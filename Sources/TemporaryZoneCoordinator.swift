@@ -134,11 +134,11 @@ final class TemporaryZoneCoordinator {
             if let focusScreenId, focusScreenId != screenId {
                 continue
             }
-            guard let window = host.windowController.window(withId: occupantId),
-                  case .accessibility(_, let occupantPid, _) = window.backing else {
+            guard let window = host.windowController.window(withId: occupantId) else {
                 occupants.removeValue(forKey: screenId)
                 continue
             }
+            let occupantPid = window.backing.pid
 
             if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
                 host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
@@ -169,11 +169,11 @@ final class TemporaryZoneCoordinator {
             if let focusScreenId, focusScreenId != screenId {
                 continue
             }
-            guard let window = host.windowController.window(withId: occupantId),
-                  case .accessibility(_, let occupantPid, _) = window.backing else {
+            guard let window = host.windowController.window(withId: occupantId) else {
                 occupants.removeValue(forKey: screenId)
                 continue
             }
+            let occupantPid = window.backing.pid
 
             if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
                 host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
@@ -329,7 +329,7 @@ final class TemporaryZoneCoordinator {
             return nil
         }
 
-        let resolvedPid = accessibilityPid(for: managed) ?? pid
+        let resolvedPid = managed.backing.pid
         let screenId = managed.screenDisplayId ?? host.detectScreenId(for: managed)
         return TiledFocusContext(window: managed, pid: resolvedPid, screenId: screenId)
     }
@@ -347,16 +347,7 @@ final class TemporaryZoneCoordinator {
     }
 
     private func isTiledWindow(_ window: ManagedWindow) -> Bool {
-        guard !window.isPlaceholder else {
-            return false
-        }
         return window.zoneIndex != nil
     }
 
-    private func accessibilityPid(for window: ManagedWindow) -> pid_t? {
-        if case .accessibility(_, let pid, _) = window.backing {
-            return pid
-        }
-        return nil
-    }
 }

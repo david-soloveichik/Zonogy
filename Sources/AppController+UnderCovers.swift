@@ -45,13 +45,13 @@ extension AppController {
             return
         }
 
-        if let placeholderId = zone.placeholderWindowId,
-           let placeholder = windowController.window(withId: placeholderId) {
+        if let placeholder = zone.placeholder {
             let screenIndex = screenContextStore.loggingIndex(for: screenId)
-            Logger.debug("UnderCovers begin: closing placeholder \(placeholderId) for zone 1 on screen \(screenIndex)")
-            windowController.closeWindow(placeholder)
-            placeholderCoordinator.forget(windowId: placeholderId)
-            context.zoneController.setPlaceholder(windowId: nil, forZoneIndex: zone.index)
+            Logger.debug("UnderCovers begin: hiding placeholder for zone 1 on screen \(screenIndex)")
+            placeholder.hide()
+            let key = ZoneKey(screenId: screenId, index: zone.index)
+            placeholderCoordinator.forget(zoneKey: key)
+            zone.placeholder = nil
         }
 
         underCoversScreens.insert(screenId)
@@ -81,7 +81,24 @@ extension AppController {
     // MARK: - WindowPlacementManagerDelegate hook
 
     func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int) {
+        hidePlaceholderIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: .replacedByWindow)
         endUnderCoversForPlacementIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: "window-placement")
         dismissLauncherIfActive()
+    }
+
+    private func hidePlaceholderIfNeeded(
+        on screenId: CGDirectDisplayID,
+        zoneIndex: Int,
+        reason: PlaceholderCoordinator.HideReason
+    ) {
+        guard let context = screenContexts[screenId],
+              let zone = context.zoneController.zone(at: zoneIndex),
+              zone.placeholder != nil else {
+            return
+        }
+
+        let key = ZoneKey(screenId: screenId, index: zoneIndex)
+        _ = placeholderCoordinator.hidePlaceholder(for: key, reason: reason)
+        zone.placeholder = nil
     }
 }

@@ -4,30 +4,21 @@ import ApplicationServices
 
 struct WindowIdentity {
     let windowId: Int
-    let externalIdentifier: ExternalWindowIdentifier?
+    let externalIdentifier: ExternalWindowIdentifier
     let bundleIdentifier: String?
     let windowTitle: String?
 
     static func make(from managed: ManagedWindow) -> WindowIdentity {
-        let bundle: String?
-        if case .accessibility(_, let pid, _) = managed.backing {
-            bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        } else {
-            bundle = nil
-        }
+        let pid = managed.backing.pid
+        let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
 
         let title: String?
-        if let window = managed.appKitWindow {
-            title = window.title.isEmpty ? nil : window.title
-        } else if case .accessibility(let element, _, _) = managed.backing {
-            var value: AnyObject?
-            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-               let candidate = value as? String,
-               !candidate.isEmpty {
-                title = candidate
-            } else {
-                title = nil
-            }
+        let element = managed.backing.element
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+           let candidate = value as? String,
+           !candidate.isEmpty {
+            title = candidate
         } else {
             title = nil
         }
@@ -44,18 +35,12 @@ struct WindowIdentity {
         if managed.windowId == windowId {
             return true
         }
-        if let identifier = externalIdentifier,
-           let candidate = managed.externalIdentifier,
-           candidate == identifier {
+        if managed.externalIdentifier == externalIdentifier {
             return true
         }
+        let candidateBundle = NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier
         if let bundleIdentifier,
-           let candidateBundle: String = {
-               if case .accessibility(_, let pid, _) = managed.backing {
-                   return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-               }
-               return nil
-           }(),
+           let candidateBundle,
            bundleIdentifier == candidateBundle,
            let windowTitle,
            let candidateTitle = currentTitle(for: managed),
@@ -66,16 +51,12 @@ struct WindowIdentity {
     }
 
     private func currentTitle(for managed: ManagedWindow) -> String? {
-        if let window = managed.appKitWindow {
-            return window.title.isEmpty ? nil : window.title
-        }
-        if case .accessibility(let element, _, _) = managed.backing {
-            var value: AnyObject?
-            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-               let title = value as? String,
-               !title.isEmpty {
-                return title
-            }
+        let element = managed.backing.element
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+           let title = value as? String,
+           !title.isEmpty {
+            return title
         }
         return nil
     }

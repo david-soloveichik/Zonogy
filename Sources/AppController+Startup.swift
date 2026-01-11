@@ -364,7 +364,7 @@ extension AppController {
                     let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
                     Logger.debug(
                         "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
-                        "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.windowId.map(String.init) ?? "none"))"
+                        "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.occupantWindowId.map(String.init) ?? "none"))"
                     )
                 } else {
                     let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
@@ -479,7 +479,7 @@ extension AppController {
         let description = orderedCandidates.map { zone -> String in
             let priority = removalPriorityKey(for: zone, targetedIndex: targetedIndex)
             let targetedFlag = (targetedIndex == zone.index)
-            return "zone \(zone.index){empty:\(zone.isEmpty), targeted:\(targetedFlag), window:\(zone.windowId.map(String.init) ?? "none"), priority:\(priority)}"
+            return "zone \(zone.index){empty:\(zone.isEmpty), targeted:\(targetedFlag), window:\(zone.occupantWindowId.map(String.init) ?? "none"), priority:\(priority)}"
         }.joined(separator: ", ")
 
         if let selected = orderedCandidates.first {
@@ -519,7 +519,6 @@ extension AppController {
 
         if let lastPid = lastActiveApplicationPid,
            let managed = windowController.focusedWindowIfTracked(pid: lastPid),
-           !managed.isPlaceholder,
            let zoneIndex = managed.zoneIndex,
            let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed),
            managedScreenId == screenId {
@@ -545,43 +544,32 @@ extension AppController {
 
         var indices: Set<Int> = []
         for zone in context.zoneController.allZones {
-            guard let windowId = zone.windowId,
+            guard let windowId = zone.occupantWindowId,
                   let managedWindow = windowController.window(withId: windowId),
-                  !managedWindow.isPlaceholder,
                   (managedWindow.screenDisplayId ?? detectScreenId(for: managedWindow)) == screenId else {
-                if let windowId = zone.windowId,
+                if let windowId = zone.occupantWindowId,
                    let managedWindow = windowController.window(withId: windowId) {
                     let hasScreen = (managedWindow.screenDisplayId ?? detectScreenId(for: managedWindow)) != nil
                     Logger.debug(
                         "activeZoneIndices: skipping zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))] " +
-                        "for window \(windowId) (placeholder: \(managedWindow.isPlaceholder), hasScreen: \(hasScreen))"
+                        "for window \(windowId) (hasScreen: \(hasScreen))"
                     )
-                } else if zone.windowId != nil {
+                } else if zone.occupantWindowId != nil {
                     Logger.debug(
-                        "activeZoneIndices: no managed window for id \(zone.windowId!) in zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
+                        "activeZoneIndices: no managed window for id \(zone.occupantWindowId!) in zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
                     )
                 }
                 continue
             }
 
-            switch managedWindow.backing {
-            case .accessibility(_, let pid, _):
-                if candidatePids.contains(pid) {
-                    indices.insert(zone.index)
-                } else {
-                    Logger.debug(
-                        "activeZoneIndices: window \(windowId) pid \(pid) not in candidate pid set \(candidatePids) " +
-                        "for zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
-                    )
-                }
-            case .appKit(let nsWindow):
-                if nsWindow.isKeyWindow {
-                    indices.insert(zone.index)
-                } else {
-                    Logger.debug(
-                        "activeZoneIndices: AppKit window \(windowId) in zone \(zone.index) is not key on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
-                    )
-                }
+            let pid = managedWindow.backing.pid
+            if candidatePids.contains(pid) {
+                indices.insert(zone.index)
+            } else {
+                Logger.debug(
+                    "activeZoneIndices: window \(windowId) pid \(pid) not in candidate pid set \(candidatePids) " +
+                    "for zone \(zone.index) on \(screenName) [screen \(screenContextStore.loggingIndex(for: screenId))]"
+                )
             }
         }
         Logger.debug(

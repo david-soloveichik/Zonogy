@@ -245,8 +245,7 @@ extension WindowController {
         let windowId = windowRegistry.allocateIdentifier()
         let managed = ManagedWindow(
             windowId: windowId,
-            backing: .accessibility(element: element, pid: pid, cgWindowId: identifier.cgWindowId),
-            isPlaceholder: false
+            backing: ManagedWindowBacking(element: element, pid: pid, cgWindowId: identifier.cgWindowId)
         )
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
@@ -304,52 +303,24 @@ extension WindowController {
 
     /// Show a window at the specified frame (frame is in screen-local coordinates)
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            // Convert accessibility coordinates back to Cocoa for AppKit windows
-            let accessibilityFrame = screen.screenToAccessibility(frame)
-            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-                accessibilityFrame: accessibilityFrame,
-                primaryScreenBounds: primaryScreenBounds
+        let element = managedWindow.backing.element
+        // Accessibility API uses screen coordinates directly
+        performProgrammaticUpdate(for: managedWindow.windowId) {
+            applyScreenFrameWithBestEffort(
+                windowId: managedWindow.windowId,
+                element: element,
+                targetScreenFrame: frame,
+                screen: screen
             )
-            
-            performProgrammaticUpdate(for: managedWindow.windowId) {
-                window.setFrame(cocoaFrame, display: true)
-                self.lastRequestedAppKitFrames[managedWindow.windowId] = cocoaFrame
-            }
-
-            // Only order to front if it's not a placeholder, or if it's a placeholder but not currently key.
-            // This avoids redundant orderFront calls for placeholders during continuous resizing.
-            if !managedWindow.isPlaceholder || !window.isKeyWindow {
-                if managedWindow.isPlaceholder {
-                    Logger.debug("Bringing placeholder window \(managedWindow.windowId) to front via orderFront (conditional)")
-                }
-                window.orderFront(nil)
-            }
-        case .accessibility(let element, _, _):
-            // Accessibility API uses screen coordinates directly
-            performProgrammaticUpdate(for: managedWindow.windowId) {
-                applyScreenFrameWithBestEffort(
-                    windowId: managedWindow.windowId,
-                    element: element,
-                    targetScreenFrame: frame,
-                    screen: screen
-                )
-            }
-            _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         }
+        _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
         Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(frame)")
     }
 
     /// Minimize a window
     func minimizeWindow(_ managedWindow: ManagedWindow) {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            window.miniaturize(nil)
-        case .accessibility(let element, _, _):
-            _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
-        }
+        _ = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
         Logger.debug("Minimized window \(managedWindow.windowId)")
     }
 
@@ -358,15 +329,11 @@ extension WindowController {
     ///   - managedWindow: The window to unminimize
     ///   - synchronous: If false (default), adds a small delay to let any pre-positioning settle before the unminimize animation
     func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false, raise: Bool = true) {
+        let element = managedWindow.backing.element
         let perform = {
-            switch managedWindow.backing {
-            case .appKit(let window):
-                window.deminiaturize(nil)
-            case .accessibility(let element, _, _):
-                _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-                if raise {
-                    _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-                }
+            _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            if raise {
+                _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
             }
             Logger.debug("Unminimized window \(managedWindow.windowId)")
         }
@@ -383,18 +350,10 @@ extension WindowController {
 
     /// Close a window
     func closeWindow(_ managedWindow: ManagedWindow) {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            window.close()
-        case .accessibility(let element, _, _):
-            removeAccessibilityTracking(for: managedWindow)
-            _ = AXUIElementPerformAction(element, axCloseAction)
-        }
+        removeAccessibilityTracking(for: managedWindow)
+        _ = AXUIElementPerformAction(managedWindow.backing.element, axCloseAction)
         windowRegistry.removeWindow(withId: managedWindow.windowId)
-        windowDelegates.removeValue(forKey: managedWindow.windowId)
-        if let identifier = managedWindow.externalIdentifier {
-            externalWindows.removeValue(forKey: identifier)
-        }
+        externalWindows.removeValue(forKey: managedWindow.externalIdentifier)
         Logger.debug("Closed window \(managedWindow.windowId)")
     }
 
@@ -408,111 +367,40 @@ extension WindowController {
             return
         }
 
-        switch managedWindow.backing {
-        case .appKit(let window):
-            let accessibilityFrame = screen.screenToAccessibility(frame)
-            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-                accessibilityFrame: accessibilityFrame,
-                primaryScreenBounds: primaryScreenBounds
+        let element = managedWindow.backing.element
+        // Accessibility API uses screen coordinates directly
+        performProgrammaticUpdate(for: managedWindow.windowId) {
+            applyScreenFrameWithBestEffort(
+                windowId: managedWindow.windowId,
+                element: element,
+                targetScreenFrame: frame,
+                screen: screen
             )
-            window.setFrame(cocoaFrame, display: true, animate: false)
-        case .accessibility(let element, _, _):
-            // Accessibility API uses screen coordinates directly
-            performProgrammaticUpdate(for: managedWindow.windowId) {
-                applyScreenFrameWithBestEffort(
-                    windowId: managedWindow.windowId,
-                    element: element,
-                    targetScreenFrame: frame,
-                    screen: screen
-                )
-            }
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
         Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame)")
     }
 
-    func ensurePlaceholderVisibilityAndPosition(
-        _ placeholder: ManagedWindow,
-        at frame: CGRect,
-        on screen: ScreenDescriptor
-    ) {
-        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-
-        // If not visible, always perform a full show/move.
-        guard isWindowVisible(placeholder) else {
-            Logger.debug("Placeholder \(placeholder.windowId) not visible on screen \(screenIndex); performing full show/move to frame \(frame).")
-            showWindow(placeholder, at: frame, on: screen)
-            return
-        }
-
-        // Window is visible. Now handle based on backing type.
-        switch placeholder.backing {
-        case .appKit(let window):
-            let accessibilityFrame = screen.screenToAccessibility(frame)
-            let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-                accessibilityFrame: accessibilityFrame,
-                primaryScreenBounds: primaryScreenBounds
-            )
-
-            // Always set frame for AppKit placeholders if visible, as we fully control them.
-            // This avoids the framesRoughlyEqual check during continuous drags for AppKit windows.
-            performProgrammaticUpdate(for: placeholder.windowId) {
-                window.setFrame(cocoaFrame, display: true)
-                self.lastRequestedAppKitFrames[placeholder.windowId] = cocoaFrame
-            }
-            
-            // Conditionally order to front
-            if !window.isKeyWindow {
-                Logger.debug("Placeholder \(placeholder.windowId) visible on screen \(screenIndex), frame updated to \(frame); bringing to front.")
-                window.orderFront(nil)
-            } else {
-                Logger.debug("Placeholder \(placeholder.windowId) visible and key on screen \(screenIndex), frame updated to \(frame).")
-            }
-
-        case .accessibility(let element, _, _):
-            let currentFrame = actualFrameInScreenCoordinates(for: placeholder, on: screen)
-            if framesRoughlyEqual(currentFrame, frame) {
-                // Already visible and at the correct frame. Just ensure it's frontmost.
-                Logger.debug("Placeholder \(placeholder.windowId) (AX) already visible and at target on screen \(screenIndex); ensuring frontmost.")
-                _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-            } else {
-                // Visible but at the wrong frame. Perform a full show/move for AX window.
-                Logger.debug("Placeholder \(placeholder.windowId) (AX) visible but at wrong frame on screen \(screenIndex); performing full show/move to frame \(frame).")
-                showWindow(placeholder, at: frame, on: screen)
-            }
-        }
-    }
-
     /// Checks if a managed window is currently visible.
     func isWindowVisible(_ managedWindow: ManagedWindow) -> Bool {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            return window.isVisible // Corrected: use isVisible instead of !isHidden
-        case .accessibility(let element, _, _):
-            var hiddenValue: CFTypeRef?
-            let status = AXUIElementCopyAttributeValue(element, kAXHiddenAttribute as CFString, &hiddenValue)
-            guard status == .success, let hiddenValue else {
-                // If we can't get the attribute, assume it's visible for safety.
-                return true
-            }
-            if CFGetTypeID(hiddenValue) == CFBooleanGetTypeID() {
-                return !CFBooleanGetValue(unsafeBitCast(hiddenValue, to: CFBoolean.self))
-            }
-            if let number = hiddenValue as? NSNumber {
-                return !number.boolValue
-            }
-            return true // Default to visible
+        var hiddenValue: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(managedWindow.backing.element, kAXHiddenAttribute as CFString, &hiddenValue)
+        guard status == .success, let hiddenValue else {
+            // If we can't get the attribute, assume it's visible for safety.
+            return true
         }
+        if CFGetTypeID(hiddenValue) == CFBooleanGetTypeID() {
+            return !CFBooleanGetValue(unsafeBitCast(hiddenValue, to: CFBoolean.self))
+        }
+        if let number = hiddenValue as? NSNumber {
+            return !number.boolValue
+        }
+        return true // Default to visible
     }
 
     /// Hides a managed window.
     func hideWindow(_ managedWindow: ManagedWindow, reason: HideReason) {
-        switch managedWindow.backing {
-        case .appKit(let window):
-            window.orderOut(nil)
-        case .accessibility(let element, _, _):
-            _ = AXUIElementSetAttributeValue(element, kAXHiddenAttribute as CFString, kCFBooleanTrue)
-        }
+        _ = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXHiddenAttribute as CFString, kCFBooleanTrue)
         let reasonLabel: String
         switch reason {
         case .zoneExcluded: reasonLabel = "zone-excluded"
@@ -829,10 +717,10 @@ extension WindowController {
     }
 
     private func actualCGWindowFrame(for windowId: Int) -> CGRect? {
-        guard let managed = windowRegistry.window(withId: windowId),
-              case .accessibility(_, _, let cgWindowId) = managed.backing else {
+        guard let managed = windowRegistry.window(withId: windowId) else {
             return nil
         }
+        let cgWindowId = managed.backing.cgWindowId
 
         guard let windowInfo = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(cgWindowId)) as? [[String: Any]],
               let boundsDict = windowInfo.first?[kCGWindowBounds as String] as? NSDictionary,
@@ -871,8 +759,6 @@ extension WindowController {
             guard let self else { return }
             self.programmaticUpdateWindowIds.remove(windowId)
             self.programmaticUpdateWorkItems.removeValue(forKey: windowId)
-            // Clear the cached frame for AppKit windows after the update is considered complete.
-            self.lastRequestedAppKitFrames.removeValue(forKey: windowId)
         }
         
         programmaticUpdateWorkItems[windowId] = workItem
@@ -1091,9 +977,8 @@ extension WindowController {
     }
 
     private func registerAccessibilityNotifications(for managed: ManagedWindow, appElement: AXUIElement) {
-        guard case .accessibility(let element, let pid, _) = managed.backing else {
-            return
-        }
+        let element = managed.backing.element
+        let pid = managed.backing.pid
 
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         guard accessibilityWatcher.ensureObserver(for: pid, appElement: appElement, bundleIdentifier: bundleId) != nil else {
@@ -1105,7 +990,7 @@ extension WindowController {
 
     private func managedWindow(matching element: AXUIElement) -> ManagedWindow? {
         for window in windowRegistry.allWindows {
-            if let candidate = window.accessibilityElement, CFEqual(candidate, element) {
+            if CFEqual(window.accessibilityElement, element) {
                 return window
             }
         }
@@ -1174,9 +1059,8 @@ extension WindowController {
             var resolvedPid: pid_t?
             if status == .success {
                 resolvedPid = pid
-            } else if let managed = managedWindow(matching: element),
-                      case .accessibility(_, let managedPid, _) = managed.backing {
-                resolvedPid = managedPid
+            } else if let managed = managedWindow(matching: element) {
+                resolvedPid = managed.backing.pid
             }
 
             guard let targetPid = resolvedPid, targetPid != getpid() else {
@@ -1248,9 +1132,7 @@ extension WindowController {
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
             delegate?.windowWillClose(windowId: managed.windowId)
             removeAccessibilityTracking(for: managed)
-            if let identifier = managed.externalIdentifier {
-                externalWindows.removeValue(forKey: identifier)
-            }
+            externalWindows.removeValue(forKey: managed.externalIdentifier)
             windowRegistry.removeWindow(withId: managed.windowId)
 
         case axMiniaturizedNotification:
@@ -1292,10 +1174,8 @@ extension WindowController {
     }
 
     internal func removeAccessibilityTracking(for managed: ManagedWindow) {
-        guard case .accessibility(let element, let pid, _) = managed.backing else {
-            return
-        }
-
+        let element = managed.backing.element
+        let pid = managed.backing.pid
         externalWindowsByElement.removeValue(forKey: AccessibilityElementKey(element: element))
         accessibilityWatcher.removeWindowNotifications(for: element, pid: pid)
     }

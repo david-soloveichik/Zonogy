@@ -10,24 +10,23 @@ struct ExternalWindowIdentifier: Hashable {
     let cgWindowId: Int  // CGWindowID from the window server
 }
 
-/// Backing for a managed window. Placeholders use `.appKit`, external windows use `.accessibility`.
-enum ManagedWindowBacking {
-    case appKit(NSWindow)
-    // CGWindowID is captured up front via `_AXUIElementGetWindow`; we refuse to manage the
-    // window if it cannot be obtained, so this value is always present once tracked.
-    case accessibility(element: AXUIElement, pid: pid_t, cgWindowId: Int)  // CGWindowID from window server
+/// Backing for a managed external window via accessibility.
+/// CGWindowID is captured up front via `_AXUIElementGetWindow`; we refuse to manage the
+/// window if it cannot be obtained, so this value is always present once tracked.
+struct ManagedWindowBacking {
+    let element: AXUIElement
+    let pid: pid_t
+    let cgWindowId: Int  // CGWindowID from window server
 }
 
-/// Represents a window managed by the window manager.
+/// Represents an external window (from another application) managed by the window manager.
+/// Placeholder windows are not tracked here - they are owned directly by zones via PlaceholderWindow.
 class ManagedWindow {
     /// Unique identifier for this window within the manager.
     let windowId: Int
 
-    /// Backing implementation (AppKit or Accessibility).
+    /// Backing implementation via accessibility.
     let backing: ManagedWindowBacking
-
-    /// Whether this is a placeholder window for an empty zone.
-    let isPlaceholder: Bool
 
     /// The zone index this window is currently assigned to, or `nil` if minimized/unassigned.
     var zoneIndex: Int?
@@ -35,64 +34,39 @@ class ManagedWindow {
     /// Identifier for the display this window is currently associated with.
     var screenDisplayId: CGDirectDisplayID?
 
-    init(windowId: Int, backing: ManagedWindowBacking, isPlaceholder: Bool) {
+    init(windowId: Int, backing: ManagedWindowBacking) {
         self.windowId = windowId
         self.backing = backing
-        self.isPlaceholder = isPlaceholder
         self.zoneIndex = nil
         self.screenDisplayId = nil
     }
 
-    /// The underlying AppKit window, if any.
-    var appKitWindow: NSWindow? {
-        if case .appKit(let window) = backing {
-            return window
-        }
-        return nil
+    /// The underlying accessibility element.
+    var accessibilityElement: AXUIElement {
+        backing.element
     }
 
-    /// The underlying accessibility element, if any.
-    var accessibilityElement: AXUIElement? {
-        if case .accessibility(let element, _, _) = backing {
-            return element
-        }
-        return nil
-    }
-
-    /// Stable identifier for an external window (pid + CGWindowID).
-    var externalIdentifier: ExternalWindowIdentifier? {
-        if case .accessibility(_, let pid, let cgWindowId) = backing {
-            return ExternalWindowIdentifier(pid: pid, cgWindowId: cgWindowId)
-        }
-        return nil
+    /// Stable identifier for this external window (pid + CGWindowID).
+    var externalIdentifier: ExternalWindowIdentifier {
+        ExternalWindowIdentifier(pid: backing.pid, cgWindowId: backing.cgWindowId)
     }
 
     /// The actual frame currently reported by the backing window.
     var actualFrame: CGRect {
-        switch backing {
-        case .appKit(let window):
-            return window.frame
-        case .accessibility(let element, _, _):
-            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
-                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
-                return .zero
-            }
-            return CGRect(origin: position, size: size)
+        guard let position = ManagedWindow.copyCGPointValue(element: backing.element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: backing.element, attribute: kAXSizeAttribute as CFString) else {
+            return .zero
         }
+        return CGRect(origin: position, size: size)
     }
 
     /// Whether the window is currently minimized.
     var isMinimized: Bool {
-        switch backing {
-        case .appKit(let window):
-            return window.isMiniaturized
-        case .accessibility(let element, _, _):
-            var value: AnyObject?
-            let error = AXUIElementCopyAttributeValue(element, kAXMinimizedAttribute as CFString, &value)
-            if error == .success, let boolValue = value as? Bool {
-                return boolValue
-            }
-            return false
+        var value: AnyObject?
+        let error = AXUIElementCopyAttributeValue(backing.element, kAXMinimizedAttribute as CFString, &value)
+        if error == .success, let boolValue = value as? Bool {
+            return boolValue
         }
+        return false
     }
 }

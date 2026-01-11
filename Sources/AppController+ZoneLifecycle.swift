@@ -70,7 +70,6 @@ extension AppController {
     private func promoteTemporaryZoneOccupantIfNeeded(on screenId: CGDirectDisplayID, newZone: Zone) {
         guard newZone.isEmpty,
               let occupant = temporaryZoneOccupant(on: screenId),
-              !occupant.isPlaceholder,
               occupant.zoneIndex == nil else {
             return
         }
@@ -304,7 +303,7 @@ extension AppController {
         if let key = zoneKey(forManagedWindow: managed),
            let context = screenContexts[key.screenId],
            let zone = context.zoneController.zone(at: key.index),
-           zone.windowId == managed.windowId {
+           zone.occupantWindowId == managed.windowId {
             syncWindowsToZones()
             print("Window \(managed.windowId) is already managed in zone \(key.index)")
             return
@@ -570,10 +569,6 @@ extension AppController {
             }
         }
 
-        // Snapshot of all known windows (real + placeholders). We pass this to
-        // the placeholder coordinator so it can reuse existing placeholders.
-        let existingWindows = windowController.allWindows
-
         // Tracks all non‑placeholder windows that end up with a valid zone
         // assignment in this pass. Anything not in this set (and not in the
         // temporary zone) will be detached from the tiling model at the end.
@@ -590,7 +585,7 @@ extension AppController {
             let controller = context.zoneController
 
             for zone in controller.allZones {
-                if let windowId = zone.windowId,
+                if let windowId = zone.occupantWindowId,
                    let managed = windowController.window(withId: windowId) {
                     let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
                     if activeFitShouldSkipSync(for: zoneKey, windowId: windowId) {
@@ -618,8 +613,9 @@ extension AppController {
         // Phase 3: sync placeholder windows so every empty zone has a matching
         // placeholder (unless explicitly suppressed or excluded for this pass),
         // reusing existing placeholder windows where possible.
+        // Note: PlaceholderCoordinator now owns placeholders directly and no longer
+        // needs the existingWindows list - it manages its own pool.
         placeholderCoordinator.syncPlaceholders(
-            existingWindows: existingWindows,
             screenOrder: screenOrder,
             excludedZones: effectiveExcludedZones,
             contextProvider: { screenId in
@@ -646,7 +642,8 @@ extension AppController {
             }
         )
 
-        let placeholderCount = windowController.allWindows.filter { $0.isPlaceholder }.count
+        // Placeholder windows are now managed separately by PlaceholderCoordinator
+        let placeholderCount = placeholderCoordinator.activePlaceholderCount
 
         // Calculate zone occupancy for logging/diagnostics.
         var occupiedZones = 0
@@ -663,10 +660,10 @@ extension AppController {
 
         Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty, excluded zones \(effectiveExcludedZones.count)")
 
-        // Phase 4: clean up stale assignments. Any non‑placeholder window that
-        // was *not* assigned to a tiled zone in this pass and is *not* parked
-        // in the temporary floating zone should no longer be treated as zoned.
-        for window in windowController.allWindows where !window.isPlaceholder {
+        // Phase 4: clean up stale assignments. Any window that was *not*
+        // assigned to a tiled zone in this pass and is *not* parked in the
+        // temporary floating zone should no longer be treated as zoned.
+        for window in windowController.allWindows {
             if assignedWindowIds.contains(window.windowId) {
                 continue
             }
@@ -727,20 +724,16 @@ extension AppController {
         guard let targetedZoneKey = targetedZoneKey else {
             return false
         }
-        guard case .accessibility(_, let pid, _) = managed.backing else {
-            return false
-        }
+        let pid = managed.backing.pid
         guard MouseButtons.isLeftMouseButtonDown() else {
             return false
         }
         guard let context = screenContexts[targetedZoneKey.screenId],
               let zone = context.zoneController.zone(at: targetedZoneKey.index),
-              let occupantId = zone.windowId,
+              let occupantId = zone.occupantWindowId,
               occupantId != managed.windowId,
               let occupant = windowController.window(withId: occupantId),
-              !occupant.isPlaceholder,
-              case .accessibility(_, let occupantPid, _) = occupant.backing,
-              occupantPid == pid else {
+              occupant.backing.pid == pid else {
             return false
         }
         return true
@@ -1138,9 +1131,8 @@ extension AppController {
             var minimizedWindowIds: [Int] = []
 
             for zone in zones {
-                if let windowId = zone.windowId,
-                   let managed = windowController.window(withId: windowId),
-                   !managed.isPlaceholder {
+                if let windowId = zone.occupantWindowId,
+                   let managed = windowController.window(withId: windowId) {
                     minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
                     removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
                     minimizedCount += 1
@@ -1194,13 +1186,12 @@ extension AppController {
         if let (managed, pid) = managedWindowUnderCursor(cursorPoint: cursorPoint) {
             // Get window title for logging (best-effort).
             var windowTitle = "untitled"
-            if case .accessibility(let element, _, _) = managed.backing {
-                var value: AnyObject?
-                if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-                   let title = value as? String,
-                   !title.isEmpty {
-                    windowTitle = title
-                }
+            let element = managed.backing.element
+            var value: AnyObject?
+            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+               let title = value as? String,
+               !title.isEmpty {
+                windowTitle = title
             }
 
             Logger.debug(
@@ -1255,24 +1246,21 @@ extension AppController {
 
         // Temporary zone floats above all tiled zones; return immediately if cursor is within it.
         if let tempOccupant = temporaryZoneOccupant(on: screenId),
-           case .accessibility(_, let pid, _) = tempOccupant.backing,
            let frame = windowController.actualFrameInAccessibilityCoordinates(for: tempOccupant),
            frame.contains(cursorPoint) {
-            return (tempOccupant, pid)
+            return (tempOccupant, tempOccupant.backing.pid)
         }
 
         // Collect tiled zone candidates under cursor: (ManagedWindow, pid, cgWindowId).
         var candidates: [(ManagedWindow, pid_t, Int)] = []
         for zone in context.zoneController.allZones {
-            guard let windowId = zone.windowId,
+            guard let windowId = zone.occupantWindowId,
                   let managed = windowController.window(withId: windowId),
-                  !managed.isPlaceholder,
-                  case .accessibility(_, let pid, let cgWindowId) = managed.backing,
                   let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed),
                   frame.contains(cursorPoint) else {
                 continue
             }
-            candidates.append((managed, pid, cgWindowId))
+            candidates.append((managed, managed.backing.pid, managed.backing.cgWindowId))
         }
 
         // Fast paths: 0 or 1 tiled candidate.
@@ -1629,12 +1617,7 @@ extension AppController {
                 return
             }
 
-            let pidDescription: String = {
-                if case .accessibility(_, let pid, let cgWindowId) = managed.backing {
-                    return "pid \(pid), cgWindowId \(cgWindowId)"
-                }
-                return "appkit"
-            }()
+            let pidDescription = "pid \(managed.backing.pid), cgWindowId \(managed.backing.cgWindowId)"
             Logger.debug(
                 "Minimize verification attempt \(attempt) for window \(windowId) (\(pidDescription)), " +
                 "isMinimized=\(managed.isMinimized) (reason: \(cleanupReason))"
@@ -1726,13 +1709,12 @@ extension AppController {
 
         // Get window title for logging
         var windowTitle = "untitled"
-        if case .accessibility(let element, _, _) = managed.backing {
-            var value: AnyObject?
-            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-               let title = value as? String,
-               !title.isEmpty {
-                windowTitle = title
-            }
+        let element = managed.backing.element
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+           let title = value as? String,
+           !title.isEmpty {
+            windowTitle = title
         }
 
         Logger.debug(

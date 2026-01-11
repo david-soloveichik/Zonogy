@@ -5,16 +5,7 @@ import ApplicationServices
 /// Handles hotkeys, system events, and display reconfiguration.
 extension AppController {
     internal func currentWindowCounts() -> (managed: Int, placeholders: Int) {
-        var managed = 0
-        var placeholders = 0
-        for window in windowController.allWindows {
-            if window.isPlaceholder {
-                placeholders += 1
-            } else {
-                managed += 1
-            }
-        }
-        return (managed, placeholders)
+        (windowController.allWindows.count, placeholderCoordinator.activePlaceholderCount)
     }
 
     func hotkeyService(_ service: HotkeyService, didTrigger action: HotkeyService.Action) {
@@ -141,9 +132,7 @@ extension AppController {
         var windowsToMinimize: [(ManagedWindow, ZoneKey?)] = []
 
         for window in windowController.allWindows {
-            guard case .accessibility(_, let windowPid, _) = window.backing,
-                  windowPid == pid,
-                  !window.isPlaceholder else {
+            guard window.backing.pid == pid else {
                 continue
             }
 
@@ -345,12 +334,7 @@ extension AppController {
         }
 
         // Validate all external windows to drop stale references
-        var pidsToValidate = Set<pid_t>()
-        for window in windowController.allWindows {
-            if case .accessibility(_, let pid, _) = window.backing {
-                pidsToValidate.insert(pid)
-            }
-        }
+        let pidsToValidate = Set(windowController.allWindows.map { $0.backing.pid })
 
         for pid in pidsToValidate {
             _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "screen-change")
@@ -374,25 +358,24 @@ extension AppController {
         for entry in removed {
             let displayId = entry.displayId
 
-            // Snapshot all non-placeholder windows that currently report this
-            // displayId *before* we close placeholders. Closing a placeholder triggers
-            // windowWillClose → syncWindowsToZones, and that sync can clear screenDisplayId
-            // for windows on the removed display. If we computed windowsOnDisplay after
-            // those syncs, we would miss windows that should be
-            // minimized as part of the display-removal policy.
+            // Snapshot all windows that currently report this displayId.
             let windowsOnDisplay = windowController.allWindows.filter {
-                !$0.isPlaceholder && $0.screenDisplayId == displayId
+                $0.screenDisplayId == displayId
             }
 
             // Clear any placeholder bookkeeping tied to this display.
+            // This also hides/pools the placeholder windows for reuse.
             placeholderCoordinator.clearMappingsForScreen(displayId)
 
-            // Close all placeholder windows that were on the removed display.
-            let placeholders = windowController.allWindows.filter { $0.isPlaceholder && $0.screenDisplayId == displayId }
-            for placeholder in placeholders {
-                Logger.debug("Closing placeholder \(placeholder.windowId) for removed \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))]")
-                windowController.closeWindow(placeholder)
-                placeholderCoordinator.forget(windowId: placeholder.windowId)
+            // Clear placeholder references from all zones on this display.
+            for zone in entry.context.zoneController.allZones {
+                if let placeholder = zone.placeholder {
+                    Logger.debug("Clearing placeholder for zone \(zone.index) on removed \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))]")
+                    if placeholder.isVisible {
+                        placeholder.hide()
+                    }
+                    zone.placeholder = nil
+                }
             }
 
             let zoneCount = entry.context.zoneController.allZones.count

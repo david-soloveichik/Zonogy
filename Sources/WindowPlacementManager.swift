@@ -16,7 +16,6 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func frameWithMargin(for zone: Zone, in controller: ZoneController) -> CGRect
-    func forgetPlaceholder(windowId: Int)
 
     // Screen detection
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
@@ -300,21 +299,15 @@ class WindowPlacementManager {
         guard let delegate = delegate else { return }
 
         // Record activity for windows placed into zones so they appear in AltTab/Launcher recency lists.
-        if !managed.isPlaceholder {
-            delegate.windowController.recordWindowActivity(windowId: managed.windowId)
-        }
+        delegate.windowController.recordWindowActivity(windowId: managed.windowId)
 
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
         let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
         let wasTargetedZone = delegate.targetedZoneManager.targetedZoneKey == filledZoneKey
 
-        for window in delegate.windowController.allWindows where window.isPlaceholder {
-            if window.zoneIndex == zone.index && window.screenDisplayId == screenId {
-                delegate.windowController.closeWindow(window)
-                delegate.forgetPlaceholder(windowId: window.windowId)
-            }
-        }
+        // Placeholder windows are now managed separately by PlaceholderCoordinator
+        // and are not in the WindowController's allWindows list
 
         guard let controller = delegate.zoneController(for: screenId) else {
             return
@@ -361,14 +354,9 @@ class WindowPlacementManager {
     }
 
     private func zoneWasEmptyBeforePlacement(_ zone: Zone) -> Bool {
-        guard let occupantId = zone.windowId else {
-            return true
-        }
-        guard let delegate = delegate,
-              let occupant = delegate.windowController.window(withId: occupantId) else {
-            return false
-        }
-        return occupant.isPlaceholder
+        // A zone is empty if it has no window assigned
+        // (placeholders are managed separately and not tracked in zones)
+        return zone.occupantWindowId == nil
     }
 
     /// Finds the first zone that can accept a window displaced by zone removal.
@@ -386,15 +374,12 @@ class WindowPlacementManager {
             }
 
             for zone in context.zoneController.allZones {
-                if zone.windowId == nil {
+                if zone.occupantWindowId == nil {
                     return (zone, context, descriptor)
                 }
 
-                if let windowId = zone.windowId,
-                   let occupant = delegate.windowController.window(withId: windowId),
-                   occupant.isPlaceholder {
-                    return (zone, context, descriptor)
-                }
+                // Placeholders are managed separately and not tracked in zones,
+                // so zones with windowId == nil are the only empty ones
             }
         }
 
@@ -422,7 +407,7 @@ class WindowPlacementManager {
         excluding windowId: Int
     ) -> ManagedWindow? {
         guard let delegate = delegate else { return nil }
-        guard let existingId = zone.windowId,
+        guard let existingId = zone.occupantWindowId,
               existingId != windowId,
               let existingWindow = delegate.windowController.window(withId: existingId) else {
             return nil
@@ -431,16 +416,12 @@ class WindowPlacementManager {
         return existingWindow
     }
 
-    /// Applies the standard displacement policy: close placeholders or minimize real windows.
+    /// Applies the standard displacement policy: minimize displaced windows.
+    /// (Placeholders are managed separately by PlaceholderCoordinator.)
     private func minimizeOrCloseDisplacedWindow(_ displaced: ManagedWindow?) {
         guard let delegate = delegate, let displaced else { return }
-        if displaced.isPlaceholder {
-            delegate.windowController.closeWindow(displaced)
-            delegate.forgetPlaceholder(windowId: displaced.windowId)
-        } else {
-            delegate.clearManagedWindowZone(displaced)
-            delegate.minimizeWindowProgrammatically(displaced, reason: "displaced-window")
-        }
+        delegate.clearManagedWindowZone(displaced)
+        delegate.minimizeWindowProgrammatically(displaced, reason: "displaced-window")
     }
 
     private func emptyTemporaryZoneAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {

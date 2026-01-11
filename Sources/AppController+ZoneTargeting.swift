@@ -101,7 +101,7 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
-        if zoneIndex != nil, !managed.isPlaceholder {
+        if zoneIndex != nil {
             clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
@@ -112,10 +112,6 @@ extension AppController {
         managed.screenDisplayId = nil
         clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "assignment-cleared")
         activeFitClearSuppressionForWindow(managed.windowId)
-    }
-
-    internal func forgetPlaceholder(windowId: Int) {
-        placeholderCoordinator.forget(windowId: windowId)
     }
 
     internal func detectScreenId(for managed: ManagedWindow) -> CGDirectDisplayID? {
@@ -163,20 +159,16 @@ extension AppController {
     }
 
     internal func cocoaFrame(for managed: ManagedWindow) -> CGRect? {
-        switch managed.backing {
-        case .appKit(let window):
-            return window.frame
-        case .accessibility(let element, _, _):
-            guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
-                  let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
-                return nil
-            }
-            let accessibilityFrame = CGRect(origin: position, size: size)
-            return CoordinateConversion.accessibilityToCocoa(
-                accessibilityFrame: accessibilityFrame,
-                primaryScreenBounds: primaryScreenBounds
-            )
+        let element = managed.backing.element
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return nil
         }
+        let accessibilityFrame = CGRect(origin: position, size: size)
+        return CoordinateConversion.accessibilityToCocoa(
+            accessibilityFrame: accessibilityFrame,
+            primaryScreenBounds: primaryScreenBounds
+        )
     }
 
     // MARK: - ZoneClickInterceptorDelegate

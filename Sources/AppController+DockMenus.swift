@@ -72,9 +72,8 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
 
         // Fallback: construct a minimal LauncherWindowItem for drag feedback and placement.
-        guard case .accessibility(let element, let pid, _) = preferredManaged.backing else {
-            return nil
-        }
+        let element = preferredManaged.backing.element
+        let pid = preferredManaged.backing.pid
 
         var titleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
@@ -237,8 +236,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     private func prePositionMinimizedWindowForDockMenuDrag(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
-        guard case .accessibility(let element, _, _) = managed.backing else { return }
-
+        let element = managed.backing.element
         let accessibilityFrame = screen.screenToAccessibility(screenFrame)
 
         var position = accessibilityFrame.origin

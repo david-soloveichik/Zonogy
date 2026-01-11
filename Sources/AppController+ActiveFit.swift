@@ -39,13 +39,6 @@ extension AppController {
             return
         }
 
-        // Focusing a placeholder participates in the managed layout but should not make that
-        // placeholder an ActiveFit candidate. Simply exit reveal mode for any current window.
-        guard !managed.isPlaceholder else {
-            exitRevealMode(reason: "focus-placeholder")
-            return
-        }
-
         // If focus moved to a different window than the one currently in reveal mode,
         // return that previous window to rest mode before evaluating the new candidate.
         // Skip if the window is suppressed (e.g., during WinShot restore).
@@ -269,23 +262,15 @@ extension AppController {
     }
 
     private func isWindowActive(_ managed: ManagedWindow) -> Bool {
-        if managed.isPlaceholder {
+        let pid = managed.backing.pid
+        guard let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              frontmostPid == pid else {
             return false
         }
-
-        switch managed.backing {
-        case .appKit(let window):
-            return window.isKeyWindow
-        case .accessibility(_, let pid, _):
-            guard let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-                  frontmostPid == pid else {
-                return false
-            }
-            guard let focused = windowController.focusedWindowIfTracked(pid: pid) else {
-                return false
-            }
-            return focused.windowId == managed.windowId
+        guard let focused = windowController.focusedWindowIfTracked(pid: pid) else {
+            return false
         }
+        return focused.windowId == managed.windowId
     }
 
     /// Suspends reveal mode evaluation for a window during drag operations.

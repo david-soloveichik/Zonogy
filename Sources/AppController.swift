@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost {
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
@@ -59,6 +59,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isZoneResizeInProgress = false
     internal var lastActiveApplicationPid: pid_t?
     internal let capturePipeline: WindowCapturePipeline
+    internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator
     internal let indicatorManager = ZoneIndicatorManager()
     internal let temporaryIndicatorManager = TemporaryZoneIndicatorManager()
@@ -231,17 +232,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             applicationExceptionPolicy: configuration.applicationExceptionPolicy
         )
         self.capturePipeline = WindowCapturePipeline(windowController: self.windowController)
-        self.placeholderCoordinator = PlaceholderCoordinator(windowController: self.windowController)
+        self.placeholderManager = PlaceholderManager()
+        self.placeholderCoordinator = PlaceholderCoordinator(placeholderManager: self.placeholderManager)
 
         super.init()
 
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
+        self.placeholderManager.delegate = self
         self.windowController.delegate = self
-        self.windowController.placeholderButtonModeProvider = { [weak self] screenId, zoneIndex in
-            guard let self = self else { return .removeZone }
-            return self.placeholderButtonMode(for: screenId, zoneIndex: zoneIndex)
-        }
         self.indicatorManager.delegate = self
         self.temporaryIndicatorManager.delegate = self
         self.addZoneIndicatorManager.delegate = self

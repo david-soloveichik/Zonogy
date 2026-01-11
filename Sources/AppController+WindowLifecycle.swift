@@ -5,21 +5,14 @@ import ApplicationServices
 /// Validation retry callbacks and WindowController delegate bridge (manual moves, resizes, closes).
 extension AppController {
     func hasManagedWindows(for pid: pid_t) -> Bool {
-        return windowController.allWindows.contains { window in
-            if case .accessibility(_, let windowPid, _) = window.backing {
-                return windowPid == pid
-            }
-            return false
-        }
+        return windowController.allWindows.contains { $0.backing.pid == pid }
     }
 
     func debugManagedWindowIds(for pid: pid_t) -> [Int] {
-        return windowController.allWindows.compactMap { window in
-            if case .accessibility(_, let windowPid, _) = window.backing, windowPid == pid {
-                return window.windowId
-            }
-            return nil
-        }.sorted()
+        return windowController.allWindows
+            .filter { $0.backing.pid == pid }
+            .map { $0.windowId }
+            .sorted()
     }
 
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int] {
@@ -164,10 +157,8 @@ extension AppController {
         }
         manualResizeDetachedWindowIds.remove(windowId)
         selfResizeSnapDebouncer.clear(windowId: windowId)
-        let managed = windowController.window(withId: windowId)
-        if let managed, managed.isPlaceholder {
-            placeholderCoordinator.forget(windowId: windowId)
-        }
+        // Note: Placeholders are no longer tracked by windowController.
+        // They are owned directly by zones and managed by PlaceholderCoordinator.
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }
@@ -236,7 +227,6 @@ extension AppController {
         }
 
         guard let managed = windowController.window(withId: windowId),
-              !managed.isPlaceholder,
               let zoneIndex = managed.zoneIndex else {
             Logger.debug("Window \(windowId) manual resize ended outside tiled zone; ignoring snapback tracking")
             manualResizeDetachedWindowIds.remove(windowId)
@@ -332,8 +322,7 @@ extension AppController {
     }
 
     private func shouldSnapToZoneOnSelfResize(managed: ManagedWindow) -> Bool {
-        guard case .accessibility(_, let pid, _) = managed.backing,
-              let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier else {
+        guard let bundleId = NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier else {
             return false
         }
         return configuration.applicationExceptionPolicy.snapsToZoneOnSelfResize(forBundleIdentifier: bundleId)
@@ -352,7 +341,7 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-begin") {
             return
         }
-        guard let managed = windowController.window(withId: windowId), !managed.isPlaceholder else {
+        guard let managed = windowController.window(withId: windowId) else {
             return
         }
 
@@ -413,7 +402,6 @@ extension AppController {
         syncWindowsToZones()
 
         if let managed = windowController.window(withId: windowId),
-           !managed.isPlaceholder,
            managed.zoneIndex == nil,
            !isWindowInTemporaryZone(windowId) {
             // Window vanished mid-drag; snap it back into regular placement flow.
@@ -698,8 +686,7 @@ extension AppController {
                 continue
             }
 
-            guard case .accessibility(_, let windowPid, _) = managed.backing,
-                  windowPid == pid else {
+            guard managed.backing.pid == pid else {
                 continue
             }
 
@@ -720,7 +707,6 @@ extension AppController {
         defer { manualResizeDetachedWindowIds.remove(windowId) }
 
         guard let managed = windowController.window(withId: windowId),
-              !managed.isPlaceholder,
               let zoneIndex = managed.zoneIndex else {
             return
         }
@@ -763,17 +749,8 @@ extension AppController {
             return nil
         }
         let actualFrame = window.actualFrame
-        let accessibilityFrame: CGRect
-        switch window.backing {
-        case .appKit:
-            accessibilityFrame = CoordinateConversion.cocoaToAccessibility(
-                cocoaFrame: actualFrame,
-                primaryScreenBounds: primaryScreenBounds
-            )
-        case .accessibility:
-            accessibilityFrame = actualFrame
-        }
-        return descriptor.accessibilityToScreen(accessibilityFrame)
+        // actualFrame is already in accessibility coordinates for external windows
+        return descriptor.accessibilityToScreen(actualFrame)
     }
 
     private func restoreTemporaryOccupant(from context: TiledToTemporaryDragContext) {

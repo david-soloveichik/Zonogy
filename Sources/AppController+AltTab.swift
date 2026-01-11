@@ -26,12 +26,10 @@ extension AppController: AltTabControllerDelegate {
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem] {
         var items: [LauncherWindowItem] = []
 
-        // Collect all non-placeholder managed windows across all applications
+        // Collect all managed windows across all applications
         for window in windowController.allWindows {
-            guard !window.isPlaceholder,
-                  case .accessibility(let element, let pid, _) = window.backing else {
-                continue
-            }
+            let element = window.backing.element
+            let pid = window.backing.pid
 
             // Get title from AX
             var titleRef: CFTypeRef?

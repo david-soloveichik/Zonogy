@@ -50,9 +50,8 @@ extension AppController {
 
         let zones = context.zoneController.allZones
         for zone in zones {
-            if let windowId = zone.windowId,
-               let managed = windowController.window(withId: windowId),
-               !managed.isPlaceholder {
+            if let windowId = zone.occupantWindowId,
+               windowController.window(withId: windowId) != nil {
                 return true
             }
         }
@@ -403,11 +402,6 @@ extension AppController {
         }
 
         if let managed = windowController.focusedWindowIfTracked(pid: lastPid) {
-            if managed.isPlaceholder {
-                Logger.debug("WinShot: lastActiveApplicationPid \(lastPid) focused window \(managed.windowId) is a placeholder; skipping")
-                return nil
-            }
-
             let managedScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
             if let managedScreenId, managedScreenId == screenId {
                 Logger.debug("WinShot: Active window resolved to window \(managed.windowId) via lastActiveApplicationPid \(lastPid) on \(screenDescription)")
@@ -438,9 +432,8 @@ extension AppController {
         // Collect windows in zones
         if let context = screenContexts[screenId] {
             for zone in context.zoneController.allZones {
-                if let windowId = zone.windowId,
-                   let managed = windowController.window(withId: windowId),
-                   !managed.isPlaceholder {
+                if let windowId = zone.occupantWindowId,
+                   let managed = windowController.window(withId: windowId) {
                     windows.append(managed)
                 }
             }
@@ -485,8 +478,7 @@ extension AppController {
     private func prePositionMinimizedWindow(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
         // Pre-position the window while minimized for smooth animation
         // Convert from screen-local coordinates to accessibility coordinates
-        guard case .accessibility(let element, _, _) = managed.backing else { return }
-
+        let element = managed.backing.element
         let accessibilityFrame = screen.screenToAccessibility(screenFrame)
 
         var position = accessibilityFrame.origin
@@ -504,15 +496,12 @@ extension AppController {
         // Record activity immediately for reliable recency tracking (don't rely on AX notification)
         recordActiveWindowForHistory(windowId: managed.windowId, reason: "winshot-activate")
 
-        switch managed.backing {
-        case .accessibility(let element, let pid, _):
-            if let app = NSRunningApplication(processIdentifier: pid) {
-                app.activate()
-            }
-            AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        case .appKit(let window):
-            window.makeKeyAndOrderFront(nil)
+        let element = managed.backing.element
+        let pid = managed.backing.pid
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            app.activate()
         }
+        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
     }
 }
 

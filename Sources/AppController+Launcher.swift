@@ -201,15 +201,13 @@ extension AppController: LauncherControllerDelegate {
         var eligibleWindows: [ManagedWindow] = []
 
         for window in windowController.allWindows {
-            guard !window.isPlaceholder,
-                  case .accessibility(let element, let windowPid, _) = window.backing,
-                  windowPid == pid else {
+            guard window.backing.pid == pid else {
                 continue
             }
 
             // Check title (must have a title to be considered a real window)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+            AXUIElementCopyAttributeValue(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
                 eligibleWindows.append(window)
             }
@@ -337,28 +335,18 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
-        // Check if zone was empty before (matching WindowPlacementManager.zoneWasEmptyBeforePlacement logic)
-        // Zone is "empty" if no occupant or occupant is a placeholder
-        let zoneWasEmpty: Bool
-        if let existingId = zone.windowId,
-           let existingWindow = windowController.window(withId: existingId) {
-            zoneWasEmpty = existingWindow.isPlaceholder
-        } else {
-            zoneWasEmpty = true
-        }
+        // Check if zone was empty before placement.
+        // With the new architecture, zone.occupantWindowId only refers to external windows,
+        // so zone.isEmpty accurately reflects emptiness (placeholders don't affect this).
+        let zoneWasEmpty = zone.isEmpty
 
-        // Displace any existing occupant
-        if let existingId = zone.windowId,
+        // Displace any existing occupant (always an external window, never a placeholder)
+        if let existingId = zone.occupantWindowId,
            existingId != managed.windowId,
            let existingWindow = windowController.window(withId: existingId) {
             context.zoneController.removeWindow(windowId: existingId)
-            if existingWindow.isPlaceholder {
-                windowController.closeWindow(existingWindow)
-                forgetPlaceholder(windowId: existingWindow.windowId)
-            } else {
-                clearManagedWindowZone(existingWindow)
-                minimizeWindowProgrammatically(existingWindow, reason: "launcher-displaced")
-            }
+            clearManagedWindowZone(existingWindow)
+            minimizeWindowProgrammatically(existingWindow, reason: "launcher-displaced")
         }
 
         // Assign to zone
@@ -396,27 +384,16 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
-        // Check if zone was empty before
-        let zoneWasEmpty: Bool
-        if let existingId = zone.windowId,
-           let existingWindow = windowController.window(withId: existingId) {
-            zoneWasEmpty = existingWindow.isPlaceholder
-        } else {
-            zoneWasEmpty = true
-        }
+        // Check if zone was empty before placement
+        let zoneWasEmpty = zone.isEmpty
 
-        // Displace any existing occupant
-        if let existingId = zone.windowId,
+        // Displace any existing occupant (always an external window, never a placeholder)
+        if let existingId = zone.occupantWindowId,
            existingId != managed.windowId,
            let existingWindow = windowController.window(withId: existingId) {
             context.zoneController.removeWindow(windowId: existingId)
-            if existingWindow.isPlaceholder {
-                windowController.closeWindow(existingWindow)
-                forgetPlaceholder(windowId: existingWindow.windowId)
-            } else {
-                clearManagedWindowZone(existingWindow)
-                minimizeWindowProgrammatically(existingWindow, reason: "dockmenu-drag-displaced")
-            }
+            clearManagedWindowZone(existingWindow)
+            minimizeWindowProgrammatically(existingWindow, reason: "dockmenu-drag-displaced")
         }
 
         // Dismiss Launcher before zone assignment to prevent visual glitch
@@ -471,8 +448,7 @@ extension AppController: LauncherControllerDelegate {
     /// Pre-position a minimized window to the target zone frame before unminimizing
     /// This ensures the unminimize animation shows the window "restoring" to the correct position
     private func prePositionMinimizedWindowForLauncher(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
-        guard case .accessibility(let element, _, _) = managed.backing else { return }
-
+        let element = managed.backing.element
         let accessibilityFrame = screen.screenToAccessibility(screenFrame)
 
         var position = accessibilityFrame.origin
@@ -492,15 +468,12 @@ extension AppController: LauncherControllerDelegate {
         // Record activity immediately for reliable recency tracking (don't rely on AX notification)
         recordActiveWindowForHistory(windowId: managed.windowId, reason: "launcher-activate")
 
-        switch managed.backing {
-        case .accessibility(let element, let pid, _):
-            if let app = NSRunningApplication(processIdentifier: pid) {
-                app.activate()
-            }
-            AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        case .appKit(let window):
-            window.makeKeyAndOrderFront(nil)
+        let element = managed.backing.element
+        let pid = managed.backing.pid
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            app.activate()
         }
+        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
     }
 }
 
@@ -517,11 +490,10 @@ extension AppController: LauncherWindowProvider {
 
         // Use Zonogy's tracked windows as the source of truth
         for window in windowController.allWindows {
-            guard !window.isPlaceholder,
-                  case .accessibility(let element, let windowPid, _) = window.backing,
-                  windowPid == pid else {
+            guard window.backing.pid == pid else {
                 continue
             }
+            let element = window.backing.element
 
             // Get title from AX (not cached - titles change frequently)
             var titleRef: CFTypeRef?
@@ -583,15 +555,13 @@ extension AppController: LauncherWindowProvider {
 
         // Use Zonogy's tracked windows as the source of truth
         for window in windowController.allWindows {
-            guard !window.isPlaceholder,
-                  case .accessibility(let element, let windowPid, _) = window.backing,
-                  windowPid == pid else {
+            guard window.backing.pid == pid else {
                 continue
             }
 
             // Check title (still need AX for this - titles change)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+            AXUIElementCopyAttributeValue(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
                 count += 1
             }

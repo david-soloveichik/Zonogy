@@ -159,37 +159,21 @@ extension AppController {
     }
 
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String) {
-        guard !managed.isPlaceholder else {
+        let logPrefix = "Temporary zone activation"
+        let pid = managed.backing.pid
+
+        guard let app = NSRunningApplication(processIdentifier: pid) else {
+            Logger.debug("\(logPrefix): unable to resolve application for pid \(pid) (reason: \(reason))")
             return
         }
-
-        let logPrefix = "Temporary zone activation"
-
-        switch managed.backing {
-        case .appKit(let window):
-            let activate = {
-                window.makeKeyAndOrderFront(nil)
-                Logger.debug("\(logPrefix): ordered front AppKit window \(managed.windowId) (reason: \(reason))")
-            }
-            if Thread.isMainThread {
-                activate()
-            } else {
-                DispatchQueue.main.async(execute: activate)
-            }
-        case .accessibility(_, let pid, _):
-            guard let app = NSRunningApplication(processIdentifier: pid) else {
-                Logger.debug("\(logPrefix): unable to resolve application for pid \(pid) (reason: \(reason))")
-                return
-            }
-            let activate = {
-                let result = app.activate(options: [.activateIgnoringOtherApps])
-                Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")
-            }
-            if Thread.isMainThread {
-                activate()
-            } else {
-                DispatchQueue.main.async(execute: activate)
-            }
+        let activate = {
+            let result = app.activate(options: [.activateIgnoringOtherApps])
+            Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")
+        }
+        if Thread.isMainThread {
+            activate()
+        } else {
+            DispatchQueue.main.async(execute: activate)
         }
     }
 }
