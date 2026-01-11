@@ -4,18 +4,26 @@ import ApplicationServices
 
 /// UnderCovers mode: temporarily hides the single-zone placeholder on a screen while keeping zone 1 alive.
 extension AppController {
-    internal func placeholderButtonMode(for screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode {
-        guard let context = screenContexts[screenId] else {
-            return .removeZone
+    private func underCoversEligibleZone(on screenId: CGDirectDisplayID, zoneIndex: Int) -> Zone? {
+        guard zoneIndex == 1,
+              let context = screenContexts[screenId] else {
+            return nil
         }
 
         // UnderCovers is only available for the single empty non-temporary zone 1 on a screen.
-        guard zoneIndex == 1 else {
-            return .removeZone
+        let zones = context.zoneController.allZones
+        guard zones.count == 1,
+              let zone = zones.first,
+              zone.index == 1,
+              zone.isEmpty else {
+            return nil
         }
 
-        let zones = context.zoneController.allZones
-        guard zones.count == 1, let zone = zones.first, zone.isEmpty else {
+        return zone
+    }
+
+    internal func placeholderButtonMode(for screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode {
+        guard underCoversEligibleZone(on: screenId, zoneIndex: zoneIndex) != nil else {
             return .removeZone
         }
 
@@ -29,13 +37,7 @@ extension AppController {
     }
 
     internal func beginUnderCoversIfEligible(on screenId: CGDirectDisplayID, zoneIndex: Int, reason: String) {
-        guard zoneIndex == 1,
-              let context = screenContexts[screenId] else {
-            return
-        }
-
-        let zones = context.zoneController.allZones
-        guard zones.count == 1, let zone = zones.first, zone.isEmpty else {
+        guard let zone = underCoversEligibleZone(on: screenId, zoneIndex: zoneIndex) else {
             return
         }
 
@@ -55,6 +57,7 @@ extension AppController {
         }
 
         underCoversScreens.insert(screenId)
+        dismissLauncherIfActive()
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("UnderCovers entered on screen \(screenIndex) (reason: \(reason))")
     }

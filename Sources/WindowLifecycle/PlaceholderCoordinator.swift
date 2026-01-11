@@ -97,6 +97,7 @@ final class PlaceholderCoordinator {
     private func obtainPlaceholder(for key: ZoneKey, frame: CGRect, on screen: ScreenDescriptor) -> PlaceholderWindow {
         // Check if we already have one active for this key
         if let existing = activePlaceholders[key] {
+            existing.update(screenId: key.screenId, zoneIndex: key.index)
             return existing
         }
 

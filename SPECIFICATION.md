@@ -86,7 +86,7 @@ Both windows and placeholders preserve an 8 pixel buffer at the outer screen edg
 
 ### Placeholders
 
-Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "x" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**).
+Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "×" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**).
 
 Placeholders stay anchored to their zone: dragging their surface does not reposition them, and they cannot be resized by dragging their edges. Resize zones via zone resize bars (see **Resizing Zones**).
 
@@ -94,7 +94,7 @@ Placeholders stay anchored to their zone: dragging their surface does not reposi
 
 There are several ways to remove a zone, the main ones being:
 
-- By pressing the blue "x" button on the placeholder window of an empty zone.
+- By pressing the blue "×" button on the placeholder window of an empty zone.
 - By pressing a keyboard shortcut Control-Cmd-[minus].
 
 When invoking Control-Cmd-[minus], never remove the zone containing the currently active (aka key) window. Among the remaining zones, remove one using this priority:
@@ -105,7 +105,7 @@ When invoking Control-Cmd-[minus], never remove the zone containing the currentl
 
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
 
-**Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "x" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.
+**Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "×" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.
 
 A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
 
@@ -264,7 +264,7 @@ This behavior makes oversized right-column windows usable without permanently di
 
 ### UnderCovers Mode
 
-When a screen has exactly one (empty) tiling zone, its placeholder shows a blue "⌄" button instead of "x". Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. Target indicators remain visible and work normally.
+When a screen has exactly one (empty) tiling zone, its placeholder shows a blue "⌄" button instead of "×". Clicking "⌄" closes that screen's placeholder window but keeps zone 1 logically present so Zonogy can still target it. In this UnderCovers state, unmanaged windows and desktop icons can surface. Target indicators remain visible and work normally. If the Launcher is open, dismiss it when entering UnderCovers so it doesn't cover the desktop.
 
 This per-screen UnderCovers state ends (and the normal placeholder reappears) when any of the following occurs on that screen:
 
