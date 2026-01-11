@@ -314,15 +314,6 @@ extension AppController {
         print("Captured window \(managed.windowId)")
     }
 
-    func validateApplication(pid: pid_t) {
-        let pruned = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "repl-command")
-        if pruned.isEmpty {
-            print("Validated pid \(pid): no destroyed windows detected")
-        } else {
-            print("Validated pid \(pid): pruned windows \(pruned)")
-        }
-    }
-
     // MARK: - Window Placement Logic
 
 

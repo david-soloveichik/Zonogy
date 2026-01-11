@@ -35,7 +35,7 @@ This is fundamentally different from Cocoa/AppKit coordinates which have y:0 at 
 2. When obtaining screen bounds from `NSScreen.visibleFrame` or `NSScreen.frame`, **convert from Cocoa to screen coordinates**
 3. When positioning **AppKit windows** (placeholder windows), **convert from screen to Cocoa coordinates** before calling `setFrame()`
 4. When positioning **external windows via Accessibility API**, use screen coordinates directly (no conversion needed)
-5. All logging, REPL output, and socket API responses must report frames in screen coordinates
+5. All logging must report frames in screen coordinates
 
 **Example for 3-zone layout on a 1080p display:**
 
@@ -50,7 +50,7 @@ Never mix coordinate systems or windows will be positioned incorrectly.
 Zonogy has two different ways of referring to a “screen”, and mixing them causes very confusing logs and bugs:
 
 - **`CGDirectDisplayID` (aka `displayId`)**: stable identifier used for all internal per-screen state (zone controllers, snapshots, temporary zones, etc).
-- **Screen index (0, 1, 2, …)**: user-facing identifier used in logs/REPL (matches `winmanmon` / `NSScreen.screens` ordering). This ordering can change when displays are added/removed/rearranged.
+- **Screen index (0, 1, 2, …)**: user-facing identifier used in logs (matches `winmanmon` / `NSScreen.screens` ordering). This ordering can change when displays are added/removed/rearranged.
 
 **Implementation/logging requirements:**
 
@@ -181,8 +181,6 @@ If a zone contains a managed window, resizing that window manually (by dragging 
 
 While the user is dragging a zone resize bar, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
 
-For testing and automation, the REPL also exposes a `resize-zone <index> <x> <y> <width> <height>` command that resizes an empty zone using screen coordinates (before per-edge margins are applied—8px at the outer edges, 4px per zone along shared edges). The socket API mirrors this capability through a `resize-zone` method that accepts the zone index and a `frame` object with `x`, `y`, `width`, and `height` values.
-
 ### Repositioning and Resizing Window to Zone
 
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
@@ -311,17 +309,13 @@ For the AltTab window switcher feature, see **[SPECIFICATION-ALTTAB.md](SPECIFIC
 
 ## Developer Tools
 
-### REPL and Socket API
-
-For programmatic interaction with Zonogy (command-line REPL and Unix domain socket interface), see **[SPECIFICATION-REPL.md](SPECIFICATION-REPL.md)**.
-
 ### Debug Log File
 
 Zonogy always writes debug logs to `/tmp/zonogy-debug.log`. AI agents should read only the tail of this log (e.g., `tail -500`) since it can grow large during long sessions.
 
 ### Time-travel Debug Logging
 
-When I am running Zonogy (either in REPL, socket, or other modes) and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
+When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
 
 After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
 
