@@ -527,18 +527,14 @@ extension AppController {
     ///    not assigned this pass and is not in the temporary floating zone.
     /// 6. Refresh targeted zone state, temporary‑zone targeting, and visual
     ///    indicators so the UI matches the new layout.
-    internal func syncWindowsToZones(excluding excludedZones: Set<ZoneKey> = [], recentlyPlacedInTempZone: Int? = nil) {
-        // Merge explicit exclusions with zones that should not be touched while
-        // a drag‑and‑drop session is in progress (origin/hovered zones).
-        let effectiveExcludedZones = excludedZones.union(dragExcludedZones)
+    internal func syncWindowsToZones(recentlyPlacedInTempZone: Int? = nil) {
         let tempZoneExclusion = recentlyPlacedInTempZone
 
         // Ensure only one sync runs at a time. If a sync is already underway,
-        // just record that another pass is needed and the combined exclusions;
-        // the deferred block below will run a follow‑up sync when safe.
+        // just record that another pass is needed; the deferred block below
+        // will run a follow‑up sync when safe.
         if isSyncingWindows {
             pendingSync = true
-            pendingSyncExcludedZones.formUnion(effectiveExcludedZones)
             if let recentlyPlacedInTempZone {
                 pendingSyncRecentlyPlacedInTempZone = recentlyPlacedInTempZone
             }
@@ -549,11 +545,9 @@ extension AppController {
             isSyncingWindows = false
             if pendingSync {
                 pendingSync = false
-                let pendingExcluded = pendingSyncExcludedZones
-                pendingSyncExcludedZones.removeAll()
                 let pendingTempZoneExclusion = pendingSyncRecentlyPlacedInTempZone
                 pendingSyncRecentlyPlacedInTempZone = nil
-                syncWindowsToZones(excluding: pendingExcluded, recentlyPlacedInTempZone: pendingTempZoneExclusion)
+                syncWindowsToZones(recentlyPlacedInTempZone: pendingTempZoneExclusion)
             }
         }
 
@@ -617,7 +611,6 @@ extension AppController {
         // needs the existingWindows list - it manages its own pool.
         placeholderCoordinator.syncPlaceholders(
             screenOrder: screenOrder,
-            excludedZones: effectiveExcludedZones,
             contextProvider: { screenId in
                 guard let context = self.screenContexts[screenId],
                       let descriptor = self.descriptor(for: screenId) else {
@@ -629,9 +622,6 @@ extension AppController {
                     zoneController: zoneController,
                     displayFrameForZone: { zone in
                         self.frameWithMargin(for: zone, in: zoneController)
-                    },
-                    placeholderToZoneFrame: { frame, zone in
-                        self.zoneFrame(fromContentFrame: frame, for: zone, in: context)
                     }
                 )
             },
@@ -658,7 +648,7 @@ extension AppController {
             }
         }
 
-        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty, excluded zones \(effectiveExcludedZones.count)")
+        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty")
 
         // Phase 4: clean up stale assignments. Any window that was *not*
         // assigned to a tiled zone in this pass and is *not* parked in the
@@ -846,93 +836,6 @@ extension AppController {
             bottom: max(0, bottomMargin),
             right: max(0, rightMargin)
         )
-    }
-
-
-    /// Convert a content frame (placeholder or occupant window) back into the zone frame.
-    internal func zoneFrame(fromContentFrame frame: CGRect, for zone: Zone, in context: ScreenContext) -> CGRect {
-        let margins = zoneMargins(for: zone, in: context.zoneController)
-
-        var zoneFrame = frame.standardized
-        zoneFrame.origin.x -= margins.left
-        zoneFrame.origin.y -= margins.top
-        zoneFrame.size.width += margins.left + margins.right
-        zoneFrame.size.height += margins.top + margins.bottom
-        let layoutBounds = context.zoneController.layoutBounds.standardized
-        let pins = pinnedEdges(for: zone, in: context.zoneController)
-
-        if pins.contains(.left) {
-            let maxX = zoneFrame.maxX
-            zoneFrame.origin.x = layoutBounds.minX
-            zoneFrame.size.width = max(0, maxX - zoneFrame.origin.x)
-        }
-
-        if pins.contains(.right) {
-            let minX = zoneFrame.minX
-            zoneFrame.size.width = max(0, layoutBounds.maxX - minX)
-        }
-
-        if pins.contains(.top) {
-            let maxY = zoneFrame.maxY
-            zoneFrame.origin.y = layoutBounds.minY
-            zoneFrame.size.height = max(0, maxY - zoneFrame.origin.y)
-        }
-
-        if pins.contains(.bottom) {
-            let minY = zoneFrame.minY
-            zoneFrame.size.height = max(0, layoutBounds.maxY - minY)
-        }
-
-        zoneFrame = clamp(frame: zoneFrame, to: layoutBounds)
-        return zoneFrame
-    }
-
-    private struct ZoneEdgePinOptions: OptionSet {
-        let rawValue: Int
-
-        static let top = ZoneEdgePinOptions(rawValue: 1 << 0)
-        static let bottom = ZoneEdgePinOptions(rawValue: 1 << 1)
-        static let left = ZoneEdgePinOptions(rawValue: 1 << 2)
-        static let right = ZoneEdgePinOptions(rawValue: 1 << 3)
-    }
-
-    private func pinnedEdges(for zone: Zone, in controller: ZoneController) -> ZoneEdgePinOptions {
-        var pins: ZoneEdgePinOptions = []
-        let zoneCount = controller.allZones.count
-
-        if zone.index == 1 {
-            pins.insert(.left)
-        }
-
-        if zoneCount >= 3 {
-            if zone.index == 2 {
-                pins.insert(.top)
-            }
-            if zone.index == 3 {
-                pins.insert(.bottom)
-            }
-        }
-
-        if zoneCount >= 2, zone.index >= 2 {
-            pins.insert(.right)
-        }
-
-        return pins
-    }
-
-    private func clamp(frame: CGRect, to bounds: CGRect) -> CGRect {
-        var normalized = frame.standardized
-
-        let originX = max(bounds.minX, normalized.origin.x)
-        let originY = max(bounds.minY, normalized.origin.y)
-        let maxX = min(bounds.maxX, normalized.maxX)
-        let maxY = min(bounds.maxY, normalized.maxY)
-
-        normalized.origin = CGPoint(x: originX, y: originY)
-        normalized.size.width = max(0, maxX - originX)
-        normalized.size.height = max(0, maxY - originY)
-
-        return normalized
     }
 
     // MARK: - ZoneResizeHandleManagerDelegate

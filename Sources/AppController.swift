@@ -48,7 +48,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let edgeAlignmentTolerance: CGFloat = 0.5
     internal var isSyncingWindows = false
     internal var pendingSync = false
-    internal var pendingSyncExcludedZones: Set<ZoneKey> = []
     internal var pendingSyncRecentlyPlacedInTempZone: Int?
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
@@ -202,10 +201,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             }
             return leftKey.0 < rightKey.0
         }
-    }
-
-    internal var dragExcludedZones: Set<ZoneKey> {
-        dragDropCoordinator.dragExcludedZones
     }
 
     private override init() {

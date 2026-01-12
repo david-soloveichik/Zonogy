@@ -31,7 +31,6 @@ final class PlaceholderCoordinator {
     /// Creates/shows placeholders for empty zones, hides them for occupied zones.
     func syncPlaceholders(
         screenOrder: [CGDirectDisplayID],
-        excludedZones: Set<ZoneKey>,
         contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
         shouldSuppressPlaceholder: (ZoneKey) -> Bool
     ) {
@@ -44,7 +43,6 @@ final class PlaceholderCoordinator {
 
             for zone in zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
-                let isExcluded = excludedZones.contains(key)
 
                 // Case A: Zone is occupied by an external window
                 if zone.occupantWindowId != nil {
@@ -72,12 +70,12 @@ final class PlaceholderCoordinator {
                 if let placeholder = zone.placeholder {
                     // Already has one, update and show
                     placeholder.update(screenId: screenId, zoneIndex: zone.index)
-                    delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
+                    delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor)
                 } else {
                     // Needs one. Try to reuse or create.
                     let placeholder = obtainPlaceholder(for: key, frame: displayFrame, on: context.descriptor)
                     zone.placeholder = placeholder
-                    delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor, isExcluded: isExcluded)
+                    delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor)
                 }
             }
         }
@@ -147,14 +145,6 @@ final class PlaceholderCoordinator {
         }
     }
 
-    /// Apply a resize from a placeholder drag.
-    func applyResize(zoneKey: ZoneKey, placeholderFrame: CGRect, context: PlaceholderCoordinatorScreenContext, finalize: Bool) {
-        guard let zone = context.zoneController.zone(at: zoneKey.index) else { return }
-        let zoneFrame = context.zoneFrame(fromPlaceholderFrame: placeholderFrame, zone: zone)
-        guard context.zoneController.resizeZone(at: zoneKey.index, to: zoneFrame) else { return }
-        delegate?.placeholderCoordinator(self, didResizeZone: zoneKey, finalize: finalize)
-    }
-
     /// Forget a placeholder (called when zone is removed).
     /// This is a no-op now since placeholders are managed by zones directly.
     func forget(zoneKey: ZoneKey) {
@@ -172,8 +162,7 @@ protocol PlaceholderCoordinatorDelegate: AnyObject {
         _ coordinator: PlaceholderCoordinator,
         prepareToShow placeholder: PlaceholderWindow,
         at frame: CGRect,
-        on descriptor: ScreenDescriptor,
-        isExcluded: Bool
+        on descriptor: ScreenDescriptor
     )
 
     /// Called when a placeholder should be hidden.
@@ -181,13 +170,6 @@ protocol PlaceholderCoordinatorDelegate: AnyObject {
         _ coordinator: PlaceholderCoordinator,
         prepareToHide placeholder: PlaceholderWindow,
         reason: PlaceholderCoordinator.HideReason
-    )
-
-    /// Called when a zone was resized via placeholder drag.
-    func placeholderCoordinator(
-        _ coordinator: PlaceholderCoordinator,
-        didResizeZone key: ZoneKey,
-        finalize: Bool
     )
 }
 
@@ -197,13 +179,8 @@ struct PlaceholderCoordinatorScreenContext {
     let descriptor: ScreenDescriptor
     let zoneController: ZoneController
     let displayFrameForZone: (Zone) -> CGRect
-    let placeholderToZoneFrame: (CGRect, Zone) -> CGRect
 
     func displayFrame(for zone: Zone) -> CGRect {
         displayFrameForZone(zone)
-    }
-
-    func zoneFrame(fromPlaceholderFrame frame: CGRect, zone: Zone) -> CGRect {
-        placeholderToZoneFrame(frame, zone)
     }
 }

@@ -56,7 +56,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     var windowPlacementManager: WindowPlacementManager { get }
 
     // Synchronization
-    func syncWindowsToZones(excluding excludedZones: Set<ZoneKey>, recentlyPlacedInTempZone: Int?)
+    func syncWindowsToZones(recentlyPlacedInTempZone: Int?)
 
     // Add-zone indicator support
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
@@ -96,20 +96,6 @@ class DragDropCoordinator {
 
     var currentDragWindowId: Int? {
         dragSession?.windowId
-    }
-
-    var dragExcludedZones: Set<ZoneKey> {
-        guard let dragSession else {
-            return []
-        }
-        var excluded: Set<ZoneKey> = []
-        if let origin = dragSession.originZoneKey {
-            excluded.insert(origin)
-        }
-        if let hovered = dragSession.hoveredZoneKey {
-            excluded.insert(hovered)
-        }
-        return excluded
     }
 
     func beginDragSession(
@@ -257,7 +243,7 @@ class DragDropCoordinator {
 
         guard let session = dragSession, session.windowId == windowId else {
             tearDownDragSession()
-            delegate.syncWindowsToZones(excluding: [], recentlyPlacedInTempZone: nil)
+            delegate.syncWindowsToZones(recentlyPlacedInTempZone: nil)
             return (nil, nil, .reassign)
         }
 
@@ -426,8 +412,7 @@ class DragDropCoordinator {
         if let windowId, !session.originatedFromTemporary,
            let delegate,
            delegate.isControlCommandDragActive() {
-            // Clear drag session BEFORE promotion so dragExcludedZones is empty
-            // when syncWindowsToZones runs inside promoteTiledDragToTemporary
+            // Clear drag session BEFORE promotion so any follow-up sync runs without stale drag state.
             let preferredTemporaryScreenId = temporaryScreenId
                 ?? session.hoveredTemporaryScreenId
                 ?? delegate.targetedZoneManager.targetedTemporaryScreenId
