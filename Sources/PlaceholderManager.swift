@@ -1,6 +1,17 @@
 import Foundation
 import AppKit
 
+// MARK: - FirstClickButton
+
+/// NSButton subclass that accepts first mouse clicks in non-activating panels.
+/// Standard NSButton returns false for acceptsFirstMouse, which can cause
+/// clicks to be ignored when the window is inactive.
+private final class FirstClickButton: NSButton {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+}
+
 /// Delegate protocol for placeholder UI events.
 protocol PlaceholderManagerDelegate: AnyObject {
     /// Called when a placeholder window is activated (clicked).
@@ -81,7 +92,7 @@ final class PlaceholderManager {
 
         // Create close/put-away button
         let buttonSize: CGFloat = 36
-        let closeButton = NSButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
+        let closeButton = FirstClickButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
         closeButton.frame = NSRect(x: 16, y: max(frame.height - buttonSize - 16, 16), width: buttonSize, height: buttonSize)
         closeButton.setButtonType(.momentaryChange)
         closeButton.bezelStyle = .shadowlessSquare
@@ -110,7 +121,7 @@ final class PlaceholderManager {
         let pillY = closeButton.frame.origin.y
         let iconLeftPadding: CGFloat = 14
 
-        let searchPill = NSButton(frame: NSRect(x: 0, y: pillY, width: pillPreferredWidth, height: pillHeight))
+        let searchPill = FirstClickButton(frame: NSRect(x: 0, y: pillY, width: pillPreferredWidth, height: pillHeight))
         searchPill.setButtonType(.momentaryChange)
         searchPill.bezelStyle = .shadowlessSquare
         searchPill.isBordered = false
