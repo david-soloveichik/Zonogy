@@ -87,7 +87,13 @@ extension AppController {
             return
         }
 
-        _ = performRemoveZone(at: zoneIndex, on: screenId, announce: false)
+        // Defer zone removal to the next run loop tick. We aggressively reuse placeholder windows
+        // during the sync that follows zone removal; doing that while AppKit is still unwinding
+        // the close button click tracking can leave the reused button unresponsive.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            _ = self.performRemoveZone(at: zoneIndex, on: screenId, announce: false)
+        }
     }
 
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
