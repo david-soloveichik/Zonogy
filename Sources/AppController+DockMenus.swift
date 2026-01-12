@@ -103,6 +103,10 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectAppHeader bundleId: String) {
         Logger.debug("DockMenus: app header selected for \(bundleId)")
+        // Hide the Launcher if it's open
+        if launcherController.isActive {
+            launcherController.hide()
+        }
         // Activate the app without targeting a specific window
         if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
             app.activate(options: [.activateIgnoringOtherApps])
