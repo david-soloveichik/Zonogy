@@ -1,0 +1,73 @@
+import Foundation
+
+/// Lightweight runtime assertions for ApplicationExceptionPolicy lookup and merge semantics.
+enum ApplicationExceptionPolicyTests {
+    @discardableResult
+    static func run() -> Bool {
+        var allPassed = true
+
+        func assert(_ condition: @autoclosure () -> Bool, _ message: String) {
+            if !condition() {
+                print("ApplicationExceptionPolicyTests: \(message)")
+                allPassed = false
+            }
+        }
+
+        do {
+            let base = ApplicationExceptionRule(
+                bundleIdentifier: "com.example.app",
+                ignoreActivationPolicy: true,
+                ignoreZoomButtonRequirement: nil,
+                ignoreHeightRequirement: true,
+                disallowEmptyTitleWindows: nil,
+                hasMainWindow: true,
+                snapToZoneOnSelfResize: nil,
+                excludedWindowTitles: ["Foo"]
+            )
+            let override = ApplicationExceptionRule(
+                bundleIdentifier: "com.example.app",
+                ignoreActivationPolicy: nil,
+                ignoreZoomButtonRequirement: false,
+                ignoreHeightRequirement: nil,
+                disallowEmptyTitleWindows: true,
+                hasMainWindow: nil,
+                snapToZoneOnSelfResize: true,
+                excludedWindowTitles: ["Bar"]
+            )
+            let merged = base.merged(with: override)
+
+            assert(merged.bundleIdentifier == "com.example.app", "merged rule should preserve bundle identifier")
+            assert(merged.ignoreActivationPolicy == true, "nil override should keep base value")
+            assert(merged.ignoreZoomButtonRequirement == false, "non-nil override should replace base value")
+            assert(merged.ignoreHeightRequirement == true, "nil override should keep base value")
+            assert(merged.disallowEmptyTitleWindows == true, "non-nil override should replace base value")
+            assert(merged.hasMainWindow == true, "nil override should keep base value")
+            assert(merged.snapToZoneOnSelfResize == true, "non-nil override should replace base value")
+            assert(merged.excludedWindowTitles == ["Bar"], "non-nil override list should replace base list")
+        }
+
+        do {
+            let bundleA = "com.example.a"
+            let bundleB = "com.example.b"
+
+            let rules: [ApplicationExceptionRule] = [
+                ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: true),
+                ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: false), // last wins
+                ApplicationExceptionRule(bundleIdentifier: bundleB, disallowEmptyTitleWindows: true, excludedWindowTitles: ["Hidden"]),
+            ]
+
+            let policy = ApplicationExceptionPolicy(rules: rules)
+
+            assert(policy.ignoresActivationPolicy(forBundleIdentifier: bundleA) == false, "last rule for a bundle should win")
+            assert(policy.ignoresActivationPolicy(forBundleIdentifier: "com.unknown") == false, "unknown bundle should use defaults")
+            assert(policy.disallowsEmptyTitleWindows(forBundleIdentifier: bundleB) == true, "should honor per-bundle empty title preference")
+            assert(policy.excludedWindowTitles(forBundleIdentifier: bundleB) == ["Hidden"], "should return excluded titles list")
+            assert(policy.excludedWindowTitles(forBundleIdentifier: "com.unknown") == [], "unknown bundle should return empty excluded titles")
+        }
+
+        if allPassed {
+            print("ApplicationExceptionPolicyTests: all tests passed")
+        }
+        return allPassed
+    }
+}

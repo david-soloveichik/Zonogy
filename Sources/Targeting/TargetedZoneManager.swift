@@ -76,8 +76,8 @@ class TargetedZoneManager {
         targetedDestination = newDestination
 
         if let resolvedKey {
-            // Convert display ID to screen index for logging
-            let screenIndex = ScreenContextStore.screenIndex(for: resolvedKey.screenId) ?? Int(resolvedKey.screenId)
+            // Convert display ID to a user-facing index for logging, using current screen ordering.
+            let screenIndex = delegate?.screenOrder.firstIndex(of: resolvedKey.screenId) ?? Int(resolvedKey.screenId)
             Logger.debug("Targeted zone set to \(resolvedKey.index) on screen \(screenIndex) due to \(reason)")
         } else {
             Logger.debug("Cleared targeted zone due to \(reason)")
@@ -101,7 +101,7 @@ class TargetedZoneManager {
 
         let oldDestination = targetedDestination
         targetedDestination = newDestination
-        let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
+        let screenIndex = delegate?.screenOrder.firstIndex(of: screenId) ?? Int(screenId)
         Logger.debug("Targeted temporary zone set on screen \(screenIndex) due to \(reason)")
         delegate?.refreshIndicators()
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
