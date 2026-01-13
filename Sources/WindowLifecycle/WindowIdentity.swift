@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+/// Snapshot of a window's identifying information for logging and debugging.
 struct WindowIdentity {
     let windowId: Int
     let externalIdentifier: ExternalWindowIdentifier

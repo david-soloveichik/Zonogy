@@ -1,5 +1,6 @@
 import AppKit
 
+/// Manages draggable resize handles between zones for adjusting zone layout ratios.
 struct ZoneSeparatorDescriptor {
     let screenId: CGDirectDisplayID
     let index: Int

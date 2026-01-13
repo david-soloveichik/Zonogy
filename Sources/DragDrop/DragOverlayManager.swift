@@ -1,5 +1,6 @@
 import AppKit
 
+/// Manages translucent zone overlays shown during window drag operations.
 struct ZoneOverlayDescriptor {
     let key: ZoneKey
     let cocoaFrame: CGRect

@@ -1,5 +1,6 @@
 import CoreGraphics
 
+/// Handles drag behavior for windows in the temporary (floating) zone.
 protocol TemporaryDragHandlerHost: AnyObject {
     func isControlCommandDragActive() -> Bool
     func currentCursorAccessibilityPoint() -> CGPoint?

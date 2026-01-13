@@ -1,5 +1,6 @@
 import AppKit
 
+/// Manages the target indicator pills displayed above tiling zones.
 struct ZoneIndicatorDescriptor {
     let key: ZoneKey
     let cocoaFrame: CGRect

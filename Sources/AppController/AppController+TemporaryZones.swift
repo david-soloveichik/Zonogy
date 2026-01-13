@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 
+/// AppController extension for temporary zone assignment and management.
 extension AppController {
     func temporaryZoneOccupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
         temporaryZoneCoordinator.occupant(on: screenId)
