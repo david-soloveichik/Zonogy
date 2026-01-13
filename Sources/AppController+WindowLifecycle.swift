@@ -87,9 +87,9 @@ extension AppController {
             return
         }
 
-        // Defer zone removal to the next run loop tick. We aggressively reuse placeholder windows
-        // during the sync that follows zone removal; doing that while AppKit is still unwinding
-        // the close button click tracking can leave the reused button unresponsive.
+        // Defer zone removal to the next run loop tick. Zone removal triggers a sync that can close
+        // and recreate placeholder windows; doing that while AppKit is still unwinding the click
+        // tracking can leave the UI in a flaky state.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             _ = self.performRemoveZone(at: zoneIndex, on: screenId, announce: false)
@@ -159,8 +159,8 @@ extension AppController {
         }
         manualResizeDetachedWindowIds.remove(windowId)
         selfResizeSnapDebouncer.clear(windowId: windowId)
-        // Note: Placeholders are no longer tracked by windowController.
-        // They are owned directly by zones and managed by PlaceholderCoordinator.
+        // Note: Placeholder windows are not tracked by windowController; they are managed
+        // separately by PlaceholderCoordinator.
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }

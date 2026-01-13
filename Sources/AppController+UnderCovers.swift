@@ -47,13 +47,11 @@ extension AppController {
             return
         }
 
-        if let placeholder = zone.placeholder {
+        let key = ZoneKey(screenId: screenId, index: zone.index)
+        if placeholderCoordinator.hasPlaceholder(for: key) {
             let screenIndex = screenContextStore.loggingIndex(for: screenId)
-            Logger.debug("UnderCovers begin: hiding placeholder for zone 1 on screen \(screenIndex)")
-            placeholder.hide()
-            let key = ZoneKey(screenId: screenId, index: zone.index)
-            placeholderCoordinator.forget(zoneKey: key)
-            zone.placeholder = nil
+            Logger.debug("UnderCovers begin: closing placeholder for zone \(zone.index) on screen \(screenIndex)")
+            placeholderCoordinator.removePlaceholder(for: key, reason: .idle)
         }
 
         underCoversScreens.insert(screenId)
@@ -85,24 +83,17 @@ extension AppController {
     // MARK: - WindowPlacementManagerDelegate hook
 
     func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int) {
-        hidePlaceholderIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: .replacedByWindow)
+        closePlaceholderIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: .replacedByWindow)
         endUnderCoversForPlacementIfNeeded(on: screenId, zoneIndex: zoneIndex, reason: "window-placement")
         dismissLauncherIfActive()
     }
 
-    private func hidePlaceholderIfNeeded(
+    private func closePlaceholderIfNeeded(
         on screenId: CGDirectDisplayID,
         zoneIndex: Int,
-        reason: PlaceholderCoordinator.HideReason
+        reason: PlaceholderCoordinator.CloseReason
     ) {
-        guard let context = screenContexts[screenId],
-              let zone = context.zoneController.zone(at: zoneIndex),
-              zone.placeholder != nil else {
-            return
-        }
-
         let key = ZoneKey(screenId: screenId, index: zoneIndex)
-        _ = placeholderCoordinator.hidePlaceholder(for: key, reason: reason)
-        zone.placeholder = nil
+        placeholderCoordinator.removePlaceholder(for: key, reason: reason)
     }
 }

@@ -21,17 +21,16 @@ extension AppController {
 
         Logger.debug("Showing placeholder using show()")
         placeholder.show(at: frame, on: descriptor)
-        placeholder.screenDisplayId = descriptor.displayId
     }
 
     func placeholderCoordinator(
         _ coordinator: PlaceholderCoordinator,
-        prepareToHide placeholder: PlaceholderWindow,
-        reason: PlaceholderCoordinator.HideReason
+        prepareToClose placeholder: PlaceholderWindow,
+        reason: PlaceholderCoordinator.CloseReason
     ) {
         let screenIndex = screenContextStore.loggingIndex(for: placeholder.screenDisplayId)
-        Logger.debug("Preparing to hide placeholder for zone \(placeholder.zoneIndex) on screen \(screenIndex) (reason: \(reason))")
-        // Placeholder's hide() is called by PlaceholderCoordinator after this callback
+        Logger.debug("Preparing to close placeholder for zone \(placeholder.zoneIndex) on screen \(screenIndex) (reason: \(reason))")
+        // PlaceholderWindow.close() is called by PlaceholderCoordinator after this callback.
     }
 
     // MARK: - PlaceholderManagerDelegate

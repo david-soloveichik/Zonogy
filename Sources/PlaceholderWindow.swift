@@ -2,16 +2,16 @@ import Foundation
 import AppKit
 
 /// Represents a visual placeholder window for an empty tiling zone.
-/// Unlike ManagedWindow, placeholders have no windowId - they are owned directly by zones.
+/// Unlike ManagedWindow, placeholders have no windowId and are managed internally by Zonogy.
 final class PlaceholderWindow {
     /// The underlying AppKit panel (non-activating, frameless).
-    let panel: PlaceholderPanel
+    private let panel: PlaceholderPanel
 
     /// Screen this placeholder is currently displayed on.
-    var screenDisplayId: CGDirectDisplayID
+    private(set) var screenDisplayId: CGDirectDisplayID
 
     /// Zone index this placeholder represents (1-based).
-    var zoneIndex: Int
+    private(set) var zoneIndex: Int
 
     /// The content view for this placeholder (provides UI updates).
     private var contentView: PlaceholderContentView? {
@@ -24,18 +24,9 @@ final class PlaceholderWindow {
         self.zoneIndex = zoneIndex
     }
 
-    /// The current frame of the placeholder in Cocoa coordinates.
-    var frame: CGRect {
-        panel.frame
-    }
-
-    /// Whether the placeholder is currently visible on screen.
-    var isVisible: Bool {
-        panel.isVisible
-    }
-
     /// Show the placeholder at the given frame (in screen coordinates).
     func show(at screenFrame: CGRect, on screen: ScreenDescriptor) {
+        screenDisplayId = screen.displayId
         let cocoaFrame = screen.screenToCocoa(screenFrame)
         panel.setFrame(cocoaFrame, display: true)
         panel.orderFront(nil)
@@ -56,11 +47,5 @@ final class PlaceholderWindow {
         self.screenDisplayId = screenId
         self.zoneIndex = zoneIndex
         contentView?.update(screenId: screenId, zoneIndex: zoneIndex)
-    }
-
-    /// Reposition the placeholder to the given frame without changing visibility.
-    func setFrame(_ screenFrame: CGRect, on screen: ScreenDescriptor) {
-        let cocoaFrame = screen.screenToCocoa(screenFrame)
-        panel.setFrame(cocoaFrame, display: true)
     }
 }

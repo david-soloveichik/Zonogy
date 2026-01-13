@@ -113,9 +113,8 @@ extension AppController {
             return nil
         }
 
-        // Clear placeholder mappings for this screen since zones are being reindexed
-        // This prevents stale mappings from causing duplicate placeholders
-        placeholderCoordinator.clearMappingsForScreen(screenId)
+        // Clear placeholders for this screen since zones are being reindexed
+        placeholderCoordinator.clearPlaceholdersForScreen(screenId)
 
         // Zone topology has changed; cancel any in-flight accessibility frame retries
         // so they do not apply stale geometry computed before the removal.
@@ -604,11 +603,9 @@ extension AppController {
             }
         }
 
-        // Phase 3: sync placeholder windows so every empty zone has a matching
-        // placeholder (unless explicitly suppressed or excluded for this pass),
-        // reusing existing placeholder windows where possible.
-        // Note: PlaceholderCoordinator now owns placeholders directly and no longer
-        // needs the existingWindows list - it manages its own pool.
+        // Phase 3: sync placeholder windows so every empty zone has a matching placeholder
+        // (unless explicitly suppressed for this pass). PlaceholderCoordinator owns and
+        // tracks placeholder windows internally.
         placeholderCoordinator.syncPlaceholders(
             screenOrder: screenOrder,
             contextProvider: { screenId in
@@ -1024,7 +1021,7 @@ extension AppController {
                 }
             }
 
-            placeholderCoordinator.clearMappingsForScreen(screenId)
+            placeholderCoordinator.clearPlaceholdersForScreen(screenId)
 
             syncWindowsToZones()
             activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")

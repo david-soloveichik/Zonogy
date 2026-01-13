@@ -1,9 +1,9 @@
 import AppKit
 
-/// Manages lifecycle and reuse of placeholder windows across zones.
-/// Placeholders are owned directly by this coordinator (no windowId, not in registry).
+/// Manages lifecycle of placeholder windows across zones.
+/// Placeholders are created when needed and closed when no longer needed.
 final class PlaceholderCoordinator {
-    enum HideReason {
+    enum CloseReason {
         case replacedByWindow
         case idle
     }
@@ -12,9 +12,6 @@ final class PlaceholderCoordinator {
 
     private let placeholderManager: PlaceholderManager
 
-    /// Pool of hidden placeholders available for reuse.
-    private var placeholderPool: [PlaceholderWindow] = []
-
     /// Active placeholders by zone key.
     private var activePlaceholders: [ZoneKey: PlaceholderWindow] = [:]
 
@@ -22,13 +19,18 @@ final class PlaceholderCoordinator {
         self.placeholderManager = placeholderManager
     }
 
-    /// Number of currently active (visible) placeholders.
+    /// Number of currently tracked placeholders.
     var activePlaceholderCount: Int {
         activePlaceholders.count
     }
 
+    /// Returns true if a placeholder exists for the given zone.
+    func hasPlaceholder(for key: ZoneKey) -> Bool {
+        activePlaceholders[key] != nil
+    }
+
     /// Synchronize placeholders to match the current zone layout.
-    /// Creates/shows placeholders for empty zones, hides them for occupied zones.
+    /// Creates/shows placeholders for empty zones, closes them for occupied/suppressed zones.
     func syncPlaceholders(
         screenOrder: [CGDirectDisplayID],
         contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
@@ -36,120 +38,84 @@ final class PlaceholderCoordinator {
     ) {
         var neededKeys = Set<ZoneKey>()
 
-        // Process each zone
+        // Process each zone to determine which need placeholders
         for screenId in screenOrder {
             guard let context = contextProvider(screenId) else { continue }
-            let zoneController = context.zoneController
 
-            for zone in zoneController.allZones {
+            for zone in context.zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
 
-                // Case A: Zone is occupied by an external window
-                if zone.occupantWindowId != nil {
-                    // Hide any placeholder for this zone
-                    if let placeholder = zone.placeholder {
-                        hidePlaceholder(placeholder, for: key, reason: .replacedByWindow)
-                        zone.placeholder = nil
-                    }
+                // Skip occupied zones and suppressed zones (e.g., UnderCovers)
+                if zone.occupantWindowId != nil || shouldSuppressPlaceholder(key) {
                     continue
                 }
 
-                // Case B: Zone is empty but suppressed (e.g., UnderCovers)
-                if shouldSuppressPlaceholder(key) {
-                    if let placeholder = zone.placeholder {
-                        hidePlaceholder(placeholder, for: key, reason: .idle)
-                        zone.placeholder = nil
-                    }
-                    continue
-                }
-
-                // Case C: Zone is empty and needs a placeholder
+                // Zone is empty and needs a placeholder
                 neededKeys.insert(key)
                 let displayFrame = context.displayFrame(for: zone)
 
-                if let placeholder = zone.placeholder {
+                if let existing = activePlaceholders[key] {
                     // Already has one, update and show
-                    placeholder.update(screenId: screenId, zoneIndex: zone.index)
-                    delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor)
+                    existing.update(screenId: screenId, zoneIndex: zone.index)
+                    delegate?.placeholderCoordinator(self, prepareToShow: existing, at: displayFrame, on: context.descriptor)
                 } else {
-                    // Needs one. Try to reuse or create.
-                    let placeholder = obtainPlaceholder(for: key, frame: displayFrame, on: context.descriptor)
-                    zone.placeholder = placeholder
+                    // Needs one, create it
+                    let placeholder = createPlaceholder(for: key, frame: displayFrame, on: context.descriptor)
                     delegate?.placeholderCoordinator(self, prepareToShow: placeholder, at: displayFrame, on: context.descriptor)
                 }
             }
         }
 
-        // Clean up active placeholders that are no longer needed
-        for (key, placeholder) in activePlaceholders where !neededKeys.contains(key) {
-            hidePlaceholder(placeholder, for: key, reason: .idle)
-
-            if let context = contextProvider(key.screenId),
-               let zone = context.zoneController.zone(at: key.index) {
-                zone.placeholder = nil
-            }
+        // Close placeholders that are no longer needed (collect keys first to avoid mutating while iterating)
+        let keysToRemove = activePlaceholders.keys.filter { !neededKeys.contains($0) }
+        for key in keysToRemove {
+            guard let placeholder = activePlaceholders[key] else { continue }
+            let reason: CloseReason = contextProvider(key.screenId)
+                .flatMap { $0.zoneController.zone(at: key.index) }
+                .map { $0.occupantWindowId != nil ? .replacedByWindow : .idle } ?? .idle
+            closePlaceholder(placeholder, for: key, reason: reason)
         }
     }
 
-    /// Get or create a placeholder for a zone.
-    private func obtainPlaceholder(for key: ZoneKey, frame: CGRect, on screen: ScreenDescriptor) -> PlaceholderWindow {
-        // Check if we already have one active for this key
-        if let existing = activePlaceholders[key] {
-            existing.update(screenId: key.screenId, zoneIndex: key.index)
-            return existing
-        }
-
-        // Try to reuse from pool
-        let placeholder: PlaceholderWindow
-        if let reusable = placeholderPool.popLast() {
-            reusable.update(screenId: key.screenId, zoneIndex: key.index)
-            placeholder = reusable
-            Logger.debug("Reusing placeholder for zone \(key.index) on screen \(ScreenContextStore.loggingIndex(for: key.screenId))")
-        } else {
-            placeholder = placeholderManager.createPlaceholder(frame: frame, zoneIndex: key.index, on: screen)
-            Logger.debug("Created new placeholder for zone \(key.index) on screen \(ScreenContextStore.loggingIndex(for: key.screenId))")
-        }
-
+    /// Create a new placeholder for a zone and track it.
+    private func createPlaceholder(for key: ZoneKey, frame: CGRect, on screen: ScreenDescriptor) -> PlaceholderWindow {
+        let placeholder = placeholderManager.createPlaceholder(frame: frame, zoneIndex: key.index, on: screen)
         activePlaceholders[key] = placeholder
+        Logger.debug("Created placeholder for zone \(key.index) on screen \(ScreenContextStore.loggingIndex(for: key.screenId))")
         return placeholder
     }
 
-    /// Hide a placeholder and return it to the pool.
-    private func hidePlaceholder(_ placeholder: PlaceholderWindow, for key: ZoneKey, reason: HideReason) {
-        delegate?.placeholderCoordinator(self, prepareToHide: placeholder, reason: reason)
+    /// Close a placeholder when it is no longer needed.
+    private func closePlaceholder(_ placeholder: PlaceholderWindow, for key: ZoneKey, reason: CloseReason) {
+        delegate?.placeholderCoordinator(self, prepareToClose: placeholder, reason: reason)
         placeholder.hide()
         activePlaceholders.removeValue(forKey: key)
-        placeholderPool.append(placeholder)
+        // Defer close() to the next run loop tick to avoid closing AppKit windows while the
+        // event system is still unwinding (e.g., close button click tracking).
+        DispatchQueue.main.async {
+            placeholder.close()
+        }
     }
 
-    /// Immediately hide a placeholder for the provided zone key, if active.
-    /// Returns true when a placeholder was found and hidden.
+    /// Immediately close a placeholder for the provided zone key, if active.
+    /// Returns true when a placeholder was found and closed.
     @discardableResult
-    func hidePlaceholder(for key: ZoneKey, reason: HideReason) -> Bool {
+    func removePlaceholder(for key: ZoneKey, reason: CloseReason) -> Bool {
         guard let placeholder = activePlaceholders[key] else {
             return false
         }
-        hidePlaceholder(placeholder, for: key, reason: reason)
+        closePlaceholder(placeholder, for: key, reason: reason)
         return true
     }
 
-    /// Clear all placeholder mappings for a specific screen.
+    /// Close and remove all placeholders for a specific screen.
     /// Used when zones are reorganized (added/removed) to prevent stale mappings.
-    func clearMappingsForScreen(_ screenId: CGDirectDisplayID) {
+    func clearPlaceholdersForScreen(_ screenId: CGDirectDisplayID) {
         let keysToRemove = activePlaceholders.keys.filter { $0.screenId == screenId }
         for key in keysToRemove {
-            if let placeholder = activePlaceholders.removeValue(forKey: key) {
-                placeholder.hide()
-                placeholderPool.append(placeholder)
+            if let placeholder = activePlaceholders[key] {
+                closePlaceholder(placeholder, for: key, reason: .idle)
             }
-        }
-    }
-
-    /// Forget a placeholder (called when zone is removed).
-    /// This is a no-op now since placeholders are managed by zones directly.
-    func forget(zoneKey: ZoneKey) {
-        if let placeholder = activePlaceholders.removeValue(forKey: zoneKey) {
-            placeholder.close()
         }
     }
 }
@@ -165,11 +131,11 @@ protocol PlaceholderCoordinatorDelegate: AnyObject {
         on descriptor: ScreenDescriptor
     )
 
-    /// Called when a placeholder should be hidden.
+    /// Called when a placeholder is about to be closed.
     func placeholderCoordinator(
         _ coordinator: PlaceholderCoordinator,
-        prepareToHide placeholder: PlaceholderWindow,
-        reason: PlaceholderCoordinator.HideReason
+        prepareToClose placeholder: PlaceholderWindow,
+        reason: PlaceholderCoordinator.CloseReason
     )
 }
 

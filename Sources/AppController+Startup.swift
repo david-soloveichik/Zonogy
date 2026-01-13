@@ -37,9 +37,9 @@ extension AppController {
             let desiredZoneCount = max(1, min(windows.count, 3))
             let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
 
-            // Clear placeholder mappings when zone count changes to prevent stale mappings
+            // Clear placeholders when zone count changes
             if !removedWindowIds.isEmpty {
-                placeholderCoordinator.clearMappingsForScreen(screenId)
+                placeholderCoordinator.clearPlaceholdersForScreen(screenId)
             }
 
             for removedId in removedWindowIds {

@@ -3,7 +3,7 @@ import AppKit
 
 /// Manages the zones and their assignments.
 /// Zones can contain external window occupants (tracked by windowId).
-/// Placeholders are owned directly by zones, not tracked by this controller.
+/// Placeholder windows are managed separately by PlaceholderCoordinator.
 class ZoneController {
     struct RemovalResult {
         let removedWindowId: Int?
@@ -193,8 +193,7 @@ class ZoneController {
     }
 
     /// Recompute the layout for the current number of zones.
-    /// Preserves occupant window IDs but clears placeholder references
-    /// (placeholders will be reassigned by PlaceholderCoordinator during sync).
+    /// Preserves occupant window IDs; PlaceholderCoordinator manages placeholders separately.
     private func recomputeLayout(zoneCount: Int, preservingOccupants occupantsParam: [Int?]? = nil) {
         let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
 
@@ -207,8 +206,7 @@ class ZoneController {
 
         zones = frames.enumerated().map { index, frame in
             let occupantId = index < occupants.count ? occupants[index] : nil
-            // Placeholders are cleared on recompute; PlaceholderCoordinator will reassign them
-            return Zone(index: index + 1, frame: frame, occupantWindowId: occupantId, placeholder: nil)
+            return Zone(index: index + 1, frame: frame, occupantWindowId: occupantId)
         }
     }
 

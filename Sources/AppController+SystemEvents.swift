@@ -363,20 +363,8 @@ extension AppController {
                 $0.screenDisplayId == displayId
             }
 
-            // Clear any placeholder bookkeeping tied to this display.
-            // This also hides/pools the placeholder windows for reuse.
-            placeholderCoordinator.clearMappingsForScreen(displayId)
-
-            // Clear placeholder references from all zones on this display.
-            for zone in entry.context.zoneController.allZones {
-                if let placeholder = zone.placeholder {
-                    Logger.debug("Clearing placeholder for zone \(zone.index) on removed \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))]")
-                    if placeholder.isVisible {
-                        placeholder.hide()
-                    }
-                    zone.placeholder = nil
-                }
-            }
+            // Clear placeholders for this display and close the windows.
+            placeholderCoordinator.clearPlaceholdersForScreen(displayId)
 
             let zoneCount = entry.context.zoneController.allZones.count
             Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] with \(zoneCount) zone(s)")

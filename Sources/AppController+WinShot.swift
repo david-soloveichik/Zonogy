@@ -453,7 +453,7 @@ extension AppController {
 
         if currentZoneCount != targetZoneCount {
             context.zoneController.setZoneCount(to: targetZoneCount)
-            placeholderCoordinator.clearMappingsForScreen(snapshot.screenId)
+            placeholderCoordinator.clearPlaceholdersForScreen(snapshot.screenId)
         }
 
         // Restore zone frames/ratios
