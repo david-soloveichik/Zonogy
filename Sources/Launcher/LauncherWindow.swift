@@ -18,7 +18,7 @@ final class LauncherWindow: NSPanel {
         backgroundColor = .clear
         hasShadow = false  // Disable window shadow - we'll add custom shadow
         level = .popUpMenu  // Higher than .floating to appear above zone overlays
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        collectionBehavior = [.transient, .ignoresCycle]
         isMovable = true
         isMovableByWindowBackground = true
 
