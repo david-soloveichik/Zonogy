@@ -18,6 +18,7 @@ The Launcher opens via:
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice to minimize the window and remove its tiling zone.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
+  - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses. (Exception: zone removal applies its own rule above, which takes precedence.)
 
@@ -35,6 +36,7 @@ So the launcher automatically dismisses when:
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
 - Focus shifts to a managed window in a tiling or temporary zone (so the user can interact with it)
+- An unmanaged window gains focus on the Launcher's screen (to avoid overlapping it)
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
 

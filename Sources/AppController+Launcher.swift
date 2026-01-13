@@ -41,11 +41,18 @@ extension AppController {
     /// - After a zone is added
     /// - After clear/reset zones shortcut empties zones
     /// - Only when the "Auto-show Launcher for empty tiling zones" preference is enabled
+    /// - Not when an unmanaged window has focus on the targeted zone's screen
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
         guard autoShowLauncherForEmptyTilingZonesEnabled,
               !launcherController.isActive,
               let targetedKey = targetedZoneKey,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
+            return
+        }
+
+        // Don't auto-show if the targeted zone's screen has an unmanaged focused window
+        if unmanagedFocusedWindowScreenId == targetedKey.screenId {
+            Logger.debug("Launcher: Skipping auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
             return
         }
 
