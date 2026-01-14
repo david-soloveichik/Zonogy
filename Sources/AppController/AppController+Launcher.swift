@@ -474,13 +474,7 @@ extension AppController: LauncherControllerDelegate {
     private func activateWindow(_ managed: ManagedWindow) {
         // Record activity immediately for reliable recency tracking (don't rely on AX notification)
         recordActiveWindowForHistory(windowId: managed.windowId, reason: "launcher-activate")
-
-        let element = managed.backing.element
-        let pid = managed.backing.pid
-        if let app = NSRunningApplication(processIdentifier: pid) {
-            app.activate()
-        }
-        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        raiseWindow(managed)
     }
 }
 

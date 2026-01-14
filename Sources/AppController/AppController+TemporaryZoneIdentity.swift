@@ -45,8 +45,9 @@ extension AppController {
             // (extendTemporaryZoneProtection only extends if a deadline exists)
             self.temporaryZoneProtectionDeadlines.removeValue(forKey: windowId)
 
+            // Use simple direct activation (no Zonogy-first workaround needed here).
             Logger.debug("Temporary zone protection expired for window \(windowId); reactivating")
-            self.activateTemporaryZoneWindow(managed, reason: "protection-expired")
+            self.raiseWindow(managed)
         }
 
         temporaryZoneProtectionExpirationWorkItems[windowId] = workItem

@@ -672,6 +672,20 @@ extension AppController {
 
 }
 
+// MARK: - Window activation
+
+extension AppController {
+    /// Activates the application owning the window and raises the window to front.
+    internal func raiseWindow(_ managed: ManagedWindow) {
+        let element = managed.backing.element
+        let pid = managed.backing.pid
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            app.activate()
+        }
+        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+    }
+}
+
 // MARK: - Manual resize snapback
 
 extension AppController {
