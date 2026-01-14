@@ -280,6 +280,29 @@ extension AppController {
             activateWindow(activeWindow)
         }
 
+        // Step 13: Update targeting in "independent of focus" mode
+        // If the targeted zone is on the restored screen, apply standard targeting rules.
+        // If the targeted zone is on another screen, leave targeting as is.
+        if targetingMode != .followsFocus {
+            let targetOnRestoredScreen: Bool
+            if let tiledKey = targetedZoneKey {
+                targetOnRestoredScreen = tiledKey.screenId == screenId
+            } else if let tempScreenId = targetedTemporaryScreenId {
+                targetOnRestoredScreen = tempScreenId == screenId
+            } else {
+                targetOnRestoredScreen = false
+            }
+
+            if targetOnRestoredScreen {
+                // Apply standard targeting preference: lowest-index empty zone, or temporary zone if all filled
+                if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
+                    targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
+                } else {
+                    targetedZoneManager.setTemporaryTarget(on: screenId, reason: "winshot-restore")
+                }
+            }
+        }
+
         Logger.debug("WinShot: Snapshot restoration complete")
     }
 

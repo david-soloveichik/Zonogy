@@ -28,5 +28,8 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Current windows not in the snapshot are minimized afterward.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Activates the previously active window.
+- **Targeting after restore:**
+  - In "Targeting follows focus" mode: the zone containing the activated window becomes targeted.
+  - In "Targeting independent of focus" mode: if the current target is on the restored screen, apply standard targeting rules (prefer lowest-index empty tiling zone, or temporary zone if all tiling zones are filled). If the current target is on another screen, leave targeting unchanged.
 
 For temporary zone protection and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
