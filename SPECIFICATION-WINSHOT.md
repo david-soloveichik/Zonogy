@@ -24,8 +24,8 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 ## Snapshot Restoration
 
 - Restores zone configuration to the saved count and frames.
-- Current windows not in the snapshot are minimized first (before unminimizing snapshot windows) to avoid visual overlap.
-- Unminimizes windows that were minimized (but not closed).
+- Unminimizes windows that were minimized first, so users see new windows appear immediately.
+- Current windows not in the snapshot are minimized afterward.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Activates the previously active window.
 

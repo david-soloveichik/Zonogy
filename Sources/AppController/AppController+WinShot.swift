@@ -161,18 +161,7 @@ extension AppController {
         // Step 4: Restore zone configuration
         restoreZoneConfiguration(snapshot: snapshot, context: context)
 
-        // Step 5: MINIMIZE PHASE - Minimize windows not in snapshot FIRST
-        // This must happen before unminimizing new windows to avoid the old windows
-        // briefly popping up in front of the new ones during minimize animation.
-        for window in windowsToMinimize {
-            minimizeWindowProgrammatically(window, reason: "winshot-restore")
-            // Explicitly remove the window from all zones (and any temporary zone)
-            // so that zones which are empty in the snapshot end up truly empty,
-            // allowing placeholders to be restored correctly.
-            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
-        }
-
-        // Step 6: PREP PHASE - Prepare all work items (find windows, remove from old locations)
+        // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
         var zoneWorkItems: [ZoneRestoreWorkItem] = []
         var temporaryWorkItem: TemporaryRestoreWorkItem?
 
@@ -202,7 +191,8 @@ extension AppController {
         let restoredActiveWindowId = snapshot.activeWindowId
         let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
-        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows.
+        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows FIRST.
+        // Unminimizing first makes the UI feel faster since users see new windows immediately.
         // Suppress deminiaturize notifications to prevent re-placement loops.
         let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
         if !minimizedZoneWindowIds.isEmpty {
@@ -273,7 +263,17 @@ extension AppController {
             scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
         }
 
-        // Step 11: Activate the previously active window
+        // Step 11: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing new windows.
+        // This ordering makes the UI feel faster since users see new windows appear immediately.
+        for window in windowsToMinimize {
+            minimizeWindowProgrammatically(window, reason: "winshot-restore")
+            // Explicitly remove the window from all zones (and any temporary zone)
+            // so that zones which are empty in the snapshot end up truly empty,
+            // allowing placeholders to be restored correctly.
+            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
+        }
+
+        // Step 12: Activate the previously active window
         snapshot.logDebugDetails(context: "restoring")
         if let activeWindowId = snapshot.activeWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
