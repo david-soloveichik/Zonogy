@@ -12,4 +12,8 @@ enum UserDefaultsKeys {
 
     // MARK: - Targeting
     static let targetingMode = "Zonogy.targeting.mode"
+
+    // MARK: - WinShot
+    static let winShotEnabled = "Zonogy.winShot.enabled"
+    static let winShotAutoSaveOnClearZones = "Zonogy.winShot.autoSaveOnClearZones"
 }

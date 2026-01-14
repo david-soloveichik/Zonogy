@@ -35,9 +35,11 @@ extension AppController {
         let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
-        // WinShot: Create snapshot BEFORE clearing zones (if screen has windows)
-        if !allEmpty || temporaryZoneCoordinator.occupant(on: screenId) != nil {
-            createWinShotSnapshot(on: screenId, reason: "clear-zones-\(reason)")
+        // WinShot: Create snapshot BEFORE clearing zones (if screen has windows and WinShot auto-save is enabled)
+        if isWinShotEnabled && isWinShotAutoSaveOnClearZonesEnabled {
+            if !allEmpty || temporaryZoneCoordinator.occupant(on: screenId) != nil {
+                createWinShotSnapshot(on: screenId, reason: "clear-zones-\(reason)")
+            }
         }
 
         // Also empty the temporary zone on the selected screen

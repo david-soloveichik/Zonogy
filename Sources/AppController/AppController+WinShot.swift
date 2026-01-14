@@ -2,10 +2,34 @@
 import AppKit
 
 extension AppController {
+    // MARK: - Settings
+
+    internal var isWinShotEnabled: Bool {
+        WinShotPreferencesStore.loadEnabled()
+    }
+
+    internal var isWinShotAutoSaveOnClearZonesEnabled: Bool {
+        WinShotPreferencesStore.loadAutoSaveOnClearZones()
+    }
+
+    internal func setWinShotEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("WinShot: settings updated enabled=\(enabled)")
+        WinShotPreferencesStore.saveEnabled(enabled)
+    }
+
+    internal func setWinShotAutoSaveOnClearZonesEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("WinShot: settings updated autoSaveOnClearZones=\(enabled)")
+        WinShotPreferencesStore.saveAutoSaveOnClearZones(enabled)
+    }
+
     // MARK: - Snapshot Creation
 
     /// Save a WinShot snapshot for the active screen (Control-Command-/)
     internal func saveWinShotSnapshot() {
+        guard isWinShotEnabled else {
+            Logger.debug("WinShot: save shortcut ignored (WinShot disabled)")
+            return
+        }
         let screenId = activeScreenId()
         createWinShotSnapshot(on: screenId, reason: "user-save")
     }
@@ -68,6 +92,11 @@ extension AppController {
 
     /// Show the WinShot chooser for the active screen (Control-Command-Tab)
     internal func showWinShotChooser() {
+        guard isWinShotEnabled else {
+            Logger.debug("WinShot: chooser shortcut ignored (WinShot disabled)")
+            return
+        }
+
         // If the chooser is already active, treat another shortcut press as "next"
         if winShotChooserController.isActive {
             winShotChooserController.cycleNext()
