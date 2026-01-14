@@ -274,10 +274,15 @@ extension AppController {
         }
 
         // Step 12: Activate the previously active window
+        // Use the temporary zone activation workaround if the active window is in the temporary zone.
         snapshot.logDebugDetails(context: "restoring")
         if let activeWindowId = snapshot.activeWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
-            activateWindow(activeWindow)
+            if temporaryWorkItem?.managed.windowId == activeWindowId {
+                activateTemporaryZoneWindow(activeWindow, reason: "winshot-restore")
+            } else {
+                activateWindow(activeWindow)
+            }
         }
 
         // Step 13: Update targeting in "independent of focus" mode
