@@ -23,6 +23,34 @@ extension AppController {
         temporaryZoneProtectionDeadlines[windowId] = Date().addingTimeInterval(temporaryZoneProtectionDuration)
         Logger.debug("Temporary zone protection scheduled for window \(windowId) (duration: \(temporaryZoneProtectionDuration)s)")
         scheduleActivityRecordingSuppression(reason: "temporary-zone-protection")
+        scheduleTemporaryZoneProtectionExpiration(windowId: windowId)
+    }
+
+    /// Schedule a callback to reactivate the temporary zone window when protection expires.
+    private func scheduleTemporaryZoneProtectionExpiration(windowId: Int) {
+        // Cancel any existing expiration work item for this window.
+        temporaryZoneProtectionExpirationWorkItems[windowId]?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.temporaryZoneProtectionExpirationWorkItems.removeValue(forKey: windowId)
+
+            // Check if the window is still in the temporary zone.
+            guard self.isWindowInTemporaryZone(windowId),
+                  let managed = self.windowController.window(withId: windowId) else {
+                return
+            }
+
+            // Clear the deadline before activating to prevent a feedback loop.
+            // (extendTemporaryZoneProtection only extends if a deadline exists)
+            self.temporaryZoneProtectionDeadlines.removeValue(forKey: windowId)
+
+            Logger.debug("Temporary zone protection expired for window \(windowId); reactivating")
+            self.activateTemporaryZoneWindow(managed, reason: "protection-expired")
+        }
+
+        temporaryZoneProtectionExpirationWorkItems[windowId] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + temporaryZoneProtectionDuration, execute: workItem)
     }
 
     // MARK: - Activity recording suppression (prevents twitchy history updates)
@@ -50,6 +78,8 @@ extension AppController {
 
     internal func clearTemporaryZoneProtection(windowId: Int) {
         temporaryZoneProtectionDeadlines.removeValue(forKey: windowId)
+        temporaryZoneProtectionExpirationWorkItems[windowId]?.cancel()
+        temporaryZoneProtectionExpirationWorkItems.removeValue(forKey: windowId)
     }
 
     /// Self-extends protection when triggered.

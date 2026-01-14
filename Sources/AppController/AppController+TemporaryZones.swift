@@ -163,6 +163,7 @@ extension AppController {
         let logPrefix = "Temporary zone activation"
         let pid = managed.backing.pid
         let element = managed.backing.element
+        let windowId = managed.windowId
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
             Logger.debug("\(logPrefix): unable to resolve application for pid \(pid) (reason: \(reason))")
@@ -172,10 +173,12 @@ extension AppController {
         // Workaround: without this, the window may appear behind tiled windows.
         // See SPECIFICATION-IMPLEMENTATION.md "Temporary zone activation workaround".
         NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
             let result = app.activate()
             AXUIElementPerformAction(element, kAXRaiseAction as CFString)
             Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")
+            // Extend protection after the async activation to cover any subsequent focus events.
+            self?.extendTemporaryZoneProtection(windowId: windowId)
         }
     }
 }

@@ -145,6 +145,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneProtectionDuration: TimeInterval = 1.0
+    /// Work items scheduled to reactivate temporary zone windows when protection expires.
+    internal var temporaryZoneProtectionExpirationWorkItems: [Int: DispatchWorkItem] = [:]
     /// Deadline until which notification-driven window activity recording is suppressed
     /// to prevent "twitchy" recordings during temporary zone/WinShot operations.
     internal var activityRecordingSuppressedUntil: Date?
