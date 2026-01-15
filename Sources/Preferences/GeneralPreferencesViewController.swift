@@ -324,7 +324,8 @@ final class GeneralPreferencesViewController: NSViewController {
         // Detect transition from no access to access granted
         if hasAccess && !lastKnownAccessibilityState {
             lastKnownAccessibilityState = true
-            AppController.shared.reinitializeAfterAccessibilityGranted()
+            AppController.shared.restartAfterAccessibilityGranted()
+            return  // App is restarting, skip UI update
         } else {
             lastKnownAccessibilityState = hasAccess
         }

@@ -4,17 +4,21 @@ import ApplicationServices
 
 /// Startup capture routines, shortcut helpers, and bundle filtering utilities.
 extension AppController {
-    /// Reinitializes window management after accessibility permissions are granted.
-    /// Called when the user grants accessibility access while the Preferences window is open.
-    func reinitializeAfterAccessibilityGranted() {
-        Logger.debug("Accessibility permission granted - reinitializing window management")
-        prepareExistingApplicationWindows()
-        syncWindowsToZones()
-        targetedZoneManager.ensureTargetedZone(reason: "accessibility-granted")
-        if !hasAvailableTiledZone() {
-            targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "accessibility-granted-all-zones-filled")
+    /// Restarts the app after accessibility permissions are granted.
+    /// This ensures all CGEventTap-based interceptors (DockMenus, ZoneClickInterceptor,
+    /// AltTabKeyInterceptor) initialize correctly with the new permissions.
+    func restartAfterAccessibilityGranted() {
+        Logger.debug("Accessibility permission granted - restarting app")
+
+        let bundleURL = Bundle.main.bundleURL
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+
+        NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, _ in
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
         }
-        refreshIndicators()
     }
 
     internal func prepareExistingApplicationWindows() {
