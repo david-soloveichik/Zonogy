@@ -1,8 +1,12 @@
 /// View controller for the General preferences tab
 import AppKit
+import ApplicationServices
 
 final class GeneralPreferencesViewController: NSViewController {
 
+    private var accessibilityStatusView: NSView?
+    private var accessibilityStatusIcon: NSImageView?
+    private var accessibilityStatusLabel: NSTextField?
     private var launchAtLoginCheckbox: NSButton?
     private var launchAtLoginHintLabel: NSTextField?
     private var dockMenusCheckbox: NSButton?
@@ -17,13 +21,52 @@ final class GeneralPreferencesViewController: NSViewController {
     private var targetingModeHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 580))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
+
+        // Accessibility status banner
+        let accessibilityStatusView = NSView()
+        accessibilityStatusView.wantsLayer = true
+        accessibilityStatusView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(accessibilityStatusView)
+        self.accessibilityStatusView = accessibilityStatusView
+
+        let accessibilityStatusIcon = NSImageView()
+        accessibilityStatusIcon.translatesAutoresizingMaskIntoConstraints = false
+        accessibilityStatusIcon.imageScaling = .scaleProportionallyUpOrDown
+        accessibilityStatusView.addSubview(accessibilityStatusIcon)
+        self.accessibilityStatusIcon = accessibilityStatusIcon
+
+        let accessibilityStatusLabel = NSTextField(wrappingLabelWithString: "")
+        accessibilityStatusLabel.font = NSFont.systemFont(ofSize: 12)
+        accessibilityStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        accessibilityStatusView.addSubview(accessibilityStatusLabel)
+        self.accessibilityStatusLabel = accessibilityStatusLabel
+
+        let accessibilityOpenSettingsButton = NSButton(title: "Open Settings…", target: self, action: #selector(openAccessibilitySettings))
+        accessibilityOpenSettingsButton.bezelStyle = NSButton.BezelStyle.recessed
+        accessibilityOpenSettingsButton.controlSize = NSControl.ControlSize.small
+        accessibilityOpenSettingsButton.translatesAutoresizingMaskIntoConstraints = false
+        accessibilityStatusView.addSubview(accessibilityOpenSettingsButton)
+
+        NSLayoutConstraint.activate([
+            accessibilityStatusIcon.leadingAnchor.constraint(equalTo: accessibilityStatusView.leadingAnchor, constant: 12),
+            accessibilityStatusIcon.centerYAnchor.constraint(equalTo: accessibilityStatusView.centerYAnchor),
+            accessibilityStatusIcon.widthAnchor.constraint(equalToConstant: 16),
+            accessibilityStatusIcon.heightAnchor.constraint(equalToConstant: 16),
+
+            accessibilityStatusLabel.leadingAnchor.constraint(equalTo: accessibilityStatusIcon.trailingAnchor, constant: 8),
+            accessibilityStatusLabel.centerYAnchor.constraint(equalTo: accessibilityStatusView.centerYAnchor),
+            accessibilityStatusLabel.trailingAnchor.constraint(lessThanOrEqualTo: accessibilityOpenSettingsButton.leadingAnchor, constant: -8),
+
+            accessibilityOpenSettingsButton.trailingAnchor.constraint(equalTo: accessibilityStatusView.trailingAnchor, constant: -12),
+            accessibilityOpenSettingsButton.centerYAnchor.constraint(equalTo: accessibilityStatusView.centerYAnchor),
+        ])
 
         let launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch Zonogy at login", target: self, action: #selector(launchAtLoginToggled(_:)))
         launchAtLoginCheckbox.translatesAutoresizingMaskIntoConstraints = false
@@ -117,7 +160,12 @@ final class GeneralPreferencesViewController: NSViewController {
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            launchAtLoginCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 24),
+            accessibilityStatusView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            accessibilityStatusView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            accessibilityStatusView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            accessibilityStatusView.heightAnchor.constraint(equalToConstant: 36),
+
+            launchAtLoginCheckbox.topAnchor.constraint(equalTo: accessibilityStatusView.bottomAnchor, constant: 18),
             launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             launchAtLoginHintLabel.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 6),
@@ -168,6 +216,8 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
+        self.preferredContentSize = NSSize(width: 500, height: 580)
+        syncAccessibilityStatus()
         syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
         syncWinShotCheckboxes()
@@ -241,5 +291,30 @@ final class GeneralPreferencesViewController: NSViewController {
         let mode = AppController.shared.targetingModeInSettings
         let index = TargetingMode.allCases.firstIndex(of: mode) ?? 0
         targetingModePopUpButton?.selectItem(at: index)
+    }
+
+    private func syncAccessibilityStatus() {
+        let hasAccess = AXIsProcessTrusted()
+
+        if hasAccess {
+            accessibilityStatusView?.layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.15).cgColor
+            accessibilityStatusView?.layer?.cornerRadius = 6
+            accessibilityStatusIcon?.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Granted")
+            accessibilityStatusIcon?.contentTintColor = .systemGreen
+            accessibilityStatusLabel?.stringValue = "Accessibility permission granted"
+            accessibilityStatusLabel?.textColor = .labelColor
+        } else {
+            accessibilityStatusView?.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.15).cgColor
+            accessibilityStatusView?.layer?.cornerRadius = 6
+            accessibilityStatusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Required")
+            accessibilityStatusIcon?.contentTintColor = .systemOrange
+            accessibilityStatusLabel?.stringValue = "Accessibility permission required for window management"
+            accessibilityStatusLabel?.textColor = .labelColor
+        }
+    }
+
+    @objc private func openAccessibilitySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
     }
 }
