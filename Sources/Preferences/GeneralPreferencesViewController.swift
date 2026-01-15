@@ -4,6 +4,8 @@ import ApplicationServices
 
 final class GeneralPreferencesViewController: NSViewController {
 
+    private var accessibilityPollingTimer: Timer?
+    private var lastKnownAccessibilityState: Bool = false
     private var accessibilityStatusView: NSView?
     private var accessibilityStatusIcon: NSImageView?
     private var accessibilityStatusLabel: NSTextField?
@@ -217,12 +219,35 @@ final class GeneralPreferencesViewController: NSViewController {
 
         self.view = containerView
         self.preferredContentSize = NSSize(width: 500, height: 580)
+        lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
         syncWinShotCheckboxes()
         syncAutoShowLauncherCheckbox()
         syncTargetingModeControl()
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        startAccessibilityPolling()
+    }
+
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        stopAccessibilityPolling()
+    }
+
+    private func startAccessibilityPolling() {
+        stopAccessibilityPolling()
+        accessibilityPollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.syncAccessibilityStatus()
+        }
+    }
+
+    private func stopAccessibilityPolling() {
+        accessibilityPollingTimer?.invalidate()
+        accessibilityPollingTimer = nil
     }
 
     @objc private func launchAtLoginToggled(_ sender: NSButton) {
@@ -295,6 +320,14 @@ final class GeneralPreferencesViewController: NSViewController {
 
     private func syncAccessibilityStatus() {
         let hasAccess = AXIsProcessTrusted()
+
+        // Detect transition from no access to access granted
+        if hasAccess && !lastKnownAccessibilityState {
+            lastKnownAccessibilityState = true
+            AppController.shared.reinitializeAfterAccessibilityGranted()
+        } else {
+            lastKnownAccessibilityState = hasAccess
+        }
 
         if hasAccess {
             accessibilityStatusView?.layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.15).cgColor

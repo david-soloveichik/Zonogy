@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 
 // Enable line-buffered output so piped output streams in real-time
 setvbuf(stdout, nil, _IOLBF, 0)
@@ -25,6 +26,12 @@ app.setActivationPolicy(.accessory)
 
 // Initialize the AppController singleton
 let appController = AppController.shared
+
+// If Accessibility permissions are not granted, show Preferences (General tab)
+if !AXIsProcessTrusted() {
+    Logger.debug("Accessibility permission not granted - showing Preferences")
+    PreferencesWindowController.shared.showWindow()
+}
 
 // Run the AppKit run loop
 app.run()

@@ -4,6 +4,19 @@ import ApplicationServices
 
 /// Startup capture routines, shortcut helpers, and bundle filtering utilities.
 extension AppController {
+    /// Reinitializes window management after accessibility permissions are granted.
+    /// Called when the user grants accessibility access while the Preferences window is open.
+    func reinitializeAfterAccessibilityGranted() {
+        Logger.debug("Accessibility permission granted - reinitializing window management")
+        prepareExistingApplicationWindows()
+        syncWindowsToZones()
+        targetedZoneManager.ensureTargetedZone(reason: "accessibility-granted")
+        if !hasAvailableTiledZone() {
+            targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "accessibility-granted-all-zones-filled")
+        }
+        refreshIndicators()
+    }
+
     internal func prepareExistingApplicationWindows() {
         var windowsByScreen: [CGDirectDisplayID: [ManagedWindow]] = [:]
         let visibleBundleIds = bundleIdsWithVisibleWindows()
