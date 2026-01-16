@@ -277,7 +277,7 @@ When UnderCovers is active, the first add-zone action on that screen just exits 
 
 ### Screen Management
 
-**Active screen determination:** If the mouse pointer and `NSScreen.main` are the same screen, that screen is active. Otherwise, choose between the pointer screen and `NSScreen.main` by preferring the one that currently holds the targeted zone. (`NSScreen.main` returns the screen containing the window currently receiving keyboard input, or the screen with the menu bar if no window has focus.)
+**Active screen determination:** If the mouse pointer and `NSScreen.main` are the same screen, that screen is active. Otherwise, choose between the pointer screen and `NSScreen.main` by preferring the one that currently holds the targeted zone. (`NSScreen.main` returns the screen containing the key window, or the primary screen if no key window exists.)
 
 **Independent zone management:** Each screen maintains its own set of zones (1-3 per screen). Keyboard shortcuts for adding/removing zones (`Control-Cmd-=` and `Control-Cmd-[minus]`) operate on the currently active screen only.
 
