@@ -6,7 +6,15 @@ import AppKit
 extension AppController {
     /// Called when the targeted destination changes.
     /// Maintains the invariant that the Launcher never remains visible while pointing at a non-targeted destination.
+    /// AltTab is dismissed when the target changes (it doesn't follow the target like the Launcher does).
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
+        // Dismiss AltTab when target changes - AltTab is for quick window switching,
+        // not zone placement, so it doesn't need to follow the target.
+        if altTabController.isActive {
+            altTabController.hide()
+            Logger.debug("AltTab: Hidden because targeted zone changed")
+        }
+
         // Invariant: the Launcher must never remain visible while pointing at a non-targeted destination.
         // If the target changes while the Launcher is open, either reposition it to the new target
         // (empty tiled / temporary) or hide it (occupied tiled / cleared target).
