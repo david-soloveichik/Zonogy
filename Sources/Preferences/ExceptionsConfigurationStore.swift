@@ -31,8 +31,11 @@ enum ExceptionsConfigurationStore {
         }
 
         // Seed with bundled defaults
-        let defaultRules = loadBundledDefaultRules()
-        let config = UserConfig(ignoredBundleIdentifiers: nil, bundleExceptions: defaultRules.isEmpty ? nil : defaultRules)
+        let defaults = loadBundledDefaults()
+        let config = UserConfig(
+            ignoredBundleIdentifiers: defaults.ignoredBundleIdentifiers,
+            bundleExceptions: defaults.bundleExceptions
+        )
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -84,8 +87,8 @@ enum ExceptionsConfigurationStore {
         }
     }
 
-    /// Returns the bundled default rules from Resources/defaults.json
-    private static func loadBundledDefaultRules() -> [ApplicationExceptionRule] {
+    /// Returns bundled defaults from Resources/defaults.json
+    private static func loadBundledDefaults() -> UserConfig {
         let fileName = "defaults.json"
         let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
 
@@ -95,19 +98,15 @@ enum ExceptionsConfigurationStore {
             executablePath.deletingLastPathComponent + "/\(fileName)"
         ]
 
-        struct FileContents: Decodable {
-            let bundleExceptions: [ApplicationExceptionRule]?
-        }
-
         for path in searchPaths {
             let expandedPath = (path as NSString).expandingTildeInPath
             if FileManager.default.fileExists(atPath: expandedPath),
                let data = try? Data(contentsOf: URL(fileURLWithPath: expandedPath)),
-               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) {
-                return decoded.bundleExceptions ?? []
+               let decoded = try? JSONDecoder().decode(UserConfig.self, from: data) {
+                return decoded
             }
         }
 
-        return []
+        return UserConfig()
     }
 }

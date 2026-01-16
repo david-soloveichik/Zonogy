@@ -1,5 +1,7 @@
 {
-  "ignoredBundleIdentifiers": [],
+  "ignoredBundleIdentifiers": [
+    "com.red-sweater.fastscripts3"
+  ],
   "bundleExceptions": [
     {
       "bundleIdentifier": "com.valvesoftware.steam.helper",

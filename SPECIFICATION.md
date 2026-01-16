@@ -346,19 +346,14 @@ The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowMa
 
 ## Configuration
 
-Zonogy uses a layered configuration system with bundled defaults and optional user overrides.
+Zonogy uses a single user-editable configuration file, seeded from bundled defaults on first launch.
 
 ### Configuration Loading
 
 1. **Bundled defaults** – `Resources/defaults.json` is included in the app bundle and provides sensible defaults for common applications.
-2. **User overrides** – `~/Library/Application Support/Zonogy/config.json` (optional) lets users add their own customizations.
+2. **User config** – `~/Library/Application Support/Zonogy/config.json` is the active configuration file.
 
-User overrides are **merged** with bundled defaults:
-
-- `ignoredBundleIdentifiers` arrays are combined (user additions are added to defaults).
-- `bundleExceptions` are merged by bundle ID – user rules extend or override default rules for the same app. Properties not specified in the user rule inherit from the default.
-
-This means users only need to specify what they want to change, not duplicate the entire configuration.
+On launch, if the user config file does not exist, it is created by copying the bundled defaults. The user config is the single source of truth—users edit it directly to customize behavior.
 
 ### File Schema
 
