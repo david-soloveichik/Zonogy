@@ -9,12 +9,12 @@ struct WindowIndicatorGlyphView: View {
     var body: some View {
         if isVisible {
             Image(systemName: "macwindow")
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .frame(width: 16, height: 16)
         } else if reserveSpaceWhenHidden {
             Color.clear
-                .frame(width: 22, height: 22)
+                .frame(width: 16, height: 16)
         }
     }
 }
