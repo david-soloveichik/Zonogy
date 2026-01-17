@@ -13,7 +13,6 @@ extension AppController {
             return
         }
 
-        // Remove from zone
         removeWindowFromAllZones(windowId: windowId, reason: "close-command")
 
         // Close the window
