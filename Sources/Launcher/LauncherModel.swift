@@ -7,6 +7,7 @@ import Foundation
 protocol LauncherWindowProvider: AnyObject {
     func windowsForApp(bundleIdentifier: String) -> [LauncherWindowItem]
     func windowCount(for bundleIdentifier: String) -> Int
+    func isDefaultWindowInZone(forBundleIdentifier bundleId: String) -> Bool
 }
 
 @MainActor
@@ -37,6 +38,7 @@ final class LauncherModel: ObservableObject {
     @Published private(set) var cachedWindowCount: Int?
     @Published private(set) var windowModeAppIcon: NSImage?
     @Published private(set) var runningAppURLs: Set<URL> = []
+    @Published private(set) var appsWithDefaultWindowInZone: Set<URL> = []
     @Published private(set) var focusSearchFieldToken: Int = 0
 
     var isAppHeaderSelected: Bool {
@@ -46,7 +48,11 @@ final class LauncherModel: ObservableObject {
         return false
     }
 
-    weak var windowProvider: LauncherWindowProvider?
+    weak var windowProvider: LauncherWindowProvider? {
+        didSet {
+            refreshDefaultWindowZoneStatus()
+        }
+    }
 
     private var windowItems: [LauncherWindowItem] = []
     private var savedAppQuery: String = ""
@@ -94,6 +100,20 @@ final class LauncherModel: ObservableObject {
     private func refreshRunningApps() {
         let running = NSWorkspace.shared.runningApplications
         runningAppURLs = Set(running.compactMap { $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath() })
+        refreshDefaultWindowZoneStatus()
+    }
+
+    func refreshDefaultWindowZoneStatus() {
+        var result: Set<URL> = []
+        for url in runningAppURLs {
+            guard let bundle = Bundle(url: url),
+                  let bundleId = bundle.bundleIdentifier,
+                  windowProvider?.isDefaultWindowInZone(forBundleIdentifier: bundleId) == true else {
+                continue
+            }
+            result.insert(url)
+        }
+        appsWithDefaultWindowInZone = result
     }
 
     func reloadItems() {
@@ -263,7 +283,7 @@ final class LauncherModel: ObservableObject {
         savedAppQuery = query
         mode = .windowList(bundleIdentifier: bundleId, appName: item.displayName)
         windowModeAppIcon = item.icon ?? LauncherAppCache.shared.icon(for: item.url)
-        windowItems = sortWindowsMinimizedFirst(windows)
+        windowItems = sortWindowsNotInZoneFirst(windows)
         query = ""
         updateFilteredWindowItems()
     }
@@ -311,7 +331,7 @@ final class LauncherModel: ObservableObject {
                     return lhs.index < rhs.index
                 }
                 .map(\.item)
-            filteredWindowItems = sortWindowsMinimizedFirst(sorted)
+            filteredWindowItems = sortWindowsNotInZoneFirst(sorted)
         }
 
         selectedWindowId = filteredWindowItems.first?.id
@@ -357,9 +377,9 @@ final class LauncherModel: ObservableObject {
         return bundleId
     }
 
-    /// Reorders windows: minimized first, then unminimized, preserving relative order within each group
-    private func sortWindowsMinimizedFirst(_ windows: [LauncherWindowItem]) -> [LauncherWindowItem] {
-        windows.filter { $0.isMinimized } + windows.filter { !$0.isMinimized }
+    /// Reorders windows: not-in-zone first, then in-zone, preserving relative order within each group
+    private func sortWindowsNotInZoneFirst(_ windows: [LauncherWindowItem]) -> [LauncherWindowItem] {
+        windows.filter { !$0.isInZone } + windows.filter { $0.isInZone }
     }
 
 }

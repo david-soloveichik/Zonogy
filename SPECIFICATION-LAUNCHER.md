@@ -90,11 +90,11 @@ When an application with multiple windows is selected, the user can drill down t
 - Only shows windows that Zonogy has captured (i.e., zone-manageable standard windows)
 - Displays window title from accessibility API (titles change frequently so cannot be cached)
 - **Title cleanup:** Strips redundant app name suffixes (e.g., " - Safari", " — Xcode") since the app is already shown in the header
-- Shows a window icon glyph for unminimized windows; minimized windows have no icon
+- Shows a window icon glyph for windows placed in a zone; windows not in any zone have no icon
 
 **Window Ordering:**
 
-Minimized windows are shown first, then unminimized windows. The rationale is that unminimized windows are already visible and tiled, so users are more likely to want to select a minimized window.
+Windows not placed in any zone are shown first, then windows in zones. The rationale is that zoned windows are already visible and tiled, so users are more likely to want to select a window that is not currently in a zone.
 
 Within each group, windows are ordered by recency (most recently active first). Zonogy tracks when each managed window becomes active. Windows without recency data fall back to Zonogy ID order (discovery order), which typically places the main window first.
 

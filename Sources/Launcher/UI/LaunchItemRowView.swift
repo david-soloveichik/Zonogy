@@ -8,6 +8,7 @@ struct LaunchItemRowView: View {
     let isSelected: Bool
     var windowCount: Int?
     var isRunning: Bool = false
+    var hasDefaultWindowInZone: Bool = false
     var onChevronTap: (() -> Void)?
 
     @State private var loadedIcon: NSImage?
@@ -40,6 +41,10 @@ struct LaunchItemRowView: View {
                 .font(.system(size: 14, weight: .regular))
                 .lineLimit(1)
                 .truncationMode(.middle)
+
+            if hasDefaultWindowInZone {
+                WindowIndicatorGlyphView(isVisible: true)
+            }
 
             Spacer(minLength: 0)
 

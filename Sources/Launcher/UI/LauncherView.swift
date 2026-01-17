@@ -58,6 +58,7 @@ struct LauncherView: View {
                             onOpenSelected: handleAppLaunch,
                             windowCountForSelected: model.cachedWindowCount,
                             runningAppURLs: model.runningAppURLs,
+                            appsWithDefaultWindowInZone: model.appsWithDefaultWindowInZone,
                             onExpandApp: handleExpandApp
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

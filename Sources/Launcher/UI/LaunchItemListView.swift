@@ -25,6 +25,7 @@ struct LaunchItemListView: View {
     let onOpenSelected: () -> Void
     var windowCountForSelected: Int?
     var runningAppURLs: Set<URL> = []
+    var appsWithDefaultWindowInZone: Set<URL> = []
     var onExpandApp: ((URL) -> Void)?
     @State private var chevronHoveredURL: URL?
     @State private var skipNextScrollToSelected = false
@@ -35,11 +36,13 @@ struct LaunchItemListView: View {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(items) { item in
                         let isRunning = runningAppURLs.contains(item.url)
+                        let hasDefaultWindowInZone = appsWithDefaultWindowInZone.contains(item.url)
                         LaunchItemRowView(
                             item: item,
                             isSelected: item.url == selectedItemURL,
                             windowCount: item.url == selectedItemURL ? windowCountForSelected : nil,
-                            isRunning: isRunning
+                            isRunning: isRunning,
+                            hasDefaultWindowInZone: hasDefaultWindowInZone
                         )
                         .overlay(
                             MouseClickCaptureView(

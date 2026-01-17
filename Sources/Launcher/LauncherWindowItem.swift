@@ -7,6 +7,8 @@ struct LauncherWindowItem: Identifiable, Equatable {
     let id: UUID
     let title: String
     let isMinimized: Bool
+    /// Whether this window is currently placed in a zone (tiling or temporary)
+    let isInZone: Bool
     let axElement: AXUIElement
     let lastActiveTime: Date?
     let bundleIdentifier: String?
@@ -17,6 +19,7 @@ struct LauncherWindowItem: Identifiable, Equatable {
     init(
         title: String,
         isMinimized: Bool,
+        isInZone: Bool = false,
         axElement: AXUIElement,
         lastActiveTime: Date? = nil,
         bundleIdentifier: String? = nil,
@@ -26,16 +29,12 @@ struct LauncherWindowItem: Identifiable, Equatable {
         self.id = UUID()
         self.title = title
         self.isMinimized = isMinimized
+        self.isInZone = isInZone
         self.axElement = axElement
         self.lastActiveTime = lastActiveTime
         self.bundleIdentifier = bundleIdentifier
         self.pid = pid
         self.managedWindowId = managedWindowId
-    }
-
-    var displayIcon: NSImage? {
-        guard !isMinimized else { return nil }
-        return NSImage(systemSymbolName: "macwindow", accessibilityDescription: "Window")
     }
 
     static func == (lhs: LauncherWindowItem, rhs: LauncherWindowItem) -> Bool {

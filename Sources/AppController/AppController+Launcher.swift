@@ -524,7 +524,8 @@ extension AppController: LauncherWindowProvider {
 
             let item = LauncherWindowItem(
                 title: title,
-                isMinimized: window.isMinimized,  // Use cached state
+                isMinimized: window.isMinimized,
+                isInZone: isWindowInZone(window),
                 axElement: element,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleIdentifier,
@@ -577,5 +578,12 @@ extension AppController: LauncherWindowProvider {
         }
 
         return count
+    }
+
+    func isDefaultWindowInZone(forBundleIdentifier bundleId: String) -> Bool {
+        guard let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+            return false
+        }
+        return isWindowInZone(preferredWindow)
     }
 }

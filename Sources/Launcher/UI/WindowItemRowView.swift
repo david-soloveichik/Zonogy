@@ -8,16 +8,8 @@ struct WindowItemRowView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // Window icon glyph (or empty for minimized windows)
-            if !window.isMinimized {
-                Image(systemName: "macwindow")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-            } else {
-                Color.clear
-                    .frame(width: 22, height: 22)
-            }
+            // Window icon glyph (visible when window is placed in a zone)
+            WindowIndicatorGlyphView(isVisible: window.isInZone)
 
             Text(window.title)
                 .font(.system(size: 14, weight: .regular))
