@@ -431,6 +431,7 @@ extension AppController {
     }
 
     func dropWindowIntoTemporaryZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID) {
+        // Clear both sides: zone's record and window's record of the assignment
         if let originKey,
            let originContext = screenContexts[originKey.screenId] {
             originContext.zoneController.removeWindow(windowId: managed.windowId)
@@ -489,6 +490,7 @@ extension AppController {
         let displaced = temporaryZoneOccupant(on: destinationScreenId)
         let displacedFrame = displaced.flatMap { captureTemporaryScreenFrame(for: $0, on: destinationScreenId) }
 
+        // Clear both sides: zone's record and window's record of the assignment
         if let originKey = originZoneKey,
            let originContext = screenContexts[originKey.screenId] {
             originContext.zoneController.removeWindow(windowId: windowId)

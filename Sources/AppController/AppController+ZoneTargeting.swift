@@ -14,8 +14,7 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
         }
 
-        // Clear zone assignment on ManagedWindow before retargeting triggers Launcher auto-show.
-        // This ensures isWindowInZone returns false when Launcher queries window state.
+        // Clear the window's record of its zone assignment (ManagedWindow -> Zone)
         if let managed = windowController.window(withId: windowId) {
             clearManagedWindowZone(managed)
         }
@@ -23,6 +22,7 @@ extension AppController {
         var removed = false
         var emptyZoneKey: ZoneKey?
 
+        // Clear each zone's record of this window (Zone -> ManagedWindow)
         for (screenId, context) in screenContexts {
             if let zone = context.zoneController.zoneForWindow(windowId: windowId) {
                 Logger.debug(

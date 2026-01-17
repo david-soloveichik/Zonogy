@@ -355,7 +355,8 @@ extension AppController: LauncherControllerDelegate {
         // so zone.isEmpty accurately reflects emptiness (placeholders don't affect this).
         let zoneWasEmpty = zone.isEmpty
 
-        // Displace any existing occupant (always an external window, never a placeholder)
+        // Displace any existing occupant (always an external window, never a placeholder).
+        // Clear both sides: zone's record and window's record of the assignment.
         if let existingId = zone.occupantWindowId,
            existingId != managed.windowId,
            let existingWindow = windowController.window(withId: existingId) {
@@ -364,7 +365,7 @@ extension AppController: LauncherControllerDelegate {
             minimizeWindowProgrammatically(existingWindow, reason: "launcher-displaced")
         }
 
-        // Assign to zone
+        // Assign to zone (zone's record); setManagedWindow below updates the window's record
         context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: targetedKey.index)
         let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
         windowController.showWindow(managed, at: displayFrame, on: descriptor)
@@ -402,7 +403,8 @@ extension AppController: LauncherControllerDelegate {
         // Check if zone was empty before placement
         let zoneWasEmpty = zone.isEmpty
 
-        // Displace any existing occupant (always an external window, never a placeholder)
+        // Displace any existing occupant (always an external window, never a placeholder).
+        // Clear both sides: zone's record and window's record of the assignment.
         if let existingId = zone.occupantWindowId,
            existingId != managed.windowId,
            let existingWindow = windowController.window(withId: existingId) {
@@ -415,7 +417,7 @@ extension AppController: LauncherControllerDelegate {
         // (Launcher briefly jumping to new target before focus-change dismissal)
         dismissLauncherIfActive()
 
-        // Assign to zone
+        // Assign to zone (zone's record); setManagedWindow below updates the window's record
         context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zoneKey.index)
         let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
         windowController.showWindow(managed, at: displayFrame, on: descriptor)

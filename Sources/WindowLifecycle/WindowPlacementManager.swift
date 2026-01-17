@@ -147,6 +147,7 @@ class WindowPlacementManager {
             return false
         }
 
+        // Clear both sides: zone's record and window's record of the assignment
         originContext.zoneController.removeWindow(windowId: managed.windowId)
         delegate.clearManagedWindowZone(managed)
 
@@ -312,6 +313,7 @@ class WindowPlacementManager {
         guard let controller = delegate.zoneController(for: screenId) else {
             return
         }
+        // Update both sides: zone's record and window's record of the assignment
         controller.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
