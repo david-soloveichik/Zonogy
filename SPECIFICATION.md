@@ -138,9 +138,14 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
 - When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.
-- Whenever the targeted tiling zone is filled (Targeting independent of focus mode): if another empty tiling zone exists on the same screen, retarget to the lowest-index empty tiling zone; if none exist, target the temporary zone on that same screen.
+- Whenever the targeted **empty** tiling zone is filled (Targeting independent of focus mode): retarget using this priority:
+  1. Lowest-index empty tiling zone on the same screen
+  2. Lowest-index empty tiling zone on a different screen (tie-break by screen index; lower is preferred)
+  3. Temporary zone on the same screen
+  4. Temporary zone on a different screen (tie-break by screen index; lower is preferred)
 - If a temporary zone is filled or emptied: keep the current target.
-- If the targeted zone is removed: retarget to the lowest-index empty tiling zone on the same screen if there is one; otherwise target the temporary zone on that same screen. Exception: in "Targeting follows focus" mode, if there is an active window in a zone, target that zone instead (any screen).
+- If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, if there is an active window in a zone, target that zone instead (any screen).
+- If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 
 **Target navigation shortcuts:**
 

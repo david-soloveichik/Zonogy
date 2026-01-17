@@ -121,26 +121,19 @@ extension AppController {
         windowController.cancelAllAccessibilityFrameRetries()
 
         let currentTarget = targetedZoneKey
-        var pendingTargetedKey: ZoneKey?
-        var shouldTargetTemporary = false
+        var pendingDestination: TargetedZoneManager.TargetedDestination?
         if let currentTarget, currentTarget.screenId == screenId {
             if currentTarget.index == index {
                 // The targeted zone is being removed, find a fallback
                 if let destination = followsFocusTargetOnZoneRemoval(removedIndex: index, removedScreenId: screenId) {
-                    switch destination {
-                    case .tiled(let key):
-                        pendingTargetedKey = key
-                    case .temporary(let tempScreenId):
-                        targetedZoneManager.setTemporaryTarget(on: tempScreenId, reason: "zone-removed-follows-focus")
-                    }
+                    pendingDestination = destination
                 } else {
-                    pendingTargetedKey = targetedZoneManager.fallbackTargetedZoneOnSameScreen(screenId: screenId)
-                    if pendingTargetedKey == nil {
-                        shouldTargetTemporary = true
-                    }
+                    pendingDestination = targetedZoneManager.preferredRetargetDestination(
+                        preferredSameScreenId: screenId
+                    )
                 }
             } else if currentTarget.index > index {
-                pendingTargetedKey = ZoneKey(screenId: screenId, index: currentTarget.index - 1)
+                pendingDestination = .tiled(ZoneKey(screenId: screenId, index: currentTarget.index - 1))
             }
         }
 
@@ -148,19 +141,12 @@ extension AppController {
         // - If another empty tiling zone becomes targeted → keep Launcher open
         // - Otherwise → dismiss Launcher
         if launcherWasActive {
-            var newTargetIsEmptyTiledZone = false
-
-            if !shouldTargetTemporary {
-                let effectiveTargetKey: ZoneKey?
-                if let pending = pendingTargetedKey {
-                    effectiveTargetKey = pending
-                } else {
-                    effectiveTargetKey = currentTarget
-                }
-
-                if let key = effectiveTargetKey {
-                    newTargetIsEmptyTiledZone = targetedZoneManager.isZoneEmpty(key)
-                }
+            let effectiveDestination = pendingDestination ?? targetedZoneManager.targetedDestination
+            let newTargetIsEmptyTiledZone: Bool
+            if case .tiled(let key) = effectiveDestination {
+                newTargetIsEmptyTiledZone = targetedZoneManager.isZoneEmpty(key)
+            } else {
+                newTargetIsEmptyTiledZone = false
             }
 
             if !newTargetIsEmptyTiledZone {
@@ -169,10 +155,13 @@ extension AppController {
             }
         }
 
-        if let pendingTargetedKey {
-            targetedZoneManager.setTargetedZone(pendingTargetedKey, reason: "zone-removed")
-        } else if shouldTargetTemporary {
-            targetedZoneManager.setTemporaryTarget(on: screenId, reason: "zone-removed-no-empty-same-screen")
+        if let pendingDestination {
+            switch pendingDestination {
+            case .tiled(let key):
+                targetedZoneManager.setTargetedZone(key, reason: "zone-removed")
+            case .temporary(let tempScreenId):
+                targetedZoneManager.setTemporaryTarget(on: tempScreenId, reason: "zone-removed")
+            }
         }
 
         if let removedWindowId = removalResult.removedWindowId,
@@ -183,7 +172,7 @@ extension AppController {
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
 
-        if pendingTargetedKey == nil && !shouldTargetTemporary {
+        if pendingDestination == nil {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")
         }
 

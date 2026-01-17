@@ -54,20 +54,37 @@ class TargetedZoneManager {
             }
         }
 
-        let preferredScreen = targetedZoneKey?.screenId ?? delegate?.primaryScreenId ?? 0
-        let fallback = fallbackTargetedZone(preferredScreenId: preferredScreen)
-        setTargetedZone(fallback, reason: reason)
+        let preferredScreen: CGDirectDisplayID? = {
+            switch targetedDestination {
+            case .tiled(let key):
+                return key.screenId
+            case .temporary(let screenId):
+                return screenId
+            case nil:
+                return delegate?.primaryScreenId
+            }
+        }()
+
+        guard let destination = preferredRetargetDestination(preferredSameScreenId: preferredScreen) else {
+            setTargetedZone(nil, reason: reason)
+            return
+        }
+        applyRetargetDestination(destination, reason: reason)
     }
 
     func setTargetedZone(_ key: ZoneKey?, reason: String) {
-        var resolvedKey = key
         if let candidate = key, !zoneExists(candidate) {
-            resolvedKey = fallbackTargetedZone(preferredScreenId: candidate.screenId)
+            if let destination = preferredRetargetDestination(preferredSameScreenId: candidate.screenId) {
+                applyRetargetDestination(destination, reason: reason)
+            } else {
+                setTargetedZone(nil, reason: reason)
+            }
+            return
         }
 
-        let newDestination = resolvedKey.map { TargetedDestination.tiled($0) }
-        if let resolvedKey,
-           targetedDestination == .tiled(resolvedKey) {
+        let newDestination = key.map { TargetedDestination.tiled($0) }
+        if let key,
+           targetedDestination == .tiled(key) {
             delegate?.refreshIndicators()
             return
         }
@@ -75,10 +92,10 @@ class TargetedZoneManager {
         let oldDestination = targetedDestination
         targetedDestination = newDestination
 
-        if let resolvedKey {
+        if let key {
             // Convert display ID to a user-facing index for logging, using current screen ordering.
-            let screenIndex = delegate?.screenOrder.firstIndex(of: resolvedKey.screenId) ?? Int(resolvedKey.screenId)
-            Logger.debug("Targeted zone set to \(resolvedKey.index) on screen \(screenIndex) due to \(reason)")
+            let screenIndex = delegate?.screenOrder.firstIndex(of: key.screenId) ?? Int(key.screenId)
+            Logger.debug("Targeted zone set to \(key.index) on screen \(screenIndex) due to \(reason)")
         } else {
             Logger.debug("Cleared targeted zone due to \(reason)")
         }
@@ -109,41 +126,57 @@ class TargetedZoneManager {
 
     /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
     /// on the same screen, retarget to such zone with the lowest index; if none exist,
-    /// target the temporary zone on the same screen."
+    /// retarget to the lowest-index empty tiling zone on another screen; if none exist,
+    /// target the temporary zone (same screen preferred)."
     func retargetAfterFillingZone(_ filledKey: ZoneKey, reason: String) {
-        let nextEmpty = lowestIndexEmptyZoneOnSameScreen(
-            screenId: filledKey.screenId,
+        guard let destination = preferredRetargetDestination(
+            preferredSameScreenId: filledKey.screenId,
             excluding: filledKey
-        )
-        if let nextEmpty {
-            setTargetedZone(nextEmpty, reason: reason)
-        } else {
-            setTemporaryTarget(on: filledKey.screenId, reason: reason)
+        ) else {
+            setTargetedZone(nil, reason: reason)
+            return
         }
+        applyRetargetDestination(destination, reason: reason)
     }
 
-    func fallbackTargetedZone(preferredScreenId: CGDirectDisplayID?) -> ZoneKey? {
-        let emptyCandidates = collectZoneCandidates(where: { $0.isEmpty })
-        if let selection = selectLowestIndexZone(from: emptyCandidates, preferredScreenId: preferredScreenId) {
-            return selection
+    /// Shared retarget preference order for when a targeted empty tiling zone is filled or a targeted
+    /// tiling zone is removed:
+    /// 1) Lowest-index empty tiling zone on the same screen
+    /// 2) Lowest-index empty tiling zone on a different screen (tie-break by screen index)
+    /// 3) Temporary zone on the same screen
+    /// 4) Temporary zone on a different screen (tie-break by screen index)
+    func preferredRetargetDestination(
+        preferredSameScreenId: CGDirectDisplayID?,
+        excluding excluded: ZoneKey? = nil
+    ) -> TargetedDestination? {
+        if let preferredSameScreenId,
+           let sameScreenEmpty = lowestIndexEmptyZoneOnSameScreen(screenId: preferredSameScreenId, excluding: excluded) {
+            return .tiled(sameScreenEmpty)
         }
 
-        let occupiedCandidates = collectZoneCandidates(where: { !$0.isEmpty })
-        return selectHighestIndexZone(from: occupiedCandidates, preferredScreenId: preferredScreenId)
-    }
+        let allEmpty = collectZoneCandidates(where: { $0.isEmpty }, excluding: excluded)
+        let otherScreenEmpty = allEmpty.filter { candidate, _ in
+            guard let preferredSameScreenId else { return true }
+            return candidate.screenId != preferredSameScreenId
+        }
+        if let selection = selectLowestIndexZone(from: otherScreenEmpty, preferredScreenId: nil) {
+            return .tiled(selection)
+        }
 
-    /// Find a fallback zone on the same screen only (for spec compliance)
-    func fallbackTargetedZoneOnSameScreen(screenId: CGDirectDisplayID) -> ZoneKey? {
-        // First try to find an empty zone on the same screen
-        let emptyCandidates = collectZoneCandidatesOnScreen(screenId: screenId, where: { $0.isEmpty })
-        if !emptyCandidates.isEmpty {
-            let minIndex = emptyCandidates.map { $0.1 }.min() ?? 0
-            if let lowestEmpty = emptyCandidates.first(where: { $0.1 == minIndex })?.0 {
-                return lowestEmpty
+        if let preferredSameScreenId,
+           screenExists(preferredSameScreenId) {
+            return .temporary(screenId: preferredSameScreenId)
+        }
+
+        guard let delegate else { return nil }
+        for screenId in delegate.screenOrder {
+            if let preferredSameScreenId, screenId == preferredSameScreenId {
+                continue
+            }
+            if screenExists(screenId) {
+                return .temporary(screenId: screenId)
             }
         }
-
-        // If no empty zones on same screen, return nil (caller should switch to temporary zone)
         return nil
     }
 
@@ -290,5 +323,14 @@ class TargetedZoneManager {
 
     private func screenOrderIndex(for screenId: CGDirectDisplayID) -> Int {
         delegate?.screenOrder.firstIndex(of: screenId) ?? Int.max
+    }
+
+    private func applyRetargetDestination(_ destination: TargetedDestination, reason: String) {
+        switch destination {
+        case .tiled(let key):
+            setTargetedZone(key, reason: reason)
+        case .temporary(let screenId):
+            setTemporaryTarget(on: screenId, reason: reason)
+        }
     }
 }

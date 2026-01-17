@@ -19,39 +19,16 @@ enum TargetedZoneManagerTests {
 
         do {
             let (manager, delegate) = makeEnvironment(
-                zoneCounts: [screen1: 3, screen2: 2],
+                zoneCounts: [screen1: 1, screen2: 1],
                 screenOrder: [screen1, screen2]
             )
-            let controller1 = delegate.zoneController(for: screen1)!
-            let controller2 = delegate.zoneController(for: screen2)!
 
-            controller1.assignWindow(windowId: 101, toZoneIndex: 1)
-            controller1.assignWindow(windowId: 102, toZoneIndex: 3)
-            controller2.assignWindow(windowId: 201, toZoneIndex: 2)
+            // Simulate screen removal (target is still on screen1, but it no longer exists).
+            delegate.screenContexts.removeValue(forKey: screen1)
+            manager.ensureTargetedZone(reason: "repair")
 
             let expected = ZoneKey(screenId: screen2, index: 1)
-            let actual = manager.fallbackTargetedZone(preferredScreenId: nil)
-            assert(actual == expected, "fallback should pick lowest-index empty zone across screens (got \(String(describing: actual)))")
-        }
-
-        do {
-            let (manager, delegate) = makeEnvironment(
-                zoneCounts: [screen1: 3, screen2: 2],
-                screenOrder: [screen1, screen2]
-            )
-            let controller1 = delegate.zoneController(for: screen1)!
-            let controller2 = delegate.zoneController(for: screen2)!
-
-            for index in 1...3 {
-                controller1.assignWindow(windowId: 300 + index, toZoneIndex: index)
-            }
-            for index in 1...2 {
-                controller2.assignWindow(windowId: 400 + index, toZoneIndex: index)
-            }
-
-            let expected = ZoneKey(screenId: screen1, index: 3)
-            let actual = manager.fallbackTargetedZone(preferredScreenId: nil)
-            assert(actual == expected, "fallback should pick highest-index occupied zone when no empties remain (got \(String(describing: actual)))")
+            assert(manager.targetedZoneKey == expected, "ensureTargetedZone should prefer an empty tiling zone on another screen when the preferred screen disappears (got \(String(describing: manager.targetedZoneKey)))")
         }
 
         do {
@@ -76,17 +53,14 @@ enum TargetedZoneManagerTests {
 
         do {
             let (manager, delegate) = makeEnvironment(
-                zoneCounts: [screen1: 2],
+                zoneCounts: [screen1: 1],
                 screenOrder: [screen1]
             )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 7001, toZoneIndex: 1)
 
-            withExtendedLifetime(delegate) {
-                manager.setTargetedZone(ZoneKey(screenId: screen1, index: 99), reason: "test")
-                manager.ensureTargetedZone(reason: "repair")
-            }
-
-            let targeted = manager.targetedZoneKey
-            assert(targeted == ZoneKey(screenId: screen1, index: 1), "ensureTargetedZone should repair invalid zone to a valid fallback (got \(String(describing: targeted)))")
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 99), reason: "test")
+            assert(manager.targetedTemporaryScreenId == screen1, "setTargetedZone should repair invalid zone to temporary when no empty zones exist (got \(String(describing: manager.targetedDestination)))")
         }
 
         do {
@@ -110,6 +84,22 @@ enum TargetedZoneManagerTests {
                 screenOrder: [screen1]
             )
             let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 7101, toZoneIndex: 1)
+            controller.assignWindow(windowId: 7102, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            _ = controller.removeZone(at: 2)
+            manager.ensureTargetedZone(reason: "repair")
+
+            assert(manager.targetedTemporaryScreenId == screen1, "ensureTargetedZone should repair to temporary when no empty tiling zones exist (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
             controller.assignWindow(windowId: 801, toZoneIndex: 1)
             controller.assignWindow(windowId: 802, toZoneIndex: 2)
 
@@ -117,6 +107,41 @@ enum TargetedZoneManagerTests {
             manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 2), reason: "filled")
 
             assert(manager.targetedTemporaryScreenId == screen1, "retargetAfterFillingZone should target temporary zone when no empty zones remain")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2, screen2: 2],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+
+            controller1.assignWindow(windowId: 901, toZoneIndex: 1)
+            controller1.assignWindow(windowId: 902, toZoneIndex: 2)
+            controller2.assignWindow(windowId: 903, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 2), reason: "filled")
+
+            let expected = ZoneKey(screenId: screen2, index: 1)
+            assert(manager.targetedZoneKey == expected, "retargetAfterFillingZone should prefer empty tiling zone on another screen before temporary zone (got \(String(describing: manager.targetedZoneKey)))")
+        }
+
+        do {
+            let screen3: CGDirectDisplayID = 3
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1, screen3: 1],
+                screenOrder: [screen1, screen2, screen3]
+            )
+            let controller3 = delegate.zoneController(for: screen3)!
+            controller3.assignWindow(windowId: 1001, toZoneIndex: 1)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen3, index: 1), reason: "test")
+            manager.retargetAfterFillingZone(ZoneKey(screenId: screen3, index: 1), reason: "filled")
+
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "retargetAfterFillingZone should break ties between screens by screen index (got \(String(describing: manager.targetedZoneKey)))")
         }
 
         if allPassed {
