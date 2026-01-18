@@ -265,10 +265,10 @@ extension AppController {
             let pidDescription = "pid \(managed.backing.pid), cgWindowId \(managed.backing.cgWindowId)"
             Logger.debug(
                 "Minimize verification attempt \(attempt) for window \(windowId) (\(pidDescription)), " +
-                "isMinimized=\(managed.isMinimized) (reason: \(cleanupReason))"
+                "isMinimized=\(managed.isMinimizedPerAccessibility) (reason: \(cleanupReason))"
             )
 
-            if managed.isMinimized {
+            if managed.isMinimizedPerAccessibility {
                 Logger.debug("Minimize verification succeeded for window \(windowId) on attempt \(attempt)")
                 self.finalizeProgrammaticMinimize(
                     windowId: windowId,
@@ -307,7 +307,7 @@ extension AppController {
         cleanupReason: String,
         wasManualResizeDetached: Bool
     ) {
-        guard !managed.isMinimized else {
+        guard !managed.isMinimizedPerAccessibility else {
             finalizeProgrammaticMinimize(
                 windowId: managed.windowId,
                 emptiedZoneKey: emptiedZoneKey,

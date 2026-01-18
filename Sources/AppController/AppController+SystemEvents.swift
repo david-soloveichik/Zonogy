@@ -137,7 +137,7 @@ extension AppController {
             }
 
             hasManagedWindows = true
-            if !window.isMinimized {
+            if window.isPlacedInZone {
                 windowsToMinimize.append((window, zoneKey(forManagedWindow: window)))
             }
         }

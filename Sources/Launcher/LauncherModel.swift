@@ -379,7 +379,7 @@ final class LauncherModel: ObservableObject {
 
     /// Reorders windows: not-in-zone first, then in-zone, preserving relative order within each group
     private func sortWindowsNotInZoneFirst(_ windows: [LauncherWindowItem]) -> [LauncherWindowItem] {
-        windows.filter { !$0.isInZone } + windows.filter { $0.isInZone }
+        windows.filter { !$0.isPlacedInZone } + windows.filter { $0.isPlacedInZone }
     }
 
 }

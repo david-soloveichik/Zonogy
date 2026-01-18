@@ -9,7 +9,7 @@ struct WindowItemRowView: View {
     var body: some View {
         HStack(spacing: 10) {
             // Window icon glyph (visible when window is placed in a zone)
-            WindowIndicatorGlyphView(isVisible: window.isInZone)
+            WindowIndicatorGlyphView(isVisible: window.isPlacedInZone)
 
             Text(window.title)
                 .font(.system(size: 14, weight: .regular))

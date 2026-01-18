@@ -80,7 +80,7 @@ extension AppController {
     internal func placeTrackedButUnzonedWindows(reason: String) -> Int {
         var placedCount = 0
         for window in windowController.allWindows {
-            guard !window.isMinimized,
+            guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
                   !isWindowInTemporaryZone(window.windowId) else {
                 continue

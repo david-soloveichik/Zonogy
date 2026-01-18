@@ -6,9 +6,9 @@ import Foundation
 struct LauncherWindowItem: Identifiable, Equatable {
     let id: UUID
     let title: String
-    let isMinimized: Bool
-    /// Whether this window is currently placed in a zone (tiling or temporary)
-    let isInZone: Bool
+    /// Whether this window is currently placed in a zone (tiled or temporary).
+    /// Windows not placed in any zone are considered minimized.
+    let isPlacedInZone: Bool
     let axElement: AXUIElement
     let lastActiveTime: Date?
     let bundleIdentifier: String?
@@ -18,8 +18,7 @@ struct LauncherWindowItem: Identifiable, Equatable {
 
     init(
         title: String,
-        isMinimized: Bool,
-        isInZone: Bool = false,
+        isPlacedInZone: Bool = false,
         axElement: AXUIElement,
         lastActiveTime: Date? = nil,
         bundleIdentifier: String? = nil,
@@ -28,8 +27,7 @@ struct LauncherWindowItem: Identifiable, Equatable {
     ) {
         self.id = UUID()
         self.title = title
-        self.isMinimized = isMinimized
-        self.isInZone = isInZone
+        self.isPlacedInZone = isPlacedInZone
         self.axElement = axElement
         self.lastActiveTime = lastActiveTime
         self.bundleIdentifier = bundleIdentifier

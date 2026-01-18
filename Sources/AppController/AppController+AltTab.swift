@@ -6,8 +6,8 @@ extension AppController: AltTabControllerDelegate {
 
     func altTabController(_ controller: AltTabController, didSelectWindow window: LauncherWindowItem) {
         // Reuse the Launcher's window selection logic
-        // Unminimized windows are activated in place; minimized windows go to target zone
-        handleWindowSelection(window, activateInPlace: !window.isMinimized)
+        // In-zone windows are activated in place; not-in-zone windows go to target zone
+        handleWindowSelection(window, activateInPlace: window.isPlacedInZone)
     }
 
     // MARK: - Dismissal
@@ -54,7 +54,7 @@ extension AppController: AltTabControllerDelegate {
 
             let item = LauncherWindowItem(
                 title: title,
-                isMinimized: window.isMinimized,
+                isPlacedInZone: window.isPlacedInZone,
                 axElement: element,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleId,

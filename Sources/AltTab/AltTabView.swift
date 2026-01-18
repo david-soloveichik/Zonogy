@@ -83,8 +83,8 @@ struct AltTabRowView: View {
 
             Spacer(minLength: 0)
 
-            // Unminimized indicator (shown on the right)
-            if !window.isMinimized {
+            // In-zone indicator (shown on the right)
+            if window.isPlacedInZone {
                 Image(systemName: "macwindow")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)

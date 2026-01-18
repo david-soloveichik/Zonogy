@@ -379,7 +379,7 @@ extension AppController {
             zone: zone,
             descriptor: descriptor,
             targetFrame: targetFrame,
-            wasMinimized: managed.isMinimized
+            wasMinimized: managed.isMinimizedPerAccessibility
         )
     }
 
@@ -410,7 +410,7 @@ extension AppController {
 
         return TemporaryRestoreWorkItem(
             managed: managed,
-            wasMinimized: managed.isMinimized,
+            wasMinimized: managed.isMinimizedPerAccessibility,
             targetFrame: targetFrame,
             descriptor: descriptor
         )

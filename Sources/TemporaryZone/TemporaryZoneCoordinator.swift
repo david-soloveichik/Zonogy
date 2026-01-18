@@ -76,6 +76,7 @@ final class TemporaryZoneCoordinator {
         }
 
         occupants[screenId] = managed.windowId
+        managed.isInTemporaryZone = true
         host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
 
         if centerWindow,
@@ -98,6 +99,7 @@ final class TemporaryZoneCoordinator {
             return
         }
         host.clearTemporaryZoneProtection(windowId: occupant.windowId)
+        occupant.isInTemporaryZone = false
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
         host.minimizeWindowProgrammatically(occupant, reason: reason)
@@ -112,6 +114,9 @@ final class TemporaryZoneCoordinator {
             return
         }
         host.clearTemporaryZoneProtection(windowId: windowId)
+        if let window = host.windowController.window(withId: windowId) {
+            window.isInTemporaryZone = false
+        }
         occupants.removeValue(forKey: entry.key)
         Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {

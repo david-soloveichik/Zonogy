@@ -33,8 +33,9 @@ extension AppController {
             let windows = captureWindows(for: application, notifyDelegate: false, allowExisting: false)
             for window in windows {
                 // Skip minimized windows from zone placement - they're tracked for the launcher
-                // but shouldn't be placed into zones during startup
-                guard !window.isMinimized else { continue }
+                // but shouldn't be placed into zones during startup.
+                // Use AX query since windows don't have zone assignments yet.
+                guard !window.isMinimizedPerAccessibility else { continue }
 
                 let resolvedScreenId = detectScreenId(for: window) ?? primaryScreenId
                 guard screenContexts[resolvedScreenId] != nil else {

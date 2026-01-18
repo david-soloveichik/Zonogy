@@ -92,6 +92,7 @@ extension AppController {
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
+        managed.isInTemporaryZone = false
         clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "assignment-cleared")
         activeFitClearSuppressionForWindow(managed.windowId)
     }

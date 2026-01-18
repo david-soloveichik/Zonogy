@@ -81,7 +81,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         return LauncherWindowItem(
             title: title,
-            isMinimized: preferredManaged.isMinimized,
+            isPlacedInZone: preferredManaged.isPlacedInZone,
             axElement: element,
             lastActiveTime: windowController.lastActiveTime(for: preferredManaged.windowId),
             bundleIdentifier: bundleId,
@@ -187,7 +187,7 @@ extension AppController: DockMenusCoordinatorDelegate {
         let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
 
         // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
-        if managed.isMinimized {
+        if !managed.isPlacedInZone {
             prePositionMinimizedWindowForDockMenuDrag(managed, to: displayFrame, on: descriptor)
             suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "dockmenu-drag-unminimize")
             windowController.unminimizeWindow(managed)
@@ -205,7 +205,7 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
 
         // Unminimize if needed
-        if managed.isMinimized {
+        if !managed.isPlacedInZone {
             suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "dockmenu-drag-unminimize")
             windowController.unminimizeWindow(managed)
         }

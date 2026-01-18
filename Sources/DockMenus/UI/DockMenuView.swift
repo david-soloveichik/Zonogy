@@ -135,8 +135,8 @@ struct DockMenuWindowRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Window icon glyph (or empty for minimized windows)
-            if !window.isMinimized {
+            // Window icon glyph (or empty for not-in-zone windows)
+            if window.isPlacedInZone {
                 Image(systemName: "macwindow")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)

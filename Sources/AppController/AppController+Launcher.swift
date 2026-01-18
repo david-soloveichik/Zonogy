@@ -98,8 +98,8 @@ extension AppController: LauncherControllerDelegate {
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
 
-            // If activateInPlace: if window is already in a zone (tiling or temp) and not minimized, just activate it
-            if activateInPlace && !managed.isMinimized && isWindowInZone(managed) {
+            // If activateInPlace: if window is already in a zone (tiling or temp), just activate it
+            if activateInPlace && managed.isPlacedInZone {
                 Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
                 activateWindow(managed)
                 return
@@ -109,7 +109,7 @@ extension AppController: LauncherControllerDelegate {
             let targetInfo = calculateTargetZoneFrame(for: managed)
 
             // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
-            if managed.isMinimized {
+            if !managed.isPlacedInZone {
                 if let (frame, descriptor) = targetInfo {
                     prePositionMinimizedWindowForLauncher(managed, to: frame, on: descriptor)
                 }
@@ -122,13 +122,14 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
-        // Window not managed by Zonogy - focus it via Accessibility API and let Zonogy capture it
+        // Window no longer tracked (removed between item construction and selection) -
+        // focus via Accessibility API and let Zonogy recapture it
         focusWindowViaAccessibility(window)
     }
 
     private func focusWindowViaAccessibility(_ window: LauncherWindowItem) {
-        // Unminimize if needed
-        if window.isMinimized {
+        // Unminimize if needed (based on last known state when item was constructed)
+        if !window.isPlacedInZone {
             AXUIElementSetAttributeValue(window.axElement, kAXMinimizedAttribute as CFString, false as CFTypeRef)
         }
 
@@ -165,9 +166,8 @@ extension AppController: LauncherControllerDelegate {
         if let bundleId = Bundle(url: url)?.bundleIdentifier,
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
 
-            // If activateInPlace: if window is already in a zone and not minimized,
-            // just activate it without moving
-            if activateInPlace && !preferredWindow.isMinimized && isWindowInZone(preferredWindow) {
+            // If activateInPlace: if window is already in a zone, just activate it without moving
+            if activateInPlace && preferredWindow.isPlacedInZone {
                 Logger.debug("Launcher: window \(preferredWindow.windowId) already in zone, activating in place")
                 activateWindow(preferredWindow)
                 return
@@ -177,7 +177,7 @@ extension AppController: LauncherControllerDelegate {
             let targetInfo = calculateTargetZoneFrame(for: preferredWindow)
 
             // Pre-position and unminimize if needed
-            if preferredWindow.isMinimized {
+            if !preferredWindow.isPlacedInZone {
                 if let (frame, descriptor) = targetInfo {
                     prePositionMinimizedWindowForLauncher(preferredWindow, to: frame, on: descriptor)
                 }
@@ -202,14 +202,6 @@ extension AppController: LauncherControllerDelegate {
                 Logger.debug("Launcher: Launched \(app.localizedName ?? url.lastPathComponent)")
             }
         }
-    }
-
-    /// Returns true if the window is currently assigned to a tiling zone or temporary zone.
-    private func isWindowInZone(_ window: ManagedWindow) -> Bool {
-        if window.zoneIndex != nil {
-            return true
-        }
-        return isWindowInTemporaryZone(window.windowId)
     }
 
     /// Returns the preferred window for a running app based on configuration:
@@ -541,8 +533,7 @@ extension AppController: LauncherWindowProvider {
 
             let item = LauncherWindowItem(
                 title: title,
-                isMinimized: window.isMinimized,
-                isInZone: isWindowInZone(window),
+                isPlacedInZone: window.isPlacedInZone,
                 axElement: element,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleIdentifier,
@@ -601,6 +592,6 @@ extension AppController: LauncherWindowProvider {
         guard let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
             return false
         }
-        return isWindowInZone(preferredWindow)
+        return preferredWindow.isPlacedInZone
     }
 }

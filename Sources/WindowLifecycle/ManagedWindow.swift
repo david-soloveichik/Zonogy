@@ -34,6 +34,16 @@ class ManagedWindow {
     /// Identifier for the display this window is currently associated with.
     var screenDisplayId: CGDirectDisplayID?
 
+    /// Whether this window is currently in the temporary zone (floating).
+    /// Maintained by TemporaryZoneCoordinator.
+    var isInTemporaryZone: Bool = false
+
+    /// Whether this window is placed in any zone (tiled or temporary).
+    /// A window not placed in any zone is considered minimized from Zonogy's perspective.
+    var isPlacedInZone: Bool {
+        zoneIndex != nil || isInTemporaryZone
+    }
+
     init(windowId: Int, backing: ManagedWindowBacking) {
         self.windowId = windowId
         self.backing = backing
@@ -60,8 +70,10 @@ class ManagedWindow {
         return CGRect(origin: position, size: size)
     }
 
-    /// Whether the window is currently minimized.
-    var isMinimized: Bool {
+    /// Whether the window is currently minimized according to the Accessibility API.
+    /// Prefer `isPlacedInZone` for most checks - this is only needed for edge cases
+    /// like the recapture pipeline that must detect the actual OS state.
+    var isMinimizedPerAccessibility: Bool {
         var value: AnyObject?
         let error = AXUIElementCopyAttributeValue(backing.element, kAXMinimizedAttribute as CFString, &value)
         if error == .success, let boolValue = value as? Bool {
