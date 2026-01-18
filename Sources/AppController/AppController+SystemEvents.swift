@@ -223,8 +223,11 @@ extension AppController {
             if let newScreenId = newScreenId,
                launcherController.isActive,
                targetedScreenId() == newScreenId {
-                launcherController.hide()
-                Logger.debug("Launcher: Hidden because unmanaged window gained focus on screen \(screenContextStore.loggingIndex(for: newScreenId))")
+                if dismissLauncherIfActiveRespectingAutoShowGrace() {
+                    Logger.debug("Launcher: Hidden because unmanaged window gained focus on screen \(screenContextStore.loggingIndex(for: newScreenId))")
+                } else if launcherController.isInAutoShowGracePeriod {
+                    Logger.debug("Launcher: Skipping hide for unmanaged focus during auto-show grace on screen \(screenContextStore.loggingIndex(for: newScreenId))")
+                }
             }
         }
     }

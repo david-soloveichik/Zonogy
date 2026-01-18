@@ -67,6 +67,17 @@ extension AppController {
         launcherController.autoShow()
         Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
     }
+
+    /// Dismiss the Launcher unless it's in its auto-show grace period.
+    /// Use for focus-based dismissals to avoid immediate hide due to macOS auto-focus after close/minimize.
+    @discardableResult
+    internal func dismissLauncherIfActiveRespectingAutoShowGrace() -> Bool {
+        guard launcherController.isActive, !launcherController.isInAutoShowGracePeriod else {
+            return false
+        }
+        launcherController.hide()
+        return true
+    }
 }
 
 extension AppController: LauncherControllerDelegate {
