@@ -6,7 +6,6 @@ import SwiftUI
 struct LaunchItemRowView: View {
     let item: LaunchItem
     let isSelected: Bool
-    var windowCount: Int?
     var isRunning: Bool = false
     var hasDefaultWindowInZone: Bool = false
     var onChevronTap: (() -> Void)?

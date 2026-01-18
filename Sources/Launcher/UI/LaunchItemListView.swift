@@ -23,7 +23,7 @@ struct LaunchItemListView: View {
     let items: [LaunchItem]
     @Binding var selectedItemURL: URL?
     let onOpenSelected: () -> Void
-    var windowCountForSelected: Int?
+    var windowCountsByURL: [URL: Int] = [:]
     var runningAppURLs: Set<URL> = []
     var appsWithDefaultWindowInZone: Set<URL> = []
     var onExpandApp: ((URL) -> Void)?
@@ -40,7 +40,6 @@ struct LaunchItemListView: View {
                         LaunchItemRowView(
                             item: item,
                             isSelected: item.url == selectedItemURL,
-                            windowCount: item.url == selectedItemURL ? windowCountForSelected : nil,
                             isRunning: isRunning,
                             hasDefaultWindowInZone: hasDefaultWindowInZone
                         )
@@ -60,16 +59,23 @@ struct LaunchItemListView: View {
                         )
                         .overlay(alignment: .trailing) {
                             if isRunning {
-                                Button {
-                                    selectedItemURL = item.url
-                                    onExpandApp?(item.url)
-                                } label: {
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .frame(width: 24, height: 24)
-                                        .contentShape(Rectangle())
+                                HStack(spacing: 2) {
+                                    if let count = windowCountsByURL[item.url], count > 0 {
+                                        Text("\(count)")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Button {
+                                        selectedItemURL = item.url
+                                        onExpandApp?(item.url)
+                                    } label: {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .frame(width: 24, height: 24)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(ChevronPressStyle(isHovered: chevronHoveredURL == item.url))
                                 }
-                                .buttonStyle(ChevronPressStyle(isHovered: chevronHoveredURL == item.url))
                                 .padding(.trailing, 6)
                                 .onHover { hovering in
                                     if hovering {

@@ -56,7 +56,7 @@ struct LauncherView: View {
                             items: model.filteredItems,
                             selectedItemURL: $model.selectedItemURL,
                             onOpenSelected: handleAppLaunch,
-                            windowCountForSelected: model.cachedWindowCount,
+                            windowCountsByURL: model.windowCountsByURL,
                             runningAppURLs: model.runningAppURLs,
                             appsWithDefaultWindowInZone: model.appsWithDefaultWindowInZone,
                             onExpandApp: handleExpandApp

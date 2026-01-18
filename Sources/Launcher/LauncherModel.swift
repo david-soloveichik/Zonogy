@@ -24,21 +24,15 @@ final class LauncherModel: ObservableObject {
     }
 
     @Published private(set) var filteredItems: [LaunchItem] = []
-    @Published var selectedItemURL: URL? {
-        didSet {
-            if case .appList = mode {
-                updateWindowCountForSelectedApp()
-            }
-        }
-    }
+    @Published var selectedItemURL: URL?
 
     @Published private(set) var mode: LauncherMode = .appList
     @Published private(set) var filteredWindowItems: [LauncherWindowItem] = []
     @Published var selectedWindowId: UUID?
-    @Published private(set) var cachedWindowCount: Int?
     @Published private(set) var windowModeAppIcon: NSImage?
     @Published private(set) var runningAppURLs: Set<URL> = []
     @Published private(set) var appsWithDefaultWindowInZone: Set<URL> = []
+    @Published private(set) var windowCountsByURL: [URL: Int] = [:]
     @Published private(set) var focusSearchFieldToken: Int = 0
 
     var isAppHeaderSelected: Bool {
@@ -114,6 +108,26 @@ final class LauncherModel: ObservableObject {
             result.insert(url)
         }
         appsWithDefaultWindowInZone = result
+        refreshWindowCounts()
+    }
+
+    func refreshWindowCounts() {
+        guard let windowProvider else {
+            windowCountsByURL = [:]
+            return
+        }
+        var counts: [URL: Int] = [:]
+        for url in runningAppURLs {
+            guard let bundle = Bundle(url: url),
+                  let bundleId = bundle.bundleIdentifier else {
+                continue
+            }
+            let count = windowProvider.windowCount(for: bundleId)
+            if count > 0 {
+                counts[url] = count
+            }
+        }
+        windowCountsByURL = counts
     }
 
     func reloadItems() {
@@ -248,19 +262,6 @@ final class LauncherModel: ObservableObject {
     }
 
     // MARK: - Window Navigation
-
-    func updateWindowCountForSelectedApp() {
-        guard let url = selectedItemURL,
-              let item = filteredItems.first(where: { $0.url == url }),
-              item.kind == .application,
-              let bundle = Bundle(url: url),
-              let bundleId = bundle.bundleIdentifier else {
-            cachedWindowCount = nil
-            return
-        }
-
-        cachedWindowCount = windowProvider?.windowCount(for: bundleId)
-    }
 
     func enterWindowMode() {
         guard let url = selectedItemURL,
