@@ -371,12 +371,16 @@ extension AppController: LauncherControllerDelegate {
         windowController.showWindow(managed, at: displayFrame, on: descriptor)
         setManagedWindow(managed, screenId: targetedKey.screenId, zoneIndex: targetedKey.index)
 
+        Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
+
+        // Dismiss Launcher before retargeting to prevent visual glitch
+        // (Launcher briefly jumping to new target before focus-change dismissal)
+        dismissLauncherIfActive()
+
         // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
         if zoneWasEmpty, targetingMode == .independentOfFocus {
             targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
         }
-
-        Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
 
         // Activate the window
         activateWindow(managed)
