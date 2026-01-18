@@ -43,23 +43,12 @@ extension AppController {
         // Zone topology has changed; cancel any in-flight accessibility frame retries
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
+        targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
         if promoteTemporaryOccupant {
             promoteTemporaryZoneOccupantIfNeeded(on: screenId, newZone: newZone)
         }
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
-        let newZoneKey = zoneKey(for: screenId, index: newZone.index)
-        if shouldRetarget(to: newZoneKey) {
-            targetedZoneManager.setTargetedZone(newZoneKey, reason: "zone-added")
-            // If we targeted a zone that's already filled (e.g., from temporary zone promotion),
-            // retarget per spec: "Whenever the targeted tiling zone is filled..."
-            if targetingMode == .independentOfFocus,
-               !targetedZoneManager.isZoneEmpty(newZoneKey) {
-                targetedZoneManager.retargetAfterFillingZone(newZoneKey, reason: "zone-added-filled")
-            }
-        } else {
-            targetedZoneManager.ensureTargetedZone(reason: "zone-added")
-        }
         if announce {
             print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
         }

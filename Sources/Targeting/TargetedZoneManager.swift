@@ -124,6 +124,15 @@ class TargetedZoneManager {
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
 
+    /// When a new tiling zone is created on a screen, always target the lowest-index empty tiling zone on that screen.
+    func targetAfterCreatingZone(on screenId: CGDirectDisplayID, reason: String) {
+        if let empty = lowestIndexEmptyZoneOnSameScreen(screenId: screenId) {
+            setTargetedZone(empty, reason: reason)
+        } else {
+            ensureTargetedZone(reason: reason)
+        }
+    }
+
     /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
     /// on the same screen, retarget to such zone with the lowest index; if none exist,
     /// retarget to the lowest-index empty tiling zone on another screen; if none exist,

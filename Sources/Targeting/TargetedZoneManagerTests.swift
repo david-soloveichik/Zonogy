@@ -68,6 +68,21 @@ enum TargetedZoneManagerTests {
                 zoneCounts: [screen1: 3],
                 screenOrder: [screen1]
             )
+
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 7002, toZoneIndex: 1)
+
+            manager.setTemporaryTarget(on: screen1, reason: "test")
+            manager.targetAfterCreatingZone(on: screen1, reason: "zone-added")
+            let expected = ZoneKey(screenId: screen1, index: 2)
+            assert(manager.targetedZoneKey == expected, "targetAfterCreatingZone should target the lowest-index empty tiling zone on the same screen (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 3],
+                screenOrder: [screen1]
+            )
             let controller = delegate.zoneController(for: screen1)!
             controller.assignWindow(windowId: 701, toZoneIndex: 1)
 

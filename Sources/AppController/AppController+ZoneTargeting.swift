@@ -51,30 +51,6 @@ extension AppController {
         }
     }
 
-    internal func shouldRetarget(to candidate: ZoneKey) -> Bool {
-        if let tempScreen = targetedZoneManager.targetedTemporaryScreenId {
-            if temporaryZoneOccupant(on: tempScreen) != nil {
-                // Specification: keep the targeted temporary zone while it still holds a window.
-                return false
-            }
-            // Temporary zone is targeted but currently empty; fall back to normal rules.
-        }
-
-        guard let currentKey = targetedZoneManager.targetedZoneKey else {
-            return true
-        }
-        if !targetedZoneManager.zoneExists(currentKey) {
-            return true
-        }
-        if !targetedZoneManager.isZoneEmpty(currentKey) {
-            return true
-        }
-        if currentKey.index > candidate.index {
-            return true
-        }
-        return false
-    }
-
     internal func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {
         ZoneKey(screenId: screenId, index: index)
     }

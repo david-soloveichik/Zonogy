@@ -137,7 +137,7 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 - Clicking a tiling zone placeholder window: target that tiling zone.
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
-- When a new tiling zone is created: target it if the current target is filled or has a higher index; otherwise keep the current target.
+- When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
 - Whenever the targeted **empty** tiling zone is filled (Targeting independent of focus mode): retarget using this priority:
   1. Lowest-index empty tiling zone on the same screen
   2. Lowest-index empty tiling zone on a different screen (tie-break by screen index; lower is preferred)
@@ -211,7 +211,7 @@ If a window is dragged and dropped over a screen's add-zone indicator ("new zone
 
 Placeholder windows and the add-zone indicator accept external drops so the user can route content directly into a zone.
 
-**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone (which automatically sets it as the target), and then opens the file the same way.
+**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone, targets the lowest-index empty tiling zone on that screen, and then opens the file the same way.
 
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
 
