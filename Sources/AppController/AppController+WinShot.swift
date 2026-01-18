@@ -523,12 +523,21 @@ extension AppController {
     }
 
     private func findWindowMatching(identity: WindowIdentity) -> ManagedWindow? {
-        // Try to find by identity matching
+        // First pass: look for exact windowId match (highest confidence)
+        for window in windowController.allWindows {
+            if window.windowId == identity.windowId {
+                return window
+            }
+        }
+
+        // Second pass: fall back to fuzzy matching (externalIdentifier or bundle+title)
+        // This potentially handles some edge cases where the app re-creates the window
         for window in windowController.allWindows {
             if identity.matches(window) {
                 return window
             }
         }
+
         return nil
     }
 
