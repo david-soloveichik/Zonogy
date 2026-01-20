@@ -3,6 +3,10 @@
 
 import Foundation
 
+extension Notification.Name {
+    static let exceptionsConfigurationDidChange = Notification.Name("ExceptionsConfigurationDidChange")
+}
+
 enum ExceptionsConfigurationStore {
     private struct UserConfig: Codable {
         var ignoredBundleIdentifiers: [String]?
@@ -84,6 +88,9 @@ enum ExceptionsConfigurationStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? encoder.encode(existingConfig) {
             try? data.write(to: fileURL, options: [.atomic])
+
+            // Notify observers that exception rules changed
+            NotificationCenter.default.post(name: .exceptionsConfigurationDidChange, object: nil)
         }
     }
 

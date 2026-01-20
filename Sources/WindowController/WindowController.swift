@@ -55,7 +55,7 @@ class WindowController {
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
     internal let primaryScreenBounds: CGRect
-    internal let applicationExceptionPolicy: ApplicationExceptionPolicy
+    internal var applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
 
     // Require at least a few pixels of movement (with the button still down)

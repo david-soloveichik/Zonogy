@@ -326,7 +326,7 @@ extension AppController {
             return false
         }
         if application.activationPolicy != .regular &&
-            !configuration.applicationExceptionPolicy.ignoresActivationPolicy(forBundleIdentifier: bundleId) {
+            !windowController.applicationExceptionPolicy.ignoresActivationPolicy(forBundleIdentifier: bundleId) {
             if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - activationPolicy is \(application.activationPolicy.rawValue), not .regular") }
             return false
         }

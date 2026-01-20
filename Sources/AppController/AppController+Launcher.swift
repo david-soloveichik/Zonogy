@@ -236,7 +236,7 @@ extension AppController: LauncherControllerDelegate {
         }
 
         // Check if this app prefers the "main window" (lowest Zonogy ID)
-        let prefersMainWindow = configuration.applicationExceptionPolicy.hasMainWindow(forBundleIdentifier: bundleIdentifier)
+        let prefersMainWindow = windowController.applicationExceptionPolicy.hasMainWindow(forBundleIdentifier: bundleIdentifier)
 
         if prefersMainWindow {
             // Sort by Zonogy ID ascending (first created = main window)

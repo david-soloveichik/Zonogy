@@ -234,6 +234,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         super.init()
 
+        // Listen for exception config changes from Preferences
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleExceptionsConfigurationDidChange),
+            name: .exceptionsConfigurationDidChange,
+            object: nil
+        )
+
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
         self.placeholderManager.delegate = self
@@ -272,7 +280,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
     }
 
+    @objc private func handleExceptionsConfigurationDidChange() {
+        // Ensure we're on main thread since we mutate shared state
+        DispatchQueue.main.async { [weak self] in
+            dispatchPrecondition(condition: .onQueue(.main))
+            guard let self = self else { return }
+            let rules = ExceptionsConfigurationStore.loadRules()
+            let newPolicy = ApplicationExceptionPolicy(rules: rules)
+            self.windowController.applicationExceptionPolicy = newPolicy
+            Logger.debug("Reloaded exception policy with \(rules.count) rules")
+        }
+    }
+
     deinit {
+        NotificationCenter.default.removeObserver(self)
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         systemEventMonitor.stop()

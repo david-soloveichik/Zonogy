@@ -325,7 +325,7 @@ extension AppController {
         guard let bundleId = NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier else {
             return false
         }
-        return configuration.applicationExceptionPolicy.snapsToZoneOnSelfResize(forBundleIdentifier: bundleId)
+        return windowController.applicationExceptionPolicy.snapsToZoneOnSelfResize(forBundleIdentifier: bundleId)
     }
 
     private func currentCursorScreenPoint(on descriptor: ScreenDescriptor) -> CGPoint {
