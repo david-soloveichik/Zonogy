@@ -67,3 +67,8 @@ When unminimizing a window that needs to appear at a specific position (e.g., re
 ### Temporary zone activation workaround
 
 When placing a window into the temporary zone, the window may fail to receive focus and appear behind tiled windows. Since the temporary zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateTemporaryZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before calling `app.activate()` and `kAXRaiseAction`.
+
+### Full-screen app detection
+
+macOS provides no standard API to detect whether a screen has a full-screen app. We detect full-screen apps by checking if any non-system window spans the screen's entire width (Finder, Window Server, and Dock are excluded). Height is ignored since might not span full height.
+We do not show the Launcher on screens with full-screen apps.
