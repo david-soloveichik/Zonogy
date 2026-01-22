@@ -67,3 +67,13 @@ When unminimizing a window that needs to appear at a specific position (e.g., re
 ### Temporary zone activation workaround
 
 When placing a window into the temporary zone, the window may fail to receive focus and appear behind tiled windows. Since the temporary zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateTemporaryZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before calling `app.activate()` and `kAXRaiseAction`.
+
+### Full-screen window detection
+
+macOS does not provide a direct API to check whether a screen has a native full-screen window. We use a heuristic in `FullScreenTracker`:
+
+1. A window spans the full width of a screen (height is ignored since on experimentation the full screen window may not be full height)
+2. The window's position is not settable via accessibility (`AXUIElementIsAttributeSettable` returns false for `kAXPositionAttribute`)
+3. The window belongs to an app that would otherwise be managed by Zonogy
+
+We track which specific window caused each screen to be considered "in full-screen mode." When that window closes or becomes movable again, we clear the state for that screen. Full state detection (startup, display configuration changes) uses `updateAllScreens` which processes all windows. For per-app events (managed window close, window capture), we use `recheckPid` which still calls `CGWindowListCopyWindowInfo` (system-wide) but only performs the expensive accessibility API calls (`isWindowMovable`) for windows belonging to the affected pid.

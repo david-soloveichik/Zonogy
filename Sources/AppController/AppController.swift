@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost, FullScreenTrackerDelegate {
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
@@ -98,6 +98,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         controller.delegate = self
         return controller
     }()
+    internal var fullScreenTracker: FullScreenTracker!
+    internal var fullScreenDebugOverlay: FullScreenDebugOverlayController?
     /// True when Launcher should auto-show for empty tiling zones.
     internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
     internal var targetingMode: TargetingMode
@@ -232,7 +234,22 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.placeholderManager = PlaceholderManager()
         self.placeholderCoordinator = PlaceholderCoordinator(placeholderManager: self.placeholderManager)
 
+        // Initialize full-screen debug overlay if enabled
+        self.fullScreenDebugOverlay = kShowDebugFullScreenOverlay
+            ? FullScreenDebugOverlayController(primaryScreenBounds: contextStore.primaryScreenBounds)
+            : nil
+
         super.init()
+
+        // Initialize full-screen tracker after super.init() since it needs self for shouldManage closure
+        self.fullScreenTracker = FullScreenTracker(
+            primaryScreenBounds: contextStore.primaryScreenBounds,
+            ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
+            shouldManageApp: { [weak self] app in
+                self?.shouldManage(application: app) ?? false
+            }
+        )
+        self.fullScreenTracker.delegate = self
 
         // Listen for exception config changes from Preferences
         NotificationCenter.default.addObserver(
@@ -257,6 +274,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.dragDropCoordinator.delegate = self
         self.menuBarManager.delegate = self
         prepareExistingApplicationWindows()
+        fullScreenTracker.updateAllScreens(screenContexts: screenContexts)
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)

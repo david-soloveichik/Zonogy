@@ -240,6 +240,9 @@ extension AppController {
         }
         Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
 
+        // Notify full-screen tracker that this app terminated
+        notifyFullScreenTrackerOfAppTermination(pid: application.processIdentifier)
+
         capturePipeline.cancelRetry(forPid: application.processIdentifier)
 
         // When an application terminates, remove all of its managed windows immediately

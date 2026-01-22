@@ -152,6 +152,11 @@ extension AppController {
             return
         }
         Logger.debug("Window \(windowId) will close")
+
+        // Capture pid before cleanup in case the app entered full-screen mode
+        // (closing old window, creating new full-screen window)
+        let closingWindowPid = windowController.window(withId: windowId)?.backing.pid
+
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
         }
@@ -175,6 +180,11 @@ extension AppController {
         syncWindowsToZones()
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
+
+        // Check if this app entered full-screen mode (closing old window, creating full-screen window)
+        if let pid = closingWindowPid {
+            recheckFullScreenForPid(pid)
+        }
     }
 
     func windowDidMiniaturize(windowId: Int) {
@@ -572,6 +582,10 @@ extension AppController {
             return
         }
         windowPlacementManager.placeNewWindow(window)
+
+        // A captured window might indicate the app exited full-screen mode.
+        // Use targeted check for just this pid to avoid full enumeration overhead.
+        recheckFullScreenForPid(window.backing.pid)
     }
 
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {

@@ -356,6 +356,9 @@ extension AppController {
 
         syncWindowsToZones()
 
+        // Refresh full-screen tracking after screen changes
+        refreshFullScreenTracking()
+
         // Recapture after displays settle when meaningful changes occurred.
         // Always recapture after wake to catch windows that were deminiaturized or
         // created while events were suppressed during the sleep transition.
