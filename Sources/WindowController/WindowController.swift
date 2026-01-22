@@ -99,6 +99,19 @@ class WindowController {
         }
     }
 
+    // MARK: - Full-Screen Window Notification Registration
+
+    /// Register destroyed notification for a full-screen window.
+    /// This allows detecting when the full-screen window closes.
+    func registerDestroyedNotification(for element: AXUIElement, pid: pid_t) {
+        accessibilityWatcher.registerDestroyedNotification(for: element, pid: pid)
+    }
+
+    /// Remove destroyed notification for a full-screen window.
+    func removeDestroyedNotification(for element: AXUIElement, pid: pid_t) {
+        accessibilityWatcher.removeDestroyedNotification(for: element, pid: pid)
+    }
+
     internal func updateMouseUpGlobalMonitorInstallation() {
         let needsGlobalMonitor = dragCandidate != nil || currentDraggingWindowId != nil
         if needsGlobalMonitor {
@@ -431,6 +444,8 @@ protocol WindowControllerDelegate: AnyObject {
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
+    func windowController(_ controller: WindowController, didRejectNonMovableWindow element: AXUIElement, cgWindowId: CGWindowID, pid: pid_t, frame: CGRect)
+    func fullScreenWindowDidClose(cgWindowId: CGWindowID)
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool
     func isZoneResizeDragInProgress() -> Bool

@@ -130,6 +130,31 @@ final class AccessibilityWatcher {
         }
     }
 
+    /// Register only the destroyed notification for a window element.
+    /// Used for tracking full-screen windows that aren't fully managed.
+    func registerDestroyedNotification(for element: AXUIElement, pid: pid_t) {
+        guard let observer = observersByPid[pid] else {
+            return
+        }
+
+        let notification = kAXUIElementDestroyedNotification as CFString
+        let status = AXObserverAddNotification(observer, element, notification, observerRefcon)
+        if status == .success || status == .notificationAlreadyRegistered {
+            Logger.debug("Registered destroyed notification for full-screen window pid \(pid)")
+        } else {
+            Logger.debug("Failed to register destroyed notification for full-screen window pid \(pid) (AX error \(status.rawValue))")
+        }
+    }
+
+    /// Remove the destroyed notification for a window element.
+    func removeDestroyedNotification(for element: AXUIElement, pid: pid_t) {
+        guard let observer = observersByPid[pid] else {
+            return
+        }
+
+        AXObserverRemoveNotification(observer, element, kAXUIElementDestroyedNotification as CFString)
+    }
+
     func removeObserver(for pid: pid_t) {
         guard let observer = observersByPid.removeValue(forKey: pid) else {
             return

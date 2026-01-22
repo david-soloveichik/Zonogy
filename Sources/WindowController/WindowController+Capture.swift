@@ -228,7 +228,9 @@ extension WindowController {
         // (some apps like PDF Expert report AXDialog subrole for their document windows)
         let isMinimized = isWindowMinimized(element)
 
-        guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId, skipSubroleCheck: isMinimized) else {
+        guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId, skipSubroleCheck: isMinimized, onNonMovable: { [weak self] element, frame in
+            self?.delegate?.windowController(self!, didRejectNonMovableWindow: element, cgWindowId: cgWindowId, pid: pid, frame: frame)
+        }) else {
             Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")
             return nil
         }

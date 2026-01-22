@@ -153,9 +153,8 @@ extension AppController {
         }
         Logger.debug("Window \(windowId) will close")
 
-        // Capture pid before cleanup in case the app entered full-screen mode
-        // (closing old window, creating new full-screen window)
-        let closingWindowPid = windowController.window(withId: windowId)?.backing.pid
+        // Capture cgWindowId before cleanup to check if this was a full-screen window
+        let closingCgWindowId = windowController.window(withId: windowId)?.backing.cgWindowId
 
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
@@ -181,9 +180,9 @@ extension AppController {
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
 
-        // Check if this app entered full-screen mode (closing old window, creating full-screen window)
-        if let pid = closingWindowPid {
-            recheckFullScreenForPid(pid)
+        // If this window was causing full-screen mode on a display, clear it
+        if let cgWindowId = closingCgWindowId {
+            notifyFullScreenTrackerOfWindowClose(cgWindowId: CGWindowID(cgWindowId))
         }
     }
 
@@ -582,10 +581,6 @@ extension AppController {
             return
         }
         windowPlacementManager.placeNewWindow(window)
-
-        // A captured window might indicate the app exited full-screen mode.
-        // Use targeted check for just this pid to avoid full enumeration overhead.
-        recheckFullScreenForPid(window.backing.pid)
     }
 
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {
@@ -597,6 +592,22 @@ extension AppController {
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         Logger.debug("Scheduling capture retry for pid \(pid) due to failed AXWindowCreated capture")
         capturePipeline.requestRetry(forPid: pid, bundleId: bundleId)
+    }
+
+    func windowController(_ controller: WindowController, didRejectNonMovableWindow element: AXUIElement, cgWindowId: CGWindowID, pid: pid_t, frame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "didRejectNonMovableWindow(\(cgWindowId))") {
+            return
+        }
+        // Check if this non-movable window is a full-screen window
+        checkNonMovableWindowForFullScreen(element: element, pid: pid, cgWindowId: cgWindowId, frame: frame)
+    }
+
+    func fullScreenWindowDidClose(cgWindowId: CGWindowID) {
+        if shouldIgnoreDueToSleepWake(event: "fullScreenWindowDidClose(\(cgWindowId))") {
+            return
+        }
+        // Notify full-screen tracker that this window closed
+        notifyFullScreenTrackerOfWindowClose(cgWindowId: cgWindowId)
     }
 
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {

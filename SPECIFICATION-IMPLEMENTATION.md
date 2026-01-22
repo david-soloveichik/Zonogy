@@ -72,8 +72,14 @@ When placing a window into the temporary zone, the window may fail to receive fo
 
 macOS does not provide a direct API to check whether a screen has a native full-screen window. We use a heuristic in `FullScreenTracker`:
 
-1. A window spans the full width of a screen (height is ignored since on experimentation the full screen window may not be full height)
+1. A window spans the full width of a screen (height is ignored since on experimentation the full screen window was not always full height)
 2. The window's position is not settable via accessibility (`AXUIElementIsAttributeSettable` returns false for `kAXPositionAttribute`)
 3. The window belongs to an app that would otherwise be managed by Zonogy
 
-We track which specific window caused each screen to be considered "in full-screen mode." When that window closes or becomes movable again, we clear the state for that screen. Full state detection (startup, display configuration changes) uses `updateAllScreens` which processes all windows. For per-app events (managed window close, window capture), we use `recheckPid` which still calls `CGWindowListCopyWindowInfo` (system-wide) but only performs the expensive accessibility API calls (`isWindowMovable`) for windows belonging to the affected pid.
+We track which specific window caused each screen to be considered "in full-screen mode." Full-screen tracking piggybacks on the normal managed window lifecycle:
+
+**Detecting entry:** When capture validation rejects a window because it's non-movable, we check if that specific window spans the full width of a screen.
+
+**Detecting exit:** When a full-screen window is detected, we subscribe to `kAXUIElementDestroyedNotification` for that window's element—the same notification used for managed windows. When the notification fires, we remove the screen from full-screen mode. (App termination also clears full-screen state, same as for managed windows.)
+
+Full detection (enumeration) also runs (`updateAllScreens`) at startup and after display configuration changes.

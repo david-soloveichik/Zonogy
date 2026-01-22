@@ -9,14 +9,21 @@ import ApplicationServices
 
 /// Information about a full-screen window on a display.
 struct FullScreenWindowInfo: Equatable {
+    let element: AXUIElement
     let cgWindowId: CGWindowID
     let pid: pid_t
     let bundleIdentifier: String?
+
+    static func == (lhs: FullScreenWindowInfo, rhs: FullScreenWindowInfo) -> Bool {
+        lhs.cgWindowId == rhs.cgWindowId && lhs.pid == rhs.pid
+    }
 }
 
 /// Delegate notified of full-screen state changes.
 protocol FullScreenTrackerDelegate: AnyObject {
     func fullScreenTracker(_ tracker: FullScreenTracker, didChangeFullScreenStateFor displayId: CGDirectDisplayID)
+    func fullScreenTracker(_ tracker: FullScreenTracker, didStartTrackingFullScreenWindow info: FullScreenWindowInfo)
+    func fullScreenTracker(_ tracker: FullScreenTracker, didStopTrackingFullScreenWindow info: FullScreenWindowInfo)
 }
 
 /// Tracks screens that have full-screen windows from managed apps.
@@ -75,152 +82,81 @@ final class FullScreenTracker {
             let screenIndex = ScreenContextStore.loggingIndex(for: entry.displayId)
             let bundleDesc = entry.info.bundleIdentifier ?? "unknown"
             Logger.debug("FullScreenTracker: app pid \(pid) (bundle: \(bundleDesc), window \(entry.info.cgWindowId)) terminated, screen \(screenIndex) exiting full-screen mode")
+            delegate?.fullScreenTracker(self, didStopTrackingFullScreenWindow: entry.info)
             delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: entry.displayId)
         }
     }
 
-    /// Recheck full-screen state for a specific pid.
-    /// This is a targeted check that only examines windows from the given pid,
-    /// avoiding full enumeration overhead.
-    /// Call this when a window from this pid closes (might have entered full-screen)
-    /// or when a window from this pid becomes manageable (might have exited full-screen).
-    func recheckPid(_ pid: pid_t, screenContexts: [CGDirectDisplayID: ScreenContext]) {
-        // Build screen bounds map
-        var screenBoundsMap: [CGDirectDisplayID: CGRect] = [:]
-        for (displayId, context) in screenContexts {
-            let cocoaBounds = context.descriptor.cocoaBounds
-            let cgBounds = CoordinateConversion.cocoaToAccessibility(
-                cocoaFrame: cocoaBounds,
-                primaryScreenBounds: primaryScreenBounds
-            )
-            screenBoundsMap[displayId] = cgBounds
+    /// Update full-screen state when a specific window closes.
+    /// This is a direct lookup - O(number of displays) - avoiding window server queries.
+    func windowDidClose(cgWindowId: CGWindowID) {
+        for (displayId, info) in fullScreenWindows where info.cgWindowId == cgWindowId {
+            fullScreenWindows.removeValue(forKey: displayId)
+            let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
+            let bundleDesc = info.bundleIdentifier ?? "unknown"
+            Logger.debug("FullScreenTracker: full-screen window \(cgWindowId) (bundle: \(bundleDesc)) closed, screen \(screenIndex) exiting full-screen mode")
+            delegate?.fullScreenTracker(self, didStopTrackingFullScreenWindow: info)
+            delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
+            return // A window can only be full-screen on one display
         }
+    }
 
-        // Get current windows for this pid
-        guard let windowInfoList = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[String: Any]] else {
-            // Can't enumerate - clear any tracked windows for this pid
-            clearWindowsForPid(pid)
+    /// Check if a specific non-movable window is a full-screen window.
+    /// Called when capture rejects a window due to non-movability.
+    /// Takes the window's element and frame directly - no CGWindowList query needed.
+    func checkNonMovableWindow(
+        element: AXUIElement,
+        pid: pid_t,
+        cgWindowId: CGWindowID,
+        frame: CGRect,
+        screenContexts: [CGDirectDisplayID: ScreenContext]
+    ) {
+        // Skip if this pid already has a tracked full-screen window
+        if fullScreenWindows.values.contains(where: { $0.pid == pid }) {
             return
         }
 
-        // Check app eligibility once
+        // Check app eligibility
         guard let app = NSRunningApplication(processIdentifier: pid),
               let bundleId = app.bundleIdentifier,
               !ignoredBundleIdentifiers.contains(bundleId),
               shouldManageApp(app) else {
-            // App not eligible - clear any tracked windows
-            clearWindowsForPid(pid)
             return
         }
 
-        // Find full-screen windows for this pid
-        var newFullScreenForPid: [CGDirectDisplayID: FullScreenWindowInfo] = [:]
+        // Check which screen this window spans
+        for (displayId, context) in screenContexts {
+            // Skip if this display already has a full-screen window
+            if fullScreenWindows[displayId] != nil { continue }
 
-        for windowInfo in windowInfoList {
-            guard let ownerPid = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
-                  ownerPid == pid else {
-                continue
-            }
+            let cocoaBounds = context.descriptor.cocoaBounds
+            let screenBounds = CoordinateConversion.cocoaToAccessibility(
+                cocoaFrame: cocoaBounds,
+                primaryScreenBounds: primaryScreenBounds
+            )
 
-            guard let boundsDict = windowInfo[kCGWindowBounds as String] as? NSDictionary,
-                  let cgFrame = CGRect(dictionaryRepresentation: boundsDict),
-                  cgFrame.width > 0 && cgFrame.height > 0,
-                  let cgWindowId = windowInfo[kCGWindowNumber as String] as? CGWindowID else {
-                continue
-            }
+            let spansFullWidth = frame.minX <= screenBounds.minX &&
+                                 frame.maxX >= screenBounds.maxX
+            let isOnScreen = frame.intersects(screenBounds)
 
-            let ownerName = windowInfo[kCGWindowOwnerName as String] as? String
-
-            // Check which screen this window spans
-            for (displayId, screenBounds) in screenBoundsMap {
-                if newFullScreenForPid[displayId] != nil { continue }
-
-                let spansFullWidth = cgFrame.minX <= screenBounds.minX &&
-                                     cgFrame.maxX >= screenBounds.maxX
-                let isOnScreen = cgFrame.intersects(screenBounds)
-
-                if spansFullWidth && isOnScreen {
-                    if !isWindowMovable(pid: pid, cgWindowId: cgWindowId) {
-                        let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
-                        Logger.debug("FullScreenTracker: recheckPid detected full-screen window \(cgWindowId) (app: '\(ownerName ?? "unknown")') on screen \(screenIndex)")
-                        newFullScreenForPid[displayId] = FullScreenWindowInfo(
-                            cgWindowId: cgWindowId,
-                            pid: pid,
-                            bundleIdentifier: bundleId
-                        )
-                    }
-                }
+            if spansFullWidth && isOnScreen {
+                let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
+                Logger.debug("FullScreenTracker: pid \(pid) (bundle: \(bundleId)) entered full-screen on screen \(screenIndex) (window \(cgWindowId))")
+                let info = FullScreenWindowInfo(
+                    element: element,
+                    cgWindowId: cgWindowId,
+                    pid: pid,
+                    bundleIdentifier: bundleId
+                )
+                fullScreenWindows[displayId] = info
+                delegate?.fullScreenTracker(self, didStartTrackingFullScreenWindow: info)
+                delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
+                return // Found a full-screen window
             }
         }
-
-        // Apply changes for this pid only
-        applyPidStateChanges(pid: pid, newStateForPid: newFullScreenForPid)
     }
 
     // MARK: - Private
-
-    /// Clear all tracked full-screen windows for a specific pid.
-    private func clearWindowsForPid(_ pid: pid_t) {
-        var changedDisplayIds: [CGDirectDisplayID] = []
-        for (displayId, info) in fullScreenWindows {
-            if info.pid == pid {
-                fullScreenWindows.removeValue(forKey: displayId)
-                changedDisplayIds.append(displayId)
-                let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
-                let bundleDesc = info.bundleIdentifier ?? "unknown"
-                Logger.debug("FullScreenTracker: cleared full-screen for pid \(pid) (bundle: \(bundleDesc), window \(info.cgWindowId)) on screen \(screenIndex)")
-            }
-        }
-        for displayId in changedDisplayIds {
-            delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
-        }
-    }
-
-    /// Apply state changes for a specific pid only.
-    private func applyPidStateChanges(pid: pid_t, newStateForPid: [CGDirectDisplayID: FullScreenWindowInfo]) {
-        var changedDisplayIds: Set<CGDirectDisplayID> = []
-
-        // Find displays where this pid's full-screen state changed
-        // First, check displays that had this pid's windows
-        for (displayId, info) in fullScreenWindows where info.pid == pid {
-            if let newInfo = newStateForPid[displayId] {
-                // Window changed on this display
-                if info != newInfo {
-                    changedDisplayIds.insert(displayId)
-                    let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
-                    Logger.debug("FullScreenTracker: pid \(pid) full-screen window changed on screen \(screenIndex) from \(info.cgWindowId) to \(newInfo.cgWindowId)")
-                    fullScreenWindows[displayId] = newInfo
-                }
-            } else {
-                // This pid no longer has a full-screen window on this display
-                changedDisplayIds.insert(displayId)
-                let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
-                let bundleDesc = info.bundleIdentifier ?? "unknown"
-                Logger.debug("FullScreenTracker: pid \(pid) (bundle: \(bundleDesc)) exited full-screen on screen \(screenIndex)")
-                fullScreenWindows.removeValue(forKey: displayId)
-            }
-        }
-
-        // Check for new full-screen windows from this pid on displays that didn't have one
-        for (displayId, newInfo) in newStateForPid {
-            if fullScreenWindows[displayId] == nil {
-                changedDisplayIds.insert(displayId)
-                let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
-                let bundleDesc = newInfo.bundleIdentifier ?? "unknown"
-                Logger.debug("FullScreenTracker: pid \(pid) (bundle: \(bundleDesc)) entered full-screen on screen \(screenIndex) (window \(newInfo.cgWindowId))")
-                fullScreenWindows[displayId] = newInfo
-            }
-            // Note: If another pid already has full-screen on this display, we don't replace it.
-            // The first full-screen window detected "wins" for that display.
-        }
-
-        for displayId in changedDisplayIds {
-            delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
-        }
-    }
 
     private func detectFullScreenWindows(screenContexts: [CGDirectDisplayID: ScreenContext]) -> [CGDirectDisplayID: FullScreenWindowInfo] {
         guard let windowInfoList = CGWindowListCopyWindowInfo(
@@ -279,10 +215,12 @@ final class FullScreenTracker {
 
                 if spansFullWidth && isOnScreen {
                     // Check if window is not movable (isMovable = false)
-                    if !isWindowMovable(pid: ownerPid, cgWindowId: cgWindowId) {
+                    let (isMovable, element) = checkWindowMovability(pid: ownerPid, cgWindowId: cgWindowId)
+                    if !isMovable, let element {
                         let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
                         Logger.debug("FullScreenTracker: detected full-screen window \(cgWindowId) (app: '\(ownerName ?? "unknown")') on screen \(screenIndex)")
                         result[displayId] = FullScreenWindowInfo(
+                            element: element,
                             cgWindowId: cgWindowId,
                             pid: ownerPid,
                             bundleIdentifier: bundleId
@@ -301,13 +239,14 @@ final class FullScreenTracker {
     }
 
     /// Check if a window is movable using the Accessibility API.
-    private func isWindowMovable(pid: pid_t, cgWindowId: CGWindowID) -> Bool {
+    /// Returns isMovable and the element if found.
+    private func checkWindowMovability(pid: pid_t, cgWindowId: CGWindowID) -> (isMovable: Bool, element: AXUIElement?) {
         let appElement = AXUIElementCreateApplication(pid)
 
         var windowsRef: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
         guard status == .success, let windows = windowsRef as? [AXUIElement] else {
-            return true // Assume movable if we can't check
+            return (true, nil) // Assume movable if we can't check
         }
 
         for windowElement in windows {
@@ -327,20 +266,27 @@ final class FullScreenTracker {
             )
 
             if settableStatus == .success {
-                return isPositionSettable.boolValue
+                return (isPositionSettable.boolValue, windowElement)
             }
-            return true // Assume movable if check fails
+            return (true, windowElement) // Assume movable if check fails
         }
 
-        return true // Window not found, assume movable
+        return (true, nil) // Window not found, assume movable
+    }
+
+    /// Check if a window is movable (convenience wrapper).
+    private func isWindowMovable(pid: pid_t, cgWindowId: CGWindowID) -> Bool {
+        checkWindowMovability(pid: pid, cgWindowId: cgWindowId).isMovable
     }
 
     private func applyStateChanges(newState: [CGDirectDisplayID: FullScreenWindowInfo]) {
         let oldDisplayIds = Set(fullScreenWindows.keys)
         let newDisplayIds = Set(newState.keys)
 
-        // Determine changed displays
+        // Determine changed displays and track start/stop events
         var changedDisplayIds: Set<CGDirectDisplayID> = []
+        var stoppedWindows: [FullScreenWindowInfo] = []
+        var startedWindows: [FullScreenWindowInfo] = []
 
         // Displays that exited full-screen
         for displayId in oldDisplayIds.subtracting(newDisplayIds) {
@@ -349,6 +295,7 @@ final class FullScreenTracker {
             if let oldInfo = fullScreenWindows[displayId] {
                 let bundleDesc = oldInfo.bundleIdentifier ?? "unknown"
                 Logger.debug("FullScreenTracker: screen \(screenIndex) exited full-screen mode (was window \(oldInfo.cgWindowId), bundle: \(bundleDesc))")
+                stoppedWindows.append(oldInfo)
             } else {
                 Logger.debug("FullScreenTracker: screen \(screenIndex) exited full-screen mode")
             }
@@ -361,6 +308,7 @@ final class FullScreenTracker {
             if let newInfo = newState[displayId] {
                 let bundleDesc = newInfo.bundleIdentifier ?? "unknown"
                 Logger.debug("FullScreenTracker: screen \(screenIndex) entered full-screen mode (window \(newInfo.cgWindowId), bundle: \(bundleDesc))")
+                startedWindows.append(newInfo)
             } else {
                 Logger.debug("FullScreenTracker: screen \(screenIndex) entered full-screen mode")
             }
@@ -376,11 +324,20 @@ final class FullScreenTracker {
                 let oldDesc = oldInfo.map { "window \($0.cgWindowId), bundle: \($0.bundleIdentifier ?? "unknown")" } ?? "none"
                 let newDesc = newInfo.map { "window \($0.cgWindowId), bundle: \($0.bundleIdentifier ?? "unknown")" } ?? "none"
                 Logger.debug("FullScreenTracker: screen \(screenIndex) full-screen window changed from (\(oldDesc)) to (\(newDesc))")
+                if let oldInfo { stoppedWindows.append(oldInfo) }
+                if let newInfo { startedWindows.append(newInfo) }
             }
         }
 
         fullScreenWindows = newState
 
+        // Notify about tracking changes
+        for info in stoppedWindows {
+            delegate?.fullScreenTracker(self, didStopTrackingFullScreenWindow: info)
+        }
+        for info in startedWindows {
+            delegate?.fullScreenTracker(self, didStartTrackingFullScreenWindow: info)
+        }
         for displayId in changedDisplayIds {
             delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
         }

@@ -7,6 +7,16 @@ extension AppController {
         updateFullScreenDebugOverlay(for: displayId)
     }
 
+    func fullScreenTracker(_ tracker: FullScreenTracker, didStartTrackingFullScreenWindow info: FullScreenWindowInfo) {
+        // Subscribe to destroyed notification for this full-screen window
+        windowController.registerDestroyedNotification(for: info.element, pid: info.pid)
+    }
+
+    func fullScreenTracker(_ tracker: FullScreenTracker, didStopTrackingFullScreenWindow info: FullScreenWindowInfo) {
+        // Unsubscribe from destroyed notification for this full-screen window
+        windowController.removeDestroyedNotification(for: info.element, pid: info.pid)
+    }
+
     /// Update the debug overlay for a specific display based on full-screen state.
     internal func updateFullScreenDebugOverlay(for displayId: CGDirectDisplayID) {
         guard let overlay = fullScreenDebugOverlay else { return }
@@ -52,10 +62,15 @@ extension AppController {
         fullScreenTracker.applicationDidTerminate(pid: pid)
     }
 
-    /// Recheck full-screen state for a specific pid.
-    /// This is a targeted check that avoids full enumeration.
-    /// Call when a window from this pid closes or becomes manageable.
-    internal func recheckFullScreenForPid(_ pid: pid_t) {
-        fullScreenTracker.recheckPid(pid, screenContexts: screenContexts)
+    /// Notify full-screen tracker that a specific window closed.
+    /// This is a direct lookup - use when you know the exact window that closed.
+    internal func notifyFullScreenTrackerOfWindowClose(cgWindowId: CGWindowID) {
+        fullScreenTracker.windowDidClose(cgWindowId: cgWindowId)
+    }
+
+    /// Check if a specific non-movable window is a full-screen window.
+    /// Called when capture rejects a window due to non-movability.
+    internal func checkNonMovableWindowForFullScreen(element: AXUIElement, pid: pid_t, cgWindowId: CGWindowID, frame: CGRect) {
+        fullScreenTracker.checkNonMovableWindow(element: element, pid: pid, cgWindowId: cgWindowId, frame: frame, screenContexts: screenContexts)
     }
 }
