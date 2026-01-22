@@ -64,22 +64,8 @@ extension AppController {
             return
         }
 
-        // Don't auto-show if the targeted zone's screen has a full-screen app
-        if hasFullScreenApp(on: targetedKey.screenId) {
-            Logger.debug("Launcher: Skipping auto-show because screen \(screenContextStore.loggingIndex(for: targetedKey.screenId)) has a full-screen app")
-            return
-        }
-
         launcherController.autoShow()
         Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
-    }
-
-    internal func showLauncherIfAllowed(on screenId: CGDirectDisplayID, reason: String) {
-        if hasFullScreenApp(on: screenId) {
-            Logger.debug("Launcher: Skipping show (\(reason)) because screen \(screenContextStore.loggingIndex(for: screenId)) has a full-screen app")
-            return
-        }
-        launcherController.show()
     }
 
     /// Dismiss the Launcher unless it's in its auto-show grace period.

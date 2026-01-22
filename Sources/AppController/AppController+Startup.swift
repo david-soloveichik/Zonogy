@@ -434,23 +434,7 @@ extension AppController {
     }
 
     internal func showLauncher() {
-        // Skip if the targeted screen has a full-screen app
-        if let screenId = targetedScreenIdForLauncher(), hasFullScreenApp(on: screenId) {
-            Logger.debug("Launcher: Skipping show because screen \(screenContextStore.loggingIndex(for: screenId)) has a full-screen app")
-            return
-        }
         launcherController.toggle()
-    }
-
-    /// Returns the screen ID where the Launcher would appear.
-    private func targetedScreenIdForLauncher() -> CGDirectDisplayID? {
-        if let temporaryScreenId = targetedTemporaryScreenId {
-            return temporaryScreenId
-        }
-        if let targetedKey = targetedZoneKey {
-            return targetedKey.screenId
-        }
-        return nil
     }
 
     private func captureTimeTravelLogs(triggerReason: String) {

@@ -111,7 +111,7 @@ extension AppController {
 
         // Clicking the search pill should always show the Launcher, even if the zone was already targeted.
         if !launcherController.isActive {
-            showLauncherIfAllowed(on: screenId, reason: "placeholder-search-pill")
+            launcherController.show()
         }
     }
 
@@ -122,7 +122,7 @@ extension AppController {
 
         if isDoubleClick || wasAlreadyTargeted {
             if !launcherController.isActive {
-                showLauncherIfAllowed(on: key.screenId, reason: "zone-indicator-activated")
+                launcherController.show()
             }
         }
     }
@@ -134,7 +134,7 @@ extension AppController {
 
         if isDoubleClick || wasAlreadyTargeted {
             if !launcherController.isActive {
-                showLauncherIfAllowed(on: screenId, reason: "temporary-indicator-activated")
+                launcherController.show()
             }
         }
     }
