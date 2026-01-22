@@ -104,6 +104,12 @@ class WindowController {
     /// Register destroyed notification for a full-screen window.
     /// This allows detecting when the full-screen window closes.
     func registerDestroyedNotification(for element: AXUIElement, pid: pid_t) {
+        let appElement = accessibilityWatcher.applicationElement(for: pid)
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        guard accessibilityWatcher.ensureObserver(for: pid, appElement: appElement, bundleIdentifier: bundleId) != nil else {
+            Logger.debug("Failed to ensure AXObserver for pid \(pid) while registering destroyed notification for full-screen window")
+            return
+        }
         accessibilityWatcher.registerDestroyedNotification(for: element, pid: pid)
     }
 

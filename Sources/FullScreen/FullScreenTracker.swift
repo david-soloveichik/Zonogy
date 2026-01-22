@@ -111,11 +111,6 @@ final class FullScreenTracker {
         frame: CGRect,
         screenContexts: [CGDirectDisplayID: ScreenContext]
     ) {
-        // Skip if this pid already has a tracked full-screen window
-        if fullScreenWindows.values.contains(where: { $0.pid == pid }) {
-            return
-        }
-
         // Check app eligibility
         guard let app = NSRunningApplication(processIdentifier: pid),
               let bundleId = app.bundleIdentifier,

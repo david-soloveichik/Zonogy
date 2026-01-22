@@ -19,13 +19,14 @@ extension WindowController {
 
     /// Find a managed window matching an accessibility element.
     internal func managedWindow(matching element: AXUIElement) -> ManagedWindow? {
-        for window in windowRegistry.allWindows {
-            if CFEqual(window.accessibilityElement, element) {
-                return window
-            }
+        let elementKey = AccessibilityElementKey(element: element)
+        if let existing = externalWindowsByElement[elementKey] {
+            return existing
         }
-        if let identifier = externalIdentifier(for: element) {
-            return externalWindows[identifier]
+        if let identifier = externalIdentifier(for: element),
+           let managed = externalWindows[identifier] {
+            externalWindowsByElement[elementKey] = managed
+            return managed
         }
         return nil
     }

@@ -229,7 +229,8 @@ extension WindowController {
         let isMinimized = isWindowMinimized(element)
 
         guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId, skipSubroleCheck: isMinimized, onNonMovable: { [weak self] element, frame in
-            self?.delegate?.windowController(self!, didRejectNonMovableWindow: element, cgWindowId: cgWindowId, pid: pid, frame: frame)
+            guard let self else { return }
+            self.delegate?.windowController(self, didRejectNonMovableWindow: element, cgWindowId: cgWindowId, pid: pid, frame: frame)
         }) else {
             Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")
             return nil
