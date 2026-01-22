@@ -6,54 +6,10 @@ let kShowDebugFullScreenOverlay = true
 
 /// Manages debug overlay windows that show orange borders around screens in full-screen mode.
 final class FullScreenDebugOverlayController {
-    private final class OverlayWindow: NSPanel {
-        init() {
-            super.init(
-                contentRect: .zero,
-                styleMask: [.borderless, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-            isReleasedWhenClosed = false
-            isFloatingPanel = true
-            becomesKeyOnlyIfNeeded = false
-            ignoresMouseEvents = true
-            isOpaque = false
-            hasShadow = false
-            backgroundColor = .clear
-            // Place above most windows but below the dock debug overlay
-            level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 100)
-            collectionBehavior = [
-                .canJoinAllSpaces,
-                .ignoresCycle,
-                .transient
-            ]
-        }
-
-        override var canBecomeKey: Bool { false }
-        override var canBecomeMain: Bool { false }
-
-        override func makeKeyAndOrderFront(_ sender: Any?) {
-            orderFront(sender)
-        }
-    }
-
-    private final class BorderView: NSView {
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            wantsLayer = true
-            layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.borderColor = NSColor.systemOrange.cgColor
-            layer?.borderWidth = 4.0
-        }
-
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-    }
+    private static let windowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 100)
 
     private let primaryScreenBounds: CGRect
-    private var overlayWindows: [CGDirectDisplayID: OverlayWindow] = [:]
+    private var overlayWindows: [CGDirectDisplayID: DebugBorderOverlayWindow] = [:]
 
     init(primaryScreenBounds: CGRect) {
         self.primaryScreenBounds = primaryScreenBounds
@@ -63,7 +19,7 @@ final class FullScreenDebugOverlayController {
     /// Pass nil for screenFrame to hide the overlay.
     func setScreenFrame(displayId: CGDirectDisplayID, screenFrame: CGRect?) {
         if let screenFrame {
-            let window = overlayWindows[displayId] ?? createOverlayWindow(for: displayId)
+            let window = overlayWindows[displayId] ?? createOverlayWindow()
             overlayWindows[displayId] = window
 
             let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
@@ -96,9 +52,11 @@ final class FullScreenDebugOverlayController {
         overlayWindows.removeAll()
     }
 
-    private func createOverlayWindow(for displayId: CGDirectDisplayID) -> OverlayWindow {
-        let window = OverlayWindow()
-        window.contentView = BorderView(frame: .zero)
-        return window
+    private func createOverlayWindow() -> DebugBorderOverlayWindow {
+        DebugBorderOverlayWindow(
+            borderColor: .systemOrange,
+            borderWidth: 4.0,
+            windowLevel: Self.windowLevel
+        )
     }
 }
