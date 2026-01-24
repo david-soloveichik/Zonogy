@@ -159,7 +159,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
 ### Shortcut Forwarding
 
-Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmost non-Zonogy application) so users can issue common commands while the Launcher is visible: Cmd-N (new window), Cmd-Shift-N (new private window), Cmd-O (open), and Cmd-Q (quit).
+Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmost non-Zonogy application) so users can issue common commands while the Launcher is visible: Cmd-N (new window), Cmd-Shift-N (new private window), Cmd-O (open), Cmd-W (close window), and Cmd-Q (quit).
 
 ### Window List Mode
 
