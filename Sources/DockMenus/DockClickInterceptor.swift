@@ -9,7 +9,8 @@ protocol DockClickInterceptorDelegate: AnyObject {
     ///   - interceptor: The interceptor instance.
     ///   - appURL: The URL of the clicked application bundle.
     ///   - itemFrame: The accessibility frame of the clicked Dock item (origin at top-left of primary screen).
-    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect)
+    ///   - dockItemElement: The accessibility element of the clicked Dock item (for simulating press if needed).
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect, dockItemElement: AXUIElement)
 
     /// Called when a drag is detected on a running app's Dock icon and Zonogy intends to intercept it.
     /// Return true to accept handling the drag (subsequent drag events will be swallowed).
@@ -74,6 +75,7 @@ final class DockClickInterceptor {
         let appURL: URL
         let itemFrame: CGRect
         let isRunning: Bool
+        let dockItemElement: AXUIElement
         var dragState: DragState = .none
     }
 
@@ -210,7 +212,7 @@ final class DockClickInterceptor {
 
             // Fully swallow the click - don't post any events to the Dock.
             // See SPECIFICATION-IMPLEMENTATION.md "Dock click interception activation workaround".
-            delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame)
+            delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame, dockItemElement: pending.dockItemElement)
             return nil
         }
 
@@ -253,7 +255,8 @@ final class DockClickInterceptor {
             downLocation: location,
             appURL: result.url,
             itemFrame: result.frame,
-            isRunning: result.isRunning
+            isRunning: result.isRunning,
+            dockItemElement: result.element
         )
 
         // Consume mouse-down so the Dock doesn't start a press-and-hold menu or icon drag.
@@ -265,6 +268,7 @@ final class DockClickInterceptor {
         let url: URL
         let frame: CGRect
         let isRunning: Bool
+        let element: AXUIElement
     }
 
     /// Queries the Dock's accessibility tree to find what's at the click position.
@@ -324,7 +328,7 @@ final class DockClickInterceptor {
             isRunning = false
         }
 
-        return ClickedAppResult(url: url, frame: frame, isRunning: isRunning)
+        return ClickedAppResult(url: url, frame: frame, isRunning: isRunning, element: element)
     }
 
     /// Extracts the AXFrame (position + size) from an accessibility element.

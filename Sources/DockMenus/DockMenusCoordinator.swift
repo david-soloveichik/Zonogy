@@ -5,7 +5,10 @@ import AppKit
 protocol DockMenusCoordinatorDelegate: AnyObject {
     /// Called when a running app's Dock icon is clicked (intercepted).
     /// The delegate should perform the default Launcher action for this app.
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL)
+    /// - Parameters:
+    ///   - dockItemElement: The accessibility element of the clicked Dock item, which can be used
+    ///     to simulate a press if needed (e.g., for apps with no windows).
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL, dockItemElement: AXUIElement)
 
     /// Returns the window that should be used when the user drags an app's Dock icon.
     /// Must follow the same "preferred window" rules as Dock click interception.
@@ -168,7 +171,7 @@ final class DockMenusCoordinator {
 }
 
 extension DockMenusCoordinator: DockClickInterceptorDelegate {
-    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect) {
+    func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect, dockItemElement: AXUIElement) {
         Logger.debug("DockMenusCoordinator: click intercepted on app \(appURL.lastPathComponent)")
 
         // Hide the DockMenu panel and reset hover state
@@ -179,7 +182,7 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.delegate?.dockMenusCoordinator(self, didClickDockAppWithURL: appURL)
+            self.delegate?.dockMenusCoordinator(self, didClickDockAppWithURL: appURL, dockItemElement: dockItemElement)
         }
     }
 

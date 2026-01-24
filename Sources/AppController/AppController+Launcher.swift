@@ -1,5 +1,6 @@
 /// Launcher window switcher and application launcher integration
 import AppKit
+import ApplicationServices
 
 // MARK: - Launcher Target Change Handling
 
@@ -193,10 +194,14 @@ extension AppController: LauncherControllerDelegate {
     ///
     /// This is the shared code path used by both Launcher and DockMenus click interception.
     ///
-    /// - Parameter activateInPlace: If true, windows already in a zone (not minimized) are activated
-    ///   without being moved to the targeted zone. Used by DockMenus which doesn't support "moving"
-    ///   windows between zones like the Launcher does.
-    internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false) {
+    /// - Parameters:
+    ///   - activateInPlace: If true, windows already in a zone (not minimized) are activated
+    ///     without being moved to the targeted zone. Used by DockMenus which doesn't support "moving"
+    ///     windows between zones like the Launcher does.
+    ///   - dockItemElement: Optional Dock item accessibility element. When provided and the app has
+    ///     no managed windows, we simulate a press on the Dock item instead of using NSWorkspace,
+    ///     which triggers the app's native "clicked in Dock" behavior (typically creating a new window).
+    internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false, dockItemElement: AXUIElement? = nil) {
         // Check if app is already running - select the preferred window
         if let bundleId = Bundle(url: url)?.bundleIdentifier,
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
@@ -226,7 +231,15 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
-        // Normal app launch (not running, or no eligible windows)
+        // No managed windows (app may be running or not): simulate Dock item press if element available
+        // This triggers the app's native "clicked in Dock" behavior (launches app or creates new window)
+        if let dockItemElement {
+            Logger.debug("Launcher: No managed windows, simulating Dock item press for \(url.lastPathComponent)")
+            AXUIElementPerformAction(dockItemElement, kAXPressAction as CFString)
+            return
+        }
+
+        // Normal app launch (not running, or no eligible windows and no Dock element)
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
 

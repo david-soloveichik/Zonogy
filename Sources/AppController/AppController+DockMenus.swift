@@ -54,11 +54,11 @@ extension AppController {
 // MARK: - DockMenusCoordinatorDelegate
 
 extension AppController: DockMenusCoordinatorDelegate {
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL) {
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL, dockItemElement: AXUIElement) {
         Logger.debug("DockMenus: click on \(appURL.lastPathComponent)")
         // DockMenus uses activateInPlace:true - windows already in a zone are activated
         // without being moved to the targeted zone (unlike the Launcher)
-        performDefaultLauncherAction(for: appURL, activateInPlace: true)
+        performDefaultLauncherAction(for: appURL, activateInPlace: true, dockItemElement: dockItemElement)
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, preferredDragWindowForDockAppWithURL appURL: URL) -> LauncherWindowItem? {
