@@ -59,10 +59,6 @@ extension WindowController {
         }
 
         guard let managed = managedWindow(matching: element) else {
-            // For non-managed windows, check if this is a full-screen window being destroyed
-            if notificationName == axDestroyedNotification {
-                handleNonManagedWindowDestroyedNotification(element: element)
-            }
             return
         }
 
@@ -220,6 +216,10 @@ extension WindowController {
     }
 
     private func handleWindowResizedNotification(managed: ManagedWindow) {
+        // Always check full-screen state on resize (even for programmatic updates)
+        // since entering/exiting full-screen fires resize notifications
+        delegate?.windowDidResize(windowId: managed.windowId)
+
         guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
             return
         }
@@ -229,27 +229,6 @@ extension WindowController {
         } else {
             delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
         }
-    }
-
-    // MARK: - Non-Managed Window Handling
-
-    /// Handle destroyed notification for a non-managed window (e.g., full-screen window).
-    private func handleNonManagedWindowDestroyedNotification(element: AXUIElement) {
-        // Try to get the CGWindowID from the element
-        var cgWindowId: CGWindowID = 0
-        let status = _AXUIElementGetWindow(element, &cgWindowId)
-        guard status == .success, cgWindowId != 0 else {
-            return
-        }
-
-        // Get the pid for logging
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-
-        Logger.debug("*** AXUIElementDestroyed notification received for non-managed window (CGWindowID: \(cgWindowId), pid: \(pid))")
-
-        // Notify delegate - this will be used to check if it's a tracked full-screen window
-        delegate?.fullScreenWindowDidClose(cgWindowId: cgWindowId)
     }
 
     // MARK: - Cleanup

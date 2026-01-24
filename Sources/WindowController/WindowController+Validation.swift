@@ -33,15 +33,11 @@ extension WindowController {
     }
 
     /// Check if a window meets the standard window management criteria.
-    /// - Parameters:
-    ///   - onNonMovable: Optional closure called when a window is rejected because it's non-movable.
-    ///                   Receives the element and window's frame for full-screen detection.
     internal func isStandardWindow(
         _ element: AXUIElement,
         pid: pid_t,
         cgWindowId: CGWindowID,
-        skipSubroleCheck: Bool = false,
-        onNonMovable: ((AXUIElement, CGRect) -> Void)? = nil
+        skipSubroleCheck: Bool = false
     ) -> Bool {
         let contextPrefix = "isStandardWindow(pid: \(pid), cgWindowId: \(cgWindowId))"
 
@@ -104,12 +100,6 @@ extension WindowController {
                 Logger.debug("\(contextPrefix): Failed to check if position is settable, AX error \(settableStatus.rawValue)")
             } else {
                 Logger.debug("\(contextPrefix): Window position is not settable (not movable)")
-                // Notify about non-movable window for full-screen detection
-                if let onNonMovable,
-                   let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
-                   let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) {
-                    onNonMovable(element, CGRect(origin: position, size: size))
-                }
             }
             return false
         }

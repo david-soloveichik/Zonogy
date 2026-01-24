@@ -70,16 +70,8 @@ When placing a window into the temporary zone, the window may fail to receive fo
 
 ### Full-screen window detection
 
-macOS does not provide a direct API to check whether a screen has a native full-screen window. We use a heuristic in `FullScreenTracker`:
+Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullScreen` accessibility attribute. This is the same basic approach used by yabai and alt-tab-macos (although they have some additional workarounds).
 
-1. A window spans the full width of a screen (height is ignored since on experimentation the full screen window was not always full height)
-2. The window's position is not settable via accessibility (`AXUIElementIsAttributeSettable` returns false for `kAXPositionAttribute`)
-3. The window belongs to an app that would otherwise be managed by Zonogy
+We listen to `kAXResizedNotification` which fires when windows enter/exit full-screen mode, and query the `AXFullScreen` attribute via `AXUIElementCopyAttributeValue`. (Of course, we also handle window closure and app termination.)
 
-We track which specific window caused each screen to be considered "in full-screen mode." Full-screen tracking piggybacks on the normal managed window lifecycle:
-
-**Detecting entry:** When capture validation rejects a window because it's non-movable, we check if that specific window spans the full width of a screen.
-
-**Detecting exit:** When a full-screen window is detected, we subscribe to `kAXUIElementDestroyedNotification` for that window's element—the same notification used for managed windows. When the notification fires, we remove the screen from full-screen mode. (App termination also clears full-screen state, same as for managed windows.)
-
-Full detection (enumeration) also runs (`updateAllScreens`) at startup and after display configuration changes.
+At startup (after window capture) and after display reconfiguration, we also iterate all managed windows and check their `AXFullScreen` attribute.

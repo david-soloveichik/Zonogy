@@ -356,8 +356,10 @@ extension AppController {
 
         syncWindowsToZones()
 
-        // Refresh full-screen tracking after screen changes
-        refreshFullScreenTracking()
+        // Re-scan full-screen state after screen changes
+        // Clear first, then scan all windows to re-detect current state
+        fullScreenTracker.clearAllState()
+        scanAllWindowsForFullScreenState()
 
         // Recapture after displays settle when meaningful changes occurred.
         // Always recapture after wake to catch windows that were deminiaturized or

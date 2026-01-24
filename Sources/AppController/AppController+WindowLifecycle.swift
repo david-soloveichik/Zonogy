@@ -153,8 +153,8 @@ extension AppController {
         }
         Logger.debug("Window \(windowId) will close")
 
-        // Capture cgWindowId before cleanup to check if this was a full-screen window
-        let closingCgWindowId = windowController.window(withId: windowId)?.backing.cgWindowId
+        // Notify full-screen tracker before cleanup
+        notifyFullScreenTrackerOfWindowClose(windowId: windowId)
 
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
@@ -179,11 +179,6 @@ extension AppController {
         syncWindowsToZones()
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
         activeFitClearSuppressionForWindow(windowId)
-
-        // If this window was causing full-screen mode on a display, clear it
-        if let cgWindowId = closingCgWindowId {
-            notifyFullScreenTrackerOfWindowClose(cgWindowId: CGWindowID(cgWindowId))
-        }
     }
 
     func windowDidMiniaturize(windowId: Int) {
@@ -594,20 +589,12 @@ extension AppController {
         capturePipeline.requestRetry(forPid: pid, bundleId: bundleId)
     }
 
-    func windowController(_ controller: WindowController, didRejectNonMovableWindow element: AXUIElement, cgWindowId: CGWindowID, pid: pid_t, frame: CGRect) {
-        if shouldIgnoreDueToSleepWake(event: "didRejectNonMovableWindow(\(cgWindowId))") {
+    func windowDidResize(windowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowDidResize(\(windowId))") {
             return
         }
-        // Check if this non-movable window is a full-screen window
-        checkNonMovableWindowForFullScreen(element: element, pid: pid, cgWindowId: cgWindowId, frame: frame)
-    }
-
-    func fullScreenWindowDidClose(cgWindowId: CGWindowID) {
-        if shouldIgnoreDueToSleepWake(event: "fullScreenWindowDidClose(\(cgWindowId))") {
-            return
-        }
-        // Notify full-screen tracker that this window closed
-        notifyFullScreenTrackerOfWindowClose(cgWindowId: cgWindowId)
+        // Check if this window entered or exited full-screen mode
+        checkWindowFullScreenState(windowId: windowId)
     }
 
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {

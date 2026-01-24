@@ -241,14 +241,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         super.init()
 
-        // Initialize full-screen tracker after super.init() since it needs self for shouldManage closure
-        self.fullScreenTracker = FullScreenTracker(
-            primaryScreenBounds: contextStore.primaryScreenBounds,
-            ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
-            shouldManageApp: { [weak self] app in
-                self?.shouldManage(application: app) ?? false
-            }
-        )
+        // Initialize full-screen tracker after super.init()
+        self.fullScreenTracker = FullScreenTracker()
         self.fullScreenTracker.delegate = self
 
         // Listen for exception config changes from Preferences
@@ -274,7 +268,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.dragDropCoordinator.delegate = self
         self.menuBarManager.delegate = self
         prepareExistingApplicationWindows()
-        fullScreenTracker.updateAllScreens(screenContexts: screenContexts)
+        scanAllWindowsForFullScreenState()
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
