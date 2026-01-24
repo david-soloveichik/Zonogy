@@ -59,6 +59,18 @@ extension WindowController {
         }
 
         guard let managed = managedWindow(matching: element) else {
+            var pid: pid_t = 0
+            if AXUIElementGetPid(element, &pid) == .success, pid != getpid() {
+                switch notificationName {
+                case axResizedNotificationName:
+                    delegate?.windowElementDidResize(element: element, pid: pid)
+                case axDestroyedNotification:
+                    accessibilityWatcher.removeWindowNotifications(for: element, pid: pid)
+                    delegate?.windowElementDidClose(element: element, pid: pid)
+                default:
+                    break
+                }
+            }
             return
         }
 
@@ -122,6 +134,11 @@ extension WindowController {
             allowReturningExisting: false,
             notifyDelegate: true
         )
+
+        if capturedWindow == nil {
+            accessibilityWatcher.registerWindowNotifications(for: element, pid: pid)
+        }
+        delegate?.windowElementDidCreate(element: element, pid: pid)
 
         if capturedWindow == nil {
             Logger.debug("AXWindowCreated: Failed to capture window '\(windowTitle)' for pid \(pid), requesting capture retry")

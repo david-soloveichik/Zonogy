@@ -1,5 +1,6 @@
 /// Full-screen mode tracking integration.
 import AppKit
+import ApplicationServices
 
 extension AppController {
     // MARK: - FullScreenTrackerDelegate
@@ -48,6 +49,11 @@ extension AppController {
         fullScreenTracker.windowDidClose(windowId: windowId)
     }
 
+    /// Notify full-screen tracker that a specific window closed (managed or unmanaged).
+    internal func notifyFullScreenTrackerOfWindowClose(cgWindowId: CGWindowID, pid: pid_t) {
+        fullScreenTracker.windowDidClose(cgWindowId: cgWindowId, pid: pid)
+    }
+
     /// Check full-screen state for a window after resize.
     /// Called when kAXResizedNotification is received for a managed window.
     internal func checkWindowFullScreenState(windowId: Int) {
@@ -55,30 +61,143 @@ extension AppController {
             return
         }
 
-        let screenDisplayId = managed.screenDisplayId ?? detectScreenId(for: managed) ?? primaryScreenId
-        let bundleId = NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier
-
-        fullScreenTracker.handleWindowFullScreenStateChange(
-            windowId: windowId,
-            cgWindowId: CGWindowID(managed.backing.cgWindowId),
+        let screenDisplayId = detectScreenId(for: managed.backing.element) ?? managed.screenDisplayId
+        checkWindowFullScreenState(
             element: managed.backing.element,
             pid: managed.backing.pid,
-            bundleIdentifier: bundleId,
-            screenDisplayId: screenDisplayId
+            windowId: windowId,
+            cgWindowId: CGWindowID(managed.backing.cgWindowId),
+            bundleIdentifier: NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier,
+            screenDisplayIdHint: screenDisplayId
         )
     }
 
-    /// Scan all managed windows for their full-screen state.
+    /// Check full-screen state for an arbitrary window element.
+    internal func checkWindowFullScreenState(element: AXUIElement, pid: pid_t) {
+        checkWindowFullScreenState(
+            element: element,
+            pid: pid,
+            windowId: nil,
+            cgWindowId: resolveCgWindowId(for: element),
+            bundleIdentifier: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+            screenDisplayIdHint: nil
+        )
+    }
+
+    /// Scan all eligible windows for their full-screen state.
     /// Called at startup and after display reconfiguration to detect windows
     /// that are already in full-screen mode.
     internal func scanAllWindowsForFullScreenState() {
+        guard windowController.ensureAccessibilityPermissions() else {
+            return
+        }
+
+        var observedWindowIds: Set<CGWindowID> = []
+
         for managed in windowController.allWindows {
-            // Skip minimized windows - they can't be in full-screen
-            if managed.isMinimizedPerAccessibility {
-                continue
-            }
+            let cgWindowId = CGWindowID(managed.backing.cgWindowId)
+            observedWindowIds.insert(cgWindowId)
             checkWindowFullScreenState(windowId: managed.windowId)
         }
+
+        for application in NSWorkspace.shared.runningApplications {
+            guard shouldManage(application: application) else {
+                continue
+            }
+
+            let pid = application.processIdentifier
+            let appElement = windowController.accessibilityWatcher.applicationElement(for: pid)
+            _ = windowController.accessibilityWatcher.ensureObserver(
+                for: pid,
+                appElement: appElement,
+                bundleIdentifier: application.bundleIdentifier
+            )
+
+            let windowElements = windowElements(for: appElement)
+            for element in windowElements {
+                guard let cgWindowId = resolveCgWindowId(for: element) else {
+                    continue
+                }
+                if observedWindowIds.contains(cgWindowId) {
+                    continue
+                }
+                windowController.accessibilityWatcher.registerWindowNotifications(for: element, pid: pid)
+                checkWindowFullScreenState(
+                    element: element,
+                    pid: pid,
+                    windowId: nil,
+                    cgWindowId: cgWindowId,
+                    bundleIdentifier: application.bundleIdentifier,
+                    screenDisplayIdHint: nil
+                )
+            }
+        }
         updateAllFullScreenDebugOverlays()
+    }
+
+    private func checkWindowFullScreenState(
+        element: AXUIElement,
+        pid: pid_t,
+        windowId: Int?,
+        cgWindowId: CGWindowID?,
+        bundleIdentifier: String?,
+        screenDisplayIdHint: CGDirectDisplayID?
+    ) {
+        guard let application = NSRunningApplication(processIdentifier: pid),
+              shouldManage(application: application) else {
+            return
+        }
+
+        guard let resolvedCgWindowId = cgWindowId else {
+            return
+        }
+
+        let resolvedDisplayId = screenDisplayIdHint ?? detectScreenId(for: element) ?? primaryScreenId
+        let resolvedBundleId = bundleIdentifier ?? application.bundleIdentifier
+
+        fullScreenTracker.handleWindowFullScreenStateChange(
+            windowId: windowId,
+            cgWindowId: resolvedCgWindowId,
+            element: element,
+            pid: pid,
+            bundleIdentifier: resolvedBundleId,
+            screenDisplayId: resolvedDisplayId
+        )
+    }
+
+    internal func resolveCgWindowId(for element: AXUIElement) -> CGWindowID? {
+        var cgWindowId: CGWindowID = 0
+        let status = _AXUIElementGetWindow(element, &cgWindowId)
+        guard status == .success, cgWindowId != 0 else {
+            return nil
+        }
+        return cgWindowId
+    }
+
+    private func windowElements(for appElement: AXUIElement) -> [AXUIElement] {
+        var windowsObject: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        guard status == .success, let windowsObject else {
+            return []
+        }
+
+        if let windowElements = windowsObject as? [AXUIElement] {
+            return windowElements
+        }
+
+        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
+            let array = unsafeBitCast(windowsObject, to: CFArray.self)
+            let count = CFArrayGetCount(array)
+            var elements: [AXUIElement] = []
+            elements.reserveCapacity(count)
+            for index in 0..<count {
+                let rawElement = CFArrayGetValueAtIndex(array, index)
+                let element = unsafeBitCast(rawElement, to: AXUIElement.self)
+                elements.append(element)
+            }
+            return elements
+        }
+
+        return []
     }
 }

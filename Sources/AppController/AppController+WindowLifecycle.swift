@@ -154,7 +154,14 @@ extension AppController {
         Logger.debug("Window \(windowId) will close")
 
         // Notify full-screen tracker before cleanup
-        notifyFullScreenTrackerOfWindowClose(windowId: windowId)
+        if let managed = windowController.window(withId: windowId) {
+            notifyFullScreenTrackerOfWindowClose(
+                cgWindowId: CGWindowID(managed.backing.cgWindowId),
+                pid: managed.backing.pid
+            )
+        } else {
+            notifyFullScreenTrackerOfWindowClose(windowId: windowId)
+        }
 
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
@@ -595,6 +602,29 @@ extension AppController {
         }
         // Check if this window entered or exited full-screen mode
         checkWindowFullScreenState(windowId: windowId)
+    }
+
+    func windowElementDidCreate(element: AXUIElement, pid: pid_t) {
+        if shouldIgnoreDueToSleepWake(event: "windowElementDidCreate(\(pid))") {
+            return
+        }
+        checkWindowFullScreenState(element: element, pid: pid)
+    }
+
+    func windowElementDidResize(element: AXUIElement, pid: pid_t) {
+        if shouldIgnoreDueToSleepWake(event: "windowElementDidResize(\(pid))") {
+            return
+        }
+        checkWindowFullScreenState(element: element, pid: pid)
+    }
+
+    func windowElementDidClose(element: AXUIElement, pid: pid_t) {
+        if shouldIgnoreDueToSleepWake(event: "windowElementDidClose(\(pid))") {
+            return
+        }
+        if let cgWindowId = resolveCgWindowId(for: element) {
+            notifyFullScreenTrackerOfWindowClose(cgWindowId: cgWindowId, pid: pid)
+        }
     }
 
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor? {

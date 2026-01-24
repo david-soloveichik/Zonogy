@@ -120,6 +120,31 @@ extension AppController {
         return nil
     }
 
+    internal func detectScreenId(for element: AXUIElement) -> CGDirectDisplayID? {
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return nil
+        }
+
+        let accessibilityFrame = CGRect(origin: position, size: size)
+        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
+            accessibilityFrame: accessibilityFrame,
+            primaryScreenBounds: primaryScreenBounds
+        )
+
+        if let screenId = screenIdForCocoaFrame(cocoaFrame) {
+            return screenId
+        }
+
+        for (screenId, context) in screenContexts {
+            if context.descriptor.cocoaBounds.contains(cocoaFrame.origin) {
+                return screenId
+            }
+        }
+
+        return nil
+    }
+
     /// Returns the screen ID that has the largest intersection with the given Cocoa frame.
     /// Returns nil if the frame doesn't intersect any screen.
     internal func screenIdForCocoaFrame(_ cocoaFrame: CGRect) -> CGDirectDisplayID? {
