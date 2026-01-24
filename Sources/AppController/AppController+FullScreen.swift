@@ -208,13 +208,19 @@ extension AppController {
         let elementKey = AccessibilityElementKey(element: element)
         fullScreenElementCache[elementKey] = FullScreenElementInfo(pid: pid, cgWindowId: resolvedCgWindowId)
 
+        let treatAsFullScreen = shouldTreatAXUnknownWindowAsFullScreen(
+            element: element,
+            screenDisplayId: resolvedDisplayId
+        )
+
         fullScreenTracker.handleWindowFullScreenStateChange(
             windowId: windowId,
             cgWindowId: resolvedCgWindowId,
             element: element,
             pid: pid,
             bundleIdentifier: resolvedBundleId,
-            screenDisplayId: resolvedDisplayId
+            screenDisplayId: resolvedDisplayId,
+            treatAsFullScreen: treatAsFullScreen
         )
     }
 
@@ -237,6 +243,40 @@ extension AppController {
                 workItem.cancel()
             }
         }
+    }
+
+    private func shouldTreatAXUnknownWindowAsFullScreen(
+        element: AXUIElement,
+        screenDisplayId: CGDirectDisplayID
+    ) -> Bool {
+        var subroleValue: CFTypeRef?
+        let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleValue)
+        guard subroleStatus == .success,
+              let subrole = subroleValue as? String,
+              subrole == "AXUnknown" else {
+            return false
+        }
+
+        guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString),
+              let context = screenContexts[screenDisplayId] else {
+            return false
+        }
+
+        let accessibilityFrame = CGRect(origin: position, size: size)
+        let screenFrame = context.descriptor.accessibilityToScreen(accessibilityFrame)
+        let screenWidth = context.descriptor.cocoaBounds.width
+
+        if screenFrame.width == screenWidth {
+            let screenIndex = screenContextStore.loggingIndex(for: screenDisplayId)
+            Logger.debug(
+                "FullScreenTracker: treating AXUnknown window as full-screen on screen \(screenIndex) " +
+                    "(width \(screenFrame.width) == screen \(screenWidth))"
+            )
+            return true
+        }
+
+        return false
     }
 
     private func windowElements(for appElement: AXUIElement) -> [AXUIElement] {
@@ -270,6 +310,16 @@ extension AppController {
         let isFullScreen = fullScreenTracker.isFullScreen(displayId: displayId)
 
         if isFullScreen {
+            if launcherController.isActive,
+               let targetScreenId = targetedScreenId(),
+               targetScreenId == displayId {
+                launcherController.hide()
+                Logger.debug(
+                    "Launcher: Hidden because screen \(screenContextStore.loggingIndex(for: displayId)) " +
+                        "entered full-screen"
+                )
+            }
+
             placeholderCoordinator.clearPlaceholdersForScreen(displayId)
             targetedZoneManager.ensureTargetedZone(reason: "full-screen-entered")
             refreshIndicators()

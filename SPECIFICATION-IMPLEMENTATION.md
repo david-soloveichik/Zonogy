@@ -77,3 +77,5 @@ We listen to `kAXResizedNotification` which fires when windows enter/exit full-s
 At startup (after window capture) and after display reconfiguration, we also iterate all managed windows and check their `AXFullScreen` attribute.
 
 We also re-scan full-screen state after active Space changes, since some apps (e.g., Safari video) don't emit resize events for their full-screen windows. This rescan is debounced (250ms) and uses the same `AXFullScreen` query pipeline.
+
+As fallback when `AXFullScreen` is absent or unreliable: for managed apps, for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their accessibility frame width matches the screen width exactly.

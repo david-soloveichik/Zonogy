@@ -75,15 +75,17 @@ final class FullScreenTracker {
     ///   - pid: The process identifier
     ///   - bundleIdentifier: The app's bundle identifier
     ///   - screenDisplayId: The display ID where the window is located
+    ///   - treatAsFullScreen: Whether to treat this window as full-screen via heuristic
     func handleWindowFullScreenStateChange(
         windowId: Int?,
         cgWindowId: CGWindowID,
         element: AXUIElement,
         pid: pid_t,
         bundleIdentifier: String?,
-        screenDisplayId: CGDirectDisplayID
+        screenDisplayId: CGDirectDisplayID,
+        treatAsFullScreen: Bool
     ) {
-        let isFullScreen = FullScreenTracker.isWindowFullScreen(element: element)
+        let isFullScreen = FullScreenTracker.isWindowFullScreen(element: element) || treatAsFullScreen
         let existingEntry = trackedEntry(for: cgWindowId, pid: pid)
         let existingInfo = existingEntry?.info
         let wasFullScreen = existingInfo != nil
