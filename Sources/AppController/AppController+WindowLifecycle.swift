@@ -153,6 +153,10 @@ extension AppController {
         }
         Logger.debug("Window \(windowId) will close")
 
+        if let workItem = fullScreenCheckWorkItemsByWindowId.removeValue(forKey: windowId) {
+            workItem.cancel()
+        }
+
         // Notify full-screen tracker before cleanup
         if let managed = windowController.window(withId: windowId) {
             fullScreenElementCache.removeValue(forKey: AccessibilityElementKey(element: managed.backing.element))
@@ -602,7 +606,7 @@ extension AppController {
             return
         }
         // Check if this window entered or exited full-screen mode
-        checkWindowFullScreenState(windowId: windowId)
+        queueFullScreenCheck(windowId: windowId)
     }
 
     func windowElementDidCreate(element: AXUIElement, pid: pid_t) {
@@ -616,7 +620,7 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowElementDidResize(\(pid))") {
             return
         }
-        checkWindowFullScreenState(element: element, pid: pid)
+        queueFullScreenCheck(element: element, pid: pid)
     }
 
     func windowElementDidClose(element: AXUIElement, pid: pid_t) {
@@ -624,6 +628,9 @@ extension AppController {
             return
         }
         let elementKey = AccessibilityElementKey(element: element)
+        if let workItem = fullScreenCheckWorkItemsByElement.removeValue(forKey: elementKey) {
+            workItem.cancel()
+        }
         if let cached = fullScreenElementCache.removeValue(forKey: elementKey) {
             Logger.debug("FullScreenTracker: using cached CGWindowID \(cached.cgWindowId) for destroyed element (pid \(pid))")
             notifyFullScreenTrackerOfWindowClose(cgWindowId: cached.cgWindowId, pid: pid)

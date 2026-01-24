@@ -78,6 +78,31 @@ extension AppController {
         )
     }
 
+    /// Debounce full-screen state checks for a managed window during resize bursts.
+    internal func queueFullScreenCheck(windowId: Int) {
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.fullScreenCheckWorkItemsByWindowId.removeValue(forKey: windowId)
+            self.checkWindowFullScreenState(windowId: windowId)
+        }
+        fullScreenCheckWorkItemsByWindowId[windowId]?.cancel()
+        fullScreenCheckWorkItemsByWindowId[windowId] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenCheckDebounceInterval, execute: workItem)
+    }
+
+    /// Debounce full-screen state checks for an unmanaged window during resize bursts.
+    internal func queueFullScreenCheck(element: AXUIElement, pid: pid_t) {
+        let elementKey = AccessibilityElementKey(element: element)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.fullScreenCheckWorkItemsByElement.removeValue(forKey: elementKey)
+            self.checkWindowFullScreenState(element: element, pid: pid)
+        }
+        fullScreenCheckWorkItemsByElement[elementKey]?.cancel()
+        fullScreenCheckWorkItemsByElement[elementKey] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenCheckDebounceInterval, execute: workItem)
+    }
+
     /// Check full-screen state for an arbitrary window element.
     internal func checkWindowFullScreenState(element: AXUIElement, pid: pid_t) {
         checkWindowFullScreenState(
@@ -189,6 +214,9 @@ extension AppController {
         }
         for key in keysToRemove {
             fullScreenElementCache.removeValue(forKey: key)
+            if let workItem = fullScreenCheckWorkItemsByElement.removeValue(forKey: key) {
+                workItem.cancel()
+            }
         }
     }
 
