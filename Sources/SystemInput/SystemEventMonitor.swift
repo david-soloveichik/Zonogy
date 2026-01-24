@@ -150,6 +150,16 @@ final class SystemEventMonitor {
             self.delegate?.systemEventMonitor(self, didTerminate: application)
         }
         workspaceObservers.append(terminate)
+
+        let activeSpaceChanged = center.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.systemEventMonitorActiveSpaceDidChange(self)
+        }
+        workspaceObservers.append(activeSpaceChanged)
     }
 
     deinit {
@@ -168,4 +178,5 @@ protocol SystemEventMonitorDelegate: AnyObject {
     func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor)
     func systemEventMonitorScreensDidWake(_ monitor: SystemEventMonitor)
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor)
+    func systemEventMonitorActiveSpaceDidChange(_ monitor: SystemEventMonitor)
 }

@@ -108,6 +108,20 @@ extension AppController {
         DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenCheckDebounceInterval, execute: workItem)
     }
 
+    /// Debounce a full-screen rescan after the active space changes.
+    internal func scheduleFullScreenRescanForSpaceChange() {
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingFullScreenSpaceChangeWorkItem = nil
+            Logger.debug("FullScreenTracker: refreshing full-screen state after active space change")
+            self.scanAllWindowsForFullScreenState()
+        }
+
+        pendingFullScreenSpaceChangeWorkItem?.cancel()
+        pendingFullScreenSpaceChangeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenSpaceChangeDebounceInterval, execute: workItem)
+    }
+
     /// Check full-screen state for an arbitrary window element.
     internal func checkWindowFullScreenState(element: AXUIElement, pid: pid_t) {
         checkWindowFullScreenState(

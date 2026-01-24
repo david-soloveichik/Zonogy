@@ -189,6 +189,14 @@ extension AppController {
         handleApplicationTermination(application)
     }
 
+    func systemEventMonitorActiveSpaceDidChange(_ monitor: SystemEventMonitor) {
+        Logger.debug("NSWorkspace notification received: activeSpaceDidChange")
+        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.activeSpaceDidChangeNotification") {
+            return
+        }
+        scheduleFullScreenRescanForSpaceChange()
+    }
+
     func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor) {
         Logger.debug("SystemEventMonitor: NSWorkspace.screensDidSleepNotification received")
         handleScreensDidSleep()

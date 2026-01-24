@@ -103,6 +103,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var fullScreenElementCache: [AccessibilityElementKey: FullScreenElementInfo] = [:]
     internal var fullScreenCheckWorkItemsByWindowId: [Int: DispatchWorkItem] = [:]
     internal var fullScreenCheckWorkItemsByElement: [AccessibilityElementKey: DispatchWorkItem] = [:]
+    internal var pendingFullScreenSpaceChangeWorkItem: DispatchWorkItem?
     /// True when Launcher should auto-show for empty tiling zones.
     internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
     internal var targetingMode: TargetingMode
@@ -116,6 +117,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingRecaptureWorkItems: [DispatchWorkItem] = []
     internal let screenChangeDebounceInterval: TimeInterval = 0.25
     internal let fullScreenCheckDebounceInterval: TimeInterval = 0.25
+    internal let fullScreenSpaceChangeDebounceInterval: TimeInterval = 0.25
     internal let manualMoveSuppressionDuration: TimeInterval = 1.5
     internal var manualMoveSuppressionDeadline: Date?
     /// Windows that were manually resized while tiled and should snap back to their zone frame on focus loss or the next layout sync.
