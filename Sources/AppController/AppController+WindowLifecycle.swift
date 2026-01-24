@@ -155,6 +155,7 @@ extension AppController {
 
         // Notify full-screen tracker before cleanup
         if let managed = windowController.window(withId: windowId) {
+            fullScreenElementCache.removeValue(forKey: AccessibilityElementKey(element: managed.backing.element))
             notifyFullScreenTrackerOfWindowClose(
                 cgWindowId: CGWindowID(managed.backing.cgWindowId),
                 pid: managed.backing.pid
@@ -622,8 +623,17 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowElementDidClose(\(pid))") {
             return
         }
+        let elementKey = AccessibilityElementKey(element: element)
+        if let cached = fullScreenElementCache.removeValue(forKey: elementKey) {
+            Logger.debug("FullScreenTracker: using cached CGWindowID \(cached.cgWindowId) for destroyed element (pid \(pid))")
+            notifyFullScreenTrackerOfWindowClose(cgWindowId: cached.cgWindowId, pid: pid)
+            return
+        }
+
         if let cgWindowId = resolveCgWindowId(for: element) {
             notifyFullScreenTrackerOfWindowClose(cgWindowId: cgWindowId, pid: pid)
+        } else {
+            Logger.debug("FullScreenTracker: unable to resolve CGWindowID for destroyed element (pid \(pid)); full-screen state may persist until rescan")
         }
     }
 

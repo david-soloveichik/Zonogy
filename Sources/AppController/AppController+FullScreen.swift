@@ -2,6 +2,11 @@
 import AppKit
 import ApplicationServices
 
+struct FullScreenElementInfo: Equatable {
+    let pid: pid_t
+    let cgWindowId: CGWindowID
+}
+
 extension AppController {
     // MARK: - FullScreenTrackerDelegate
     func fullScreenTracker(_ tracker: FullScreenTracker, didChangeFullScreenStateFor displayId: CGDirectDisplayID) {
@@ -41,6 +46,7 @@ extension AppController {
 
     /// Notify full-screen tracker that an application terminated.
     internal func notifyFullScreenTrackerOfAppTermination(pid: pid_t) {
+        clearFullScreenElementCache(for: pid)
         fullScreenTracker.applicationDidTerminate(pid: pid)
     }
 
@@ -155,6 +161,9 @@ extension AppController {
         let resolvedDisplayId = screenDisplayIdHint ?? detectScreenId(for: element) ?? primaryScreenId
         let resolvedBundleId = bundleIdentifier ?? application.bundleIdentifier
 
+        let elementKey = AccessibilityElementKey(element: element)
+        fullScreenElementCache[elementKey] = FullScreenElementInfo(pid: pid, cgWindowId: resolvedCgWindowId)
+
         fullScreenTracker.handleWindowFullScreenStateChange(
             windowId: windowId,
             cgWindowId: resolvedCgWindowId,
@@ -172,6 +181,15 @@ extension AppController {
             return nil
         }
         return cgWindowId
+    }
+
+    private func clearFullScreenElementCache(for pid: pid_t) {
+        let keysToRemove = fullScreenElementCache.compactMap { entry in
+            entry.value.pid == pid ? entry.key : nil
+        }
+        for key in keysToRemove {
+            fullScreenElementCache.removeValue(forKey: key)
+        }
     }
 
     private func windowElements(for appElement: AXUIElement) -> [AXUIElement] {

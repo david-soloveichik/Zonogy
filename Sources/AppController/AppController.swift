@@ -100,6 +100,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }()
     internal var fullScreenTracker: FullScreenTracker!
     internal var fullScreenDebugOverlay: FullScreenDebugOverlayController?
+    internal var fullScreenElementCache: [AccessibilityElementKey: FullScreenElementInfo] = [:]
     /// True when Launcher should auto-show for empty tiling zones.
     internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
     internal var targetingMode: TargetingMode
