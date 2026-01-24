@@ -152,7 +152,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
 
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
-    internal let temporaryZoneProtectionDuration: TimeInterval = 0.4
+    internal let temporaryZoneProtectionDuration: TimeInterval = 0.7
     /// Work items scheduled to reactivate temporary zone windows when protection expires.
     internal var temporaryZoneProtectionExpirationWorkItems: [Int: DispatchWorkItem] = [:]
     /// Deadline until which notification-driven window activity recording is suppressed
