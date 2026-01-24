@@ -10,7 +10,7 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 
 The Launcher opens via:
 
-- **Control-Command-Enter** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
+- **Control-Command-Space** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
@@ -216,7 +216,7 @@ When the user selects a window or launches an application:
 
 Launcher settings should integrate with Zonogy's existing configuration system:
 
-- **Activation shortcut:** Control-Command-Enter (default), configurable
+- **Activation shortcut:** Control-Command-Space (default), configurable
 - **App discovery mode:** Directory scanning or Spotlight
 
 ### Configuration Files

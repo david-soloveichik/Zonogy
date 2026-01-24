@@ -67,7 +67,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
         var defaultShortcut: KeyboardShortcut {
             let cmdCtrl = UInt32(cmdKey | controlKey)
-            let cmdCtrlShiftOpt = UInt32(cmdKey | controlKey | shiftKey | optionKey)
+            let cmdCtrlShift = UInt32(cmdKey | controlKey | shiftKey)
             let cmdOnly = UInt32(cmdKey)
 
             switch self {
@@ -77,14 +77,14 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .removeZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Minus), modifiers: cmdCtrl)
             case .clearOrResetZones:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_Escape), modifiers: cmdCtrl)
             case .clearOrResetZonesAtCursor:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Delete), modifiers: cmdCtrlShiftOpt)
+                return KeyboardShortcut(keyCode: UInt32(kVK_Escape), modifiers: cmdCtrlShift)
             // Window Actions
             case .minimizeActiveWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdOnly)
             case .minimizeWindowOrRemoveZoneAtCursor:
-                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrlShiftOpt)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrl)
             case .flipKeyWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             // Target Navigation
@@ -98,7 +98,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
             // Window Switchers
             case .showLauncher:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
             case .showAltTab:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: cmdOnly)
             case .showAltTabCurrentApp:
@@ -120,6 +120,9 @@ final class KeyboardShortcutPreferences: ObservableObject {
         var clearedActions: [String]?
     }
 
+    /// Actions that are disabled by default (no shortcut assigned out of the box)
+    private static let defaultClearedActions: Set<ShortcutAction> = [.flipKeyWindow]
+
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []
     private let preferencesURL: URL
@@ -139,7 +142,14 @@ final class KeyboardShortcutPreferences: ObservableObject {
         if clearedActions.contains(action) {
             return nil
         }
-        return shortcuts[action] ?? action.defaultShortcut
+        if let customShortcut = shortcuts[action] {
+            return customShortcut
+        }
+        // Check if this action is disabled by default
+        if Self.defaultClearedActions.contains(action) {
+            return nil
+        }
+        return action.defaultShortcut
     }
 
     func setShortcut(_ shortcut: KeyboardShortcut, for action: ShortcutAction) {
@@ -158,20 +168,25 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
     func resetToDefault(action: ShortcutAction) {
         shortcuts.removeValue(forKey: action)
-        clearedActions.remove(action)
+        // Restore default cleared state if applicable
+        if Self.defaultClearedActions.contains(action) {
+            clearedActions.insert(action)
+        } else {
+            clearedActions.remove(action)
+        }
         saveShortcuts()
         onShortcutsChanged?()
     }
 
     func resetAllToDefaults() {
         shortcuts.removeAll()
-        clearedActions.removeAll()
+        clearedActions = Self.defaultClearedActions
         saveShortcuts()
         onShortcutsChanged?()
     }
 
     func isCleared(_ action: ShortcutAction) -> Bool {
-        clearedActions.contains(action)
+        shortcut(for: action) == nil
     }
 
     func isCustomized(_ action: ShortcutAction) -> Bool {

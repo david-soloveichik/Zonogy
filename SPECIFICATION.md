@@ -111,9 +111,9 @@ A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The 
 
 Each screen with fewer than 3 tiling zones also displays an add-zone indicator: a vertical pill (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a tiling zone to that screen.
 
-Pressing Control-Cmd-Delete clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen. (If managed windows were present, a WinShot snapshot is auto-saved first; see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md).)
+Pressing Control-Cmd-Escape clears all zones on the active screen and empties the temporary zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen. (If managed windows were present, a WinShot snapshot is auto-saved first; see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md).)
 
-Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with the screen currently holding the mouse pointer.
+Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the screen currently holding the mouse pointer.
 
 ### Targeting
 
@@ -223,7 +223,7 @@ Placeholder windows and the add-zone indicator accept external drops so the user
 
 Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications. **Exception**: When the Launcher is visible, Cmd-M removes the targeted zone instead; see SPECIFICATION-LAUNCHER.md. (The big picture of this behavior is that we can use Cmd-M for two purposes: to minimize a window and to remove a zone.)
 
-Pressing Shift-Option-Control-Cmd-M performs a cursor-targeted action:
+Pressing Control-Cmd-M performs a cursor-targeted action:
 
 - If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
 - Otherwise, if the mouse pointer is over an empty zone's placeholder, remove that zone.
@@ -234,7 +234,7 @@ When an app is hidden (via MacOS's Cmd-H or any hide action), treat every curren
 
 ### Flip the Key Window to Another Screen
 
-Pressing shortcut Control-Cmd-\ moves the currently active/key window to another screen (if there is more than one screen).
+This feature moves the currently active/key window to another screen (if there is more than one screen). The shortcut is disabled by default but can be configured in Zonogy Preferences.
 
 If the targeted zone is on another screen, then immediately move the key window into it, minimize any displaced window.
 
@@ -304,7 +304,7 @@ For implementation details (destroyed window detection, temporary zone protectio
 
 ## Launcher
 
-For the application launcher and window switcher feature (Control-Command-Enter), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
+For the application launcher and window switcher feature (Control-Command-Space), see **[SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)**.
 
 ## DockMenus
 
