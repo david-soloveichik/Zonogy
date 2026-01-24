@@ -25,6 +25,13 @@ extension AppController {
                 return
             }
 
+            if let screenId = screenId(for: newDestination),
+               isScreenPausedForFullScreen(screenId) {
+                launcherController.hide()
+                Logger.debug("Launcher: Hidden because target screen is full-screen")
+                return
+            }
+
             switch newDestination {
             case .temporary:
                 launcherController.repositionToCurrentTarget()
@@ -43,6 +50,29 @@ extension AppController {
 
     }
 
+    private func canShowLauncherOnCurrentTarget() -> Bool {
+        guard let screenId = targetedScreenId() else {
+            return false
+        }
+        return !isScreenPausedForFullScreen(screenId)
+    }
+
+    internal func showLauncherIfAllowed(trigger: String, autoShow: Bool = false) {
+        guard !launcherController.isActive else {
+            return
+        }
+        guard canShowLauncherOnCurrentTarget() else {
+            Logger.debug("Launcher: Suppressed due to full-screen target (trigger: \(trigger))")
+            return
+        }
+
+        if autoShow {
+            launcherController.autoShow()
+        } else {
+            launcherController.show()
+        }
+    }
+
     /// Auto-show Launcher if the currently targeted zone is an empty tiled zone.
     /// Called when:
     /// - A tiled zone becomes empty (window closed, minimized, or moved away)
@@ -55,6 +85,11 @@ extension AppController {
               !launcherController.isActive,
               let targetedKey = targetedZoneKey,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
+            return
+        }
+
+        guard canShowLauncherOnCurrentTarget() else {
+            Logger.debug("Launcher: Skipping auto-show because target screen is full-screen")
             return
         }
 
@@ -311,6 +346,15 @@ extension AppController: LauncherControllerDelegate {
             return targetedKey.screenId
         }
         return activeScreenId()
+    }
+
+    private func screenId(for destination: TargetedZoneManager.TargetedDestination) -> CGDirectDisplayID? {
+        switch destination {
+        case .temporary(let screenId):
+            return screenId
+        case .tiled(let key):
+            return key.screenId
+        }
     }
 
     func menuBarOwnerPid() -> pid_t? {

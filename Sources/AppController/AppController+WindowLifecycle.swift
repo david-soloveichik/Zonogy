@@ -95,6 +95,10 @@ extension AppController {
     }
 
     func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        if isScreenPausedForFullScreen(screenId) {
+            Logger.debug("Placeholder activated on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
@@ -102,6 +106,10 @@ extension AppController {
     }
 
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        if isScreenPausedForFullScreen(screenId) {
+            Logger.debug("Placeholder search pill clicked on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder search pill clicked for zone \(zoneIndex) on screen \(screenIndex)")
 
@@ -110,38 +118,44 @@ extension AppController {
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-search-pill")
 
         // Clicking the search pill should always show the Launcher, even if the zone was already targeted.
-        if !launcherController.isActive {
-            launcherController.show()
-        }
+        showLauncherIfAllowed(trigger: "placeholder-search-pill")
     }
 
     func zoneIndicatorActivated(_ key: ZoneKey, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
+        if isScreenPausedForFullScreen(key.screenId) {
+            Logger.debug("Zone indicator activated on full-screen screen \(screenContextStore.loggingIndex(for: key.screenId)); ignoring")
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
 
         if isDoubleClick || wasAlreadyTargeted {
-            if !launcherController.isActive {
-                launcherController.show()
-            }
+            showLauncherIfAllowed(trigger: "indicator-clicked")
         }
     }
 
     func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
+        if isScreenPausedForFullScreen(screenId) {
+            Logger.debug("Temporary indicator activated on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Temporary zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-indicator-clicked")
 
         if isDoubleClick || wasAlreadyTargeted {
-            if !launcherController.isActive {
-                launcherController.show()
-            }
+            showLauncherIfAllowed(trigger: "temporary-indicator-clicked")
         }
     }
 
     // MARK: - AddZoneIndicatorManagerDelegate
 
     func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID) {
+        if isScreenPausedForFullScreen(screenId) {
+            Logger.debug("Add zone indicator clicked on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Add zone indicator clicked on screen \(screenIndex)")
         addZone(on: screenId)

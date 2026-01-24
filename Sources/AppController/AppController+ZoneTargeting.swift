@@ -62,6 +62,9 @@ extension AppController {
             guard let context = screenContexts[screenId] else {
                 continue
             }
+            if isScreenPausedForFullScreen(screenId) {
+                continue
+            }
 
             let descriptor = context.descriptor
             let accessibilityBounds = descriptor.screenToAccessibility(descriptor.visibleScreenBounds)

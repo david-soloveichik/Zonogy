@@ -159,6 +159,46 @@ enum TargetedZoneManagerTests {
             assert(manager.targetedZoneKey == expected, "retargetAfterFillingZone should break ties between screens by screen index (got \(String(describing: manager.targetedZoneKey)))")
         }
 
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            delegate.fullScreenDisplayIds = [screen1]
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 1), reason: "test")
+            let expected = ZoneKey(screenId: screen2, index: 1)
+            assert(manager.targetedZoneKey == expected, "setTargetedZone should skip full-screen screens when selecting a target (got \(String(describing: manager.targetedZoneKey)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            delegate.fullScreenDisplayIds = [screen1, screen2]
+
+            manager.setTargetedZone(ZoneKey(screenId: screen2, index: 1), reason: "test")
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "when all screens are full-screen, targeting should fall back to screen 0 (got \(String(describing: manager.targetedZoneKey)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+            controller1.assignWindow(windowId: 1101, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1102, toZoneIndex: 1)
+
+            delegate.fullScreenDisplayIds = [screen1, screen2]
+
+            manager.setTargetedZone(ZoneKey(screenId: screen2, index: 1), reason: "test")
+            assert(manager.targetedTemporaryScreenId == screen1, "when all screens are full-screen and no empty zones remain, target temporary zone on screen 0 (got \(String(describing: manager.targetedDestination)))")
+        }
+
         if allPassed {
             print("TargetedZoneManagerTests: all tests passed")
         }
@@ -196,16 +236,19 @@ enum TargetedZoneManagerTests {
         var screenContexts: [CGDirectDisplayID: ScreenContext]
         var screenOrder: [CGDirectDisplayID]
         var primaryScreenId: CGDirectDisplayID
+        var fullScreenDisplayIds: Set<CGDirectDisplayID>
         var refreshCount = 0
 
         init(
             screenContexts: [CGDirectDisplayID: ScreenContext],
             screenOrder: [CGDirectDisplayID],
-            primaryScreenId: CGDirectDisplayID
+            primaryScreenId: CGDirectDisplayID,
+            fullScreenDisplayIds: Set<CGDirectDisplayID> = []
         ) {
             self.screenContexts = screenContexts
             self.screenOrder = screenOrder
             self.primaryScreenId = primaryScreenId
+            self.fullScreenDisplayIds = fullScreenDisplayIds
         }
 
         func zoneController(for screenId: CGDirectDisplayID) -> ZoneController? {

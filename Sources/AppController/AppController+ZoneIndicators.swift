@@ -56,6 +56,9 @@ extension AppController {
         var descriptors: [ZoneIndicatorDescriptor] = []
 
         for (screenId, context) in screenContexts {
+            guard !isScreenPausedForFullScreen(screenId) else {
+                continue
+            }
             let screenDescriptor = context.descriptor
             for zone in context.zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
@@ -83,6 +86,9 @@ extension AppController {
         var newAddZoneHitAreas: [CGDirectDisplayID: CGRect] = [:]
 
         for (screenId, context) in screenContexts {
+            guard !isScreenPausedForFullScreen(screenId) else {
+                continue
+            }
             let zoneCount = context.zoneController.allZones.count
             // Only show the indicator if there are fewer than 3 zones
             guard zoneCount < 3 else { continue }
@@ -111,6 +117,9 @@ extension AppController {
         var temporaryDescriptors: [TemporaryZoneIndicatorDescriptor] = []
         var newTemporaryHitAreas: [CGDirectDisplayID: CGRect] = [:]
         for (screenId, context) in screenContexts {
+            guard !isScreenPausedForFullScreen(screenId) else {
+                continue
+            }
             guard let frames = temporaryIndicatorFrames(for: context.descriptor) else {
                 continue
             }
@@ -201,6 +210,9 @@ extension AppController {
         let activeState = activeFitState
 
         for (screenId, context) in screenContexts {
+            if isScreenPausedForFullScreen(screenId) {
+                continue
+            }
             // When a screen's temporary zone holds a floating window,
             // hide all resize handles on that screen so they don't
             // overlap the temporary-zone UI.

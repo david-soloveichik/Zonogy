@@ -182,6 +182,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         screenContextStore.order
     }
 
+    internal var fullScreenDisplayIds: Set<CGDirectDisplayID> {
+        fullScreenTracker?.fullScreenDisplayIds ?? []
+    }
+
     /// Screens sorted from left to right using visible screen bounds in screen coordinates.
     internal var screenOrderLeftToRight: [CGDirectDisplayID] {
         let contexts = screenContexts

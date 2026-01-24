@@ -58,6 +58,9 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     // Synchronization
     func syncWindowsToZones(recentlyPlacedInTempZone: Int?)
 
+    // Full-screen handling
+    func isScreenPausedForFullScreen(_ screenId: CGDirectDisplayID) -> Bool
+
     // Add-zone indicator support
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
@@ -311,6 +314,9 @@ class DragDropCoordinator {
 
         var descriptors: [ZoneOverlayDescriptor] = []
         for (screenId, context) in delegate.screenContexts {
+            if delegate.isScreenPausedForFullScreen(screenId) {
+                continue
+            }
             let descriptor = context.descriptor
             for zone in context.zoneController.allZones {
                 let cocoaFrame = descriptor.screenToCocoa(zone.frame)
@@ -333,6 +339,9 @@ class DragDropCoordinator {
         }
 
         for (screenId, context) in delegate.screenContexts {
+            if delegate.isScreenPausedForFullScreen(screenId) {
+                continue
+            }
             let descriptor = context.descriptor
             for zone in context.zoneController.allZones {
                 let accessibilityZone = zoneAccessibilityFrame(zone, descriptor: descriptor)

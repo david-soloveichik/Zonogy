@@ -122,6 +122,9 @@ extension AppController {
             },
             shouldSuppressPlaceholder: { [weak self] key in
                 guard let self = self else { return false }
+                if self.isScreenPausedForFullScreen(key.screenId) {
+                    return true
+                }
                 // UnderCovers suppresses the single-zone placeholder on that screen while active.
                 return self.isUnderCoversActive(on: key.screenId) && key.index == 1
             }

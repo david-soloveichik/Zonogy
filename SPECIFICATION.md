@@ -119,6 +119,8 @@ Pressing Shift-Option-Control-Cmd-Delete performs the same steps, but works with
 
 **Targeting rule:** Exactly one zone (tiling zone or temporary zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
 
+**Full-screen pause:** When a screen is in native macOS full-screen mode, Zonogy pauses on that screen. No Zonogy UI/overlays should appear there (placeholders, Launcher, targeting indicators, add‑zone indicator, zone resize bars, drag overlays). Zones on that screen are not targetable; when a screen enters full‑screen mode, retarget using normal rules. (If all screens are full‑screen, target screen 0 (normal rules) as a last resort.)
+
 **Targeting modes:** Zonogy supports two targeting modes (switchable in Zonogy Preferences → General):
 
 - **Targeting independent of focus** (default): Targeting is controlled by the rules and shortcuts below and does not automatically change when focus changes.

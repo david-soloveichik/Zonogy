@@ -6,6 +6,7 @@ protocol TargetedZoneManagerDelegate: AnyObject {
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenOrder: [CGDirectDisplayID] { get }
     var primaryScreenId: CGDirectDisplayID { get }
+    var fullScreenDisplayIds: Set<CGDirectDisplayID> { get }
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func refreshIndicators()
@@ -45,9 +46,9 @@ class TargetedZoneManager {
     func ensureTargetedZone(reason: String) {
         if let destination = targetedDestination {
             switch destination {
-            case .tiled(let current) where zoneExists(current):
+            case .tiled(let current) where zoneExists(current) && isScreenTargetable(current.screenId):
                 return
-            case .temporary(let screenId) where screenExists(screenId):
+            case .temporary(let screenId) where screenExists(screenId) && isScreenTargetable(screenId):
                 return
             default:
                 break
@@ -73,6 +74,15 @@ class TargetedZoneManager {
     }
 
     func setTargetedZone(_ key: ZoneKey?, reason: String) {
+        if let candidate = key, !isScreenTargetable(candidate.screenId) {
+            if let destination = preferredRetargetDestination(preferredSameScreenId: candidate.screenId) {
+                applyRetargetDestination(destination, reason: reason)
+            } else {
+                setTargetedZone(nil, reason: reason)
+            }
+            return
+        }
+
         if let candidate = key, !zoneExists(candidate) {
             if let destination = preferredRetargetDestination(preferredSameScreenId: candidate.screenId) {
                 applyRetargetDestination(destination, reason: reason)
@@ -107,6 +117,15 @@ class TargetedZoneManager {
     func setTemporaryTarget(on screenId: CGDirectDisplayID, reason: String) {
         guard screenExists(screenId) else {
             delegate?.refreshIndicators()
+            return
+        }
+
+        guard isScreenTargetable(screenId) else {
+            if let destination = preferredRetargetDestination(preferredSameScreenId: screenId) {
+                applyRetargetDestination(destination, reason: reason)
+            } else {
+                setTargetedZone(nil, reason: reason)
+            }
             return
         }
 
@@ -159,6 +178,7 @@ class TargetedZoneManager {
         excluding excluded: ZoneKey? = nil
     ) -> TargetedDestination? {
         if let preferredSameScreenId,
+           isScreenTargetable(preferredSameScreenId),
            let sameScreenEmpty = lowestIndexEmptyZoneOnSameScreen(screenId: preferredSameScreenId, excluding: excluded) {
             return .tiled(sameScreenEmpty)
         }
@@ -173,7 +193,7 @@ class TargetedZoneManager {
         }
 
         if let preferredSameScreenId,
-           screenExists(preferredSameScreenId) {
+           isScreenTargetable(preferredSameScreenId) {
             return .temporary(screenId: preferredSameScreenId)
         }
 
@@ -182,7 +202,7 @@ class TargetedZoneManager {
             if let preferredSameScreenId, screenId == preferredSameScreenId {
                 continue
             }
-            if screenExists(screenId) {
+            if isScreenTargetable(screenId) {
                 return .temporary(screenId: screenId)
             }
         }
@@ -233,6 +253,10 @@ class TargetedZoneManager {
     }
 
     func prefersCandidate(_ candidate: ZoneKey, over current: ZoneKey?) -> Bool {
+        guard isScreenTargetable(candidate.screenId) else {
+            return false
+        }
+
         guard let current else {
             return true
         }
@@ -253,7 +277,7 @@ class TargetedZoneManager {
         guard let delegate = delegate else { return [] }
 
         var result: [(ZoneKey, Int)] = []
-        for (screenId, context) in delegate.screenContexts {
+        for (screenId, context) in delegate.screenContexts where isScreenTargetable(screenId) {
             for zone in context.zoneController.allZones where predicate(zone) {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
                 if let excluded, excluded == key {
@@ -271,7 +295,8 @@ class TargetedZoneManager {
         excluding excluded: ZoneKey? = nil
     ) -> [(ZoneKey, Int)] {
         guard let delegate = delegate,
-              let context = delegate.screenContexts[screenId] else {
+              let context = delegate.screenContexts[screenId],
+              isScreenTargetable(screenId) else {
             return []
         }
 
@@ -332,6 +357,44 @@ class TargetedZoneManager {
 
     private func screenOrderIndex(for screenId: CGDirectDisplayID) -> Int {
         delegate?.screenOrder.firstIndex(of: screenId) ?? Int.max
+    }
+
+    private func isScreenTargetable(_ screenId: CGDirectDisplayID) -> Bool {
+        guard let delegate else { return false }
+        guard delegate.screenContexts[screenId] != nil else { return false }
+
+        let fullScreenDisplayIds = delegate.fullScreenDisplayIds
+        guard fullScreenDisplayIds.contains(screenId) else {
+            return true
+        }
+
+        guard allScreensAreFullScreen(delegate: delegate, fullScreenDisplayIds: fullScreenDisplayIds) else {
+            return false
+        }
+
+        guard let fallback = fallbackScreenId(delegate: delegate) else {
+            return false
+        }
+        return screenId == fallback
+    }
+
+    private func allScreensAreFullScreen(
+        delegate: TargetedZoneManagerDelegate,
+        fullScreenDisplayIds: Set<CGDirectDisplayID>
+    ) -> Bool {
+        let knownScreens = Set(delegate.screenContexts.keys)
+        guard !knownScreens.isEmpty else {
+            return false
+        }
+        return knownScreens.isSubset(of: fullScreenDisplayIds)
+    }
+
+    private func fallbackScreenId(delegate: TargetedZoneManagerDelegate) -> CGDirectDisplayID? {
+        let orderedFallback = delegate.screenOrder.first ?? delegate.primaryScreenId
+        if delegate.screenContexts[orderedFallback] != nil {
+            return orderedFallback
+        }
+        return delegate.screenContexts.keys.first
     }
 
     private func applyRetargetDestination(_ destination: TargetedDestination, reason: String) {

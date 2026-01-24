@@ -11,6 +11,7 @@ extension AppController {
     // MARK: - FullScreenTrackerDelegate
     func fullScreenTracker(_ tracker: FullScreenTracker, didChangeFullScreenStateFor displayId: CGDirectDisplayID) {
         updateFullScreenDebugOverlay(for: displayId)
+        handleFullScreenPauseStateChange(for: displayId)
     }
 
     /// Update the debug overlay for a specific display based on full-screen state.
@@ -42,6 +43,10 @@ extension AppController {
         for displayId in screenContexts.keys {
             updateFullScreenDebugOverlay(for: displayId)
         }
+    }
+
+    internal func isScreenPausedForFullScreen(_ screenId: CGDirectDisplayID) -> Bool {
+        fullScreenTracker.isFullScreen(displayId: screenId)
     }
 
     /// Notify full-screen tracker that an application terminated.
@@ -245,5 +250,26 @@ extension AppController {
         }
 
         return []
+    }
+
+    private func handleFullScreenPauseStateChange(for displayId: CGDirectDisplayID) {
+        let isFullScreen = fullScreenTracker.isFullScreen(displayId: displayId)
+
+        if isFullScreen {
+            placeholderCoordinator.clearPlaceholdersForScreen(displayId)
+            targetedZoneManager.ensureTargetedZone(reason: "full-screen-entered")
+            refreshIndicators()
+            refreshResizeHandles()
+
+            if launcherController.isActive,
+               let targetScreenId = targetedScreenId(),
+               isScreenPausedForFullScreen(targetScreenId) {
+                launcherController.hide()
+                Logger.debug("Launcher: Hidden because target screen entered full-screen")
+            }
+        } else {
+            // Re-sync to restore placeholders and indicators on the screen that exited full-screen.
+            syncWindowsToZones()
+        }
     }
 }

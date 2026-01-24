@@ -437,7 +437,11 @@ extension AppController {
     }
 
     internal func showLauncher() {
-        launcherController.toggle()
+        if launcherController.isActive {
+            launcherController.hide()
+            return
+        }
+        showLauncherIfAllowed(trigger: "shortcut-show-launcher")
     }
 
     private func captureTimeTravelLogs(triggerReason: String) {
