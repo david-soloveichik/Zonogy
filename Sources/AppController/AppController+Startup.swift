@@ -315,10 +315,25 @@ extension AppController {
             if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - same PID as Zonogy") }
             return false
         }
-        guard let bundleId = application.bundleIdentifier else {
-            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - no bundle identifier") }
+
+        // Determine the effective bundle ID - either from NSRunningApplication or derived from executable path
+        var bundleId = application.bundleIdentifier
+        if bundleId == nil,
+           let executableURL = application.executableURL {
+            let processName = executableURL.lastPathComponent
+            if configuration.deriveBundleIdFromPathForProcesses.contains(processName),
+               let derivedBundleId = Configuration.deriveBundleId(fromExecutableURL: executableURL) {
+                bundleId = derivedBundleId
+                Logger.debug("shouldManage: derived bundle ID '\(derivedBundleId)' from executable path for process '\(processName)'")
+            }
+        }
+
+        guard let bundleId else {
+            let processName = application.executableURL?.lastPathComponent ?? "unknown"
+            if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - no bundle identifier (process '\(processName)' not in deriveBundleIdFromPathForProcesses or no bundle found in path)") }
             return false
         }
+
         if let visibleBundleIds = visibleBundleIds,
            !visibleBundleIds.contains(bundleId) {
             if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - not in visible bundle IDs") }
@@ -350,11 +365,19 @@ extension AppController {
         var bundleIds: Set<String> = []
         for info in windowInfoList {
             guard let ownerPid = info[kCGWindowOwnerPID as String] as? pid_t,
-                  let app = NSRunningApplication(processIdentifier: ownerPid),
-                  let bundleId = app.bundleIdentifier else {
+                  let app = NSRunningApplication(processIdentifier: ownerPid) else {
                 continue
             }
-            bundleIds.insert(bundleId)
+            // Use native bundle ID if available, otherwise try to derive from executable path
+            if let bundleId = app.bundleIdentifier {
+                bundleIds.insert(bundleId)
+            } else if let executableURL = app.executableURL {
+                let processName = executableURL.lastPathComponent
+                if configuration.deriveBundleIdFromPathForProcesses.contains(processName),
+                   let derivedBundleId = Configuration.deriveBundleId(fromExecutableURL: executableURL) {
+                    bundleIds.insert(derivedBundleId)
+                }
+            }
         }
         return bundleIds
     }

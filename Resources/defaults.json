@@ -2,6 +2,9 @@
   "ignoredBundleIdentifiers": [
     "com.red-sweater.fastscripts3"
   ],
+  "deriveBundleIdFromPathForProcesses": [
+    "java"
+  ],
   "bundleExceptions": [
     {
       "bundleIdentifier": "com.valvesoftware.steam.helper",
