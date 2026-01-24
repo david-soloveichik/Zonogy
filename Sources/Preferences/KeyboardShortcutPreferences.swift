@@ -145,10 +145,6 @@ final class KeyboardShortcutPreferences: ObservableObject {
         if let customShortcut = shortcuts[action] {
             return customShortcut
         }
-        // Check if this action is disabled by default
-        if Self.defaultClearedActions.contains(action) {
-            return nil
-        }
         return action.defaultShortcut
     }
 
@@ -186,7 +182,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     func isCleared(_ action: ShortcutAction) -> Bool {
-        shortcut(for: action) == nil
+        clearedActions.contains(action)
     }
 
     func isCustomized(_ action: ShortcutAction) -> Bool {
@@ -203,10 +199,16 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     private func loadShortcuts() {
-        guard FileManager.default.fileExists(atPath: preferencesURL.path),
-              let data = try? Data(contentsOf: preferencesURL),
-              let stored = try? JSONDecoder().decode(StoredPreferences.self, from: data) else {
+        guard FileManager.default.fileExists(atPath: preferencesURL.path) else {
             Logger.debug("No stored keyboard shortcuts found, using defaults")
+            clearedActions = Self.defaultClearedActions
+            return
+        }
+
+        guard let data = try? Data(contentsOf: preferencesURL),
+              let stored = try? JSONDecoder().decode(StoredPreferences.self, from: data) else {
+            Logger.debug("Failed to decode stored keyboard shortcuts, using defaults")
+            clearedActions = Self.defaultClearedActions
             return
         }
 
@@ -222,6 +224,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                     clearedActions.insert(action)
                 }
             }
+        } else {
+            clearedActions = Self.defaultClearedActions.subtracting(shortcuts.keys)
         }
 
         Logger.debug("Loaded \(shortcuts.count) custom shortcuts, \(clearedActions.count) cleared")
