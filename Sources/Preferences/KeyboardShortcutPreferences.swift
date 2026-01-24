@@ -117,7 +117,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
     private struct StoredPreferences: Codable {
         var shortcuts: [String: KeyboardShortcut]
-        var clearedActions: [String]?
+        var clearedActions: [String]
     }
 
     /// Actions that are disabled by default (no shortcut assigned out of the box)
@@ -199,16 +199,13 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     private func loadShortcuts() {
-        guard FileManager.default.fileExists(atPath: preferencesURL.path) else {
-            Logger.debug("No stored keyboard shortcuts found, using defaults")
-            clearedActions = Self.defaultClearedActions
-            return
-        }
-
-        guard let data = try? Data(contentsOf: preferencesURL),
+        guard FileManager.default.fileExists(atPath: preferencesURL.path),
+              let data = try? Data(contentsOf: preferencesURL),
               let stored = try? JSONDecoder().decode(StoredPreferences.self, from: data) else {
-            Logger.debug("Failed to decode stored keyboard shortcuts, using defaults")
+            Logger.debug("No valid stored keyboard shortcuts found, resetting to defaults")
+            shortcuts.removeAll()
             clearedActions = Self.defaultClearedActions
+            saveShortcuts()
             return
         }
 
@@ -218,14 +215,10 @@ final class KeyboardShortcutPreferences: ObservableObject {
             }
         }
 
-        if let cleared = stored.clearedActions {
-            for key in cleared {
-                if let action = ShortcutAction(rawValue: key) {
-                    clearedActions.insert(action)
-                }
+        for key in stored.clearedActions {
+            if let action = ShortcutAction(rawValue: key) {
+                clearedActions.insert(action)
             }
-        } else {
-            clearedActions = Self.defaultClearedActions.subtracting(shortcuts.keys)
         }
 
         Logger.debug("Loaded \(shortcuts.count) custom shortcuts, \(clearedActions.count) cleared")
