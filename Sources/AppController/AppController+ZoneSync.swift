@@ -55,9 +55,13 @@ extension AppController {
         // so no layout continues to reference dead windows.
         let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
         if !prunedWindowIds.isEmpty {
-            for windowId in prunedWindowIds {
-                removeWindowFromAllZones(windowId: windowId, reason: "sync-prune-destroyed")
-            }
+            handleDestroyedWindows(
+                prunedWindowIds,
+                reason: "sync-prune-destroyed",
+                retarget: true,
+                shouldSync: false,
+                shouldRefreshWinShotChooser: true
+            )
         }
 
         // Tracks all non‑placeholder windows that end up with a valid zone

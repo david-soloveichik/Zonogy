@@ -18,8 +18,7 @@ protocol ValidationRetryManagerDelegate: AnyObject {
     func hasManagedWindows(for pid: pid_t) -> Bool
     func debugManagedWindowIds(for pid: pid_t) -> [Int]
     func pruneDestroyedWindowsForPid(_ pid: pid_t) -> [Int]
-    func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool)
-    func syncWindowsToZones(recentlyPlacedInTempZone: Int?)
+    func handleDestroyedWindows(_ windowIds: [Int], reason: String, retarget: Bool)
 }
 
 class ValidationRetryManager {
@@ -40,10 +39,7 @@ class ValidationRetryManager {
             Logger.debug("Validated pid \(pid) (\(reason)): pruned \(destroyedWindowIds.count) destroyed window(s)")
             cancelValidationRetry(for: pid)  // Success - no more retries needed
 
-            for windowId in destroyedWindowIds {
-                delegate.removeWindowFromAllZones(windowId: windowId, reason: "validate-application", retarget: true)
-            }
-            delegate.syncWindowsToZones(recentlyPlacedInTempZone: nil)
+            delegate.handleDestroyedWindows(destroyedWindowIds, reason: "validate-application", retarget: true)
             return destroyedWindowIds
         }
 

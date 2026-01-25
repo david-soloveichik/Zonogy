@@ -254,22 +254,7 @@ extension AppController {
 
         Logger.debug("Application terminated, pruned \(removedWindowIds.count) windows")
         validationRetryManager.cancelValidationRetry(for: application.processIdentifier)
-        for windowId in removedWindowIds {
-            if dragDropCoordinator.currentDragWindowId == windowId {
-                dragDropCoordinator.tearDownDragSession()
-            }
-            removeWindowFromAllZones(windowId: windowId, reason: "application-termination")
-
-            // WinShot: Remove any snapshots containing this window
-            winShotManager.removeSnapshotsContaining(windowId: windowId)
-        }
-
-        // Refresh the WinShot chooser if it's open and snapshots were removed
-        if let chooserScreenId = winShotChooserController.currentScreenId {
-            refreshWinShotChooserIfNeeded(for: chooserScreenId)
-        }
-
-        syncWindowsToZones()
+        handleDestroyedWindows(removedWindowIds, reason: "application-termination", retarget: true)
     }
 
     internal func scheduleCapture(for application: NSRunningApplication, delay: TimeInterval) {
