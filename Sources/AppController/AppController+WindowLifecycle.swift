@@ -190,6 +190,8 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
+        lastPlaceholderClickTimestamp = ProcessInfo.processInfo.systemUptime - MouseButtons.secondsSinceLastLeftMouseDown()
+        refreshResizeHandles()
         minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
     }

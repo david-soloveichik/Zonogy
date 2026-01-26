@@ -64,6 +64,14 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
             return
         }
+        if let pid = application?.processIdentifier,
+           pid != getpid(),
+           lastPlaceholderClickTimestamp != nil {
+            // Placeholder windows are non-activating panels, so keyboard-driven app switches can
+            // change what is truly frontmost without changing the most recent mouse-down.
+            // Clear the placeholder override in this case so ActiveFit overlap hiding resumes.
+            lastPlaceholderClickTimestamp = nil
+        }
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
             handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)

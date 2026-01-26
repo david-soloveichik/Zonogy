@@ -14,8 +14,11 @@ enum MouseButtons {
         return CGEventSource.buttonState(.combinedSessionState, button: .left)
     }
 
+    static func secondsSinceLastLeftMouseDown() -> TimeInterval {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)
+    }
+
     static func secondsSinceLastLeftMouseUp() -> TimeInterval {
         CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseUp)
     }
 }
-

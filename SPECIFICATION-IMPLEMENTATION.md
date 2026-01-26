@@ -24,6 +24,18 @@ For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit 
 - **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
 (`grep --line-buffered` streams matching lines without delay.)
 
+## Zone Resize Bars: Placeholder "Frontmost" Heuristic
+
+Zone resize bars are normally hidden/shortened to avoid overlapping an ActiveFit reveal frame. When multiple oversized windows exist, this can hide the bars in every focus state, blocking zone resizing. Our way around this is to show the bars when a placeholder window is frontmost. 
+
+Placeholder windows are non-activating panels and never become key/main, so "placeholder is frontmost" can’t be inferred from standard focus APIs. Instead, Zonogy uses a lightweight heuristic:
+
+- Treat "placeholder frontmost" as: the most recent left-mouse-down occurred on a placeholder.
+- On placeholder click, record a "seconds since boot" timestamp for that mouse-down. When recomputing resize bars, compare against the system’s global last left-mouse-down timestamp (via `CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)`). If they match within a small tolerance, bypass ActiveFit overlap suppression and show all bars.
+- Clear the override when a non-Zonogy app becomes active via `NSWorkspace.didActivateApplicationNotification` (e.g., Cmd-Tab), since keyboard-driven activation changes what’s truly frontmost without changing the last mouse-down.
+
+This avoids installing a global event tap; it only samples the event-source timestamp during existing refresh points.
+
 ## Accessibility API Workarounds
 
 ### Retry Mechanisms Tied to Accessibility

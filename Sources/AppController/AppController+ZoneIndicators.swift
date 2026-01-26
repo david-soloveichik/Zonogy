@@ -208,6 +208,13 @@ extension AppController {
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
+        let shouldIgnoreActiveFitOverlap: Bool = {
+            guard let placeholderClickTimestamp = lastPlaceholderClickTimestamp else {
+                return false
+            }
+            let lastMouseDownTimestamp = ProcessInfo.processInfo.systemUptime - MouseButtons.secondsSinceLastLeftMouseDown()
+            return abs(lastMouseDownTimestamp - placeholderClickTimestamp) <= 0.05
+        }()
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -231,7 +238,8 @@ extension AppController {
             for sep in separators {
                 var frame = sep.frame
 
-                if let state = activeState,
+                if !shouldIgnoreActiveFitOverlap,
+                   let state = activeState,
                    state.zoneKey.screenId == screenId {
                     let activeFrame = state.revealFrame.standardized
 

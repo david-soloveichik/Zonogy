@@ -178,6 +178,8 @@ Zones are resized by dragging a zone resize bar: a thin white separator located 
 
 If an ActiveFit window in reveal mode would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect the reveal frame. When the window exits reveal mode (loses focus or moves to a different window), the bars return to the normal layout.
 
+Exception: If the user clicks a placeholder window (an empty zone), show all zone resize bars even if they would overlap an ActiveFit reveal frame. This provides an escape hatch for resizing when multiple oversized windows exist.
+
 When the temporary zone is occupied on a screen, hide all zone resize bars on that screen to avoid overlapping the temporary window.
 
 When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.

@@ -75,6 +75,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
     /// Used to hide zone resize bars on that screen.
     internal var unmanagedFocusedWindowScreenId: CGDirectDisplayID?
+    /// Timestamp (in seconds since boot) of the most recent placeholder click.
+    /// Used to bypass ActiveFit overlap hiding for resize handles when a placeholder window is
+    /// "frontmost" in the sense that it received the most recent mouse click.
+    internal var lastPlaceholderClickTimestamp: TimeInterval?
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by AltTab to determine initial selection without an AX call.
     internal var currentFrontmostManagedWindowId: Int?
