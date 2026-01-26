@@ -205,99 +205,28 @@ extension AppController {
 
     // MARK: - Resize Handles
 
-    private struct FrontmostZone1Context {
-        let screenId: CGDirectDisplayID
+    private struct FrontmostManagedWindowContext {
+        let zoneKey: ZoneKey
         let frame: CGRect
     }
 
-    private func frontmostZone1Context() -> FrontmostZone1Context? {
+    private func frontmostManagedWindowContext() -> FrontmostManagedWindowContext? {
         guard !zoneResizeDragInProgress,
               let frontmostId = currentFrontmostManagedWindowId,
               let managed = windowController.window(withId: frontmostId),
               let zoneKey = zoneKey(forManagedWindow: managed),
-              zoneKey.index == 1,
               let descriptor = descriptor(for: zoneKey.screenId) else {
             return nil
         }
 
         let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor).standardized
-        return FrontmostZone1Context(screenId: zoneKey.screenId, frame: frame)
-    }
-
-    private func clippedSeparatorFrame(
-        _ separatorFrame: CGRect,
-        avoiding avoidFrame: CGRect,
-        orientation: ZoneLayout.SeparatorOrientation
-    ) -> CGRect? {
-        let original = separatorFrame.standardized
-        let intersection = original.intersection(avoidFrame.standardized).standardized
-        guard !intersection.isNull else {
-            return original
-        }
-
-        switch orientation {
-        case .vertical:
-            guard intersection.height > 0 else {
-                return original
-            }
-
-            let topGap = max(0, intersection.minY - original.minY)
-            let bottomGap = max(0, original.maxY - intersection.maxY)
-            let maxGap = max(topGap, bottomGap)
-
-            guard maxGap > 0 else {
-                return nil
-            }
-
-            if topGap >= bottomGap {
-                return CGRect(
-                    x: original.minX,
-                    y: original.minY,
-                    width: original.width,
-                    height: topGap
-                )
-            }
-            return CGRect(
-                x: original.minX,
-                y: intersection.maxY,
-                width: original.width,
-                height: bottomGap
-            )
-
-        case .horizontal:
-            guard intersection.width > 0 else {
-                return original
-            }
-
-            let leftGap = max(0, intersection.minX - original.minX)
-            let rightGap = max(0, original.maxX - intersection.maxX)
-            let maxGap = max(leftGap, rightGap)
-
-            guard maxGap > 0 else {
-                return nil
-            }
-
-            if leftGap >= rightGap {
-                return CGRect(
-                    x: original.minX,
-                    y: original.minY,
-                    width: leftGap,
-                    height: original.height
-                )
-            }
-            return CGRect(
-                x: intersection.maxX,
-                y: original.minY,
-                width: rightGap,
-                height: original.height
-            )
-        }
+        return FrontmostManagedWindowContext(zoneKey: zoneKey, frame: frame)
     }
 
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
-        let frontmostZone1 = frontmostZone1Context()
+        let frontmostManagedWindow = frontmostManagedWindowContext()
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -316,13 +245,9 @@ extension AppController {
                 continue
             }
 
-            let frontmostZone1Frame: CGRect? = {
-                guard let frontmostZone1,
-                      frontmostZone1.screenId == screenId else {
-                    return nil
-                }
-                return frontmostZone1.frame
-            }()
+            let frontmostManagedWindowOnScreen = frontmostManagedWindow?.zoneKey.screenId == screenId ? frontmostManagedWindow : nil
+            let frontmostManagedWindowFrame = frontmostManagedWindowOnScreen?.frame
+            let frontmostManagedWindowZoneIndex = frontmostManagedWindowOnScreen?.zoneKey.index
 
             let separators = context.zoneController.separators()
 
@@ -338,7 +263,7 @@ extension AppController {
                         // Separator between zone 1 and zones 2/3 (index 0) should
                         // not extend into an ActiveFit window in zone 2 or 3.
                         if sep.index == 0, state.zoneKey.index >= 2 {
-                            guard let clipped = clippedSeparatorFrame(frame, avoiding: activeFrame, orientation: .vertical) else {
+                            guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: activeFrame, orientation: .vertical) else {
                                 continue
                             }
                             frame = clipped
@@ -358,21 +283,22 @@ extension AppController {
                 // If the frontmost managed window is in zone 1 and overlaps the
                 // separator margin, hide the separator so it doesn't intercept
                 // clicks or draw over the active window.
-                if let frontmostZone1Frame,
+                if let frontmostManagedWindowFrame,
+                   frontmostManagedWindowZoneIndex == 1,
                    sep.orientation == .vertical,
                    sep.index == 0 {
-                    if frame.intersects(frontmostZone1Frame) {
+                    if frame.intersects(frontmostManagedWindowFrame) {
                         continue
                     }
                 }
 
-                // If the frontmost managed window is in zone 1 and overlaps the
+                // If the frontmost managed window overlaps the
                 // horizontal separator between zones 2 and 3, shorten the handle
                 // so the bar doesn't draw over the active window.
-                if let frontmostZone1Frame,
+                if let frontmostManagedWindowFrame,
                    sep.orientation == .horizontal,
                    sep.index == 1 {
-                    guard let clipped = clippedSeparatorFrame(frame, avoiding: frontmostZone1Frame, orientation: .horizontal) else {
+                    guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: frontmostManagedWindowFrame, orientation: .horizontal) else {
                         continue
                     }
                     frame = clipped
