@@ -92,6 +92,13 @@ extension AppController {
 
     // MARK: - ZoneResizeHandleManagerDelegate
 
+    func resizeHandleMouseDown(screenId: CGDirectDisplayID, separatorIndex: Int) {
+        guard lastZoneUiMouseDownTimestamp != nil else {
+            return
+        }
+        lastZoneUiMouseDownTimestamp = ProcessInfo.processInfo.systemUptime - MouseButtons.secondsSinceLastLeftMouseDown()
+    }
+
     internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
         Logger.debug("Zone resize drag began on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
         zoneResizeDragInProgress = true

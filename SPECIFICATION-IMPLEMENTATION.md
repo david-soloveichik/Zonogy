@@ -26,12 +26,12 @@ For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit 
 
 ## Zone Resize Bars: Placeholder "Frontmost" Heuristic
 
-Zone resize bars are normally hidden/shortened to avoid overlapping an ActiveFit reveal frame. When multiple oversized windows exist, this can hide the bars in every focus state, blocking zone resizing. Our way around this is to show the bars when a placeholder window is frontmost. 
+Zone resize bars are normally hidden/shortened to avoid overlapping an ActiveFit reveal frame. When multiple oversized windows exist, this can hide the bars in every focus state, blocking zone resizing. Our way around this is to show the bars when a placeholder window is frontmost.
 
 Placeholder windows are non-activating panels and never become key/main, so "placeholder is frontmost" can’t be inferred from standard focus APIs. Instead, Zonogy uses a lightweight heuristic:
 
-- Treat "placeholder frontmost" as: the most recent left-mouse-down occurred on a placeholder.
-- On placeholder click, record a "seconds since boot" timestamp for that mouse-down. When recomputing resize bars, compare against the system’s global last left-mouse-down timestamp (via `CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)`). If they match within a small tolerance, bypass ActiveFit overlap suppression and show all bars.
+- Treat the override as active if the most recent left-mouse-down was on a placeholder (or, once active, a zone resize bar).
+- Record a "seconds since boot" timestamp for that mouse-down and compare it to the system’s global last left-mouse-down timestamp (via `CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)`). If they match within a small tolerance, bypass ActiveFit overlap suppression and show all bars.
 - Clear the override when a non-Zonogy app becomes active via `NSWorkspace.didActivateApplicationNotification` (e.g., Cmd-Tab), since keyboard-driven activation changes what’s truly frontmost without changing the last mouse-down.
 
 This avoids installing a global event tap; it only samples the event-source timestamp during existing refresh points.

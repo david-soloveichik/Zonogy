@@ -10,6 +10,7 @@ struct ZoneSeparatorDescriptor {
 }
 
 protocol ZoneResizeHandleManagerDelegate: AnyObject {
+    func resizeHandleMouseDown(screenId: CGDirectDisplayID, separatorIndex: Int)
     func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int)
     func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint)
     func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int)
@@ -132,6 +133,7 @@ final class ZoneResizeHandleManager {
         }
         
         override func mouseDown(with event: NSEvent) {
+            delegate?.resizeHandleMouseDown(screenId: screenId, separatorIndex: separatorIndex)
             HandleView.activeDragView = self
             isDragging = true
             needsDisplay = true
