@@ -315,7 +315,6 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
         if rule.hasMainWindow == true { parts.append("mainWin") }
         if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
-        if rule.treatAXUnknownFullWidthAsFullScreen == true { parts.append("axUnknownFS") }
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
@@ -323,6 +322,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         if let titles = rule.excludedWindowTitles, !titles.isEmpty {
             parts.append("excl:\(titles.count)")
         }
+        if rule.treatAXUnknownFullWidthAsFullScreen == true { parts.append("axUnknownFS") }
 
         return parts.isEmpty ? "(none)" : parts.joined(separator: ", ")
     }

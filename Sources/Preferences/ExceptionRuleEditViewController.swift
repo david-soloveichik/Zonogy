@@ -122,19 +122,6 @@ final class ExceptionRuleEditViewController: NSViewController {
         ])
         topAnchor = snapToZoneCheckbox.bottomAnchor
 
-        treatAXUnknownFullWidthAsFullScreenCheckbox = makeCheckbox(
-            title: "Treat AXUnknown full-width windows as full-screen",
-            tooltip: "Only enable for apps where AXFullScreen is missing/unreliable (e.g., some presentation windows)"
-        )
-        container.addSubview(treatAXUnknownFullWidthAsFullScreenCheckbox)
-
-        NSLayoutConstraint.activate([
-            treatAXUnknownFullWidthAsFullScreenCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            treatAXUnknownFullWidthAsFullScreenCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            treatAXUnknownFullWidthAsFullScreenCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = treatAXUnknownFullWidthAsFullScreenCheckbox.bottomAnchor
-
         disallowEmptyTitleCheckbox = makeCheckbox(
             title: "Disallow empty title windows",
             tooltip: "Don't manage windows with empty titles from this app"
@@ -186,6 +173,19 @@ final class ExceptionRuleEditViewController: NSViewController {
             ignoreHeightCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = ignoreHeightCheckbox.bottomAnchor
+
+        treatAXUnknownFullWidthAsFullScreenCheckbox = makeCheckbox(
+            title: "Treat AXUnknown full-width windows as full-screen",
+            tooltip: "Only enable for apps where AXFullScreen is missing/unreliable (e.g., some presentation windows)"
+        )
+        container.addSubview(treatAXUnknownFullWidthAsFullScreenCheckbox)
+
+        NSLayoutConstraint.activate([
+            treatAXUnknownFullWidthAsFullScreenCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            treatAXUnknownFullWidthAsFullScreenCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            treatAXUnknownFullWidthAsFullScreenCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = treatAXUnknownFullWidthAsFullScreenCheckbox.bottomAnchor
 
         // Excluded window titles
         let excludedLabel = NSTextField(labelWithString: "Excluded window titles (comma-separated):")
