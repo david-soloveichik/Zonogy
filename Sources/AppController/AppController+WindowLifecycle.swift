@@ -183,14 +183,14 @@ extension AppController {
         }
     }
 
-    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
+    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int, mouseDownTimestamp: TimeInterval) {
         if isScreenPausedForFullScreen(screenId) {
             Logger.debug("Placeholder activated on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
             return
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
-        lastZoneUiMouseDownTimestamp = ProcessInfo.processInfo.systemUptime - MouseButtons.secondsSinceLastLeftMouseDown()
+        recordZoneUiMouseDown(mouseDownTimestamp: mouseDownTimestamp)
         refreshResizeHandles()
         minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
         targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")

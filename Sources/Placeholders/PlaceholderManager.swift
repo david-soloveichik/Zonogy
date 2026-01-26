@@ -15,7 +15,7 @@ private final class FirstClickButton: NSButton {
 /// Delegate protocol for placeholder UI events.
 protocol PlaceholderManagerDelegate: AnyObject {
     /// Called when a placeholder window is activated (clicked).
-    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int)
+    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int, mouseDownTimestamp: TimeInterval)
 
     /// Called when the close/put-away button is clicked.
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
@@ -214,10 +214,10 @@ final class PlaceholderManager {
 
     // MARK: - Internal Handlers
 
-    func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int) {
+    func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int, mouseDownTimestamp: TimeInterval) {
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
-        delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
+        delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex, mouseDownTimestamp: mouseDownTimestamp)
     }
 
     func handlePlaceholderExternalDrop(
@@ -282,7 +282,11 @@ final class PlaceholderContentView: NSView {
         let isOnCloseButton = closeButton?.frame.contains(locationInView) == true
 
         if !isOnCloseButton {
-            manager?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+            manager?.handlePlaceholderActivation(
+                screenId: screenId,
+                zoneIndex: zoneIndex,
+                mouseDownTimestamp: event.timestamp
+            )
         }
         super.mouseDown(with: event)
     }

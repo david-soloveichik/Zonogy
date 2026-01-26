@@ -80,6 +80,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Used to bypass ActiveFit overlap hiding for resize handles while the user is actively
     /// interacting with zone UI.
     internal var lastZoneUiMouseDownTimestamp: TimeInterval?
+    /// Global left-mouse-down monitor used to refresh resize-handle visibility when the user clicks
+    /// outside of Zonogy while the zone-UI override is armed.
+    internal var zoneUiGlobalMouseDownMonitor: Any?
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by AltTab to determine initial selection without an AX call.
     internal var currentFrontmostManagedWindowId: Int?

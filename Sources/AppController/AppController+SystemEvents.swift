@@ -70,7 +70,8 @@ extension AppController {
             // Placeholder windows are non-activating panels, so keyboard-driven app switches can
             // change what is truly frontmost without changing the most recent mouse-down.
             // Clear the resize-bar override in this case so ActiveFit overlap hiding resumes.
-            lastZoneUiMouseDownTimestamp = nil
+            clearZoneUiMouseDownOverride(reason: "workspace-activate")
+            refreshResizeHandles()
         }
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
