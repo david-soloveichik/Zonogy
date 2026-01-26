@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Handles drag-and-drop of external files/URLs onto placeholders and add-zone indicators.
+/// Handles drag-and-drop of external files/URLs onto placeholders, add-zone indicators, and temporary zone indicators.
 extension AppController {
     func placeholderReceivedExternalDrop(
         screenId: CGDirectDisplayID,
@@ -26,6 +26,12 @@ extension AppController {
         } else {
             Logger.debug("Add-zone drop requested a new zone on screen \(screenContextStore.loggingIndex(for: screenId)) but creation failed (likely at max zones)")
         }
+        openExternalDropItems(items)
+    }
+
+    func temporaryZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem]) {
+        guard !items.isEmpty else { return }
+        targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-zone-drop")
         openExternalDropItems(items)
     }
 

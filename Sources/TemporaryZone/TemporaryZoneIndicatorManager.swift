@@ -11,6 +11,7 @@ struct TemporaryZoneIndicatorDescriptor {
 
 protocol TemporaryZoneIndicatorManagerDelegate: AnyObject {
     func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool)
+    func temporaryZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem])
 }
 
 final class TemporaryZoneIndicatorManager {
@@ -43,12 +44,21 @@ final class TemporaryZoneIndicatorManager {
 
     private final class IndicatorView: NSView {
         weak var delegate: TemporaryZoneIndicatorManagerDelegate?
+        weak var manager: TemporaryZoneIndicatorManager?
         let screenId: CGDirectDisplayID
         var isTargeted: Bool { didSet { applyStyle() } }
         var isOccupied: Bool { didSet { applyStyle() } }
         var isDragHighlighted: Bool {
             didSet {
                 applyStyle()
+            }
+        }
+        private var isExternalDropHover: Bool = false {
+            didSet {
+                if isExternalDropHover != oldValue {
+                    applyStyle()
+                    interactionStateChanged?(screenId)
+                }
             }
         }
         private var isHovered: Bool = false {
@@ -86,6 +96,7 @@ final class TemporaryZoneIndicatorManager {
             if #available(macOS 10.15, *) {
                 layer?.cornerCurve = .continuous
             }
+            registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
             applyStyle()
         }
 
@@ -160,7 +171,7 @@ final class TemporaryZoneIndicatorManager {
         }
 
         func desiredThickness() -> CGFloat {
-            if isDragHighlighted {
+            if isDragHighlighted || isExternalDropHover {
                 return EdgeIndicatorPillSizing.dragThickness
             }
             if isHovered {
@@ -178,7 +189,7 @@ final class TemporaryZoneIndicatorManager {
             let shadowRadius: CGFloat
             let borderWidth: CGFloat
 
-            if isDragHighlighted {
+            if isDragHighlighted || isExternalDropHover {
                 background = highlightFillColor
                 border = highlightBorderColor
                 shadowColor = NSColor.systemBlue.withAlphaComponent(0.95).cgColor
@@ -228,6 +239,37 @@ final class TemporaryZoneIndicatorManager {
             let isDoubleClick = event.clickCount >= 2
             delegate?.temporaryZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: isTargeted, isDoubleClick: isDoubleClick)
         }
+
+        // MARK: - NSDraggingDestination
+
+        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+            guard ExternalDropParser.canAccept(sender) else {
+                return []
+            }
+            isExternalDropHover = true
+            return .copy
+        }
+
+        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+            return isExternalDropHover ? .copy : []
+        }
+
+        override func draggingExited(_ sender: NSDraggingInfo?) {
+            isExternalDropHover = false
+        }
+
+        override func draggingEnded(_ sender: NSDraggingInfo) {
+            isExternalDropHover = false
+        }
+
+        override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+            return ExternalDropParser.canAccept(sender)
+        }
+
+        override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+            isExternalDropHover = false
+            return manager?.handleExternalDrop(from: sender, on: screenId) ?? false
+        }
     }
 
     private final class IndicatorHandle {
@@ -257,6 +299,7 @@ final class TemporaryZoneIndicatorManager {
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
                 handle.view.delegate = delegate
+                handle.view.manager = self
                 handle.view.interactionStateChanged = { [weak self] screenId in
                     self?.applyIndicatorFrame(for: screenId, animated: true)
                 }
@@ -274,6 +317,7 @@ final class TemporaryZoneIndicatorManager {
                 dragHighlighted: descriptor.isDragHighlighted
             )
             view.delegate = delegate
+            view.manager = self
             view.autoresizingMask = [.width, .height]
             view.interactionStateChanged = { [weak self] screenId in
                 self?.applyIndicatorFrame(for: screenId, animated: true)
@@ -349,5 +393,13 @@ final class TemporaryZoneIndicatorManager {
             handle.view.isDragHighlighted = (candidate == screenId)
             applyIndicatorFrame(for: candidate, animated: true)
         }
+    }
+
+    func handleExternalDrop(from draggingInfo: NSDraggingInfo, on screenId: CGDirectDisplayID) -> Bool {
+        guard let payload = ExternalDropParser.payload(from: draggingInfo) else {
+            return false
+        }
+        delegate?.temporaryZoneIndicatorReceivedExternalDrop(screenId: screenId, items: payload.items)
+        return true
     }
 }
