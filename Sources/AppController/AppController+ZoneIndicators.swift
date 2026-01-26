@@ -238,8 +238,8 @@ extension AppController {
                     switch sep.orientation {
                     case .vertical:
                         // Separator between zone 1 and zones 2/3 (index 0) should
-                        // not extend into an ActiveFit window in zone 2 or 3.
-                        if sep.index == 0, state.zoneKey.index >= 2 {
+                        // not extend into the ActiveFit reveal frame.
+                        if sep.index == 0 {
                             let originalFrame = frame.standardized
                             let intersection = originalFrame.intersection(activeFrame).standardized
                             if !intersection.isNull, intersection.height > 0 {
@@ -273,8 +273,8 @@ extension AppController {
 
                     case .horizontal:
                         // Hide the separator between zones 2 and 3 (index 1) if it
-                        // would overlap an ActiveFit window in zone 2 or 3.
-                        if sep.index == 1, state.zoneKey.index >= 2 {
+                        // would overlap the ActiveFit reveal frame.
+                        if sep.index == 1 {
                             if frame.intersects(activeFrame) {
                                 continue
                             }

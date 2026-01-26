@@ -176,7 +176,7 @@ When a new tiling zone is created via an explicit add-zone action (e.g., `Contro
 
 Zones are resized by dragging a zone resize bar: a thin white separator located in the margin between zones. This bar is only visible when the mouse hovers over the margin between zones. Dragging it adjusts the layout ratios for the involved zones.
 
-If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 2 or 3. When the window exits reveal mode (loses focus or moves to a different window), the bars return to the normal layout.
+If an ActiveFit window in reveal mode would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect the reveal frame. When the window exits reveal mode (loses focus or moves to a different window), the bars return to the normal layout.
 
 When the temporary zone is occupied on a screen, hide all zone resize bars on that screen to avoid overlapping the temporary window.
 
@@ -252,19 +252,19 @@ In either case, since the original zone of the window is now empty, it should be
 
 ### ActiveFit: Active Overflow Reveal for Key Windows
 
-Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
+Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen (right-column zones) or intrude into neighboring zones (zone 1). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
 
 **Terminology:**
 
-- **ActiveFit rest mode**: The window's top-left corner is anchored to the zone origin (with margins). The window may overflow off the right or bottom edge of the screen — this is the normal/default state when the window is *not* the active/key window.
-- **ActiveFit reveal mode**: The window is shifted left and/or upward so the entire frame fits within the visible screen bounds. This state is entered when the window *becomes* the active/key window and qualifies for ActiveFit.
+- **ActiveFit rest mode**: The window is anchored to its rest-mode origin (with margins). For zones 2/3 this is the zone origin; for zone 1 (when zone 2 exists) an oversized window is shifted left so its right edge aligns with zone 1’s content frame. The window may overflow off-screen — this is the normal/default state when the window is *not* the active/key window.
+- **ActiveFit reveal mode**: The window is shifted left/right and/or upward so the entire frame fits within the visible screen bounds. This state is entered when the window *becomes* the active/key window and qualifies for ActiveFit.
 
 **Implementation requirements:**
 
-1. ActiveFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
-2. Attempt the normal zone-aligned move/resize first. Then determine whether ActiveFit is needed by anchoring the window's actual *post-resize* size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
-3. When a qualifying window becomes the active/key window, enter **reveal mode**: shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
-4. When that window loses key status, leaves its zone, is minimized, or closes, exit reveal mode and return to **rest mode**: move the window back to its normal zone-anchored position so other zones reclaim their space.
+1. ActiveFit applies to non-placeholder windows assigned to zones 1-3 on any screen. In zone 1 when zone 2 exists, rest mode uses a different anchor when the window cannot shrink to fit: shift it left so its right edge aligns with zone 1’s content frame, pushing the overflow off-screen left instead of covering the right column.
+2. Attempt the normal zone-aligned move/resize first. Then determine whether ActiveFit is needed by anchoring the window's actual *post-resize* size to the zone's rest-mode origin (after margins): the zone content origin for zones 2/3, and the zone 1 right-aligned origin described above when applicable. If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
+3. When a qualifying window becomes the active/key window, enter **reveal mode**: shift it left/right and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
+4. When that window loses key status, leaves its zone, is minimized, or closes, exit reveal mode and return to **rest mode**: move the window back to its rest-mode origin so other zones reclaim their space.
 5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is in reveal mode, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
 
 This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
