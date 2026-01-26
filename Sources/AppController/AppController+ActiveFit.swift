@@ -4,7 +4,7 @@ import AppKit
 /// Manages ActiveFit behavior: transitioning windows between rest mode and reveal mode.
 ///
 /// ActiveFit has two modes:
-/// - **Rest mode**: Window is anchored to its rest origin; may overflow off-screen (default state).
+/// - **Rest mode**: Window is anchored to zone origin; may overflow off-screen (default state).
 /// - **Reveal mode**: Window is shifted so entire frame fits on screen (when window is active).
 ///
 /// This extension handles entering reveal mode when a qualifying window gains focus,
@@ -51,8 +51,8 @@ extension AppController {
         }
 
         guard let zoneIndex = managed.zoneIndex,
-              zoneIndex >= 1 else {
-            // New focused window is not assigned to a tiling zone; no reveal mode needed.
+              zoneIndex >= 2 else {
+            // New focused window is not in a right-column zone; no reveal mode needed.
             return
         }
 
@@ -105,9 +105,9 @@ extension AppController {
             return
         }
 
-        guard zoneIndex >= 1 else {
-            Logger.debug("ActiveFit: exiting reveal mode for window \(managed.windowId); reassigned to invalid zone \(zoneIndex)")
-            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<1")
+        guard zoneIndex >= 2 else {
+            Logger.debug("ActiveFit: exiting reveal mode for window \(managed.windowId); reassigned to zone \(zoneIndex)")
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
             return
         }
 
@@ -170,13 +170,8 @@ extension AppController {
             windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
         }
 
+        let restOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-        let restOrigin = restOriginForActiveFit(
-            zoneIndex: zoneIndex,
-            zoneFrame: zoneFrame,
-            windowSize: actualFrame.size,
-            controller: context.zoneController
-        )
         let screenBounds = descriptor.visibleScreenBounds
 
         // Check if window would overflow in rest mode and needs reveal mode
@@ -188,13 +183,6 @@ extension AppController {
             tolerance: activeFitOverflowTolerance
         ) else {
             // Window fits on screen in rest mode; no reveal needed
-            if zoneIndex == 1,
-               context.zoneController.zone(at: 2) != nil {
-                let desiredRestFrame = CGRect(origin: restOrigin, size: actualFrame.size)
-                if !framesClose(actualFrame, desiredRestFrame) {
-                    windowController.moveWindow(managed, to: desiredRestFrame, on: descriptor)
-                }
-            }
             exitRevealModeIfMatches(windowId: managed.windowId, reason: "no-overflow")
             return
         }
@@ -238,25 +226,12 @@ extension AppController {
             return
         }
 
-        let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let restFrame = frameWithMargin(for: zone, in: context.zoneController)
         Logger.debug("ActiveFit: returning window \(state.windowId) to rest mode in zone \(state.zoneKey.index) (\(reason))")
 
         // Clear state before moving window to avoid race condition with frame retry checks
         activeFitState = nil
-        windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
-
-        if state.zoneKey.index == 1,
-           context.zoneController.zone(at: 2) != nil {
-            let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-            let restOrigin = ActiveFitPolicy.restOriginForZoneOne(
-                zoneFrame: zoneFrame,
-                windowSize: actualFrame.size,
-                tolerance: activeFitOverflowTolerance
-            )
-            if abs(restOrigin.x - actualFrame.origin.x) > activeFitOverflowTolerance {
-                windowController.moveWindow(managed, to: CGRect(origin: restOrigin, size: actualFrame.size), on: descriptor)
-            }
-        }
+        windowController.moveWindow(managed, to: restFrame, on: descriptor)
         refreshResizeHandles()
     }
 
@@ -274,6 +249,11 @@ extension AppController {
         zoneIndex: Int,
         reason: String = "assignment-change"
     ) {
+        guard zoneIndex >= 2 else {
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
+            return
+        }
+
         guard !isActiveFitSuppressed(windowId: managed.windowId), isWindowActive(managed) else {
             return
         }
@@ -340,7 +320,7 @@ extension AppController {
         // Return to rest mode first (with new zone geometry)
         exitRevealMode(reason: reason)
 
-        guard zoneIndex >= 1,
+        guard zoneIndex >= 2,
               screenContexts[screenId]?.zoneController.zone(at: zoneIndex) != nil else {
             return
         }
@@ -403,7 +383,7 @@ extension AppController {
                let managed = self.windowController.window(withId: activeWindowId),
                let screenId = managed.screenDisplayId,
                let zoneIndex = managed.zoneIndex,
-               zoneIndex >= 1 {
+               zoneIndex >= 2 {
                 Logger.debug("ActiveFit: evaluating reveal mode for window \(activeWindowId) after restore")
                 self.enterRevealModeAfterRestore(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
             }
@@ -419,13 +399,8 @@ extension AppController {
         }
 
         let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let restOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-        let restOrigin = restOriginForActiveFit(
-            zoneIndex: zoneIndex,
-            zoneFrame: zoneFrame,
-            windowSize: actualFrame.size,
-            controller: context.zoneController
-        )
         let screenBounds = descriptor.visibleScreenBounds
 
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
@@ -444,21 +419,5 @@ extension AppController {
         windowController.moveWindow(managed, to: revealFrame, on: descriptor)
         activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, revealFrame: revealFrame)
         refreshResizeHandles()
-    }
-
-    private func restOriginForActiveFit(
-        zoneIndex: Int,
-        zoneFrame: CGRect,
-        windowSize: CGSize,
-        controller: ZoneController
-    ) -> CGPoint {
-        if zoneIndex == 1, controller.zone(at: 2) != nil {
-            return ActiveFitPolicy.restOriginForZoneOne(
-                zoneFrame: zoneFrame,
-                windowSize: windowSize,
-                tolerance: activeFitOverflowTolerance
-            )
-        }
-        return zoneFrame.origin
     }
 }

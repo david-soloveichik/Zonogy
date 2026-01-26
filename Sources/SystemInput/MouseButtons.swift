@@ -18,3 +18,4 @@ enum MouseButtons {
         CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseUp)
     }
 }
+

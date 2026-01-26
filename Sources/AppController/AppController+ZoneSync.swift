@@ -95,28 +95,7 @@ extension AppController {
                     // Normal case: compute the zone's content frame (respecting
                     // the 8px/4px margins) and move the window into it.
                     let displayFrame = frameWithMargin(for: zone, in: controller)
-                    if zone.index == 1, controller.zone(at: 2) != nil {
-                        // Zone 1 ActiveFit rest mode: when a window cannot shrink to fit the
-                        // zone width, we push it left so its right edge aligns with zone 1.
-                        //
-                        // Do this in a single move per sync tick to avoid visible jumping
-                        // during live zone resizing (zone-origin -> pushed-left oscillation).
-                        let currentFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-                        let restOrigin = ActiveFitPolicy.restOriginForZoneOne(
-                            zoneFrame: displayFrame,
-                            windowSize: currentFrame.size,
-                            tolerance: activeFitOverflowTolerance
-                        )
-                        let targetFrame = CGRect(
-                            x: restOrigin.x,
-                            y: displayFrame.origin.y,
-                            width: displayFrame.size.width,
-                            height: displayFrame.size.height
-                        )
-                        windowController.moveWindow(managed, to: targetFrame, on: descriptor)
-                    } else {
-                        windowController.moveWindow(managed, to: displayFrame, on: descriptor)
-                    }
+                    windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     // If the user had manually resized this window, once we
                     // snap it back to the zone we can clear the detached flag.
                     manualResizeDetachedWindowIds.remove(windowId)

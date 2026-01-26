@@ -208,7 +208,6 @@ extension AppController {
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
-        let shouldIgnoreActiveFitOverlap = lastZoneUiMouseDownTimestamp != nil
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -232,16 +231,15 @@ extension AppController {
             for sep in separators {
                 var frame = sep.frame
 
-                if !shouldIgnoreActiveFitOverlap,
-                   let state = activeState,
+                if let state = activeState,
                    state.zoneKey.screenId == screenId {
                     let activeFrame = state.revealFrame.standardized
 
                     switch sep.orientation {
                     case .vertical:
                         // Separator between zone 1 and zones 2/3 (index 0) should
-                        // not extend into the ActiveFit reveal frame.
-                        if sep.index == 0 {
+                        // not extend into an ActiveFit window in zone 2 or 3.
+                        if sep.index == 0, state.zoneKey.index >= 2 {
                             let originalFrame = frame.standardized
                             let intersection = originalFrame.intersection(activeFrame).standardized
                             if !intersection.isNull, intersection.height > 0 {
@@ -275,8 +273,8 @@ extension AppController {
 
                     case .horizontal:
                         // Hide the separator between zones 2 and 3 (index 1) if it
-                        // would overlap the ActiveFit reveal frame.
-                        if sep.index == 1 {
+                        // would overlap an ActiveFit window in zone 2 or 3.
+                        if sep.index == 1, state.zoneKey.index >= 2 {
                             if frame.intersects(activeFrame) {
                                 continue
                             }

@@ -17,22 +17,6 @@ enum ActiveFitPolicyTests {
         let bounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
         let tolerance: CGFloat = 1.0
 
-        // Zone 1 rest-mode overflow push (right edge aligned to zone frame)
-        let zoneOneFrame = CGRect(x: 8, y: 0, width: 600, height: 800)
-        let zoneOneOversized = ActiveFitPolicy.restOriginForZoneOne(
-            zoneFrame: zoneOneFrame,
-            windowSize: CGSize(width: 700, height: 600),
-            tolerance: tolerance
-        )
-        assert(zoneOneOversized.x == -92, "zone 1 rest origin should align right edge (expected -92, got \(zoneOneOversized.x))")
-
-        let zoneOneFits = ActiveFitPolicy.restOriginForZoneOne(
-            zoneFrame: zoneOneFrame,
-            windowSize: CGSize(width: 599, height: 600),
-            tolerance: tolerance
-        )
-        assert(zoneOneFits.x == zoneOneFrame.origin.x, "zone 1 rest origin should remain anchored when width fits (expected \(zoneOneFrame.origin.x), got \(zoneOneFits.x))")
-
         if let frame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: 2,
             zoneOrigin: CGPoint(x: 1300, y: 0),
@@ -68,14 +52,14 @@ enum ActiveFitPolicyTests {
         )
         assert(noOverflow == nil, "ActiveFit should not trigger when the frame already fits")
 
-        let zoneOneReveal = ActiveFitPolicy.revealFrameIfNeeded(
+        let zoneOne = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: 1,
-            zoneOrigin: CGPoint(x: -200, y: 0),
-            windowSize: CGSize(width: 800, height: 700),
+            zoneOrigin: CGPoint(x: 0, y: 0),
+            windowSize: CGSize(width: 2000, height: 1100),
             screenBounds: bounds,
             tolerance: tolerance
         )
-        assert(zoneOneReveal?.origin.x == 0, "zone 1 left overflow should clamp origin to minX (expected 0, got \(zoneOneReveal?.origin.x ?? -1))")
+        assert(zoneOne == nil, "ActiveFit should ignore zone 1 even if it would overflow")
 
         let tinyOverflow = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: 2,

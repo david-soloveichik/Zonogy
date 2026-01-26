@@ -24,16 +24,6 @@ For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit 
 - **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
 (`grep --line-buffered` streams matching lines without delay.)
 
-## Zone Resize Bars: Placeholder "Frontmost" Heuristic
-
-Zone resize bars are normally hidden/shortened to avoid overlapping an ActiveFit reveal frame. When multiple oversized windows exist, this can hide the bars in every focus state, blocking zone resizing. Our way around this is to temporarily show the bars after the user clicks an empty-zone placeholder (escape hatch).
-
-Placeholder windows are non-activating panels and never become key/main, so placeholder focus can’t be inferred from standard focus APIs. Instead, Zonogy uses a lightweight heuristic:
-
-- Clicking a placeholder arms a temporary override that disables ActiveFit overlap hiding and shows all resize bars (escape hatch for resizing).
-- While the override is armed, Zonogy uses a lightweight global left-mouse-down monitor to detect the next click outside the zone UI; that click clears the override and refreshes the bars.
-- The override is also cleared on non-Zonogy app activation via `NSWorkspace.didActivateApplicationNotification` (e.g., Cmd-Tab).
-
 ## Accessibility API Workarounds
 
 ### Retry Mechanisms Tied to Accessibility
