@@ -205,18 +205,99 @@ extension AppController {
 
     // MARK: - Resize Handles
 
+    private struct FrontmostZone1Context {
+        let screenId: CGDirectDisplayID
+        let frame: CGRect
+    }
+
+    private func frontmostZone1Context() -> FrontmostZone1Context? {
+        guard !zoneResizeDragInProgress,
+              let frontmostId = currentFrontmostManagedWindowId,
+              let managed = windowController.window(withId: frontmostId),
+              let zoneKey = zoneKey(forManagedWindow: managed),
+              zoneKey.index == 1,
+              let descriptor = descriptor(for: zoneKey.screenId) else {
+            return nil
+        }
+
+        let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor).standardized
+        return FrontmostZone1Context(screenId: zoneKey.screenId, frame: frame)
+    }
+
+    private func clippedSeparatorFrame(
+        _ separatorFrame: CGRect,
+        avoiding avoidFrame: CGRect,
+        orientation: ZoneLayout.SeparatorOrientation
+    ) -> CGRect? {
+        let original = separatorFrame.standardized
+        let intersection = original.intersection(avoidFrame.standardized).standardized
+        guard !intersection.isNull else {
+            return original
+        }
+
+        switch orientation {
+        case .vertical:
+            guard intersection.height > 0 else {
+                return original
+            }
+
+            let topGap = max(0, intersection.minY - original.minY)
+            let bottomGap = max(0, original.maxY - intersection.maxY)
+            let maxGap = max(topGap, bottomGap)
+
+            guard maxGap > 0 else {
+                return nil
+            }
+
+            if topGap >= bottomGap {
+                return CGRect(
+                    x: original.minX,
+                    y: original.minY,
+                    width: original.width,
+                    height: topGap
+                )
+            }
+            return CGRect(
+                x: original.minX,
+                y: intersection.maxY,
+                width: original.width,
+                height: bottomGap
+            )
+
+        case .horizontal:
+            guard intersection.width > 0 else {
+                return original
+            }
+
+            let leftGap = max(0, intersection.minX - original.minX)
+            let rightGap = max(0, original.maxX - intersection.maxX)
+            let maxGap = max(leftGap, rightGap)
+
+            guard maxGap > 0 else {
+                return nil
+            }
+
+            if leftGap >= rightGap {
+                return CGRect(
+                    x: original.minX,
+                    y: original.minY,
+                    width: leftGap,
+                    height: original.height
+                )
+            }
+            return CGRect(
+                x: intersection.maxX,
+                y: original.minY,
+                width: rightGap,
+                height: original.height
+            )
+        }
+    }
+
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
-        let frontmostZone1Window: ManagedWindow? = {
-            guard !zoneResizeDragInProgress,
-                  let frontmostId = currentFrontmostManagedWindowId,
-                  let managed = windowController.window(withId: frontmostId),
-                  managed.zoneIndex == 1 else {
-                return nil
-            }
-            return managed
-        }()
+        let frontmostZone1 = frontmostZone1Context()
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -236,15 +317,11 @@ extension AppController {
             }
 
             let frontmostZone1Frame: CGRect? = {
-                guard let frontmostZone1Window else {
+                guard let frontmostZone1,
+                      frontmostZone1.screenId == screenId else {
                     return nil
                 }
-                let resolvedScreenId = frontmostZone1Window.screenDisplayId ?? detectScreenId(for: frontmostZone1Window)
-                guard resolvedScreenId == screenId,
-                      let descriptor = descriptor(for: screenId) else {
-                    return nil
-                }
-                return windowController.actualFrameInScreenCoordinates(for: frontmostZone1Window, on: descriptor).standardized
+                return frontmostZone1.frame
             }()
 
             let separators = context.zoneController.separators()
@@ -261,35 +338,10 @@ extension AppController {
                         // Separator between zone 1 and zones 2/3 (index 0) should
                         // not extend into an ActiveFit window in zone 2 or 3.
                         if sep.index == 0, state.zoneKey.index >= 2 {
-                            let originalFrame = frame.standardized
-                            let intersection = originalFrame.intersection(activeFrame).standardized
-                            if !intersection.isNull, intersection.height > 0 {
-                                let topGap = max(0, intersection.minY - originalFrame.minY)
-                                let bottomGap = max(0, originalFrame.maxY - intersection.maxY)
-                                let maxGap = max(topGap, bottomGap)
-
-                                // If the ActiveFit window fully covers the separator,
-                                // hide this handle entirely.
-                                guard maxGap > 0 else {
-                                    continue
-                                }
-
-                                if topGap >= bottomGap {
-                                    frame = CGRect(
-                                        x: originalFrame.minX,
-                                        y: originalFrame.minY,
-                                        width: originalFrame.width,
-                                        height: topGap
-                                    )
-                                } else {
-                                    frame = CGRect(
-                                        x: originalFrame.minX,
-                                        y: intersection.maxY,
-                                        width: originalFrame.width,
-                                        height: bottomGap
-                                    )
-                                }
+                            guard let clipped = clippedSeparatorFrame(frame, avoiding: activeFrame, orientation: .vertical) else {
+                                continue
                             }
+                            frame = clipped
                         }
 
                     case .horizontal:
@@ -309,16 +361,21 @@ extension AppController {
                 if let frontmostZone1Frame,
                    sep.orientation == .vertical,
                    sep.index == 0 {
-                    let barThickness: CGFloat = 4
-                    let probe = CGRect(
-                        x: frame.midX - barThickness / 2,
-                        y: frame.minY,
-                        width: barThickness,
-                        height: frame.height
-                    ).standardized
-                    if probe.intersects(frontmostZone1Frame) {
+                    if frame.intersects(frontmostZone1Frame) {
                         continue
                     }
+                }
+
+                // If the frontmost managed window is in zone 1 and overlaps the
+                // horizontal separator between zones 2 and 3, shorten the handle
+                // so the bar doesn't draw over the active window.
+                if let frontmostZone1Frame,
+                   sep.orientation == .horizontal,
+                   sep.index == 1 {
+                    guard let clipped = clippedSeparatorFrame(frame, avoiding: frontmostZone1Frame, orientation: .horizontal) else {
+                        continue
+                    }
+                    frame = clipped
                 }
 
                 descriptors.append(ZoneSeparatorDescriptor(

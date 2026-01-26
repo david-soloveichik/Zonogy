@@ -76,15 +76,22 @@ extension AppController {
         handleTemporaryZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
         updateUnmanagedFocusState()
 
+        // Sync the frontmost managed window and refresh resize handles on app activation.
+        // AXFocusedWindowChanged notifications only fire when focus changes *within* an app,
+        // not when the app itself is activated, so we can't rely on windowFocusChanged here.
+        let focusedManagedWindow: ManagedWindow? = {
+            guard let pid = application?.processIdentifier else {
+                return nil
+            }
+            return windowController.focusedWindowIfTracked(pid: pid)
+        }()
+        currentFrontmostManagedWindowId = focusedManagedWindow?.windowId
+        refreshResizeHandles()
+
         // Record window activity for AltTab recency tracking.
-        // AXFocusedWindowChanged notifications only fire when focus changes within an app,
-        // not when the app itself is activated. So we proactively record activity here to
-        // ensure the focused window appears correctly in the AltTab recency list.
         // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations.
-        if let pid = application?.processIdentifier,
-           let focused = windowController.focusedWindowIfTracked(pid: pid),
-           !isActivityRecordingSuppressed() {
-            recordActiveWindowForHistory(windowId: focused.windowId, reason: "workspace-activate")
+        if let focusedManagedWindow, !isActivityRecordingSuppressed() {
+            recordActiveWindowForHistory(windowId: focusedManagedWindow.windowId, reason: "workspace-activate")
         }
 
         // Record app activation for Launcher app recency ordering.
