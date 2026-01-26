@@ -159,6 +159,10 @@ extension AppController {
         // Track frontmost managed window for AltTab initial selection (no AX call needed at show time)
         currentFrontmostManagedWindowId = focusedWindowId
 
+        // Resize-handle visibility depends on which managed window is active.
+        // Refresh on focus changes so the UI updates immediately.
+        refreshResizeHandles()
+
         updateUnmanagedFocusState()
     }
 

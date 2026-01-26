@@ -108,6 +108,12 @@ extension AppController {
         // When resizing stops, if the active window qualifies, re-evaluate ActiveFit.
         let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         handleActiveFitActivationCandidate(pid: pid)
+
+        // Refresh resize handles after the drag so overlap rules (ActiveFit and
+        // frontmost-zone-1 suppression) take effect for the settled state.
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshResizeHandles()
+        }
     }
 
     func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int) {

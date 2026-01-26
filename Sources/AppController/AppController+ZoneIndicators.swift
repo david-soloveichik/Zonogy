@@ -208,6 +208,15 @@ extension AppController {
     internal func refreshResizeHandles() {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
+        let frontmostZone1Window: ManagedWindow? = {
+            guard !zoneResizeDragInProgress,
+                  let frontmostId = currentFrontmostManagedWindowId,
+                  let managed = windowController.window(withId: frontmostId),
+                  managed.zoneIndex == 1 else {
+                return nil
+            }
+            return managed
+        }()
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -225,6 +234,18 @@ extension AppController {
             if unmanagedFocusedWindowScreenId == screenId {
                 continue
             }
+
+            let frontmostZone1Frame: CGRect? = {
+                guard let frontmostZone1Window else {
+                    return nil
+                }
+                let resolvedScreenId = frontmostZone1Window.screenDisplayId ?? detectScreenId(for: frontmostZone1Window)
+                guard resolvedScreenId == screenId,
+                      let descriptor = descriptor(for: screenId) else {
+                    return nil
+                }
+                return windowController.actualFrameInScreenCoordinates(for: frontmostZone1Window, on: descriptor).standardized
+            }()
 
             let separators = context.zoneController.separators()
 
@@ -279,6 +300,24 @@ extension AppController {
                                 continue
                             }
                         }
+                    }
+                }
+
+                // If the frontmost managed window is in zone 1 and overlaps the
+                // separator margin, hide the separator so it doesn't intercept
+                // clicks or draw over the active window.
+                if let frontmostZone1Frame,
+                   sep.orientation == .vertical,
+                   sep.index == 0 {
+                    let barThickness: CGFloat = 4
+                    let probe = CGRect(
+                        x: frame.midX - barThickness / 2,
+                        y: frame.minY,
+                        width: barThickness,
+                        height: frame.height
+                    ).standardized
+                    if probe.intersects(frontmostZone1Frame) {
+                        continue
                     }
                 }
 
