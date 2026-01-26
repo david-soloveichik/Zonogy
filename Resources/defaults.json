@@ -40,6 +40,18 @@
       "hasMainWindow": true
     },
     {
+      "bundleIdentifier": "com.apple.iWork.Keynote",
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
+      "bundleIdentifier": "com.apple.Safari",
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
+      "bundleIdentifier": "com.google.Chrome",
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
       "bundleIdentifier": "org.mozilla.firefox",
       "disallowEmptyTitleWindows": true
     },

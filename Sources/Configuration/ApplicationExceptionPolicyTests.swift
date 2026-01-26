@@ -22,6 +22,7 @@ enum ApplicationExceptionPolicyTests {
                 disallowEmptyTitleWindows: nil,
                 hasMainWindow: true,
                 snapToZoneOnSelfResize: nil,
+                treatAXUnknownFullWidthAsFullScreen: true,
                 excludedWindowTitles: ["Foo"]
             )
             let override = ApplicationExceptionRule(
@@ -32,6 +33,7 @@ enum ApplicationExceptionPolicyTests {
                 disallowEmptyTitleWindows: true,
                 hasMainWindow: nil,
                 snapToZoneOnSelfResize: true,
+                treatAXUnknownFullWidthAsFullScreen: false,
                 excludedWindowTitles: ["Bar"]
             )
             let merged = base.merged(with: override)
@@ -43,17 +45,20 @@ enum ApplicationExceptionPolicyTests {
             assert(merged.disallowEmptyTitleWindows == true, "non-nil override should replace base value")
             assert(merged.hasMainWindow == true, "nil override should keep base value")
             assert(merged.snapToZoneOnSelfResize == true, "non-nil override should replace base value")
+            assert(merged.treatAXUnknownFullWidthAsFullScreen == false, "non-nil override should replace base value")
             assert(merged.excludedWindowTitles == ["Bar"], "non-nil override list should replace base list")
         }
 
         do {
             let bundleA = "com.example.a"
             let bundleB = "com.example.b"
+            let bundleC = "com.example.c"
 
             let rules: [ApplicationExceptionRule] = [
                 ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: false), // last wins
                 ApplicationExceptionRule(bundleIdentifier: bundleB, disallowEmptyTitleWindows: true, excludedWindowTitles: ["Hidden"]),
+                ApplicationExceptionRule(bundleIdentifier: bundleC, treatAXUnknownFullWidthAsFullScreen: true),
             ]
 
             let policy = ApplicationExceptionPolicy(rules: rules)
@@ -63,6 +68,8 @@ enum ApplicationExceptionPolicyTests {
             assert(policy.disallowsEmptyTitleWindows(forBundleIdentifier: bundleB) == true, "should honor per-bundle empty title preference")
             assert(policy.excludedWindowTitles(forBundleIdentifier: bundleB) == ["Hidden"], "should return excluded titles list")
             assert(policy.excludedWindowTitles(forBundleIdentifier: "com.unknown") == [], "unknown bundle should return empty excluded titles")
+            assert(policy.treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier: bundleC) == true, "should honor per-bundle AXUnknown full-screen preference")
+            assert(policy.treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default AXUnknown full-screen preference to false")
         }
 
         if allPassed {

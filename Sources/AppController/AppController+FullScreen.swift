@@ -210,6 +210,7 @@ extension AppController {
 
         let treatAsFullScreen = shouldTreatAXUnknownWindowAsFullScreen(
             element: element,
+            bundleIdentifier: resolvedBundleId,
             screenDisplayId: resolvedDisplayId
         )
 
@@ -247,8 +248,14 @@ extension AppController {
 
     private func shouldTreatAXUnknownWindowAsFullScreen(
         element: AXUIElement,
+        bundleIdentifier: String?,
         screenDisplayId: CGDirectDisplayID
     ) -> Bool {
+        guard let bundleIdentifier,
+              windowController.applicationExceptionPolicy.treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier: bundleIdentifier) else {
+            return false
+        }
+
         var subroleValue: CFTypeRef?
         let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleValue)
         guard subroleStatus == .success,
@@ -271,7 +278,7 @@ extension AppController {
             let screenIndex = screenContextStore.loggingIndex(for: screenDisplayId)
             Logger.debug(
                 "FullScreenTracker: treating AXUnknown window as full-screen on screen \(screenIndex) " +
-                    "(width \(screenFrame.width) == screen \(screenWidth))"
+                    "(bundle \(bundleIdentifier), width \(screenFrame.width) == screen \(screenWidth))"
             )
             return true
         }

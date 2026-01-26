@@ -14,6 +14,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var ignoreHeightCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
+    private var treatAXUnknownFullWidthAsFullScreenCheckbox: NSButton!
     private var excludedTitlesField: NSTextField!
 
     init(rule: ApplicationExceptionRule) {
@@ -26,7 +27,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 350))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 390))
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         setupUI(in: containerView)
@@ -120,6 +121,19 @@ final class ExceptionRuleEditViewController: NSViewController {
             snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = snapToZoneCheckbox.bottomAnchor
+
+        treatAXUnknownFullWidthAsFullScreenCheckbox = makeCheckbox(
+            title: "Treat AXUnknown full-width windows as full-screen",
+            tooltip: "Only enable for apps where AXFullScreen is missing/unreliable (e.g., some presentation windows)"
+        )
+        container.addSubview(treatAXUnknownFullWidthAsFullScreenCheckbox)
+
+        NSLayoutConstraint.activate([
+            treatAXUnknownFullWidthAsFullScreenCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            treatAXUnknownFullWidthAsFullScreenCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            treatAXUnknownFullWidthAsFullScreenCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = treatAXUnknownFullWidthAsFullScreenCheckbox.bottomAnchor
 
         disallowEmptyTitleCheckbox = makeCheckbox(
             title: "Disallow empty title windows",
@@ -227,6 +241,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private func populateFields() {
         hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
         snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
+        treatAXUnknownFullWidthAsFullScreenCheckbox.state = (originalRule.treatAXUnknownFullWidthAsFullScreen == true) ? .on : .off
         disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
         ignoreActivationPolicyCheckbox.state = (originalRule.ignoreActivationPolicy == true) ? .on : .off
         ignoreZoomButtonCheckbox.state = (originalRule.ignoreZoomButtonRequirement == true) ? .on : .off
@@ -256,6 +271,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             disallowEmptyTitleWindows: disallowEmptyTitleCheckbox.state == .on ? true : nil,
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
+            treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
             excludedWindowTitles: excludedTitles
         )
 

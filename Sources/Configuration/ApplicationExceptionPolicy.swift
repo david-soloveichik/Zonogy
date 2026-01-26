@@ -11,6 +11,9 @@ struct ApplicationExceptionRule: Codable {
     let disallowEmptyTitleWindows: Bool?
     let hasMainWindow: Bool?
     let snapToZoneOnSelfResize: Bool?
+    /// Some apps (e.g., Keynote presentation windows) don't expose `AXFullScreen` reliably.
+    /// When enabled, Zonogy treats `AXUnknown` windows that span the full screen width as full-screen.
+    let treatAXUnknownFullWidthAsFullScreen: Bool?
     let excludedWindowTitles: [String]?
 
     init(
@@ -21,6 +24,7 @@ struct ApplicationExceptionRule: Codable {
         disallowEmptyTitleWindows: Bool? = nil,
         hasMainWindow: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil,
+        treatAXUnknownFullWidthAsFullScreen: Bool? = nil,
         excludedWindowTitles: [String]? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
@@ -30,6 +34,7 @@ struct ApplicationExceptionRule: Codable {
         self.disallowEmptyTitleWindows = disallowEmptyTitleWindows
         self.hasMainWindow = hasMainWindow
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
+        self.treatAXUnknownFullWidthAsFullScreen = treatAXUnknownFullWidthAsFullScreen
         self.excludedWindowTitles = excludedWindowTitles
     }
 
@@ -43,6 +48,7 @@ struct ApplicationExceptionRule: Codable {
             disallowEmptyTitleWindows: override.disallowEmptyTitleWindows ?? disallowEmptyTitleWindows,
             hasMainWindow: override.hasMainWindow ?? hasMainWindow,
             snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
+            treatAXUnknownFullWidthAsFullScreen: override.treatAXUnknownFullWidthAsFullScreen ?? treatAXUnknownFullWidthAsFullScreen,
             excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
         )
     }
@@ -103,6 +109,12 @@ struct ApplicationExceptionPolicy {
     /// By default, empty-title windows are managed; set this to opt out.
     func disallowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.disallowEmptyTitleWindows ?? false
+    }
+
+    /// Returns true if the app opts into the `AXUnknown` full-width full-screen heuristic.
+    /// By default, this heuristic is disabled since it can produce false positives during animations.
+    func treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.treatAXUnknownFullWidthAsFullScreen ?? false
     }
 
     /// Returns the list of window titles to exclude from management for this bundle.
