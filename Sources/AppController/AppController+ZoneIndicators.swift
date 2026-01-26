@@ -227,6 +227,14 @@ extension AppController {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
         let frontmostManagedWindow = frontmostManagedWindowContext()
+        let windowOverlapAllowance: CGFloat = zoneMargin
+
+        func insetAvoidFrame(_ frame: CGRect, inset: CGFloat) -> CGRect {
+            let standardized = frame.standardized
+            let insetX = min(inset, max(0, (standardized.width - 1) / 2))
+            let insetY = min(inset, max(0, (standardized.height - 1) / 2))
+            return standardized.insetBy(dx: insetX, dy: insetY).standardized
+        }
 
         for (screenId, context) in screenContexts {
             if isScreenPausedForFullScreen(screenId) {
@@ -247,6 +255,7 @@ extension AppController {
 
             let frontmostManagedWindowOnScreen = frontmostManagedWindow?.zoneKey.screenId == screenId ? frontmostManagedWindow : nil
             let frontmostManagedWindowFrame = frontmostManagedWindowOnScreen?.frame
+            let frontmostManagedWindowAvoidFrame = frontmostManagedWindowFrame.map { insetAvoidFrame($0, inset: windowOverlapAllowance) }
             let frontmostManagedWindowZoneIndex = frontmostManagedWindowOnScreen?.zoneKey.index
 
             let separators = context.zoneController.separators()
@@ -257,13 +266,14 @@ extension AppController {
                 if let state = activeState,
                    state.zoneKey.screenId == screenId {
                     let activeFrame = state.revealFrame.standardized
+                    let activeAvoidFrame = insetAvoidFrame(activeFrame, inset: windowOverlapAllowance)
 
                     switch sep.orientation {
                     case .vertical:
                         // Separator between zone 1 and zones 2/3 (index 0) should
                         // not extend into an ActiveFit window in zone 2 or 3.
                         if sep.index == 0, state.zoneKey.index >= 2 {
-                            guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: activeFrame, orientation: .vertical) else {
+                            guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: activeAvoidFrame, orientation: .vertical) else {
                                 continue
                             }
                             frame = clipped
@@ -273,7 +283,7 @@ extension AppController {
                         // Hide the separator between zones 2 and 3 (index 1) if it
                         // would overlap an ActiveFit window in zone 2 or 3.
                         if sep.index == 1, state.zoneKey.index >= 2 {
-                            if frame.intersects(activeFrame) {
+                            if frame.intersects(activeAvoidFrame) {
                                 continue
                             }
                         }
@@ -283,11 +293,11 @@ extension AppController {
                 // If the frontmost managed window is in zone 1 and overlaps the
                 // separator margin, hide the separator so it doesn't intercept
                 // clicks or draw over the active window.
-                if let frontmostManagedWindowFrame,
+                if let frontmostManagedWindowAvoidFrame,
                    frontmostManagedWindowZoneIndex == 1,
                    sep.orientation == .vertical,
                    sep.index == 0 {
-                    if frame.intersects(frontmostManagedWindowFrame) {
+                    if frame.intersects(frontmostManagedWindowAvoidFrame) {
                         continue
                     }
                 }
@@ -295,10 +305,10 @@ extension AppController {
                 // If the frontmost managed window overlaps the
                 // horizontal separator between zones 2 and 3, shorten the handle
                 // so the bar doesn't draw over the active window.
-                if let frontmostManagedWindowFrame,
+                if let frontmostManagedWindowAvoidFrame,
                    sep.orientation == .horizontal,
                    sep.index == 1 {
-                    guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: frontmostManagedWindowFrame, orientation: .horizontal) else {
+                    guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(frame, avoiding: frontmostManagedWindowAvoidFrame, orientation: .horizontal) else {
                         continue
                     }
                     frame = clipped
