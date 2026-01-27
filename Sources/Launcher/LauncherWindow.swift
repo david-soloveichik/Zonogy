@@ -76,8 +76,8 @@ final class LauncherWindow: NSPanel {
         let windowSize = self.frame.size
 
         // Calculate centered position
-        var x = cocoaFrame.midX - windowSize.width / 2
-        var y = cocoaFrame.midY - windowSize.height / 2
+        var x = (cocoaFrame.midX - windowSize.width / 2).rounded()
+        var y = (cocoaFrame.midY - windowSize.height / 2).rounded()
 
         // Clamp to keep window within visible screen bounds
         x = max(visibleBounds.minX, min(x, visibleBounds.maxX - windowSize.width))
@@ -110,15 +110,15 @@ final class LauncherWindow: NSPanel {
     private func center(on screen: NSScreen, forTemporaryZone: Bool = false) {
         let screenFrame = screen.visibleFrame
         let windowSize = frame.size
-        let x = screenFrame.midX - windowSize.width / 2
+        let x = (screenFrame.midX - windowSize.width / 2).rounded()
 
         // For temporary zone, position lower on screen (closer to the bottom indicator)
         // Use about 1/3 from bottom instead of centered
         let y: CGFloat
         if forTemporaryZone {
-            y = screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2
+            y = (screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2).rounded()
         } else {
-            y = screenFrame.midY - windowSize.height / 2
+            y = (screenFrame.midY - windowSize.height / 2).rounded()
         }
 
         setFrameOrigin(NSPoint(x: x, y: y))

@@ -39,15 +39,15 @@ struct ZoneLayout {
 
         case 2:
             let leftRatio = clampWidthRatio(leftWidthRatio)
-            let leftWidth = screenFrame.width * leftRatio
+            let leftWidth = (screenFrame.width * leftRatio).rounded()
             let leftFrame = CGRect(
                 x: screenFrame.minX,
                 y: screenFrame.minY,
                 width: leftWidth,
                 height: screenFrame.height
             )
-            let rightOriginX = leftFrame.maxX
-            let rightWidth = max(screenFrame.maxX - rightOriginX, 0)
+            let rightOriginX = (screenFrame.minX + leftWidth).rounded()
+            let rightWidth = max((screenFrame.maxX - rightOriginX).rounded(), 0)
             let rightFrame = CGRect(
                 x: rightOriginX,
                 y: screenFrame.minY,
@@ -58,7 +58,7 @@ struct ZoneLayout {
 
         case 3:
             let leftRatio = clampWidthRatio(leftWidthRatio)
-            let leftWidth = screenFrame.width * leftRatio
+            let leftWidth = (screenFrame.width * leftRatio).rounded()
             let leftFrame = CGRect(
                 x: screenFrame.minX,
                 y: screenFrame.minY,
@@ -66,12 +66,12 @@ struct ZoneLayout {
                 height: screenFrame.height
             )
 
-            let rightOriginX = leftFrame.maxX
-            let rightWidth = max(screenFrame.maxX - rightOriginX, 0)
+            let rightOriginX = (screenFrame.minX + leftWidth).rounded()
+            let rightWidth = max((screenFrame.maxX - rightOriginX).rounded(), 0)
 
             let topRatio = clampHeightRatio(rightTopHeightRatio)
-            let topHeight = screenFrame.height * topRatio
-            let bottomHeight = max(screenFrame.height - topHeight, 0)
+            let topHeight = (screenFrame.height * topRatio).rounded()
+            let bottomHeight = max((screenFrame.height - topHeight).rounded(), 0)
 
             let rightTopFrame = CGRect(
                 x: rightOriginX,
@@ -81,7 +81,7 @@ struct ZoneLayout {
             )
             let rightBottomFrame = CGRect(
                 x: rightOriginX,
-                y: screenFrame.minY + topHeight,
+                y: (screenFrame.minY + topHeight).rounded(),
                 width: rightWidth,
                 height: bottomHeight
             )

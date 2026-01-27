@@ -291,15 +291,15 @@ final class TemporaryZoneCoordinator {
         var height = managed.actualFrame.height
 
         if width <= 0 || height <= 0 {
-            width = bounds.width * 0.55
-            height = bounds.height * 0.55
+            width = (bounds.width * 0.55).rounded()
+            height = (bounds.height * 0.55).rounded()
         }
 
         width = min(max(width, minWidth), maxWidth)
         height = min(max(height, minHeight), maxHeight)
 
-        var originX = bounds.midX - width / 2
-        var originY = bounds.midY - height / 2
+        var originX = (bounds.midX - width / 2).rounded()
+        var originY = (bounds.midY - height / 2).rounded()
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
         originY = max(bounds.minY, min(originY, bounds.maxY - height))
         return CGRect(x: originX, y: originY, width: width, height: height)

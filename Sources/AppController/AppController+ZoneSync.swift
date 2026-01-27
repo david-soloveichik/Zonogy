@@ -256,10 +256,10 @@ extension AppController {
             bottom *= scale
         }
 
-        frame.origin.x += left
-        frame.origin.y += top
-        frame.size.width = max(0, frame.size.width - (left + right))
-        frame.size.height = max(0, frame.size.height - (top + bottom))
+        frame.origin.x = (frame.origin.x + left).rounded()
+        frame.origin.y = (frame.origin.y + top).rounded()
+        frame.size.width = max(0, (frame.size.width - (left + right)).rounded())
+        frame.size.height = max(0, (frame.size.height - (top + bottom)).rounded())
 
         return frame
     }

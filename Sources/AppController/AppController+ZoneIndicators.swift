@@ -10,10 +10,10 @@ extension AppController {
         let contentFrame = frameWithMargin(for: zone, in: controller).standardized
         let indicatorHeight: CGFloat = 6
         let minWidth: CGFloat = 40
-        let targetWidth = max(minWidth, contentFrame.width / 3)
+        let targetWidth = max(minWidth, (contentFrame.width / 3).rounded())
         let clampedWidth = min(targetWidth, contentFrame.width)
 
-        var originX = contentFrame.midX - clampedWidth / 2
+        var originX = (contentFrame.midX - clampedWidth / 2).rounded()
         originX = max(screenBounds.minX, min(originX, screenBounds.maxX - clampedWidth))
 
         let offset: CGFloat = 2
@@ -27,8 +27,8 @@ extension AppController {
             let gapBottom = contentFrame.minY
 
             if gapBottom > gapTop {
-                let midpoint = (gapTop + gapBottom) / 2
-                originY = midpoint - indicatorHeight / 2
+                let midpoint = ((gapTop + gapBottom) / 2).rounded()
+                originY = (midpoint - indicatorHeight / 2).rounded()
                 usedGapPlacement = true
             }
         }
@@ -154,11 +154,11 @@ extension AppController {
         let indicatorWidth: CGFloat = EdgeIndicatorPillSizing.baseThickness
 
         // Height: 1/3 of screen height
-        let indicatorHeight = bounds.height / 3
+        let indicatorHeight = (bounds.height / 3).rounded()
 
         // Position on the right edge, vertically centered
         let originX = bounds.maxX - indicatorWidth
-        let originY = bounds.midY - indicatorHeight / 2
+        let originY = (bounds.midY - indicatorHeight / 2).rounded()
 
         let cocoaFrame = CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight).standardized
         let screenFrame = descriptor.cocoaToScreen(cocoaFrame).standardized
@@ -172,9 +172,9 @@ extension AppController {
             return nil
         }
 
-        let width = min(max(bounds.width / 3, 80), bounds.width)
+        let width = min(max((bounds.width / 3).rounded(), 80), bounds.width)
         let height: CGFloat = EdgeIndicatorPillSizing.baseThickness
-        var originX = bounds.midX - width / 2
+        var originX = (bounds.midX - width / 2).rounded()
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
         let originY = bounds.maxY - height
         let screenFrame = CGRect(x: originX, y: originY, width: width, height: height).standardized
