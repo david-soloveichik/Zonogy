@@ -6,6 +6,9 @@ final class AltTabModel: ObservableObject {
     /// All managed windows ordered by recency (most recent first)
     let windows: [LauncherWindowItem]
 
+    /// Whether selection wraps around at list boundaries
+    let wrapsAround: Bool
+
     /// Currently selected index in the windows list
     @Published var selectedIndex: Int = 0
 
@@ -15,19 +18,28 @@ final class AltTabModel: ObservableObject {
         return windows[selectedIndex]
     }
 
-    init(windows: [LauncherWindowItem]) {
+    init(windows: [LauncherWindowItem], wrapsAround: Bool = false) {
         self.windows = windows
+        self.wrapsAround = wrapsAround
     }
 
-    /// Move selection to next window (stops at end)
+    /// Move selection to next window
     func selectNext() {
         guard !windows.isEmpty else { return }
-        selectedIndex = min(selectedIndex + 1, windows.count - 1)
+        if wrapsAround {
+            selectedIndex = (selectedIndex + 1) % windows.count
+        } else {
+            selectedIndex = min(selectedIndex + 1, windows.count - 1)
+        }
     }
 
-    /// Move selection to previous window (stops at beginning)
+    /// Move selection to previous window
     func selectPrevious() {
         guard !windows.isEmpty else { return }
-        selectedIndex = max(selectedIndex - 1, 0)
+        if wrapsAround {
+            selectedIndex = (selectedIndex - 1 + windows.count) % windows.count
+        } else {
+            selectedIndex = max(selectedIndex - 1, 0)
+        }
     }
 }

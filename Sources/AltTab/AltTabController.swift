@@ -55,21 +55,25 @@ final class AltTabController {
         // Get all windows ordered by recency
         var allWindows = delegate.allManagedWindowsOrderedByRecency()
 
-        // Determine header text and filter windows if needed
+        // Determine header text, filter windows, and set wrap behavior
         let headerText: String
+        let wrapsAround: Bool
         switch appFilter {
         case .allWindows:
             headerText = "Switch Windows"
+            wrapsAround = false
         case .app(let bundleId, let name):
             allWindows = allWindows.filter { $0.bundleIdentifier == bundleId }
             headerText = "\(name) Windows"
+            wrapsAround = true
         case .noWindows:
             allWindows = []
             headerText = "Switch Windows"
+            wrapsAround = false
         }
 
         // Show UI even if empty (will display empty state)
-        let model = AltTabModel(windows: allWindows)
+        let model = AltTabModel(windows: allWindows, wrapsAround: wrapsAround)
         self.model = model
 
         if !allWindows.isEmpty {
@@ -161,12 +165,12 @@ final class AltTabController {
         delegate?.altTabController(self, didSelectWindow: selectedWindow)
     }
 
-    /// Move selection to next window in the list (wraps around)
+    /// Move selection to next window in the list
     func selectNext() {
         model?.selectNext()
     }
 
-    /// Move selection to previous window in the list (wraps around)
+    /// Move selection to previous window in the list
     func selectPrevious() {
         model?.selectPrevious()
     }
