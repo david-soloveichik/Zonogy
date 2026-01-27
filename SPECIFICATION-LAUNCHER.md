@@ -10,7 +10,7 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 
 The Launcher opens via:
 
-- **Control-Command-Space** (toggles open/closed), configurable in settings alongside other Zonogy shortcuts
+- **Control-Command-Space** (opens the Launcher; does not close it if already open), configurable in settings alongside other Zonogy shortcuts
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
@@ -27,7 +27,6 @@ The Launcher opens via:
 The launcher dismisses when user:
 
 - Presses Escape
-- Presses the activation shortcut again (toggle behavior)
 - Activates an item (Enter on selection or double-click)
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).

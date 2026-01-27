@@ -52,14 +52,6 @@ final class LauncherController {
         case main
     }
 
-    func toggle() {
-        if isActive {
-            hide()
-        } else {
-            show()
-        }
-    }
-
     /// Show the Launcher with a grace period that prevents immediate dismissal from focus changes.
     /// Use this when auto-showing (e.g., zone became empty) to handle macOS auto-focus behavior.
     func autoShow() {

@@ -445,10 +445,8 @@ extension AppController {
     }
 
     internal func showLauncher() {
-        if launcherController.isActive {
-            launcherController.hide()
-            return
-        }
+        // Shortcut only opens the Launcher; it doesn't close it if already open.
+        // Use Escape to close the Launcher.
         showLauncherIfAllowed(trigger: "shortcut-show-launcher")
     }
 
