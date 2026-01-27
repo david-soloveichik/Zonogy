@@ -109,6 +109,13 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didLaunchApplicationNotification") {
             return
         }
+
+        // Dismiss Launcher when any application launches (eligible for management or not)
+        if launcherController.isActive {
+            launcherController.hide()
+            Logger.debug("Launcher: Hidden because application launched")
+        }
+
         handleApplicationEvent(application)
     }
 
