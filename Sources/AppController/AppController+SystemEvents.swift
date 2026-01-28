@@ -90,8 +90,10 @@ extension AppController {
 
         // Record window activity for AltTab recency tracking.
         // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations.
-        if let focusedManagedWindow, !isActivityRecordingSuppressed() {
-            recordActiveWindowForHistory(windowId: focusedManagedWindow.windowId, reason: "workspace-activate")
+        if let applicationPid = application?.processIdentifier,
+           let focusedManagedWindow,
+           !isActivityRecordingSuppressed() {
+            recordActiveWindowForHistoryDebounced(windowId: focusedManagedWindow.windowId, pid: applicationPid, reason: "workspace-activate")
         }
 
         // Record app activation for Launcher app recency ordering.

@@ -70,6 +70,7 @@ extension AppController {
 
     /// Suppress activity recording for the same duration as temporary zone protection.
     internal func scheduleActivityRecordingSuppression(reason: String) {
+        cancelPendingWindowActivityRecord()
         let newDeadline = Date().addingTimeInterval(temporaryZoneProtectionDuration)
         if activityRecordingSuppressedUntil == nil || newDeadline > activityRecordingSuppressedUntil! {
             activityRecordingSuppressedUntil = newDeadline

@@ -38,8 +38,24 @@ extension AppController {
     }
 
     internal func recordActiveWindowForHistory(windowId: Int, reason: String) {
+        cancelPendingWindowActivityRecord()
         windowController.recordWindowActivity(windowId: windowId)
         updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
+    }
+
+    /// Update targeting immediately, but only record window activity if the window remains focused for
+    /// `windowActivityRecordingStabilityDelay`.
+    /// AltTab/Launcher recency should ignore brief intermediate activations that can occur during
+    /// app/window switching flows (e.g., the app's previously-frontmost window becomes key briefly).
+    internal func recordActiveWindowForHistoryDebounced(windowId: Int, pid: pid_t, reason: String) {
+        updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
+        scheduleStableWindowActivityRecording(windowId: windowId, pid: pid)
+    }
+
+    internal func cancelPendingWindowActivityRecord() {
+        pendingWindowActivityRecordToken += 1
+        pendingWindowActivityRecordWorkItem?.cancel()
+        pendingWindowActivityRecordWorkItem = nil
     }
 
     internal func retargetToFocusedWindowZoneIfPossible(reason: String) {
@@ -84,5 +100,36 @@ extension AppController {
             reason: "focus-follow-\(reason)"
         )
     }
-}
 
+    private func scheduleStableWindowActivityRecording(windowId: Int, pid: pid_t) {
+        cancelPendingWindowActivityRecord()
+        let token = pendingWindowActivityRecordToken
+        let focusBeganAt = Date()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard self.pendingWindowActivityRecordToken == token else {
+                return
+            }
+            self.pendingWindowActivityRecordWorkItem = nil
+
+            guard !self.isActivityRecordingSuppressed() else {
+                return
+            }
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                return
+            }
+            guard self.currentFrontmostManagedWindowId == windowId else {
+                return
+            }
+            guard self.windowController.window(withId: windowId) != nil else {
+                return
+            }
+
+            self.windowController.recordWindowActivity(windowId: windowId, at: focusBeganAt)
+        }
+
+        pendingWindowActivityRecordWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + windowActivityRecordingStabilityDelay, execute: workItem)
+    }
+}

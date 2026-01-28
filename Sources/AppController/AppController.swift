@@ -158,6 +158,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Deadline until which notification-driven window activity recording is suppressed
     /// to prevent "twitchy" recordings during temporary zone/WinShot operations.
     internal var activityRecordingSuppressedUntil: Date?
+    /// Minimum time a window must remain focused before it is recorded for AltTab/Launcher recency ordering.
+    internal let windowActivityRecordingStabilityDelay: TimeInterval = 0.25
+    /// Pending delayed activity recording work item for the currently focused window.
+    internal var pendingWindowActivityRecordWorkItem: DispatchWorkItem?
+    /// Monotonic token used to invalidate previously scheduled recordings.
+    internal var pendingWindowActivityRecordToken: Int = 0
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {

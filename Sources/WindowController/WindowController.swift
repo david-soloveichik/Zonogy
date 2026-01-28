@@ -364,9 +364,9 @@ class WindowController {
 
     // MARK: - Window Activity Tracking (for Launcher recency)
 
-    /// Record that a window was activated (for launcher recency ordering)
-    func recordWindowActivity(windowId: Int) {
-        windowLastActiveTime[windowId] = Date()
+    /// Record that a window was activated (for launcher recency ordering).
+    func recordWindowActivity(windowId: Int, at timestamp: Date = Date()) {
+        windowLastActiveTime[windowId] = timestamp
     }
 
     /// Get the last active time for a window (for launcher recency ordering)

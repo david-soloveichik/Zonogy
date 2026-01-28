@@ -136,6 +136,10 @@ extension AppController {
             }
         }
 
+        if focusedWindowId == nil || activitySuppressed {
+            cancelPendingWindowActivityRecord()
+        }
+
         // Dismiss Launcher if focus shifts to a managed window in a zone (tiled or temporary).
         if let windowId = focusedWindowId,
            let managed = windowController.window(withId: windowId),
@@ -152,8 +156,8 @@ extension AppController {
 
         // Record window activity for launcher recency ordering
         // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations
-        if let windowId = focusedWindowId, !isActivityRecordingSuppressed() {
-            recordActiveWindowForHistory(windowId: windowId, reason: "focus-changed")
+        if let windowId = focusedWindowId, !activitySuppressed {
+            recordActiveWindowForHistoryDebounced(windowId: windowId, pid: pid, reason: "focus-changed")
         }
 
         // Track frontmost managed window for AltTab initial selection (no AX call needed at show time)
