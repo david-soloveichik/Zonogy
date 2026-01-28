@@ -270,8 +270,11 @@ final class LauncherModel: ObservableObject {
               let bundle = Bundle(url: url),
               let bundleId = bundle.bundleIdentifier else { return }
 
-        // Record selection for the app (drill-down counts as activation per spec)
+        // Only allow drill-down for running apps
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard runningAppURLs.contains(resolved) else { return }
+
+        // Record selection for the app (drill-down counts as activation per spec)
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedQuery.isEmpty {
             usageStore.recordSelection(query: trimmedQuery, itemURL: resolved)
