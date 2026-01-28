@@ -253,7 +253,7 @@ extension AppController: LauncherControllerDelegate {
     }
 
     /// Returns the preferred window for a running app based on configuration:
-    /// - If app has `hasMainWindow: true`: returns window with lowest Zonogy ID (first created)
+    /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID
     /// - Otherwise: returns the most recently active window
     /// - Returns nil if app has no managed windows with titles
     internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
@@ -283,34 +283,29 @@ extension AppController: LauncherControllerDelegate {
             return nil
         }
 
-        // Check if this app prefers the "main window" (lowest Zonogy ID)
+        // Check if this app prefers the "main window" (lowest CGWindowID)
         let prefersMainWindow = windowController.applicationExceptionPolicy.hasMainWindow(forBundleIdentifier: bundleIdentifier)
 
-        if prefersMainWindow {
-            // Sort by Zonogy ID ascending (first created = main window)
-            eligibleWindows.sort { $0.windowId < $1.windowId }
-            Logger.debug("Launcher: App \(bundleIdentifier) has hasMainWindow=true, selecting window \(eligibleWindows[0].windowId) (lowest ID)")
-        } else {
-            // Sort by last active time descending (most recent first), with Zonogy ID as tiebreaker
-            eligibleWindows.sort { lhs, rhs in
-                let lhsTime = windowController.lastActiveTime(for: lhs.windowId)
-                let rhsTime = windowController.lastActiveTime(for: rhs.windowId)
-
-                switch (lhsTime, rhsTime) {
-                case (let lhsT?, let rhsT?):
-                    return lhsT > rhsT  // More recent first
-                case (.some, .none):
-                    return true
-                case (.none, .some):
-                    return false
-                case (.none, .none):
-                    return lhs.windowId < rhs.windowId  // Fallback to Zonogy ID
-                }
-            }
-            Logger.debug("Launcher: App \(bundleIdentifier) selecting most recent window \(eligibleWindows[0].windowId)")
+        let candidates = eligibleWindows.map { window in
+            PreferredWindowSelection.Candidate(
+                windowId: window.windowId,
+                cgWindowId: window.backing.cgWindowId,
+                lastActiveTime: windowController.lastActiveTime(for: window.windowId)
+            )
         }
 
-        return eligibleWindows.first
+        guard let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: prefersMainWindow) else {
+            return nil
+        }
+
+        if prefersMainWindow {
+            Logger.debug("Launcher: App \(bundleIdentifier) has hasMainWindow=true, selecting window \(selected.windowId) (lowest CGWindowID \(selected.cgWindowId))")
+        } else {
+            Logger.debug("Launcher: App \(bundleIdentifier) selecting most recent window \(selected.windowId)")
+        }
+
+        let windowsById = Dictionary(uniqueKeysWithValues: eligibleWindows.map { ($0.windowId, $0) })
+        return windowsById[selected.windowId]
     }
 
     // MARK: - App Activation (without changing window placement)

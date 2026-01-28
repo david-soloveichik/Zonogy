@@ -197,7 +197,7 @@ When the user selects a window or launches an application:
 
 2. **If selecting a running app with 1+ managed windows:**
    - Selects the preferred window and treats as window selection (zone placement as above)
-   - **Main window apps** (`hasMainWindow: true` in config): selects window with lowest Zonogy ID (first created)
+   - **Main window apps** (`hasMainWindow: true` in config): selects window with lowest `CGWindowID`
    - **Other apps** (default): selects most recently active window
    - Pre-configured main window apps: Mail, Notes, Messages, Calendar, Reminders, Music, Photos
 

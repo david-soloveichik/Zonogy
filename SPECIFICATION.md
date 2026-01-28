@@ -395,7 +395,7 @@ Fields:
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button.
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
-  - `hasMainWindow` – when `true`, the Launcher selects the window with the lowest Zonogy ID (first created) when the user presses Enter on this running app. When `false` or unset (default), the most recently active window is selected.
+  - `hasMainWindow` – when `true`, the Launcher selects the window with the lowest `CGWindowID` when the user presses Enter on this running app. When `false` or unset (default), the most recently active window is selected.
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still detach as usual and only snap back on focus loss or the next layout sync.)
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
 

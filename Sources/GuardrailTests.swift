@@ -30,6 +30,9 @@ enum GuardrailTests {
         if !ApplicationExceptionPolicyTests.run() {
             allPassed = false
         }
+        if !PreferredWindowSelectionTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

@@ -94,7 +94,7 @@ struct ApplicationExceptionPolicy {
         return rule.ignoreHeightRequirement ?? false
     }
 
-    /// Returns true if the app prefers its "main window" (lowest Zonogy ID) when multiple windows exist
+    /// Returns true if the app prefers its "main window" (lowest CGWindowID) when multiple windows exist
     func hasMainWindow(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.hasMainWindow ?? false
     }
