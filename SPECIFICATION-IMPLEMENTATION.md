@@ -14,6 +14,10 @@ The same protection mechanism applies when restoring layouts from sleep/wake rec
 
 For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles.
 
+## Debounced Temporary Zone Minimization
+
+When a window is replaced in the temporary zone, the displaced window is queued for deferred minimization rather than minimized immediately. The queue flushes after a 150ms pause with no new additions. This batches rapid replacements together (e.g., when launching an app that opens multiple windows in quick succession), leading to faster behavior and fixing some apparent bugs. If a queued window is reassigned to any zone before the timer fires, it is removed from the queue.
+
 ## Additional Notes
 
 - `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.

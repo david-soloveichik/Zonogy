@@ -11,6 +11,10 @@ extension AppController {
         temporaryZoneCoordinator.isWindowInTemporaryZone(windowId)
     }
 
+    func cancelPendingMinimization(windowId: Int) {
+        temporaryZoneCoordinator.cancelPendingMinimization(windowId: windowId)
+    }
+
     func assignWindowToTemporaryZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,

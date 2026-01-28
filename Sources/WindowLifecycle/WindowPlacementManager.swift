@@ -37,6 +37,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         centerWindow: Bool,
         reason: String
     )
+    func cancelPendingMinimization(windowId: Int)
     func emptyTemporaryZoneForNewTiledPlacement(
         on screenId: CGDirectDisplayID,
         excluding windowId: Int,
@@ -298,6 +299,8 @@ class WindowPlacementManager {
         zoneWasEmptyBeforeAssignment: Bool
     ) {
         guard let delegate = delegate else { return }
+
+        delegate.cancelPendingMinimization(windowId: managed.windowId)
 
         // Record activity for windows placed into zones so they appear in AltTab/Launcher recency lists.
         delegate.windowController.recordWindowActivity(windowId: managed.windowId)
