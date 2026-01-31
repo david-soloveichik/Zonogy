@@ -211,6 +211,10 @@ extension AppController {
         launcherController.repositionIfNeeded()
     }
 
+    func requestSync() {
+        syncWindowsToZones()
+    }
+
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {
         // Chrome merges kill the dragged window until the drop completes; avoid evicting the sibling.
         guard let targetedZoneKey = targetedZoneKey else {

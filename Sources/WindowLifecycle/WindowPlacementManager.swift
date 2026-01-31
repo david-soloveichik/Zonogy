@@ -45,6 +45,9 @@ protocol WindowPlacementManagerDelegate: AnyObject {
 
     // UnderCovers coordination
     func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int)
+
+    // Synchronization
+    func requestSync()
 }
 
 class WindowPlacementManager {
@@ -92,6 +95,7 @@ class WindowPlacementManager {
             managed.zoneIndex = nil
             placeWindow(managed, on: preferredScreenId, reason: baseReason)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            delegate.requestSync()
             return
         }
 
@@ -130,6 +134,7 @@ class WindowPlacementManager {
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen, reason: baseReason)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            delegate.requestSync()
             return
         }
 
@@ -142,6 +147,7 @@ class WindowPlacementManager {
             forceRetargetAfterFill: false,
             logIfUnassignedOnRemoval: false
         )
+        delegate.requestSync()
     }
 
     /// Reassigns or minimizes a window after its zone was deleted.
