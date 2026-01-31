@@ -16,8 +16,6 @@ class ValidationRetryManager {
         case screenChange = "screen-change"
         case focusChanged = "focus-changed"
         case workspaceStateChange = "workspace-state-change"
-
-        var label: String { rawValue }
     }
 
     private struct Retry {
@@ -46,19 +44,28 @@ class ValidationRetryManager {
     private enum ValidationRun {
         case direct
         case retry(attempt: Int)
+
+        var isRetry: Bool {
+            if case .retry = self {
+                return true
+            }
+            return false
+        }
+
+        func label(for trigger: Trigger) -> String {
+            switch self {
+            case .direct:
+                return trigger.rawValue
+            case .retry(let attempt):
+                return "retry-\(trigger.rawValue)-\(attempt)"
+            }
+        }
     }
 
     private func validateWindowsForApplication(pid: pid_t, trigger: Trigger, run: ValidationRun) -> [Int] {
         guard let delegate = delegate else { return [] }
 
-        let label: String = {
-            switch run {
-            case .direct:
-                return trigger.label
-            case .retry(let attempt):
-                return "retry-\(trigger.label)-\(attempt)"
-            }
-        }()
+        let label = run.label(for: trigger)
 
         let destroyedWindowIds = delegate.pruneDestroyedWindowsForPid(pid)
 
@@ -72,17 +79,9 @@ class ValidationRetryManager {
         }
 
         // No destroyed windows found
-        let isRetry: Bool = {
-            switch run {
-            case .direct:
-                return false
-            case .retry:
-                return true
-            }
-        }()
 
         // Check PID hasn't been reused (for non-retry calls)
-        if !isRetry, let existing = validationRetries[pid], let expectedBundleId = existing.bundleId {
+        if !run.isRetry, let existing = validationRetries[pid], let expectedBundleId = existing.bundleId {
             let currentBundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
             if currentBundleId != expectedBundleId {
                 Logger.debug("PID \(pid) reused (was \(expectedBundleId), now \(currentBundleId ?? "nil")), clearing stale entry")
@@ -92,7 +91,7 @@ class ValidationRetryManager {
         }
 
         // Log non-retry validations
-        if !isRetry {
+        if !run.isRetry {
             let hasWindows = delegate.hasManagedWindows(for: pid)
             if hasWindows {
                 Logger.debug("Validated pid \(pid) (\(label)): 0 destroyed, windows still managed, scheduling retry")
@@ -143,7 +142,7 @@ class ValidationRetryManager {
             if existing.isActive {
                 // Don't interrupt an active retry unless the trigger changed
                 if existing.trigger != trigger {
-                    Logger.debug("Validation trigger changed from '\(existing.trigger.label)' to '\(trigger.label)' for pid \(pid), restarting retry")
+                    Logger.debug("Validation trigger changed from '\(existing.trigger.rawValue)' to '\(trigger.rawValue)' for pid \(pid), restarting retry")
                     cancelValidationRetry(for: pid)
                     // Fall through to schedule new retry
                 } else {
@@ -154,18 +153,19 @@ class ValidationRetryManager {
 
         // Create or update retry entry
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        var retry = validationRetries[pid] ?? Retry(
-            pid: pid,
-            trigger: trigger,
-            bundleId: bundleId
-        )
-        retry.trigger = trigger
+        var retry: Retry
+        if var existing = validationRetries[pid] {
+            existing.trigger = trigger
+            retry = existing
+        } else {
+            retry = Retry(pid: pid, trigger: trigger, bundleId: bundleId)
+        }
 
         // Check if exhausted
         if retry.attempt >= retryDelays.count {
             let managedWindowIds = delegate.debugManagedWindowIds(for: pid).sorted()
             Logger.debug(
-                "Validation retry exhausted for pid \(pid) after \(retry.attempt) attempts (trigger: \(retry.trigger.label), managedWindowIds: \(managedWindowIds))"
+                "Validation retry exhausted for pid \(pid) after \(retry.attempt) attempts (trigger: \(retry.trigger.rawValue), managedWindowIds: \(managedWindowIds))"
             )
             cancelValidationRetry(for: pid)
             return
@@ -176,7 +176,7 @@ class ValidationRetryManager {
         let nextAttempt = retry.attempt + 1
         let activeTrigger = retry.trigger
 
-        Logger.debug("Scheduling retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (trigger: \(activeTrigger.label))")
+        Logger.debug("Scheduling retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (trigger: \(activeTrigger.rawValue))")
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -190,7 +190,7 @@ class ValidationRetryManager {
                 return
             }
 
-            Logger.debug("Executing retry #\(nextAttempt) for pid \(pid) (trigger: \(activeTrigger.label))")
+            Logger.debug("Executing retry #\(nextAttempt) for pid \(pid) (trigger: \(activeTrigger.rawValue))")
 
             let destroyed = self.validateWindowsForApplication(pid: pid, trigger: activeTrigger, run: .retry(attempt: nextAttempt))
 

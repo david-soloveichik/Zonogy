@@ -35,7 +35,7 @@ extension AppController {
             targetedZoneManager.setTargetedZone(destinationKey, reason: "flip-key-window-select-destination")
         }
 
-        guard windowPlacementManager.moveWindow(managed, from: originKey, to: destinationKey) else {
+        guard windowPlacementManager.moveWindow(managed, from: originKey, to: destinationKey, reason: "flip-key-window") else {
             let failureReason = "flip-key-window-failure"
             if targetedZoneManager.zoneExists(originKey) {
                 targetedZoneManager.setTargetedZone(originKey, reason: failureReason)
