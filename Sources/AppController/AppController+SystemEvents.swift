@@ -65,7 +65,7 @@ extension AppController {
             return
         }
         if let previousPid = lastActiveApplicationPid {
-            _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, reason: "workspace-activation-previous-app")
+            _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, trigger: .workspaceActivationPreviousApp)
             handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
         }
         if let application {
@@ -373,7 +373,7 @@ extension AppController {
         let pidsToValidate = Set(windowController.allWindows.map { $0.backing.pid })
 
         for pid in pidsToValidate {
-            _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "screen-change")
+            _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .screenChange)
         }
 
         targetedZoneManager.ensureTargetedZone(reason: "screens-changed")

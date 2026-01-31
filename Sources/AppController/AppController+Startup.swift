@@ -224,7 +224,7 @@ extension AppController {
 
         // When an application changes state (deactivate/hide), validate all its windows
         // This catches window closures that didn't fire destroy notifications
-        _ = validationRetryManager.validateWindowsForApplication(pid: application.processIdentifier, reason: "workspace-state-change")
+        _ = validationRetryManager.validateWindowsForApplication(pid: application.processIdentifier, trigger: .workspaceStateChange)
     }
 
     internal func handleApplicationTermination(_ application: NSRunningApplication?) {

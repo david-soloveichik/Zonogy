@@ -390,9 +390,7 @@ extension AppController: LauncherControllerDelegate {
             centerTemporaryWindow: true,
             reason: "launcher-selection",
             retargetOnRemoval: false,
-            forceRetargetAfterFill: false,
-            displacedMinimizeReason: "launcher-displaced",
-            retargetReason: "launcher-filled"
+            forceRetargetAfterFill: false
         )
 
         switch destination {
@@ -418,9 +416,7 @@ extension AppController: LauncherControllerDelegate {
             centerTemporaryWindow: true,
             reason: "dockmenu-drag-placement",
             retargetOnRemoval: false,
-            forceRetargetAfterFill: true,
-            displacedMinimizeReason: "dockmenu-drag-displaced",
-            retargetReason: "dockmenu-drag-filled"
+            forceRetargetAfterFill: true
         )
 
         activateWindow(managed)

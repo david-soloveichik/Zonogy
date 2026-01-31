@@ -4,7 +4,7 @@ import Cocoa
 
 protocol WindowPlacementManagerDelegate: AnyObject {
     // Zone management
-    func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool)
+    func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool, logIfUnassigned: Bool)
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
@@ -62,7 +62,12 @@ class WindowPlacementManager {
         guard let delegate = delegate else { return }
 
         if let preferredScreenId {
-            delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window", retarget: true)
+            delegate.removeWindowFromAllZones(
+                windowId: managed.windowId,
+                reason: "place-new-window",
+                retarget: true,
+                logIfUnassigned: false
+            )
             managed.zoneIndex = nil
             placeWindow(managed, on: preferredScreenId)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
@@ -80,7 +85,12 @@ class WindowPlacementManager {
 
         // Keep the current zone occupant alive while the source app is mid tear-out.
         if delegate.shouldDeferPlacementForNewWindow(managed, targetedZoneKey: targetedKey) {
-            delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window", retarget: true)
+            delegate.removeWindowFromAllZones(
+                windowId: managed.windowId,
+                reason: "place-new-window",
+                retarget: true,
+                logIfUnassigned: false
+            )
             managed.zoneIndex = nil
             let screenId = targetedKey?.screenId ?? delegate.detectScreenId(for: managed) ?? delegate.activeScreenId()
             delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
@@ -90,7 +100,12 @@ class WindowPlacementManager {
 
         guard let targetedDestination else {
             let fallbackScreen = delegate.detectScreenId(for: managed) ?? delegate.activeScreenId()
-            delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "place-new-window", retarget: true)
+            delegate.removeWindowFromAllZones(
+                windowId: managed.windowId,
+                reason: "place-new-window",
+                retarget: true,
+                logIfUnassigned: false
+            )
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
@@ -103,9 +118,7 @@ class WindowPlacementManager {
             centerTemporaryWindow: true,
             reason: "place-new-window",
             retargetOnRemoval: true,
-            forceRetargetAfterFill: false,
-            displacedMinimizeReason: "displaced-window",
-            retargetReason: "zone-filled"
+            forceRetargetAfterFill: false
         )
     }
 
@@ -113,7 +126,12 @@ class WindowPlacementManager {
     func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
         guard let delegate = delegate else { return }
 
-        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: "zone-removal-reassignment", retarget: true)
+        delegate.removeWindowFromAllZones(
+            windowId: managed.windowId,
+            reason: "zone-removal-reassignment",
+            retarget: true,
+            logIfUnassigned: true
+        )
         managed.zoneIndex = nil
 
         if let (zone, context, descriptor) = findZoneAcceptingRemovedWindow(preferredScreenId: preferredScreenId) {
@@ -255,21 +273,35 @@ class WindowPlacementManager {
     }
 
     /// Places a window into a specific destination (tiled zone or temporary zone), with optional retarget behavior.
+    ///
+    /// - Parameters:
+    ///   - managed: The window being placed.
+    ///   - destination: The destination zone to place into (can be tiled or temporary).
+    ///   - centerTemporaryWindow: If placing into a temporary zone, whether to apply the initial centering/resizing.
+    ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
+    ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
+    ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old zone per spec since it's now becoming empty.
+    ///   - forceRetargetAfterFill: Normally we only retarget after filling a zone if that zone was the
+    ///     currently targeted tiled zone. When `true`, treat the fill as though it were targeted for purposes of
+    ///     applying the "retarget after filling" spec (used by explicit placements like DockMenu drag/drop).
     func placeWindow(
         _ managed: ManagedWindow,
         into destination: TargetedZoneManager.TargetedDestination,
         centerTemporaryWindow: Bool = true,
         reason: String,
         retargetOnRemoval: Bool = true,
-        forceRetargetAfterFill: Bool = false,
-        displacedMinimizeReason: String = "displaced-window",
-        retargetReason: String? = nil
+        forceRetargetAfterFill: Bool = false
     ) {
         guard let delegate = delegate else {
             return
         }
 
-        delegate.removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: retargetOnRemoval)
+        delegate.removeWindowFromAllZones(
+            windowId: managed.windowId,
+            reason: reason,
+            retarget: retargetOnRemoval,
+            logIfUnassigned: true
+        )
         managed.zoneIndex = nil
 
         switch destination {
@@ -285,9 +317,7 @@ class WindowPlacementManager {
                 managed,
                 zoneKey: zoneKey,
                 reason: reason,
-                forceRetargetAfterFill: forceRetargetAfterFill,
-                displacedMinimizeReason: displacedMinimizeReason,
-                retargetReason: retargetReason ?? reason
+                forceRetargetAfterFill: forceRetargetAfterFill
             )
         }
 
@@ -301,9 +331,7 @@ class WindowPlacementManager {
         _ managed: ManagedWindow,
         zoneKey: ZoneKey,
         reason: String,
-        forceRetargetAfterFill: Bool,
-        displacedMinimizeReason: String,
-        retargetReason: String
+        forceRetargetAfterFill: Bool
     ) {
         guard let delegate = delegate,
               let context = delegate.screenContexts[zoneKey.screenId],
@@ -311,6 +339,9 @@ class WindowPlacementManager {
               let zone = context.zoneController.zone(at: zoneKey.index) else {
             return
         }
+
+        let displacedMinimizeReason = "\(reason)-displaced"
+        let retargetReason = "\(reason)-filled"
 
         let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
         let displacement = displacementPlanIfNeeded(

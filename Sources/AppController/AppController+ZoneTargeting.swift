@@ -8,7 +8,12 @@ extension AppController {
         screenContexts[screenId]?.zoneController
     }
 
-    internal func removeWindowFromAllZones(windowId: Int, reason: String = "unspecified", retarget: Bool = true) {
+    internal func removeWindowFromAllZones(
+        windowId: Int,
+        reason: String = "unspecified",
+        retarget: Bool = true,
+        logIfUnassigned: Bool = true
+    ) {
         if dragDropCoordinator.currentDragWindowId == windowId {
             // Ensure overlays go away when the dragged window disappears.
             dragDropCoordinator.tearDownDragSession()
@@ -46,7 +51,7 @@ extension AppController {
 
         clearTemporaryZone(for: windowId, minimize: false, reason: reason)
 
-        if !removed, reason != "place-new-window" {
+        if !removed, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
     }

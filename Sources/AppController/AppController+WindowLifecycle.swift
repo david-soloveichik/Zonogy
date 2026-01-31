@@ -149,7 +149,7 @@ extension AppController {
 
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
-        _ = validationRetryManager.validateWindowsForApplication(pid: pid, reason: "focus-changed")
+        _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .focusChanged)
         handleActiveFitFocusChange(pid: pid)
         handleTemporaryZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
         handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
