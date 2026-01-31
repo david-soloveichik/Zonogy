@@ -311,6 +311,9 @@ class WindowPlacementManager {
     ///     (Currently only relevant for tiled placement.)
     ///   - logIfUnassignedOnRemoval: Whether to log when the pre-placement cleanup finds that the window wasn't
     ///     assigned to any zone (use `false` for common expected cases like brand-new window placement).
+    ///   - afterPlacementAction: Optional action to run after the destination assignment is applied but before
+    ///     finalizing any displaced-window follow-up. Only invoked for `.tiled` placements (including no-op
+    ///     tiled placement where the window is already in the destination zone).
     func placeWindow(
         _ managed: ManagedWindow,
         into destination: TargetedZoneManager.TargetedDestination,
@@ -318,7 +321,8 @@ class WindowPlacementManager {
         reason: String,
         retargetOnRemoval: Bool = true,
         forceRetargetAfterFill: Bool = false,
-        logIfUnassignedOnRemoval: Bool = true
+        logIfUnassignedOnRemoval: Bool = true,
+        afterPlacementAction: (() -> Void)? = nil
     ) {
         guard let delegate = delegate else {
             return
@@ -337,6 +341,7 @@ class WindowPlacementManager {
             Logger.debug(
                 "Skipping placement: window \(managed.windowId) is already in screen \(ScreenContextStore.loggingIndex(for: zoneKey.screenId)) zone \(zoneKey.index) (reason: \(reason))"
             )
+            afterPlacementAction?()
             return
         }
 
@@ -361,7 +366,8 @@ class WindowPlacementManager {
                 managed,
                 zoneKey: zoneKey,
                 reason: reason,
-                forceRetargetAfterFill: forceRetargetAfterFill
+                forceRetargetAfterFill: forceRetargetAfterFill,
+                afterPlacementAction: afterPlacementAction
             )
         }
 
@@ -375,7 +381,8 @@ class WindowPlacementManager {
         _ managed: ManagedWindow,
         zoneKey: ZoneKey,
         reason: String,
-        forceRetargetAfterFill: Bool
+        forceRetargetAfterFill: Bool,
+        afterPlacementAction: (() -> Void)?
     ) {
         guard let delegate = delegate,
               let context = delegate.screenContexts[zoneKey.screenId],
@@ -384,28 +391,37 @@ class WindowPlacementManager {
             return
         }
 
+        // Match the temporary-zone pathway: ensure the incoming window can't get minimized
+        // by a previously-queued displacement while we're actively placing it.
+        delegate.cancelPendingMinimization(windowId: managed.windowId)
+
         let displacedMinimizeReason = "\(reason)-displaced"
         let retargetReason = "\(reason)-filled"
 
         let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
-        let displacement = displacementPlanIfNeeded(
-            in: zone,
-            controller: context.zoneController,
-            excluding: managed.windowId,
-            minimizeReason: displacedMinimizeReason
-        )
 
-        assignWindowToZone(
-            managed,
-            zone: zone,
-            screenId: zoneKey.screenId,
-            descriptor: descriptor,
-            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment,
-            forceRetargetAfterFill: forceRetargetAfterFill,
-            retargetReason: retargetReason
+        SingleOccupantReplacement.replaceIfNeeded(
+            existingWindowId: zone.occupantWindowId,
+            incomingWindowId: managed.windowId,
+            lookupWindow: { delegate.windowController.window(withId: $0) },
+            evictExistingWindowId: { context.zoneController.removeWindow(windowId: $0) },
+            clearDisplacedAssignment: { delegate.clearManagedWindowZone($0) },
+            finalizeDisplaced: { delegate.queueDeferredMinimization(windowId: $0.windowId, reason: displacedMinimizeReason) },
+            assignIncoming: {
+                assignWindowToZone(
+                    managed,
+                    zone: zone,
+                    screenId: zoneKey.screenId,
+                    descriptor: descriptor,
+                    zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment,
+                    forceRetargetAfterFill: forceRetargetAfterFill,
+                    retargetReason: retargetReason
+                )
+            },
+            afterAssignIncoming: {
+                afterPlacementAction?()
+            }
         )
-
-        displacement?.finalize()
     }
 
     /// Assigns a managed window to a zone and updates targeted-zone bookkeeping.

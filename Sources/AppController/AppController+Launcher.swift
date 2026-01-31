@@ -384,13 +384,26 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
+        var didActivateInPlacement = false
+        let afterPlacementAction: (() -> Void)?
+        switch destination {
+        case .temporary:
+            afterPlacementAction = nil
+        case .tiled:
+            afterPlacementAction = {
+                didActivateInPlacement = true
+                self.activateWindow(managed)
+            }
+        }
+
         windowPlacementManager.placeWindow(
             managed,
             into: destination,
             centerTemporaryWindow: true,
             reason: "launcher-selection",
             retargetOnRemoval: false,
-            forceRetargetAfterFill: false
+            forceRetargetAfterFill: false,
+            afterPlacementAction: afterPlacementAction
         )
 
         switch destination {
@@ -402,26 +415,33 @@ extension AppController: LauncherControllerDelegate {
             break
         }
 
-        activateWindow(managed)
+        if !didActivateInPlacement {
+            activateWindow(managed)
+        }
         syncWindowsToZones()
-        refreshIndicators()
     }
 
     /// Place a window into a specific zone (used by DockMenu drag-and-drop).
     /// Unlike placeSelectedWindow, this takes an explicit zone key rather than using the targeted zone.
     internal func placeWindowIntoZone(_ managed: ManagedWindow, zoneKey: ZoneKey) {
+        var didActivateInPlacement = false
         windowPlacementManager.placeWindow(
             managed,
             into: .tiled(zoneKey),
             centerTemporaryWindow: true,
             reason: "dockmenu-drag-placement",
             retargetOnRemoval: false,
-            forceRetargetAfterFill: true
+            forceRetargetAfterFill: true,
+            afterPlacementAction: {
+                didActivateInPlacement = true
+                self.activateWindow(managed)
+            }
         )
 
-        activateWindow(managed)
+        if !didActivateInPlacement {
+            activateWindow(managed)
+        }
         syncWindowsToZones()
-        refreshIndicators()
     }
 
     /// Calculate the target zone frame for a window being placed via Launcher

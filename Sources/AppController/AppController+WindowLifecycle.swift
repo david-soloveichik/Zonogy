@@ -812,10 +812,7 @@ extension AppController {
     internal func raiseWindow(_ managed: ManagedWindow) {
         let element = managed.backing.element
         let pid = managed.backing.pid
-        if let app = NSRunningApplication(processIdentifier: pid) {
-            app.activate()
-        }
-        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        scheduleWindowRaise(pid: pid, element: element, reason: "raise-window")
     }
 }
 

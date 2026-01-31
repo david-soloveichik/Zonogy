@@ -75,7 +75,9 @@ final class TemporaryZoneCoordinator {
             occupants.removeValue(forKey: existingScreenId)
         }
 
-        let displacement = DisplacedWindowPlanner.planIfNeeded(
+        let displacedMinimizeReason = "\(reason)-displaced"
+
+        SingleOccupantReplacement.replaceIfNeeded(
             existingWindowId: occupants[screenId],
             incomingWindowId: managed.windowId,
             lookupWindow: { host.windowController.window(withId: $0) },
@@ -85,26 +87,27 @@ final class TemporaryZoneCoordinator {
             },
             clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
             finalizeDisplaced: { displaced in
-                host.queueDeferredMinimization(windowId: displaced.windowId, reason: "replace-with-new-window")
+                host.queueDeferredMinimization(windowId: displaced.windowId, reason: displacedMinimizeReason)
                 Logger.debug(
-                    "Temporary zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: replace-with-new-window)"
+                    "Temporary zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
                 )
+            },
+            assignIncoming: {
+                occupants[screenId] = managed.windowId
+                managed.isInTemporaryZone = true
+                host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
+
+                if centerWindow,
+                   let descriptor = host.descriptor(for: screenId) {
+                    let frame = placementFrame(for: managed, on: descriptor)
+                    host.windowController.showWindow(managed, at: frame, on: descriptor)
+                }
+            },
+            afterAssignIncoming: {
+                host.activateTemporaryZoneWindow(managed, reason: reason)
+                host.scheduleTemporaryZoneProtection(windowId: managed.windowId)
             }
         )
-
-        occupants[screenId] = managed.windowId
-        managed.isInTemporaryZone = true
-        host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
-
-        if centerWindow,
-           let descriptor = host.descriptor(for: screenId) {
-            let frame = placementFrame(for: managed, on: descriptor)
-            host.windowController.showWindow(managed, at: frame, on: descriptor)
-        }
-
-        host.activateTemporaryZoneWindow(managed, reason: reason)
-        host.scheduleTemporaryZoneProtection(windowId: managed.windowId)
-        displacement?.finalize()
 
         Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
