@@ -55,6 +55,25 @@ class WindowPlacementManager {
 
     init() {}
 
+    /// Returns `true` if placing the window into the destination tiled zone would be a no-op
+    /// because the window is already assigned to that exact zone.
+    ///
+    /// Exposed for guardrail tests; callers should generally prefer the higher-level placement APIs.
+    static func isNoOpTiledPlacement(
+        windowId: Int,
+        currentZoneIndex: Int?,
+        currentScreenId: CGDirectDisplayID?,
+        destinationKey: ZoneKey,
+        destinationOccupantWindowId: Int?
+    ) -> Bool {
+        guard currentZoneIndex == destinationKey.index,
+              currentScreenId == destinationKey.screenId,
+              destinationOccupantWindowId == windowId else {
+            return false
+        }
+        return true
+    }
+
     // MARK: - Public Methods
 
     /// Places a newly captured window into the best zone (targeted or preferred screen).
@@ -284,10 +303,12 @@ class WindowPlacementManager {
     ///   - centerTemporaryWindow: If placing into a temporary zone, whether to apply the initial centering/resizing.
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
-    ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old zone per spec since it's now becoming empty.
-    ///   - forceRetargetAfterFill: Normally we only retarget after filling a zone if that zone was the
-    ///     currently targeted tiled zone. When `true`, treat the fill as though it were targeted for purposes of
-    ///     applying the "retarget after filling" spec (used by explicit placements like DockMenu drag/drop).
+    ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old
+    ///     zone per spec since it's now becoming empty. (Applies regardless of whether the destination is tiled
+    ///     or temporary, since removal happens first.)
+    ///   - forceRetargetAfterFill: Even if the destination zone isn't currently targeted, pretend like it is for
+    ///     the purposes of applying the spec's "retarget after filling a targeted empty tiling zone" rule.
+    ///     (Currently only relevant for tiled placement.)
     ///   - logIfUnassignedOnRemoval: Whether to log when the pre-placement cleanup finds that the window wasn't
     ///     assigned to any zone (use `false` for common expected cases like brand-new window placement).
     func placeWindow(
@@ -300,6 +321,22 @@ class WindowPlacementManager {
         logIfUnassignedOnRemoval: Bool = true
     ) {
         guard let delegate = delegate else {
+            return
+        }
+
+        if case .tiled(let zoneKey) = destination,
+           let controller = delegate.zoneController(for: zoneKey.screenId),
+           let zone = controller.zone(at: zoneKey.index),
+           Self.isNoOpTiledPlacement(
+            windowId: managed.windowId,
+            currentZoneIndex: managed.zoneIndex,
+            currentScreenId: managed.screenDisplayId,
+            destinationKey: zoneKey,
+            destinationOccupantWindowId: zone.occupantWindowId
+           ) {
+            Logger.debug(
+                "Skipping placement: window \(managed.windowId) is already in screen \(ScreenContextStore.loggingIndex(for: zoneKey.screenId)) zone \(zoneKey.index) (reason: \(reason))"
+            )
             return
         }
 

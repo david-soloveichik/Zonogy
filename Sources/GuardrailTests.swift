@@ -12,6 +12,9 @@ enum GuardrailTests {
         if !DisplacedWindowPlannerTests.run() {
             allPassed = false
         }
+        if !WindowPlacementManagerNoOpPlacementTests.run() {
+            allPassed = false
+        }
         if !CoordinateConversionTests.run() {
             allPassed = false
         }

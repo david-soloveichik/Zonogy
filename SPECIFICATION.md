@@ -138,7 +138,7 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the sc
 
 - Clicking a tiling zone placeholder window: target that tiling zone.
 - Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
-- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, or any other disappearance), target that zone.
+- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
 - Whenever the targeted **empty** tiling zone is filled (Targeting independent of focus mode): retarget using this priority:
   1. Lowest-index empty tiling zone on the same screen
