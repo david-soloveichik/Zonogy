@@ -304,16 +304,14 @@ class WindowPlacementManager {
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
     ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old
-    ///     zone per spec since it's now becoming empty. (Applies regardless of whether the destination is tiled
-    ///     or temporary, since removal happens first.)
+    ///     zone per spec since it's now becoming empty. 
     ///   - forceRetargetAfterFill: Even if the destination zone isn't currently targeted, pretend like it is for
     ///     the purposes of applying the spec's "retarget after filling a targeted empty tiling zone" rule.
-    ///     (Currently only relevant for tiled placement.)
     ///   - logIfUnassignedOnRemoval: Whether to log when the pre-placement cleanup finds that the window wasn't
     ///     assigned to any zone (use `false` for common expected cases like brand-new window placement).
-    ///   - afterPlacementAction: Optional action to run after the destination assignment is applied but before
-    ///     finalizing any displaced-window follow-up. Only invoked for `.tiled` placements (including no-op
-    ///     tiled placement where the window is already in the destination zone).
+    ///   - afterPlacementAction: Optional action to run after `managed` is placed (or no-op if it's already there), 
+    ///     but before any displaced previous occupant of the zone is minimized. (Currently used to "activate/raise 
+    ///     the placed window and record its recency" via `activateWindow` for tiling zones.)
     func placeWindow(
         _ managed: ManagedWindow,
         into destination: TargetedZoneManager.TargetedDestination,
