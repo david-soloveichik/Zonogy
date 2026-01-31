@@ -549,7 +549,6 @@ class DragDropCoordinator {
         }
 
         if let displaced = displacedWindow {
-            delegate.clearManagedWindowZone(displaced)
             Logger.debug("Window \(displaced.windowId) displaced from zone \(targetKey.index); will reassign later")
             return DropResult(
                 displacedWindow: displaced,

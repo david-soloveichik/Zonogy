@@ -9,6 +9,8 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     var screenContextStore: ScreenContextStore { get }
     var windowPlacementManager: WindowPlacementManager { get }
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
+    func queueDeferredMinimization(windowId: Int, reason: String)
+    func cancelPendingMinimization(windowId: Int)
 
     func refreshResizeHandles()
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
@@ -39,14 +41,6 @@ final class TemporaryZoneCoordinator {
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
 
-    /// Queue of windows awaiting deferred minimization (windowId -> reason).
-    /// When a window is replaced in the temporary zone, we queue it here instead
-    /// of minimizing immediately, allowing multiple rapid replacements (e.g., app
-    /// launch with many windows) to batch their minimizations together.
-    private var pendingMinimizations: [(windowId: Int, reason: String)] = []
-    private var minimizationTimer: DispatchSourceTimer?
-    private let minimizationDebounceInterval: TimeInterval = 0.15
-
     init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
         self.displacedWindowCoordinator = displacedWindowCoordinator
@@ -71,7 +65,7 @@ final class TemporaryZoneCoordinator {
     ) {
         guard let host else { return }
 
-        cancelPendingMinimization(windowId: managed.windowId)
+        host.cancelPendingMinimization(windowId: managed.windowId)
 
         if isWindowInTemporaryZone(managed.windowId),
            let existingScreenId = occupants.first(where: { $0.value == managed.windowId })?.key {
@@ -81,9 +75,22 @@ final class TemporaryZoneCoordinator {
             occupants.removeValue(forKey: existingScreenId)
         }
 
-        if let occupantId = occupants[screenId], occupantId != managed.windowId {
-            minimizeOccupant(on: screenId, reason: "replace-with-new-window")
-        }
+        let displacement = DisplacedWindowPlanner.planIfNeeded(
+            existingWindowId: occupants[screenId],
+            incomingWindowId: managed.windowId,
+            lookupWindow: { host.windowController.window(withId: $0) },
+            evictExistingWindowId: { occupantId in
+                host.clearTemporaryZoneProtection(windowId: occupantId)
+                occupants.removeValue(forKey: screenId)
+            },
+            clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
+            finalizeDisplaced: { displaced in
+                host.queueDeferredMinimization(windowId: displaced.windowId, reason: "replace-with-new-window")
+                Logger.debug(
+                    "Temporary zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: replace-with-new-window)"
+                )
+            }
+        )
 
         occupants[screenId] = managed.windowId
         managed.isInTemporaryZone = true
@@ -97,6 +104,7 @@ final class TemporaryZoneCoordinator {
 
         host.activateTemporaryZoneWindow(managed, reason: reason)
         host.scheduleTemporaryZoneProtection(windowId: managed.windowId)
+        displacement?.finalize()
 
         Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
@@ -112,62 +120,12 @@ final class TemporaryZoneCoordinator {
         occupant.isInTemporaryZone = false
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
-        queueMinimization(windowId: occupant.windowId, reason: reason)
-        Logger.debug("Temporary zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
+        host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
+        Logger.debug(
+            "Temporary zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
+        )
         host.refreshIndicators()
         host.refreshResizeHandles()
-    }
-
-    /// Remove a window from the pending minimization queue if present.
-    /// Called when a window is assigned to a zone to prevent incorrect deferred minimization.
-    func cancelPendingMinimization(windowId: Int) {
-        if pendingMinimizations.contains(where: { $0.windowId == windowId }) {
-            pendingMinimizations.removeAll { $0.windowId == windowId }
-            Logger.debug("Cancelled pending minimization for window \(windowId) (reassigned to zone)")
-        }
-    }
-
-    /// Queue a window for deferred minimization, resetting the debounce timer.
-    private func queueMinimization(windowId: Int, reason: String) {
-        // Deduplicate: if already queued, update the reason
-        if let existingIndex = pendingMinimizations.firstIndex(where: { $0.windowId == windowId }) {
-            pendingMinimizations[existingIndex] = (windowId: windowId, reason: reason)
-        } else {
-            pendingMinimizations.append((windowId: windowId, reason: reason))
-        }
-        scheduleMinimizationTimer()
-    }
-
-    private func scheduleMinimizationTimer() {
-        minimizationTimer?.cancel()
-
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + minimizationDebounceInterval)
-        timer.setEventHandler { [weak self] in
-            self?.flushPendingMinimizations()
-        }
-        timer.resume()
-        minimizationTimer = timer
-    }
-
-    private func flushPendingMinimizations() {
-        minimizationTimer?.cancel()
-        minimizationTimer = nil
-
-        guard let host else {
-            pendingMinimizations.removeAll()
-            return
-        }
-
-        let windowsToMinimize = pendingMinimizations
-        pendingMinimizations.removeAll()
-
-        for (windowId, reason) in windowsToMinimize {
-            if let window = host.windowController.window(withId: windowId) {
-                host.minimizeWindowProgrammatically(window, reason: reason)
-                Logger.debug("Deferred minimization completed for window \(windowId) (reason: \(reason))")
-            }
-        }
     }
 
     func clear(windowId: Int, minimize: Bool, reason: String) {

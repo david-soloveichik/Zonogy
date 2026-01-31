@@ -9,6 +9,9 @@ enum GuardrailTests {
     static func runAll() -> Bool {
         var allPassed = true
 
+        if !DisplacedWindowPlannerTests.run() {
+            allPassed = false
+        }
         if !CoordinateConversionTests.run() {
             allPassed = false
         }

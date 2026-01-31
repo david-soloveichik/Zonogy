@@ -84,7 +84,7 @@ extension AppController {
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
         guard autoShowLauncherForEmptyTilingZonesEnabled,
               !launcherController.isActive,
-              let targetedKey = targetedZoneKey,
+              case .tiled(let targetedKey) = targetedZoneManager.targetedDestination,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
             return
         }
@@ -335,7 +335,7 @@ extension AppController: LauncherControllerDelegate {
 
     func targetedZoneFrame() -> (CGRect, ScreenDescriptor)? {
         // If targeting a tiled zone, return its frame
-        if let targetedKey = targetedZoneKey,
+        if case .tiled(let targetedKey) = targetedZoneManager.targetedDestination,
            let context = screenContexts[targetedKey.screenId],
            let zone = context.zoneController.zone(at: targetedKey.index) {
             let frame = frameWithMargin(for: zone, in: context.zoneController)
@@ -347,11 +347,9 @@ extension AppController: LauncherControllerDelegate {
 
     func targetedScreenId() -> CGDirectDisplayID? {
         // Return the targeted screen (temporary zone screen or tiled zone screen)
-        if let temporaryScreenId = targetedTemporaryScreenId {
-            return temporaryScreenId
-        }
-        if let targetedKey = targetedZoneKey {
-            return targetedKey.screenId
+        if let destination = targetedZoneManager.targetedDestination,
+           let screenId = screenId(for: destination) {
+            return screenId
         }
         return activeScreenId()
     }
@@ -378,69 +376,35 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - Private Helpers
 
     private func placeSelectedWindow(_ managed: ManagedWindow) {
-        // CAPTURE the original targeted zone BEFORE any modifications
-        // (removeWindowFromAllZones with retarget:true would change the target to the emptied zone)
-        let originalTargetedKey = targetedZoneKey
-        let originalTemporaryTarget = targetedTemporaryScreenId
+        // Capture original destination BEFORE any removal, since retargeting can shift targeting.
+        let originalDestination = targetedZoneManager.targetedDestination
 
-        // Remove from any current zone (WITHOUT retargeting - we'll handle it ourselves after placement)
-        removeWindowFromAllZones(windowId: managed.windowId, reason: "launcher-placement", retarget: false)
-
-        // If targeting the temporary zone, place there
-        if let temporaryScreenId = originalTemporaryTarget {
-            assignWindowToTemporaryZone(managed, on: temporaryScreenId, centerWindow: true, reason: "launcher-selection")
-            Logger.debug("Launcher: Placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: temporaryScreenId))")
-            // Sync to create placeholder for the now-empty source zone.
-            syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
-            return
-        }
-
-        // Otherwise place in the originally targeted tiled zone
-        guard let targetedKey = originalTargetedKey,
-              let context = screenContexts[targetedKey.screenId],
-              let descriptor = descriptor(for: targetedKey.screenId),
-              let zone = context.zoneController.zone(at: targetedKey.index) else {
-            // Fallback: just activate the window without moving it
+        guard let destination = originalDestination else {
             activateWindow(managed)
             return
         }
 
-        // Check if zone was empty before placement.
-        // With the new architecture, zone.occupantWindowId only refers to external windows,
-        // so zone.isEmpty accurately reflects emptiness (placeholders don't affect this).
-        let zoneWasEmpty = zone.isEmpty
+        windowPlacementManager.placeWindow(
+            managed,
+            into: destination,
+            centerTemporaryWindow: true,
+            reason: "launcher-selection",
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: false,
+            displacedMinimizeReason: "launcher-displaced",
+            retargetReason: "launcher-filled"
+        )
 
-        // Displace any existing occupant (always an external window, never a placeholder).
-        // Clear both sides: zone's record and window's record of the assignment.
-        if let existingId = zone.occupantWindowId,
-           existingId != managed.windowId,
-           let existingWindow = windowController.window(withId: existingId) {
-            context.zoneController.removeWindow(windowId: existingId)
-            clearManagedWindowZone(existingWindow)
-            minimizeWindowProgrammatically(existingWindow, reason: "launcher-displaced")
+        switch destination {
+        case .temporary:
+            // Sync to create placeholder for the now-empty source zone.
+            syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
+            return
+        case .tiled:
+            break
         }
 
-        // Assign to zone (zone's record); setManagedWindow below updates the window's record
-        context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: targetedKey.index)
-        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-        windowController.showWindow(managed, at: displayFrame, on: descriptor)
-        setManagedWindow(managed, screenId: targetedKey.screenId, zoneIndex: targetedKey.index)
-
-        Logger.debug("Launcher: Placed window \(managed.windowId) into zone \(targetedKey.index) on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
-
-        // Dismiss Launcher before retargeting to prevent visual glitch
-        // (Launcher briefly jumping to new target before focus-change dismissal)
-        dismissLauncherIfActive()
-
-        // Only retarget if zone was empty before (same condition as WindowPlacementManager.assignWindowToZone)
-        if zoneWasEmpty, targetingMode == .independentOfFocus {
-            targetedZoneManager.retargetAfterFillingZone(targetedKey, reason: "launcher-filled")
-        }
-
-        // Activate the window
         activateWindow(managed)
-
-        // Sync handles temporary zone promotion automatically
         syncWindowsToZones()
         refreshIndicators()
     }
@@ -448,77 +412,45 @@ extension AppController: LauncherControllerDelegate {
     /// Place a window into a specific zone (used by DockMenu drag-and-drop).
     /// Unlike placeSelectedWindow, this takes an explicit zone key rather than using the targeted zone.
     internal func placeWindowIntoZone(_ managed: ManagedWindow, zoneKey: ZoneKey) {
-        // Remove from any current zone (WITHOUT retargeting)
-        removeWindowFromAllZones(windowId: managed.windowId, reason: "dockmenu-drag-placement", retarget: false)
+        windowPlacementManager.placeWindow(
+            managed,
+            into: .tiled(zoneKey),
+            centerTemporaryWindow: true,
+            reason: "dockmenu-drag-placement",
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: true,
+            displacedMinimizeReason: "dockmenu-drag-displaced",
+            retargetReason: "dockmenu-drag-filled"
+        )
 
-        guard let context = screenContexts[zoneKey.screenId],
-              let descriptor = descriptor(for: zoneKey.screenId),
-              let zone = context.zoneController.zone(at: zoneKey.index) else {
-            Logger.debug("placeWindowIntoZone: zone not found \(zoneKey)")
-            activateWindow(managed)
-            return
-        }
-
-        // Check if zone was empty before placement
-        let zoneWasEmpty = zone.isEmpty
-
-        // Displace any existing occupant (always an external window, never a placeholder).
-        // Clear both sides: zone's record and window's record of the assignment.
-        if let existingId = zone.occupantWindowId,
-           existingId != managed.windowId,
-           let existingWindow = windowController.window(withId: existingId) {
-            context.zoneController.removeWindow(windowId: existingId)
-            clearManagedWindowZone(existingWindow)
-            minimizeWindowProgrammatically(existingWindow, reason: "dockmenu-drag-displaced")
-        }
-
-        // Dismiss Launcher before zone assignment to prevent visual glitch
-        // (Launcher briefly jumping to new target before focus-change dismissal)
-        dismissLauncherIfActive()
-
-        // Assign to zone (zone's record); setManagedWindow below updates the window's record
-        context.zoneController.assignWindow(windowId: managed.windowId, toZoneIndex: zoneKey.index)
-        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-        windowController.showWindow(managed, at: displayFrame, on: descriptor)
-        setManagedWindow(managed, screenId: zoneKey.screenId, zoneIndex: zoneKey.index)
-
-        // Retarget if zone was empty
-        if zoneWasEmpty, targetingMode == .independentOfFocus {
-            targetedZoneManager.retargetAfterFillingZone(zoneKey, reason: "dockmenu-drag-filled")
-        }
-
-        Logger.debug("placeWindowIntoZone: placed window \(managed.windowId) into zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
-
-        // Activate the window
         activateWindow(managed)
-
-        // Sync handles temporary zone promotion automatically
         syncWindowsToZones()
         refreshIndicators()
     }
 
     /// Calculate the target zone frame for a window being placed via Launcher
     private func calculateTargetZoneFrame(for managed: ManagedWindow) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
-        // For temporary zone, calculate the centered frame
-        if let temporaryScreenId = targetedTemporaryScreenId {
-            guard let descriptor = descriptor(for: temporaryScreenId),
-                  let frame = temporaryZoneCoordinator.computePlacementFrame(for: managed, on: temporaryScreenId) else {
-                return nil
-            }
-            return (frame, descriptor)
-        }
-
-        // Calculate the targeted tiled zone frame
         targetedZoneManager.ensureTargetedZone(reason: "launcher-pre-position")
-        guard let targetedKey = targetedZoneKey,
-              let context = screenContexts[targetedKey.screenId],
-              let descriptor = descriptor(for: targetedKey.screenId),
-              let zone = context.zoneController.zone(at: targetedKey.index) else {
+        guard let destination = targetedZoneManager.targetedDestination else {
             return nil
         }
 
-        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-        return (displayFrame, descriptor)
+        switch destination {
+        case .temporary(let screenId):
+            guard let descriptor = descriptor(for: screenId),
+                  let frame = temporaryZoneCoordinator.computePlacementFrame(for: managed, on: screenId) else {
+                return nil
+            }
+            return (frame, descriptor)
+        case .tiled(let targetedKey):
+            guard let context = screenContexts[targetedKey.screenId],
+                  let descriptor = descriptor(for: targetedKey.screenId),
+                  let zone = context.zoneController.zone(at: targetedKey.index) else {
+                return nil
+            }
+            let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
+            return (displayFrame, descriptor)
+        }
     }
 
     /// Pre-position a minimized window to the target zone frame before unminimizing

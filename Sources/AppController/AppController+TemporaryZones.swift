@@ -12,7 +12,11 @@ extension AppController {
     }
 
     func cancelPendingMinimization(windowId: Int) {
-        temporaryZoneCoordinator.cancelPendingMinimization(windowId: windowId)
+        deferredMinimizationCoordinator.cancel(windowId: windowId)
+    }
+
+    func queueDeferredMinimization(windowId: Int, reason: String) {
+        deferredMinimizationCoordinator.queue(windowId: windowId, reason: reason)
     }
 
     func assignWindowToTemporaryZone(
