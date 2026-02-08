@@ -3,6 +3,15 @@ import CoreGraphics
 
 /// Pure geometry helpers for clipping/hiding zone resize handle frames.
 enum ZoneResizeHandleGeometry {
+    /// Shrinks a frame inward by `inset` while preserving at least 1px dimensions.
+    /// Useful for ignoring tiny visual overlaps (e.g., shadows) when deciding handle avoidance.
+    static func insetAvoidanceFrame(_ frame: CGRect, by inset: CGFloat) -> CGRect {
+        let standardized = frame.standardized
+        let insetX = min(inset, max(0, (standardized.width - 1) / 2))
+        let insetY = min(inset, max(0, (standardized.height - 1) / 2))
+        return standardized.insetBy(dx: insetX, dy: insetY).standardized
+    }
+
     /// Returns a clipped separator frame that avoids `avoidFrame` by keeping the largest remaining segment,
     /// or `nil` if the separator is fully covered.
     static func clippedSeparatorFrame(
@@ -75,4 +84,3 @@ enum ZoneResizeHandleGeometry {
         }
     }
 }
-

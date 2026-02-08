@@ -315,6 +315,12 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
             return
         }
+        let shouldRefreshResizeHandles = currentFrontmostManagedWindowId == windowId
+        defer {
+            if shouldRefreshResizeHandles {
+                refreshResizeHandles()
+            }
+        }
 
         guard let managed = windowController.window(withId: windowId),
               let zoneIndex = managed.zoneIndex else {
