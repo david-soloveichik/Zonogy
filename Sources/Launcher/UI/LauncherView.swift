@@ -56,9 +56,9 @@ struct LauncherView: View {
                             items: model.filteredItems,
                             selectedItemURL: $model.selectedItemURL,
                             onOpenSelected: handleAppLaunch,
-                            windowCountsByURL: model.windowCountsByURL,
-                            runningAppURLs: model.runningAppURLs,
-                            appsWithDefaultWindowInZone: model.appsWithDefaultWindowInZone,
+                            windowCountsByBundleIdentifier: model.windowCountsByBundleIdentifier,
+                            runningBundleIdentifiers: model.runningBundleIdentifiers,
+                            appsWithDefaultWindowInZoneBundleIdentifiers: model.appsWithDefaultWindowInZoneBundleIdentifiers,
                             onExpandApp: handleExpandApp
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

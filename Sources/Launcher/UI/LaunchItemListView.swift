@@ -1,5 +1,6 @@
 /// Displays the filtered item list with selection support
 
+import Foundation
 import SwiftUI
 
 /// Button style that scales down when pressed for visual feedback
@@ -23,9 +24,9 @@ struct LaunchItemListView: View {
     let items: [LaunchItem]
     @Binding var selectedItemURL: URL?
     let onOpenSelected: () -> Void
-    var windowCountsByURL: [URL: Int] = [:]
-    var runningAppURLs: Set<URL> = []
-    var appsWithDefaultWindowInZone: Set<URL> = []
+    var windowCountsByBundleIdentifier: [String: Int] = [:]
+    var runningBundleIdentifiers: Set<String> = []
+    var appsWithDefaultWindowInZoneBundleIdentifiers: Set<String> = []
     var onExpandApp: ((URL) -> Void)?
     @State private var chevronHoveredURL: URL?
     @State private var skipNextScrollToSelected = false
@@ -35,8 +36,9 @@ struct LaunchItemListView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(items) { item in
-                        let isRunning = runningAppURLs.contains(item.url)
-                        let hasDefaultWindowInZone = appsWithDefaultWindowInZone.contains(item.url)
+                        let bundleId = Bundle(url: item.url)?.bundleIdentifier
+                        let isRunning = bundleId.map { runningBundleIdentifiers.contains($0) } ?? false
+                        let hasDefaultWindowInZone = bundleId.map { appsWithDefaultWindowInZoneBundleIdentifiers.contains($0) } ?? false
                         LaunchItemRowView(
                             item: item,
                             isSelected: item.url == selectedItemURL,
@@ -60,7 +62,9 @@ struct LaunchItemListView: View {
                         .overlay(alignment: .trailing) {
                             if isRunning {
                                 HStack(spacing: 2) {
-                                    if let count = windowCountsByURL[item.url], count > 0 {
+                                    if let bundleId,
+                                       let count = windowCountsByBundleIdentifier[bundleId],
+                                       count > 0 {
                                         Text("\(count)")
                                             .font(.system(size: 11))
                                             .foregroundStyle(.secondary)

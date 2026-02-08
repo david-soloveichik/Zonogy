@@ -30,9 +30,9 @@ final class LauncherModel: ObservableObject {
     @Published private(set) var filteredWindowItems: [LauncherWindowItem] = []
     @Published var selectedWindowId: UUID?
     @Published private(set) var windowModeAppIcon: NSImage?
-    @Published private(set) var runningAppURLs: Set<URL> = []
-    @Published private(set) var appsWithDefaultWindowInZone: Set<URL> = []
-    @Published private(set) var windowCountsByURL: [URL: Int] = [:]
+    @Published private(set) var runningBundleIdentifiers: Set<String> = []
+    @Published private(set) var appsWithDefaultWindowInZoneBundleIdentifiers: Set<String> = []
+    @Published private(set) var windowCountsByBundleIdentifier: [String: Int] = [:]
     @Published private(set) var focusSearchFieldToken: Int = 0
 
     var isAppHeaderSelected: Bool {
@@ -93,41 +93,35 @@ final class LauncherModel: ObservableObject {
 
     private func refreshRunningApps() {
         let running = NSWorkspace.shared.runningApplications
-        runningAppURLs = Set(running.compactMap { $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath() })
+        runningBundleIdentifiers = Set(running.compactMap(\.bundleIdentifier))
         refreshDefaultWindowZoneStatus()
     }
 
     func refreshDefaultWindowZoneStatus() {
-        var result: Set<URL> = []
-        for url in runningAppURLs {
-            guard let bundle = Bundle(url: url),
-                  let bundleId = bundle.bundleIdentifier,
-                  windowProvider?.isDefaultWindowInZone(forBundleIdentifier: bundleId) == true else {
+        var result: Set<String> = []
+        for bundleId in runningBundleIdentifiers {
+            guard windowProvider?.isDefaultWindowInZone(forBundleIdentifier: bundleId) == true else {
                 continue
             }
-            result.insert(url)
+            result.insert(bundleId)
         }
-        appsWithDefaultWindowInZone = result
+        appsWithDefaultWindowInZoneBundleIdentifiers = result
         refreshWindowCounts()
     }
 
     func refreshWindowCounts() {
         guard let windowProvider else {
-            windowCountsByURL = [:]
+            windowCountsByBundleIdentifier = [:]
             return
         }
-        var counts: [URL: Int] = [:]
-        for url in runningAppURLs {
-            guard let bundle = Bundle(url: url),
-                  let bundleId = bundle.bundleIdentifier else {
-                continue
-            }
+        var counts: [String: Int] = [:]
+        for bundleId in runningBundleIdentifiers {
             let count = windowProvider.windowCount(for: bundleId)
             if count > 0 {
-                counts[url] = count
+                counts[bundleId] = count
             }
         }
-        windowCountsByURL = counts
+        windowCountsByBundleIdentifier = counts
     }
 
     func reloadItems() {
@@ -267,12 +261,11 @@ final class LauncherModel: ObservableObject {
         guard let url = selectedItemURL,
               let item = filteredItems.first(where: { $0.url == url }),
               item.kind == .application,
-              let bundle = Bundle(url: url),
-              let bundleId = bundle.bundleIdentifier else { return }
+              let bundleId = Bundle(url: url)?.bundleIdentifier else { return }
 
         // Only allow drill-down for running apps
+        guard runningBundleIdentifiers.contains(bundleId) else { return }
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
-        guard runningAppURLs.contains(resolved) else { return }
 
         // Record selection for the app (drill-down counts as activation per spec)
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
