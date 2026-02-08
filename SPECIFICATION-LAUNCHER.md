@@ -83,7 +83,7 @@ All applications known to the OS are included, except those listed in `ignoredBu
 
 ### Windows
 
-When an application with multiple windows is selected, the user can drill down to see individual windows:
+When a running application is selected, the user can drill down to that application's window list (even when Zonogy currently tracks zero managed windows):
 
 - Uses Zonogy's tracked windows as the source of truth (rather than direct Accessibility API enumeration)
 - Only shows windows that Zonogy has captured (i.e., zone-manageable standard windows)
@@ -164,9 +164,9 @@ Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmos
 
 When drilling into an application's windows:
 
-1. The list is replaced with that application's windows
+1. The list is replaced with that application's managed windows (which may be empty)
 2. Search field is cleared
-3. First actual window is selected (not the app header)
+3. If at least one window exists, the first actual window is selected (not the app header); otherwise the app header (Menu Bar entry) is selected
 4. Same fuzzy matching applies to window titles; when searching, windows are ranked by match quality with recency order as the tie-breaker
 
 **App Header Entry:**
