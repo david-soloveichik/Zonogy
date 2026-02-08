@@ -210,10 +210,11 @@ extension AppController {
         let frame: CGRect
     }
 
-    private func frontmostManagedWindowContext() -> FrontmostManagedWindowContext? {
+    private func frontmostManagedWindowContext(windowIdOverride: Int? = nil) -> FrontmostManagedWindowContext? {
+        let windowId = windowIdOverride ?? currentFrontmostManagedWindowId
         guard !zoneResizeDragInProgress,
-              let frontmostId = currentFrontmostManagedWindowId,
-              let managed = windowController.window(withId: frontmostId),
+              let windowId,
+              let managed = windowController.window(withId: windowId),
               let zoneKey = zoneKey(forManagedWindow: managed),
               let descriptor = descriptor(for: zoneKey.screenId) else {
             return nil
@@ -224,9 +225,13 @@ extension AppController {
     }
 
     internal func refreshResizeHandles() {
+        refreshResizeHandles(frontmostWindowIdOverride: nil)
+    }
+
+    internal func refreshResizeHandles(frontmostWindowIdOverride: Int?) {
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
-        let frontmostManagedWindow = frontmostManagedWindowContext()
+        let frontmostManagedWindow = frontmostManagedWindowContext(windowIdOverride: frontmostWindowIdOverride)
         let windowOverlapAllowance: CGFloat = zoneMargin
 
         for (screenId, context) in screenContexts {

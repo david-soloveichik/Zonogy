@@ -8,4 +8,4 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
   - Think about: Focus/activation and sync can race.
 
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
-  - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper.
+  - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.

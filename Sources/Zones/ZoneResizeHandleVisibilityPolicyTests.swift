@@ -75,7 +75,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             assertEqual(adjusted, nil, label: "activefit hides horizontal separator")
         }
 
-        // Frontmost zone-1 window hides overlapping vertical separator.
+        // Frontmost zone-1 window clips overlapping vertical separator.
         do {
             let frontmost = ZoneResizeHandleAvoidanceContext(
                 zoneIndex: 1,
@@ -86,7 +86,43 @@ enum ZoneResizeHandleVisibilityPolicyTests {
                 activeFitContext: nil,
                 frontmostManagedContext: frontmost
             )
-            assertEqual(adjusted, nil, label: "frontmost zone1 hides vertical separator")
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 40, width: 8, height: 60),
+                label: "frontmost zone1 clips vertical separator"
+            )
+        }
+
+        // Frontmost window in zone 3 also clips vertical separator.
+        do {
+            let frontmost = ZoneResizeHandleAvoidanceContext(
+                zoneIndex: 3,
+                avoidFrame: CGRect(x: 48, y: 20, width: 20, height: 20)
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                frontmostManagedContext: frontmost
+            )
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 40, width: 8, height: 60),
+                label: "frontmost zone3 clips vertical separator"
+            )
+        }
+
+        // Frontmost window hides vertical separator when fully covered.
+        do {
+            let frontmost = ZoneResizeHandleAvoidanceContext(
+                zoneIndex: 2,
+                avoidFrame: CGRect(x: 40, y: 0, width: 40, height: 200)
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                frontmostManagedContext: frontmost
+            )
+            assertEqual(adjusted, nil, label: "frontmost hides fully-covered vertical separator")
         }
 
         // Frontmost window clips horizontal separator regardless of zone.
@@ -122,7 +158,11 @@ enum ZoneResizeHandleVisibilityPolicyTests {
                 activeFitContext: active,
                 frontmostManagedContext: frontmost
             )
-            assertEqual(adjusted, nil, label: "frontmost can hide activefit-clipped separator")
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 0, width: 8, height: 10),
+                label: "frontmost can further clip activefit-clipped separator"
+            )
         }
 
         if allPassed {

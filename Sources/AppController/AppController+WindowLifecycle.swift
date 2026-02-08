@@ -315,11 +315,10 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "resize") {
             return
         }
-        let shouldRefreshResizeHandles = currentFrontmostManagedWindowId == windowId
         defer {
-            if shouldRefreshResizeHandles {
-                refreshResizeHandles()
-            }
+            // AX focus notifications can lag during edge drags; force this resize event's
+            // window into the overlap computation so handles update immediately.
+            refreshResizeHandles(frontmostWindowIdOverride: windowId)
         }
 
         guard let managed = windowController.window(withId: windowId),

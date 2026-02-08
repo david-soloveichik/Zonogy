@@ -14,6 +14,85 @@ struct ZoneResizeHandleAvoidanceContext {
 
 /// Applies overlap rules from the specification for ActiveFit reveal windows and frontmost managed windows.
 enum ZoneResizeHandleVisibilityPolicy {
+    private static func clipSeparatorFrame(
+        _ frame: CGRect,
+        avoiding avoidFrame: CGRect,
+        orientation: ZoneLayout.SeparatorOrientation
+    ) -> CGRect? {
+        ZoneResizeHandleGeometry.clippedSeparatorFrame(
+            frame,
+            avoiding: avoidFrame,
+            orientation: orientation
+        )
+    }
+
+    private static func adjustedFrameForActiveFitContext(
+        _ separator: ZoneLayout.Separator,
+        frame: CGRect,
+        context: ZoneResizeHandleAvoidanceContext
+    ) -> CGRect? {
+        var adjusted = frame
+        switch separator.orientation {
+        case .vertical:
+            // Separator between zone 1 and zones 2/3: clip against reveal windows in zones 2/3.
+            if separator.index == 0, context.zoneIndex >= 2 {
+                guard let clipped = clipSeparatorFrame(
+                    adjusted,
+                    avoiding: context.avoidFrame,
+                    orientation: .vertical
+                ) else {
+                    return nil
+                }
+                adjusted = clipped
+            }
+
+        case .horizontal:
+            // Separator between zones 2 and 3: hide if it intersects reveal windows in zones 2/3.
+            if separator.index == 1,
+               context.zoneIndex >= 2,
+               adjusted.intersects(context.avoidFrame) {
+                return nil
+            }
+        }
+
+        return adjusted
+    }
+
+    private static func adjustedFrameForFrontmostContext(
+        _ separator: ZoneLayout.Separator,
+        frame: CGRect,
+        context: ZoneResizeHandleAvoidanceContext
+    ) -> CGRect? {
+        var adjusted = frame
+
+        // Frontmost managed windows in any tiling zone should avoid both separators.
+        if separator.orientation == .vertical,
+           separator.index == 0 {
+            guard let clipped = clipSeparatorFrame(
+                adjusted,
+                avoiding: context.avoidFrame,
+                orientation: .vertical
+            ) else {
+                return nil
+            }
+            adjusted = clipped
+        }
+
+        if separator.orientation == .horizontal,
+           separator.index == 1 {
+            guard let clipped = clipSeparatorFrame(
+                adjusted,
+                avoiding: context.avoidFrame,
+                orientation: .horizontal
+            ) else {
+                return nil
+            }
+            adjusted = clipped
+        }
+
+        return adjusted
+    }
+
     /// Returns the adjusted frame for a separator, or `nil` if it should be hidden.
     static func adjustedSeparatorFrame(
         _ separator: ZoneLayout.Separator,
@@ -23,51 +102,25 @@ enum ZoneResizeHandleVisibilityPolicy {
         var frame = separator.frame.standardized
 
         if let activeFitContext {
-            switch separator.orientation {
-            case .vertical:
-                // Separator between zone 1 and zones 2/3: clip against reveal windows in zones 2/3.
-                if separator.index == 0, activeFitContext.zoneIndex >= 2 {
-                    guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(
-                        frame,
-                        avoiding: activeFitContext.avoidFrame,
-                        orientation: .vertical
-                    ) else {
-                        return nil
-                    }
-                    frame = clipped
-                }
-
-            case .horizontal:
-                // Separator between zones 2 and 3: hide if it intersects reveal windows in zones 2/3.
-                if separator.index == 1,
-                   activeFitContext.zoneIndex >= 2,
-                   frame.intersects(activeFitContext.avoidFrame) {
-                    return nil
-                }
+            guard let adjusted = adjustedFrameForActiveFitContext(
+                separator,
+                frame: frame,
+                context: activeFitContext
+            ) else {
+                return nil
             }
+            frame = adjusted
         }
 
         if let frontmostManagedContext {
-            // Hide vertical separator when frontmost zone-1 window overlaps the margin.
-            if separator.orientation == .vertical,
-               separator.index == 0,
-               frontmostManagedContext.zoneIndex == 1,
-               frame.intersects(frontmostManagedContext.avoidFrame) {
+            guard let adjusted = adjustedFrameForFrontmostContext(
+                separator,
+                frame: frame,
+                context: frontmostManagedContext
+            ) else {
                 return nil
             }
-
-            // Clip horizontal separator to avoid the frontmost managed window on any zone.
-            if separator.orientation == .horizontal,
-               separator.index == 1 {
-                guard let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(
-                    frame,
-                    avoiding: frontmostManagedContext.avoidFrame,
-                    orientation: .horizontal
-                ) else {
-                    return nil
-                }
-                frame = clipped
-            }
+            frame = adjusted
         }
 
         return frame
