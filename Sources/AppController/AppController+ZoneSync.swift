@@ -14,15 +14,16 @@ extension AppController {
     /// 1. Coalesce concurrent sync requests so at most one sync runs at a time.
     /// 2. Prune any external windows that the OS reports as destroyed and
     ///    remove them from any zones that still reference them.
-    /// 3. For every screen/zone, position the real window (if any) into its
+    /// 3. Reconcile zone occupancy so no zone references a missing managed window.
+    /// 4. For every screen/zone, position the real window (if any) into its
     ///    zone frame (respecting margins and ActiveFit reveal mode), and
     ///    record which windows were actively assigned this pass.
-    /// 4. Ask `PlaceholderCoordinator` to align placeholder windows with all
+    /// 5. Ask `PlaceholderCoordinator` to align placeholder windows with all
     ///    empty zones (except those that are suppressed or excluded), reusing
     ///    or creating placeholder windows as needed and hiding obsolete ones.
-    /// 5. Clear stale zone assignments for any non‑placeholder window that was
+    /// 6. Clear stale zone assignments for any non‑placeholder window that was
     ///    not assigned this pass and is not in the temporary floating zone.
-    /// 6. Refresh targeted zone state, temporary‑zone targeting, and visual
+    /// 7. Refresh targeted zone state, temporary‑zone targeting, and visual
     ///    indicators so the UI matches the new layout.
     internal func syncWindowsToZones(recentlyPlacedInTempZone: Int? = nil) {
         let tempZoneExclusion = recentlyPlacedInTempZone
@@ -64,12 +65,55 @@ extension AppController {
             )
         }
 
+        // Phase 2: clear stale zone occupancy. Even if a destroyed window was
+        // pruned earlier, recapture/sync interleavings can leave a zone with a
+        // dead occupant ID. Reconcile occupancy against the live registry.
+        let liveWindowIds = Set(windowController.allWindows.map { $0.windowId })
+        var zoneSnapshots: [ZoneOccupancyReconciler.ZoneOccupantSnapshot] = []
+        for screenId in screenOrder {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+            for zone in context.zoneController.allZones {
+                zoneSnapshots.append(
+                    ZoneOccupancyReconciler.ZoneOccupantSnapshot(
+                        key: ZoneKey(screenId: screenId, index: zone.index),
+                        occupantWindowId: zone.occupantWindowId
+                    )
+                )
+            }
+        }
+        let staleOccupants = ZoneOccupancyReconciler.staleOccupants(
+            from: zoneSnapshots,
+            liveWindowIds: liveWindowIds
+        )
+        var firstClearedZoneKey: ZoneKey?
+        for stale in staleOccupants {
+            guard let context = screenContexts[stale.key.screenId],
+                  let zone = context.zoneController.zone(at: stale.key.index),
+                  zone.occupantWindowId == stale.windowId else {
+                continue
+            }
+            Logger.debug(
+                "Sync clearing stale zone occupant \(stale.windowId) from zone \(stale.key.index) " +
+                "on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: stale.key.screenId))]"
+            )
+            context.zoneController.removeWindow(windowId: stale.windowId)
+            if firstClearedZoneKey == nil {
+                firstClearedZoneKey = stale.key
+            }
+        }
+        if let firstClearedZoneKey {
+            targetedZoneManager.setTargetedZone(firstClearedZoneKey, reason: "sync-cleared-stale-occupant")
+            autoShowLauncherIfEmptyTargetedTiledZone()
+        }
+
         // Tracks all non‑placeholder windows that end up with a valid zone
         // assignment in this pass. Anything not in this set (and not in the
         // temporary zone) will be detached from the tiling model at the end.
         var assignedWindowIds = Set<Int>()
 
-        // Phase 2: walk every screen and zone, and for each zone that already
+        // Phase 3: walk every screen and zone, and for each zone that already
         // has a real window, move/resize that window into the zone's content
         // frame (with margins) unless ActiveFit says to preserve reveal mode.
         for screenId in screenOrder {
@@ -105,7 +149,7 @@ extension AppController {
             }
         }
 
-        // Phase 3: sync placeholder windows so every empty zone has a matching placeholder
+        // Phase 4: sync placeholder windows so every empty zone has a matching placeholder
         // (unless explicitly suppressed for this pass). PlaceholderCoordinator owns and
         // tracks placeholder windows internally.
         placeholderCoordinator.syncPlaceholders(
@@ -152,7 +196,7 @@ extension AppController {
 
         Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty")
 
-        // Phase 4: clean up stale assignments. Any window that was *not*
+        // Phase 5: clean up stale assignments. Any window that was *not*
         // assigned to a tiled zone in this pass and is *not* parked in the
         // temporary floating zone should no longer be treated as zoned.
         for window in windowController.allWindows {
@@ -165,7 +209,7 @@ extension AppController {
             clearManagedWindowZone(window)
         }
 
-        // Phase 5: promote temporary zone occupants into newly-emptied tiling zones.
+        // Phase 6: promote temporary zone occupants into newly-emptied tiling zones.
         // Spec: "When a tiling zone on a screen becomes empty and that screen has
         // a temporary-zone occupant, promote the temporary window into the emptied zone."
         func snapshotZoneKeys() -> (known: Set<ZoneKey>, empty: Set<ZoneKey>) {
@@ -203,7 +247,7 @@ extension AppController {
         lastSyncKnownZoneKeys = postPromotionSnapshot.known
         lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
 
-        // Phase 6: ensure targeting and indicators are consistent with the new
+        // Phase 7: ensure targeting and indicators are consistent with the new
         // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         refreshIndicators()

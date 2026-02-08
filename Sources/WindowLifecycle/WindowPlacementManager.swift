@@ -80,7 +80,15 @@ class WindowPlacementManager {
     // MARK: - Public Methods
 
     /// Places a newly captured window into the best zone (targeted or preferred screen).
-    func placeNewWindow(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID? = nil) {
+    /// - Parameters:
+    ///   - managed: The managed window to place.
+    ///   - preferredScreenId: Optional preferred display for placement.
+    ///   - requestSync: Whether to request an immediate zone sync after placement.
+    func placeNewWindow(
+        _ managed: ManagedWindow,
+        preferredScreenId: CGDirectDisplayID? = nil,
+        requestSync: Bool = true
+    ) {
         guard let delegate = delegate else { return }
 
         let baseReason = "place-new-window"
@@ -95,7 +103,9 @@ class WindowPlacementManager {
             managed.zoneIndex = nil
             placeWindow(managed, on: preferredScreenId, reason: baseReason)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
-            delegate.requestSync()
+            if requestSync {
+                delegate.requestSync()
+            }
             return
         }
 
@@ -134,7 +144,9 @@ class WindowPlacementManager {
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen, reason: baseReason)
             emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
-            delegate.requestSync()
+            if requestSync {
+                delegate.requestSync()
+            }
             return
         }
 
@@ -147,7 +159,9 @@ class WindowPlacementManager {
             forceRetargetAfterFill: false,
             logIfUnassignedOnRemoval: false
         )
-        delegate.requestSync()
+        if requestSync {
+            delegate.requestSync()
+        }
     }
 
     /// Reassigns or minimizes a window after its zone was deleted.

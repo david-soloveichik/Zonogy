@@ -47,7 +47,9 @@ extension AppController {
                 }
             }
 
-            // Place any tracked but unzoned windows
+            // Place any tracked but unzoned windows.
+            // This intentionally does not sync per placement; we do one sync below
+            // to avoid re-entrant churn while iterating recapture candidates.
             let placedUnzonedCount = self.placeTrackedButUnzonedWindows(reason: reason)
 
             // Sync if we captured new windows or placed unzoned ones
@@ -79,14 +81,31 @@ extension AppController {
     @discardableResult
     internal func placeTrackedButUnzonedWindows(reason: String) -> Int {
         var placedCount = 0
-        for window in windowController.allWindows {
+        let candidateWindowIds: [Int] = windowController.allWindows.compactMap { (window: ManagedWindow) -> Int? in
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
                   !isWindowInTemporaryZone(window.windowId) else {
+                return nil
+            }
+            return window.windowId
+        }
+
+        for windowId in candidateWindowIds {
+            // Re-resolve each candidate from the registry so recapture never
+            // places a window object that was pruned after candidate collection.
+            guard let window = windowController.window(withId: windowId) else {
+                Logger.debug("\(reason.capitalized): skipping recapture candidate \(windowId); no longer managed")
                 continue
             }
+
+            guard !window.isMinimizedPerAccessibility,
+                  zoneKey(forManagedWindow: window) == nil,
+                  !isWindowInTemporaryZone(windowId) else {
+                continue
+            }
+
             Logger.debug("\(reason.capitalized): placing tracked but unzoned window \(window.windowId)")
-            windowPlacementManager.placeNewWindow(window)
+            windowPlacementManager.placeNewWindow(window, requestSync: false)
             placedCount += 1
         }
         return placedCount
