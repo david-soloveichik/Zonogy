@@ -19,6 +19,10 @@ extension AppController {
         deferredMinimizationCoordinator.queue(windowId: windowId, reason: reason)
     }
 
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
+        temporaryZoneCoordinator.prepareForDeferredMinimization(windowId: windowId, reason: reason)
+    }
+
     func assignWindowToTemporaryZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,

@@ -5,6 +5,9 @@
 import Foundation
 protocol DeferredMinimizationCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
+    /// Returns `true` when the deferred minimization should proceed for this window/reason pair.
+    /// Hosts can perform pre-minimization bookkeeping (or veto minimization entirely) here.
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
 }
 
@@ -63,6 +66,10 @@ final class DeferredMinimizationCoordinator {
         pending.removeAll()
 
         for (windowId, reason) in windowsToMinimize {
+            guard host.prepareForDeferredMinimization(windowId: windowId, reason: reason) else {
+                Logger.debug("Deferred minimization skipped for window \(windowId) (reason: \(reason))")
+                continue
+            }
             if let window = host.windowController.window(withId: windowId) {
                 host.minimizeWindowProgrammatically(window, reason: reason)
                 Logger.debug("Deferred minimization completed for window \(windowId) (reason: \(reason))")

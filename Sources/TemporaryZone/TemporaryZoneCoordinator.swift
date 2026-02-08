@@ -177,9 +177,9 @@ final class TemporaryZoneCoordinator {
                 if focusContext.window.windowId == occupantId {
                     continue
                 }
-                minimizeOccupant(on: screenId, reason: "focus-shift-same-app")
+                queueConditionalMinimizeOccupant(on: screenId, reason: "focus-shift-same-app")
             } else {
-                minimizeOccupant(on: screenId, reason: "focus-shift-other-app")
+                queueConditionalMinimizeOccupant(on: screenId, reason: "focus-shift-other-app")
             }
         }
     }
@@ -213,8 +213,38 @@ final class TemporaryZoneCoordinator {
                 continue
             }
 
-            minimizeOccupant(on: screenId, reason: reason)
+            queueConditionalMinimizeOccupant(on: screenId, reason: reason)
         }
+    }
+
+    /// Prepare host/delegate state right before deferred minimization executes.
+    /// For focus-driven temporary-zone minimization, we only proceed if the window is
+    /// still the temporary occupant at flush time.
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
+        guard let host else { return false }
+
+        guard isFocusDrivenTemporaryMinimizationReason(reason) else {
+            return true
+        }
+
+        guard let screenId = occupants.first(where: { $0.value == windowId })?.key else {
+            Logger.debug(
+                "Temporary zone deferred minimization skipped for window \(windowId): no longer temporary occupant (reason: \(reason))"
+            )
+            return false
+        }
+
+        host.clearTemporaryZoneProtection(windowId: windowId)
+        occupants.removeValue(forKey: screenId)
+
+        if let occupant = host.windowController.window(withId: windowId) {
+            occupant.isInTemporaryZone = false
+            host.clearManagedWindowZone(occupant)
+        }
+
+        host.refreshIndicators()
+        host.refreshResizeHandles()
+        return true
     }
 
     func finalizeFloatingDrop(
@@ -376,6 +406,21 @@ final class TemporaryZoneCoordinator {
 
     private func isTiledWindow(_ window: ManagedWindow) -> Bool {
         return window.zoneIndex != nil
+    }
+
+    private func queueConditionalMinimizeOccupant(on screenId: CGDirectDisplayID, reason: String) {
+        guard let host,
+              let occupant = occupant(on: screenId) else {
+            return
+        }
+        host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
+        Logger.debug(
+            "Temporary zone queued conditional minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
+        )
+    }
+
+    private func isFocusDrivenTemporaryMinimizationReason(_ reason: String) -> Bool {
+        return reason.hasPrefix("focus-shift-") || reason == "workspace-activate"
     }
 
 }
