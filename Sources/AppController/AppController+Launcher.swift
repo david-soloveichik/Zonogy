@@ -254,7 +254,8 @@ extension AppController: LauncherControllerDelegate {
 
     /// Returns the preferred window for a running app based on configuration:
     /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID
-    /// - Otherwise: returns the most recently active window
+    /// - Otherwise: returns the same window as selecting the app, drilling into window list, and opening
+    ///   the first window row (not-in-zone first, then recency)
     /// - Returns nil if app has no managed windows with titles
     internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
         guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
@@ -290,6 +291,7 @@ extension AppController: LauncherControllerDelegate {
             PreferredWindowSelection.Candidate(
                 windowId: window.windowId,
                 cgWindowId: window.backing.cgWindowId,
+                isPlacedInZone: window.isPlacedInZone,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId)
             )
         }
@@ -301,7 +303,7 @@ extension AppController: LauncherControllerDelegate {
         if prefersMainWindow {
             Logger.debug("Launcher: App \(bundleIdentifier) has hasMainWindow=true, selecting window \(selected.windowId) (lowest CGWindowID \(selected.cgWindowId))")
         } else {
-            Logger.debug("Launcher: App \(bundleIdentifier) selecting most recent window \(selected.windowId)")
+            Logger.debug("Launcher: App \(bundleIdentifier) selecting first drill-down window \(selected.windowId) (not-in-zone first, then recency)")
         }
 
         let windowsById = Dictionary(uniqueKeysWithValues: eligibleWindows.map { ($0.windowId, $0) })
@@ -552,7 +554,12 @@ extension AppController: LauncherWindowProvider {
         items.sort { lhs, rhs in
             switch (lhs.lastActiveTime, rhs.lastActiveTime) {
             case (let lhsTime?, let rhsTime?):
-                return lhsTime > rhsTime
+                if lhsTime != rhsTime {
+                    return lhsTime > rhsTime
+                }
+                let lhsId = lhs.managedWindowId ?? Int.max
+                let rhsId = rhs.managedWindowId ?? Int.max
+                return lhsId < rhsId
             case (.some, .none):
                 return true
             case (.none, .some):

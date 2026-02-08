@@ -8,6 +8,7 @@ enum PreferredWindowSelection {
     struct Candidate: Equatable {
         let windowId: Int
         let cgWindowId: Int
+        let isPlacedInZone: Bool
         let lastActiveTime: Date?
     }
 
@@ -31,11 +32,21 @@ enum PreferredWindowSelection {
             return sorted.first
         }
 
-        // Most recent first, falling back to Zonogy ID order when recency is unknown.
+        // Match Launcher drill-down ordering:
+        // 1) windows not in any zone first
+        // 2) within each group, most-recently-active first
+        // 3) recency ties / unknown recency fall back to Zonogy ID
         sorted.sort { lhs, rhs in
+            if lhs.isPlacedInZone != rhs.isPlacedInZone {
+                return !lhs.isPlacedInZone && rhs.isPlacedInZone
+            }
+
             switch (lhs.lastActiveTime, rhs.lastActiveTime) {
             case (let lhsT?, let rhsT?):
-                return lhsT > rhsT
+                if lhsT != rhsT {
+                    return lhsT > rhsT
+                }
+                return lhs.windowId < rhs.windowId
             case (.some, .none):
                 return true
             case (.none, .some):
@@ -48,4 +59,3 @@ enum PreferredWindowSelection {
         return sorted.first
     }
 }
-

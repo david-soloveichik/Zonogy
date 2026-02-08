@@ -98,7 +98,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         // Exception checkboxes - "Has main window" first
         hasMainWindowCheckbox = makeCheckbox(
             title: "Has main window",
-            tooltip: "Prefer the app's main window in Launcher (selects lowest CGWindowID)"
+            tooltip: "For Launcher and DockMenus, prefer the app's main window (lowest CGWindowID)"
         )
         container.addSubview(hasMainWindowCheckbox)
 

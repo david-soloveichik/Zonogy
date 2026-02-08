@@ -18,9 +18,9 @@ enum PreferredWindowSelectionTests {
             let tNew = Date(timeIntervalSince1970: 999)
 
             let candidates: [PreferredWindowSelection.Candidate] = [
-                .init(windowId: 10, cgWindowId: 400, lastActiveTime: tOld),
-                .init(windowId: 5, cgWindowId: 200, lastActiveTime: tNew),
-                .init(windowId: 1, cgWindowId: 300, lastActiveTime: nil),
+                .init(windowId: 10, cgWindowId: 400, isPlacedInZone: false, lastActiveTime: tOld),
+                .init(windowId: 5, cgWindowId: 200, isPlacedInZone: true, lastActiveTime: tNew),
+                .init(windowId: 1, cgWindowId: 300, isPlacedInZone: false, lastActiveTime: nil),
             ]
 
             let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: true)
@@ -32,19 +32,32 @@ enum PreferredWindowSelectionTests {
             let t2 = Date(timeIntervalSince1970: 20)
 
             let candidates: [PreferredWindowSelection.Candidate] = [
-                .init(windowId: 1, cgWindowId: 111, lastActiveTime: t1),
-                .init(windowId: 2, cgWindowId: 222, lastActiveTime: t2),
-                .init(windowId: 3, cgWindowId: 333, lastActiveTime: nil),
+                .init(windowId: 1, cgWindowId: 111, isPlacedInZone: true, lastActiveTime: t2),
+                .init(windowId: 2, cgWindowId: 222, isPlacedInZone: false, lastActiveTime: t1),
+                .init(windowId: 3, cgWindowId: 333, isPlacedInZone: true, lastActiveTime: nil),
             ]
 
             let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: false)
-            assert(selected?.windowId == 2, "non-main window apps should select the most recently active window")
+            assert(selected?.windowId == 2, "non-main window apps should prioritize the first drill-down window (not-in-zone first)")
+        }
+
+        do {
+            let tOld = Date(timeIntervalSince1970: 10)
+            let tNew = Date(timeIntervalSince1970: 20)
+
+            let candidates: [PreferredWindowSelection.Candidate] = [
+                .init(windowId: 1, cgWindowId: 1000, isPlacedInZone: false, lastActiveTime: tOld),
+                .init(windowId: 7, cgWindowId: 2000, isPlacedInZone: false, lastActiveTime: tNew),
+            ]
+
+            let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: false)
+            assert(selected?.windowId == 7, "within the same placement group, non-main window apps should pick most recent")
         }
 
         do {
             let candidates: [PreferredWindowSelection.Candidate] = [
-                .init(windowId: 42, cgWindowId: 1000, lastActiveTime: nil),
-                .init(windowId: 7, cgWindowId: 2000, lastActiveTime: nil),
+                .init(windowId: 42, cgWindowId: 1000, isPlacedInZone: false, lastActiveTime: nil),
+                .init(windowId: 7, cgWindowId: 2000, isPlacedInZone: false, lastActiveTime: nil),
             ]
 
             let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: false)
@@ -57,4 +70,3 @@ enum PreferredWindowSelectionTests {
         return allPassed
     }
 }
-
