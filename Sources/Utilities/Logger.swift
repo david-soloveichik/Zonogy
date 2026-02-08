@@ -4,7 +4,7 @@ import Foundation
 enum Logger {
     static var logToFile = false
     static let logPath = "/tmp/zonogy-debug.log"
-    private static let timeTravelLogFilename = "time_travel_log.txt"
+    static let timeTravelLogPath = "/tmp/zonogy-debug-time-travel.log"
     private static let bufferRetentionWindow: TimeInterval = 10
     private static let bufferQueue = DispatchQueue(label: "com.zonogy.logger.buffer", qos: .utility)
     private static var recentEntries: [LogEntry] = []
@@ -54,6 +54,7 @@ enum Logger {
         }
 
         var lines: [String] = []
+        lines.append(AppVersion.preferencesDisplayString)
         if entries.isEmpty {
             let windowDescription = String(format: "%.1f", window)
             lines.append("<<No log entries captured in the last \(windowDescription) seconds>>")
@@ -70,9 +71,7 @@ enum Logger {
         if let destinationURL {
             targetURL = destinationURL
         } else {
-            let cwd = FileManager.default.currentDirectoryPath
-            targetURL = URL(fileURLWithPath: cwd, isDirectory: true)
-                .appendingPathComponent(timeTravelLogFilename, isDirectory: false)
+            targetURL = URL(fileURLWithPath: timeTravelLogPath, isDirectory: false)
         }
 
         do {

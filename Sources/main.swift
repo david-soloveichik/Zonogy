@@ -16,7 +16,7 @@ if arguments.contains("--self-test") {
 // Always enable file logging for debugging
 Logger.clearLogFile()
 Logger.logToFile = true
-Logger.debug("Zonogy starting - logging to \(Logger.logPath)")
+Logger.debug("\(AppVersion.preferencesDisplayString) starting - logging to \(Logger.logPath)")
 
 // Create the NSApplication
 let app = NSApplication.shared

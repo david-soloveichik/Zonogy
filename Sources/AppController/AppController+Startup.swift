@@ -452,15 +452,13 @@ extension AppController {
 
     private func captureTimeTravelLogs(triggerReason: String) {
         let captureTime = Date()
-        let cwd = FileManager.default.currentDirectoryPath
-        let destinationURL = URL(fileURLWithPath: cwd, isDirectory: true)
-            .appendingPathComponent("time_travel_log.txt", isDirectory: false)
+        let destinationURL = URL(fileURLWithPath: Logger.timeTravelLogPath, isDirectory: false)
         let success = Logger.dumpRecentLogs(
             destinationURL: destinationURL,
             captureTimestamp: captureTime
         )
         if success {
-            Logger.debug("Time-travel logs captured at \(destinationURL.path) (reason: \(triggerReason))")
+            Logger.debug("Time-travel logs captured at \(Logger.timeTravelLogPath) (reason: \(triggerReason))")
         } else {
             Logger.debug("Time-travel log capture failed (reason: \(triggerReason))")
         }

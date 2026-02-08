@@ -324,7 +324,7 @@ Zonogy always writes debug logs to `/tmp/zonogy-debug.log`. AI agents should rea
 
 ### Time-travel Debug Logging
 
-When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `./time_travel_log.txt` to help us debug the problem.
+When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 10 seconds of the log prior to the invocation of the shortcut* to `/tmp/zonogy-debug-time-travel.log` to help us debug the problem.
 
 After the time travel log file is written, the log buffer should be cleared. This means that pressing "Control-Command-z" twice within a short time window would only generate the log *between* the two presses.
 
