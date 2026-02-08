@@ -178,11 +178,13 @@ class AddZoneIndicatorView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
     }
 
     required init?(coder decoder: NSCoder) {
         super.init(coder: decoder)
+        ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
     }
 

@@ -93,6 +93,7 @@ final class TemporaryZoneIndicatorManager {
             self.isDragHighlighted = dragHighlighted
             super.init(frame: frameRect)
             wantsLayer = true
+            ForceClickSuppression.apply(to: self)
             if #available(macOS 10.15, *) {
                 layer?.cornerCurve = .continuous
             }

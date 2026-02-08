@@ -67,6 +67,7 @@ final class ZoneResizeHandleManager {
             self.orientation = orientation
             super.init(frame: frameRect)
             wantsLayer = true
+            ForceClickSuppression.apply(to: self)
         }
 
         required init?(coder: NSCoder) {

@@ -31,6 +31,15 @@ final class DragOverlayManager {
     }
 
     private final class OverlayView: NSView {
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            ForceClickSuppression.apply(to: self)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
         var fillColor: NSColor = .clear {
             didSet {
                 needsDisplay = true

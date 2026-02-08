@@ -79,6 +79,7 @@ final class DockMenuPanelController: NSObject {
         let dockMenuView = DockMenuView(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: dockMenuView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
+        ForceClickSuppression.apply(to: hostingView)
 
         // Add to panel's visual effect view
         if let visualEffectView = panel.visualEffectView {

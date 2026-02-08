@@ -47,6 +47,8 @@ final class DockMenuPanel: NSPanel {
         // Add visual effect view to container
         containerView.addSubview(visualEffectView)
         visualEffectView.translatesAutoresizingMaskIntoConstraints = false
+        ForceClickSuppression.apply(to: containerView)
+        ForceClickSuppression.apply(to: visualEffectView)
         NSLayoutConstraint.activate([
             visualEffectView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             visualEffectView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),

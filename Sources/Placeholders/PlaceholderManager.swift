@@ -267,6 +267,7 @@ final class PlaceholderContentView: NSView {
         self.zoneIndex = zoneIndex
         super.init(frame: frame)
         wantsLayer = true
+        ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
         updateBorderAppearance()
     }

@@ -90,6 +90,7 @@ final class DockMenuDragFeedback {
         visualEffect.wantsLayer = true
         visualEffect.layer?.cornerRadius = 8
         visualEffect.layer?.masksToBounds = true
+        ForceClickSuppression.apply(to: visualEffect)
 
         // Create label
         let label = NSTextField(labelWithString: "")
