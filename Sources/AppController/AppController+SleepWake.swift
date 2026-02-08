@@ -16,7 +16,7 @@ extension AppController {
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
         validationRetryManager.cancelAllValidationRetries()
-        cancelWakeReadinessTimer()
+        cancelWakeReadinessTimer(reason: "cancelled (screensDidSleep)")
         // Cancel any delayed accessibility frame retries so none fire while displays are asleep.
         windowController.cancelAllAccessibilityFrameRetries()
         // Cancel any pending window capture retries driven by AX notifications.
@@ -37,8 +37,7 @@ extension AppController {
         let (managedWindowCount, placeholderCount) = currentWindowCounts()
         Logger.debug(
             "SleepWake: screensDidWake received " +
-            "(managed: \(managedWindowCount), placeholders: \(placeholderCount)), " +
-            "starting wake readiness polling"
+            "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
         wakeLauncherFocusRequested = false
         startWakeReadinessPolling()
@@ -50,7 +49,10 @@ extension AppController {
     /// Matches SPECIFICATION-WAKE: wait until the primary display is awake, the session is unlocked,
     /// and AX can report an active application, polling in 0.5s increments.
     private func startWakeReadinessPolling() {
-        cancelWakeReadinessTimer()
+        cancelWakeReadinessTimer(reason: "restarted")
+        wakeReadinessPollingStartedAt = Date()
+        wakeReadinessPollingAttemptCount = 0
+        Logger.debug("SleepWake: wake readiness polling started (interval: 0.5s)")
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
@@ -60,16 +62,14 @@ extension AppController {
 
             // If we've already completed the wake pipeline (or weren't asleep), stop polling.
             if !self.screensAsleep {
-                self.cancelWakeReadinessTimer()
+                self.cancelWakeReadinessTimer(reason: "cancelled (screens already awake)")
                 return
             }
 
+            self.wakeReadinessPollingAttemptCount += 1
             if self.isWakeEnvironmentReady() {
-                Logger.debug("SleepWake: wake readiness checks passed; starting wake pipeline")
-                self.cancelWakeReadinessTimer()
+                self.cancelWakeReadinessTimer(reason: "completed (environment ready)")
                 self.executeSleepWakePipeline()
-            } else {
-                Logger.debug("SleepWake: wake readiness checks not yet satisfied; retrying in 0.5s")
             }
         }
 
@@ -77,10 +77,35 @@ extension AppController {
         timer.resume()
     }
 
-    /// Cancels any in-flight wake readiness timer.
-    private func cancelWakeReadinessTimer() {
+    /// Cancels any in-flight wake readiness timer and logs a concise polling summary when applicable.
+    private func cancelWakeReadinessTimer(reason: String? = nil) {
+        guard wakeReadinessTimer != nil else {
+            return
+        }
         wakeReadinessTimer?.cancel()
         wakeReadinessTimer = nil
+
+        let attempts = wakeReadinessPollingAttemptCount
+        wakeReadinessPollingAttemptCount = 0
+
+        guard let startedAt = wakeReadinessPollingStartedAt else {
+            return
+        }
+        wakeReadinessPollingStartedAt = nil
+
+        let duration = Date().timeIntervalSince(startedAt)
+        let durationString = String(format: "%.1f", duration)
+        if let reason {
+            Logger.debug(
+                "SleepWake: wake readiness polling ended " +
+                "(attempts: \(attempts), duration: \(durationString)s, reason: \(reason))"
+            )
+        } else {
+            Logger.debug(
+                "SleepWake: wake readiness polling ended " +
+                "(attempts: \(attempts), duration: \(durationString)s)"
+            )
+        }
     }
 
     /// Returns true when the display, session, and frontmost application are ready for Accessibility work.
@@ -90,13 +115,6 @@ extension AppController {
     private func isWakeEnvironmentReady() -> Bool {
         let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
         let screenLocked = isScreenLocked()
-
-        if !displayAwake {
-            Logger.debug("SleepWake: primary display is asleep; treating environment as not ready")
-        }
-        if screenLocked {
-            Logger.debug("SleepWake: session screen is locked; treating environment as not ready")
-        }
 
         if displayAwake && !screenLocked,
            launcherController.isActive,
@@ -111,10 +129,7 @@ extension AppController {
 
         // Use NSWorkspace to check for frontmost application instead of AX API,
         // which can hang indefinitely with some apps (e.g., VS Code/Electron).
-        guard NSWorkspace.shared.frontmostApplication != nil else {
-            Logger.debug("SleepWake: frontmost application unavailable; treating environment as not ready")
-            return false
-        }
+        guard NSWorkspace.shared.frontmostApplication != nil else { return false }
 
         return true
     }
@@ -123,14 +138,10 @@ extension AppController {
     /// If the dictionary or key is unavailable, we conservatively assume the screen is unlocked to
     /// avoid stalling the wake pipeline indefinitely.
     private func isScreenLocked() -> Bool {
-        guard let sessionDict = CGSessionCopyCurrentDictionary() as? [String: Any] else {
-            Logger.debug("SleepWake: CGSessionCopyCurrentDictionary returned nil; treating session as unlocked")
-            return false
-        }
+        guard let sessionDict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
         if let locked = sessionDict["CGSSessionScreenIsLocked"] as? Bool {
             return locked
         }
-        Logger.debug("SleepWake: CGSSessionScreenIsLocked key missing; treating session as unlocked")
         return false
     }
 
