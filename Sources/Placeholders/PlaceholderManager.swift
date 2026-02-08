@@ -205,10 +205,10 @@ final class PlaceholderManager {
         layer.masksToBounds = false
         layer.cornerRadius = buttonSize / 2
         layer.borderWidth = 1.1
-        layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
-        layer.shadowColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        layer.borderColor = NSColor.white.withAlphaComponent(0.32).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.12).cgColor
         layer.shadowOpacity = 1.0
-        layer.shadowRadius = 4
+        layer.shadowRadius = 3
         layer.shadowOffset = CGSize(width: 0, height: -1)
         layer.backgroundColor = NSColor.clear.cgColor
 
@@ -222,8 +222,8 @@ final class PlaceholderManager {
         baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         baseGradient.cornerRadius = buttonSize / 2
         baseGradient.colors = [
-            NSColor.systemBlue.withAlphaComponent(0.82).cgColor,
-            NSColor.systemBlue.withAlphaComponent(0.48).cgColor
+            NSColor.systemBlue.withAlphaComponent(0.56).cgColor,
+            NSColor.systemBlue.withAlphaComponent(0.28).cgColor
         ]
         baseGradient.startPoint = CGPoint(x: 0.2, y: 1.0)
         baseGradient.endPoint = CGPoint(x: 0.8, y: 0.0)
@@ -235,8 +235,8 @@ final class PlaceholderManager {
         sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         sheen.cornerRadius = max(0, buttonSize / 2 - 1)
         sheen.colors = [
-            NSColor.white.withAlphaComponent(0.35).cgColor,
-            NSColor.white.withAlphaComponent(0.12).cgColor,
+            NSColor.white.withAlphaComponent(0.24).cgColor,
+            NSColor.white.withAlphaComponent(0.08).cgColor,
             NSColor.clear.cgColor
         ]
         sheen.locations = [0.0, 0.35, 1.0]
@@ -252,7 +252,7 @@ final class PlaceholderManager {
             transform: nil
         )
         innerRing.fillColor = NSColor.clear.cgColor
-        innerRing.strokeColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        innerRing.strokeColor = NSColor.white.withAlphaComponent(0.2).cgColor
         innerRing.lineWidth = 1
         layer.addSublayer(innerRing)
     }
@@ -261,10 +261,10 @@ final class PlaceholderManager {
         guard let layer = pill.layer else { return }
         layer.cornerRadius = pillHeight / 2
         layer.borderWidth = 1
-        layer.borderColor = NSColor.white.withAlphaComponent(0.28).cgColor
-        layer.shadowColor = NSColor.black.withAlphaComponent(0.15).cgColor
+        layer.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.08).cgColor
         layer.shadowOpacity = 1.0
-        layer.shadowRadius = 3
+        layer.shadowRadius = 1.5
         layer.shadowOffset = CGSize(width: 0, height: -1)
         layer.backgroundColor = NSColor.clear.cgColor
         layer.masksToBounds = false
@@ -278,8 +278,8 @@ final class PlaceholderManager {
         baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         baseGradient.cornerRadius = pillHeight / 2
         baseGradient.colors = [
-            NSColor.white.withAlphaComponent(0.42).cgColor,
-            NSColor.white.withAlphaComponent(0.24).cgColor
+            NSColor.white.withAlphaComponent(0.22).cgColor,
+            NSColor.white.withAlphaComponent(0.1).cgColor
         ]
         baseGradient.startPoint = CGPoint(x: 0.1, y: 1.0)
         baseGradient.endPoint = CGPoint(x: 0.9, y: 0.0)
@@ -291,7 +291,7 @@ final class PlaceholderManager {
         sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         sheen.cornerRadius = max(0, pillHeight / 2 - 1)
         sheen.colors = [
-            NSColor.white.withAlphaComponent(0.3).cgColor,
+            NSColor.white.withAlphaComponent(0.15).cgColor,
             NSColor.clear.cgColor
         ]
         sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
