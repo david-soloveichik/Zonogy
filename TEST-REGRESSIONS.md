@@ -9,3 +9,6 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
   - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.
+
+- Bug report: Late AX focus notifications from a background app can clear frontmost managed focus and make resize-handle overlap avoidance regress temporarily.
+  - Think about: Frontmost-managed tracking should only trust focus events from the currently frontmost app, and preserve last valid frontmost managed focus across transient AX nil-focus events.

@@ -108,6 +108,33 @@ extension AppController {
         activeFitClearSuppressionForWindow(windowId)
     }
 
+    /// Resolves the frontmost managed window id used for resize-handle/AltTab behavior.
+    /// We only trust focus-change notifications from the currently frontmost app and
+    /// preserve the last known managed focus across transient AX nil-focus failures.
+    private func resolveFrontmostManagedWindowId(pid: pid_t, focusedWindowId: Int?) -> Int? {
+        let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard frontmostPid == pid else {
+            return currentFrontmostManagedWindowId
+        }
+
+        if let focusedWindowId {
+            return focusedWindowId
+        }
+
+        if let focusedManaged = windowController.focusedWindowIfTracked(pid: pid) {
+            return focusedManaged.windowId
+        }
+
+        if let previousId = currentFrontmostManagedWindowId,
+           let previousManaged = windowController.window(withId: previousId),
+           previousManaged.backing.pid == pid,
+           (previousManaged.zoneIndex != nil || isWindowInTemporaryZone(previousId)) {
+            return previousId
+        }
+
+        return nil
+    }
+
     // MARK: - WindowControllerDelegate
 
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?) {
@@ -160,8 +187,13 @@ extension AppController {
             recordActiveWindowForHistoryDebounced(windowId: windowId, pid: pid, reason: "focus-changed")
         }
 
-        // Track frontmost managed window for AltTab initial selection (no AX call needed at show time)
-        currentFrontmostManagedWindowId = focusedWindowId
+        // Track frontmost managed window for AltTab initial selection and resize-handle
+        // overlap avoidance. Ignore stale background-app focus events and tolerate
+        // transient AX nil-focus failures for the frontmost app.
+        currentFrontmostManagedWindowId = resolveFrontmostManagedWindowId(
+            pid: pid,
+            focusedWindowId: focusedWindowId
+        )
 
         // Resize-handle visibility depends on which managed window is active.
         // Refresh on focus changes so the UI updates immediately.
