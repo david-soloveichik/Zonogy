@@ -92,8 +92,7 @@ final class LauncherModel: ObservableObject {
     }
 
     private func refreshRunningApps() {
-        let running = NSWorkspace.shared.runningApplications
-        runningBundleIdentifiers = Set(running.compactMap(\.bundleIdentifier))
+        runningBundleIdentifiers = ApplicationIdentity.runningBundleIdentifiers()
         refreshDefaultWindowZoneStatus()
     }
 
@@ -173,7 +172,7 @@ final class LauncherModel: ObservableObject {
         if trimmedQuery.isEmpty {
             // Empty query: sort by recency then alphabetical
             let scoredItems = allItems.map { item -> (item: LaunchItem, recencyRank: Int) in
-                let bundleId = Bundle(url: item.url)?.bundleIdentifier ?? ""
+                let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url) ?? ""
                 let recencyRank = usageStore.recencyRank(bundleIdentifier: bundleId)
                 return (item: item, recencyRank: recencyRank)
             }
@@ -227,7 +226,7 @@ final class LauncherModel: ObservableObject {
                 let itemKey = LaunchItemUsageStore.normalizedItemKey(for: item.url)
                 let perQueryCount = usageStore.perQueryCount(itemKey: itemKey, query: trimmedQuery)
                 let matchQuality = matchScore * matchScore  // squared for emphasis
-                let bundleId = Bundle(url: item.url)?.bundleIdentifier ?? ""
+                let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url) ?? ""
                 let recencyRank = usageStore.recencyRank(bundleIdentifier: bundleId)
                 // Never-used apps (Int.max) treated as rank 50 for smooth continuity
                 let effectiveRank = Double(recencyRank == Int.max ? 50 : recencyRank)
@@ -261,7 +260,7 @@ final class LauncherModel: ObservableObject {
         guard let url = selectedItemURL,
               let item = filteredItems.first(where: { $0.url == url }),
               item.kind == .application,
-              let bundleId = Bundle(url: url)?.bundleIdentifier else { return }
+              let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: url) else { return }
 
         // Only allow drill-down for running apps
         guard runningBundleIdentifiers.contains(bundleId) else { return }

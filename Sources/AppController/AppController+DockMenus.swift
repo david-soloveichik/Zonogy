@@ -62,7 +62,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, preferredDragWindowForDockAppWithURL appURL: URL) -> LauncherWindowItem? {
-        guard let bundleId = Bundle(url: appURL)?.bundleIdentifier,
+        guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
               let preferredManaged = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
             return nil
         }
@@ -108,7 +108,7 @@ extension AppController: DockMenusCoordinatorDelegate {
             launcherController.hide()
         }
         // Activate the app without targeting a specific window
-        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+        if let app = ApplicationIdentity.runningApplication(bundleIdentifier: bundleId) {
             app.activate(options: [.activateIgnoringOtherApps])
         }
     }

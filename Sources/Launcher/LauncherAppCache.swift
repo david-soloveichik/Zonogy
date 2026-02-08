@@ -107,8 +107,7 @@ final class LauncherAppCache {
         guard !ignoredBundleIds.isEmpty else { return apps }
         return apps.filter { item in
             guard item.kind == .application else { return true }
-            guard let bundle = Bundle(url: item.url),
-                  let bundleId = bundle.bundleIdentifier else { return true }
+            guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url) else { return true }
             return !ignoredBundleIds.contains(bundleId)
         }
     }

@@ -278,7 +278,7 @@ final class DockClickInterceptor {
         let pid: pid_t
         if let cached = dockPid {
             pid = cached
-        } else if let found = NSRunningApplication.runningApplications(withBundleIdentifier: Constants.dockBundleIdentifier).first?.processIdentifier {
+        } else if let found = ApplicationIdentity.runningApplication(bundleIdentifier: Constants.dockBundleIdentifier)?.processIdentifier {
             dockPid = found
             pid = found
         } else {
@@ -321,12 +321,9 @@ final class DockClickInterceptor {
         }
 
         // Check if the app is running
-        let isRunning: Bool
-        if let bundleId = Bundle(url: url)?.bundleIdentifier {
-            isRunning = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first != nil
-        } else {
-            isRunning = false
-        }
+        let isRunning = ApplicationIdentity
+            .bundleIdentifier(forApplicationURL: url)
+            .map { ApplicationIdentity.isRunning(bundleIdentifier: $0) } ?? false
 
         return ClickedAppResult(url: url, frame: frame, isRunning: isRunning, element: element)
     }

@@ -47,8 +47,7 @@ final class DockAXNotificationMonitor {
             return
         }
 
-        guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.dockBundleIdentifier)
-            .first?
+        guard let pid = ApplicationIdentity.runningApplication(bundleIdentifier: Self.dockBundleIdentifier)?
             .processIdentifier else {
             Logger.debug("DockAXNotificationMonitor: Dock process not found")
             return
@@ -161,8 +160,8 @@ final class DockAXNotificationMonitor {
                     if let appURL = url,
                        let listFrame,
                        let itemFrame,
-                       let bundleId = bundleIdentifier(for: appURL),
-                       isAppRunning(bundleIdentifier: bundleId) {
+                       let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
+                       ApplicationIdentity.isRunning(bundleIdentifier: bundleId) {
                         let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
                         let hoverEvent = DockMenuHoverEvent(
                             appURL: appURL,
@@ -184,15 +183,6 @@ final class DockAXNotificationMonitor {
             }
         }
         onEvent?(Event(notification: notification, listFrame: listFrame, itemFrame: itemFrame))
-    }
-
-    private func bundleIdentifier(for appURL: URL) -> String? {
-        guard let bundle = Bundle(url: appURL) else { return nil }
-        return bundle.bundleIdentifier
-    }
-
-    private func isAppRunning(bundleIdentifier: String) -> Bool {
-        return !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
     }
 
     private func axFrameAttribute(element: AXUIElement) -> CGRect? {

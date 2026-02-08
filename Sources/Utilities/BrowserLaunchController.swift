@@ -131,8 +131,7 @@ final class BrowserLaunchController {
         guard
             let testURL = URL(string: "http://example.com"),
             let applicationURL = NSWorkspace.shared.urlForApplication(toOpen: testURL),
-            let bundle = Bundle(url: applicationURL),
-            let identifier = bundle.bundleIdentifier
+            let identifier = ApplicationIdentity.bundleIdentifier(forApplicationURL: applicationURL)
         else {
             return nil
         }

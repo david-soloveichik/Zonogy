@@ -203,7 +203,7 @@ extension AppController: LauncherControllerDelegate {
     ///     which triggers the app's native "clicked in Dock" behavior (typically creating a new window).
     internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false, dockItemElement: AXUIElement? = nil) {
         // Check if app is already running - select the preferred window
-        if let bundleId = Bundle(url: url)?.bundleIdentifier,
+        if let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: url),
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
 
             // If activateInPlace: if window is already in a zone, just activate it without moving
@@ -258,7 +258,7 @@ extension AppController: LauncherControllerDelegate {
     ///   the first window row (not-in-zone first, then recency)
     /// - Returns nil if app has no managed windows with titles
     internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
-        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+        guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return nil
         }
 
@@ -313,7 +313,7 @@ extension AppController: LauncherControllerDelegate {
     // MARK: - App Activation (without changing window placement)
 
     func launcherController(_ controller: LauncherController, didActivateApp bundleIdentifier: String) {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+        guard let app = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             Logger.debug("Launcher: Cannot find running app with bundle ID \(bundleIdentifier)")
             return
         }
@@ -506,7 +506,7 @@ extension AppController: LauncherControllerDelegate {
 
 extension AppController: LauncherWindowProvider {
     func windowsForApp(bundleIdentifier: String) -> [LauncherWindowItem] {
-        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+        guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return []
         }
 
@@ -576,7 +576,7 @@ extension AppController: LauncherWindowProvider {
     }
 
     func windowCount(for bundleIdentifier: String) -> Int {
-        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+        guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return 0
         }
 

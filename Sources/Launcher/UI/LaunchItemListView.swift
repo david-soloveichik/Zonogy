@@ -36,7 +36,7 @@ struct LaunchItemListView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(items) { item in
-                        let bundleId = Bundle(url: item.url)?.bundleIdentifier
+                        let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url)
                         let isRunning = bundleId.map { runningBundleIdentifiers.contains($0) } ?? false
                         let hasDefaultWindowInZone = bundleId.map { appsWithDefaultWindowInZoneBundleIdentifiers.contains($0) } ?? false
                         LaunchItemRowView(
