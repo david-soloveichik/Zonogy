@@ -27,6 +27,9 @@ enum GuardrailTests {
         if !ZoneResizeHandleGeometryTests.run() {
             allPassed = false
         }
+        if !ZoneResizeHandleVisibilityPolicyTests.run() {
+            allPassed = false
+        }
         if !ZoneControllerTests.run() {
             allPassed = false
         }
