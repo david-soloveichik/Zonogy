@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import QuartzCore
 
 // MARK: - FirstClickButton
 
@@ -37,6 +38,15 @@ protocol PlaceholderManagerDelegate: AnyObject {
 /// Creates and manages the UI for placeholder windows.
 /// Placeholders are visual representations of empty tiling zones.
 final class PlaceholderManager {
+    private enum LayerName {
+        static let panelSheen = "placeholder.panel.sheen"
+        static let closeButtonBase = "placeholder.close.base"
+        static let closeButtonSheen = "placeholder.close.sheen"
+        static let closeButtonInnerRing = "placeholder.close.inner-ring"
+        static let searchPillBase = "placeholder.search.base"
+        static let searchPillSheen = "placeholder.search.sheen"
+    }
+
     weak var delegate: PlaceholderManagerDelegate?
 
     init() {}
@@ -81,13 +91,7 @@ final class PlaceholderManager {
             zoneIndex: zoneIndex
         )
         if let layer = contentView.layer {
-            layer.backgroundColor = NSColor(white: 0.9, alpha: 0.3).cgColor
-            layer.cornerRadius = 12
-            layer.borderWidth = 2
-            layer.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
-            if #available(macOS 10.15, *) {
-                layer.cornerCurve = .continuous
-            }
+            applyPanelGlassStyle(to: layer)
         }
 
         // Create close/put-away button
@@ -99,17 +103,7 @@ final class PlaceholderManager {
         closeButton.isBordered = false
         closeButton.focusRingType = .none
         closeButton.wantsLayer = true
-        closeButton.alphaValue = 0.9
-        if let layer = closeButton.layer {
-            layer.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.6).cgColor
-            layer.cornerRadius = buttonSize / 2
-            layer.shadowColor = NSColor.black.withAlphaComponent(0.25).cgColor
-            layer.shadowOpacity = 0.25
-            layer.shadowRadius = 3
-            layer.shadowOffset = CGSize(width: 0, height: -1)
-            layer.borderWidth = 1
-            layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
-        }
+        applyCloseButtonGlassStyle(closeButton, buttonSize: buttonSize)
         closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
 
         contentView.addSubview(closeButton)
@@ -127,20 +121,10 @@ final class PlaceholderManager {
         searchPill.isBordered = false
         searchPill.focusRingType = .none
         searchPill.wantsLayer = true
-        searchPill.alphaValue = 0.9
         searchPill.title = ""
         searchPill.image = nil
 
-        if let layer = searchPill.layer {
-            layer.backgroundColor = NSColor.white.withAlphaComponent(0.4).cgColor
-            layer.cornerRadius = pillHeight / 2
-            layer.borderWidth = 1
-            layer.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
-            layer.shadowColor = NSColor.black.withAlphaComponent(0.15).cgColor
-            layer.shadowOpacity = 0.15
-            layer.shadowRadius = 2
-            layer.shadowOffset = CGSize(width: 0, height: -1)
-        }
+        applySearchPillGlassStyle(searchPill, pillHeight: pillHeight)
 
         // Add icon as a separate image view
         var iconView: NSImageView?
@@ -183,6 +167,140 @@ final class PlaceholderManager {
         Logger.debug("Created placeholder for zone \(zoneIndex) on screen \(screenIndex)")
 
         return placeholder
+    }
+
+    private func applyPanelGlassStyle(to layer: CALayer) {
+        layer.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.24).cgColor
+        layer.cornerRadius = 12
+        layer.borderWidth = 1.5
+        layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
+        layer.shadowOpacity = 1.0
+        layer.shadowRadius = 10
+        layer.shadowOffset = CGSize(width: 0, height: -2)
+        if #available(macOS 10.15, *) {
+            layer.cornerCurve = .continuous
+        }
+
+        removeSublayers(named: LayerName.panelSheen, from: layer)
+
+        let sheen = CAGradientLayer()
+        sheen.name = LayerName.panelSheen
+        sheen.frame = layer.bounds
+        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        sheen.cornerRadius = layer.cornerRadius
+        sheen.colors = [
+            NSColor.white.withAlphaComponent(0.25).cgColor,
+            NSColor.white.withAlphaComponent(0.07).cgColor,
+            NSColor.clear.cgColor
+        ]
+        sheen.locations = [0.0, 0.25, 1.0]
+        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
+        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
+        layer.insertSublayer(sheen, at: 0)
+    }
+
+    private func applyCloseButtonGlassStyle(_ button: NSButton, buttonSize: CGFloat) {
+        guard let layer = button.layer else { return }
+        layer.masksToBounds = false
+        layer.cornerRadius = buttonSize / 2
+        layer.borderWidth = 1.1
+        layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        layer.shadowOpacity = 1.0
+        layer.shadowRadius = 4
+        layer.shadowOffset = CGSize(width: 0, height: -1)
+        layer.backgroundColor = NSColor.clear.cgColor
+
+        removeSublayers(named: LayerName.closeButtonBase, from: layer)
+        removeSublayers(named: LayerName.closeButtonSheen, from: layer)
+        removeSublayers(named: LayerName.closeButtonInnerRing, from: layer)
+
+        let baseGradient = CAGradientLayer()
+        baseGradient.name = LayerName.closeButtonBase
+        baseGradient.frame = layer.bounds
+        baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        baseGradient.cornerRadius = buttonSize / 2
+        baseGradient.colors = [
+            NSColor.systemBlue.withAlphaComponent(0.82).cgColor,
+            NSColor.systemBlue.withAlphaComponent(0.48).cgColor
+        ]
+        baseGradient.startPoint = CGPoint(x: 0.2, y: 1.0)
+        baseGradient.endPoint = CGPoint(x: 0.8, y: 0.0)
+        layer.insertSublayer(baseGradient, at: 0)
+
+        let sheen = CAGradientLayer()
+        sheen.name = LayerName.closeButtonSheen
+        sheen.frame = layer.bounds.insetBy(dx: 1, dy: 1)
+        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        sheen.cornerRadius = max(0, buttonSize / 2 - 1)
+        sheen.colors = [
+            NSColor.white.withAlphaComponent(0.35).cgColor,
+            NSColor.white.withAlphaComponent(0.12).cgColor,
+            NSColor.clear.cgColor
+        ]
+        sheen.locations = [0.0, 0.35, 1.0]
+        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
+        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
+        layer.addSublayer(sheen)
+
+        let innerRing = CAShapeLayer()
+        innerRing.name = LayerName.closeButtonInnerRing
+        innerRing.frame = layer.bounds
+        innerRing.path = CGPath(
+            ellipseIn: layer.bounds.insetBy(dx: 1.4, dy: 1.4),
+            transform: nil
+        )
+        innerRing.fillColor = NSColor.clear.cgColor
+        innerRing.strokeColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        innerRing.lineWidth = 1
+        layer.addSublayer(innerRing)
+    }
+
+    private func applySearchPillGlassStyle(_ pill: NSButton, pillHeight: CGFloat) {
+        guard let layer = pill.layer else { return }
+        layer.cornerRadius = pillHeight / 2
+        layer.borderWidth = 1
+        layer.borderColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.15).cgColor
+        layer.shadowOpacity = 1.0
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: -1)
+        layer.backgroundColor = NSColor.clear.cgColor
+        layer.masksToBounds = false
+
+        removeSublayers(named: LayerName.searchPillBase, from: layer)
+        removeSublayers(named: LayerName.searchPillSheen, from: layer)
+
+        let baseGradient = CAGradientLayer()
+        baseGradient.name = LayerName.searchPillBase
+        baseGradient.frame = layer.bounds
+        baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        baseGradient.cornerRadius = pillHeight / 2
+        baseGradient.colors = [
+            NSColor.white.withAlphaComponent(0.42).cgColor,
+            NSColor.white.withAlphaComponent(0.24).cgColor
+        ]
+        baseGradient.startPoint = CGPoint(x: 0.1, y: 1.0)
+        baseGradient.endPoint = CGPoint(x: 0.9, y: 0.0)
+        layer.insertSublayer(baseGradient, at: 0)
+
+        let sheen = CAGradientLayer()
+        sheen.name = LayerName.searchPillSheen
+        sheen.frame = layer.bounds.insetBy(dx: 1, dy: 1)
+        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        sheen.cornerRadius = max(0, pillHeight / 2 - 1)
+        sheen.colors = [
+            NSColor.white.withAlphaComponent(0.3).cgColor,
+            NSColor.clear.cgColor
+        ]
+        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
+        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
+        layer.addSublayer(sheen)
+    }
+
+    private func removeSublayers(named layerName: String, from layer: CALayer) {
+        layer.sublayers?.filter { $0.name == layerName }.forEach { $0.removeFromSuperlayer() }
     }
 
     // MARK: - Button Actions
@@ -258,8 +376,8 @@ final class PlaceholderContentView: NSView {
             }
         }
     }
-    private let normalBorderColor = NSColor.white.withAlphaComponent(0.35).cgColor
-    private let highlightedBorderColor = NSColor.systemBlue.withAlphaComponent(0.65).cgColor
+    private let normalBorderColor = NSColor.white.withAlphaComponent(0.45).cgColor
+    private let highlightedBorderColor = NSColor.systemBlue.withAlphaComponent(0.72).cgColor
 
     init(frame: NSRect, manager: PlaceholderManager, screenId: CGDirectDisplayID, zoneIndex: Int) {
         self.manager = manager
@@ -378,7 +496,7 @@ final class PlaceholderContentView: NSView {
 
     private func updateBorderAppearance() {
         guard let layer = layer else { return }
-        layer.borderWidth = isDropHighlighted ? 3 : 2
+        layer.borderWidth = isDropHighlighted ? 2.5 : 1.5
         layer.borderColor = isDropHighlighted ? highlightedBorderColor : normalBorderColor
     }
 
