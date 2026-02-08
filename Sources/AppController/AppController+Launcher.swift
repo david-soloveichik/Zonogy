@@ -365,8 +365,13 @@ extension AppController: LauncherControllerDelegate {
 
     func menuBarOwnerPid() -> pid_t? {
         // The nonactivatingPanel Launcher doesn't trigger app activation,
-        // so lastActiveApplicationPid remains the menu bar owner
-        return lastActiveApplicationPid
+        // so lastActiveApplicationPid remains the menu bar owner.
+        // If Zonogy itself is frontmost, there is no external menu bar owner to target.
+        guard let pid = lastActiveApplicationPid,
+              pid != getpid() else {
+            return nil
+        }
+        return pid
     }
 
     var launcherWindowProvider: LauncherWindowProvider {

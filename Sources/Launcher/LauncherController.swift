@@ -32,6 +32,8 @@ protocol LauncherControllerDelegate: AnyObject {
 final class LauncherController {
     weak var delegate: LauncherControllerDelegate?
 
+    private static let forwardedShortcutEventMarker: Int64 = 0x5A4E4759
+
     private var window: LauncherWindow?
     private var model: LauncherModel?
     private var hostingView: NSHostingView<LauncherView>?
@@ -280,6 +282,12 @@ final class LauncherController {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         return MainActor.assumeIsolated {
+            // Ignore our own synthetic forwarded shortcut events if they bounce back to Zonogy.
+            if isForwardedShortcutEcho(event) {
+                Logger.debug("Launcher: Ignored forwarded shortcut echo keyCode=\(event.keyCode)")
+                return true
+            }
+
             guard let model = model else { return false }
 
             switch event.keyCode {
@@ -410,11 +418,9 @@ final class LauncherController {
 
     // MARK: - Shortcut Forwarding
 
-    /// Forwards specific keyboard shortcuts to the menu bar owner app.
-    /// Returns true if the event was forwarded, false otherwise.
+    /// Handles specific Launcher shortcuts by forwarding to the menu bar owner app.
+    /// Returns true if the event was consumed (forwarded or intentionally dropped), false otherwise.
     private func forwardShortcutIfNeeded(_ event: NSEvent) -> Bool {
-        guard let targetPid = delegate?.menuBarOwnerPid() else { return false }
-
         let modifiers = event.modifierFlags
         let keyCode = event.keyCode
 
@@ -479,6 +485,16 @@ final class LauncherController {
 
         guard shouldForward else { return false }
 
+        guard let targetPid = delegate?.menuBarOwnerPid() else {
+            Logger.debug("Launcher: Consumed shortcut keyCode=\(keyCode) because menu bar owner pid is unavailable")
+            return true
+        }
+
+        if targetPid == getpid() {
+            Logger.debug("Launcher: Consumed shortcut keyCode=\(keyCode) to prevent forwarding loop to Zonogy pid=\(targetPid)")
+            return true
+        }
+
         // Create and post CGEvent to the target application
         guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
               let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
@@ -487,12 +503,21 @@ final class LauncherController {
 
         keyDownEvent.flags = forwardModifiers
         keyUpEvent.flags = forwardModifiers
+        keyDownEvent.setIntegerValueField(.eventSourceUserData, value: Self.forwardedShortcutEventMarker)
+        keyUpEvent.setIntegerValueField(.eventSourceUserData, value: Self.forwardedShortcutEventMarker)
 
         keyDownEvent.postToPid(targetPid)
         keyUpEvent.postToPid(targetPid)
 
         Logger.debug("Launcher: Forwarded shortcut keyCode=\(keyCode) to pid=\(targetPid)")
         return true
+    }
+
+    private func isForwardedShortcutEcho(_ event: NSEvent) -> Bool {
+        guard let cgEvent = event.cgEvent else {
+            return false
+        }
+        return cgEvent.getIntegerValueField(.eventSourceUserData) == Self.forwardedShortcutEventMarker
     }
 
     // MARK: - Click Outside Monitoring
