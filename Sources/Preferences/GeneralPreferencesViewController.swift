@@ -9,6 +9,9 @@ final class GeneralPreferencesViewController: NSViewController {
     private var accessibilityStatusView: NSView?
     private var accessibilityStatusIcon: NSImageView?
     private var accessibilityStatusLabel: NSTextField?
+    private var screenRecordingStatusView: NSView?
+    private var screenRecordingStatusIcon: NSImageView?
+    private var screenRecordingStatusLabel: NSTextField?
     private var launchAtLoginCheckbox: NSButton?
     private var launchAtLoginHintLabel: NSTextField?
     private var dockMenusCheckbox: NSButton?
@@ -23,7 +26,7 @@ final class GeneralPreferencesViewController: NSViewController {
     private var targetingModeHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 580))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 630))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -68,6 +71,45 @@ final class GeneralPreferencesViewController: NSViewController {
 
             accessibilityOpenSettingsButton.trailingAnchor.constraint(equalTo: accessibilityStatusView.trailingAnchor, constant: -12),
             accessibilityOpenSettingsButton.centerYAnchor.constraint(equalTo: accessibilityStatusView.centerYAnchor),
+        ])
+
+        // Screen Recording status banner
+        let screenRecordingStatusView = NSView()
+        screenRecordingStatusView.wantsLayer = true
+        screenRecordingStatusView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(screenRecordingStatusView)
+        self.screenRecordingStatusView = screenRecordingStatusView
+
+        let screenRecordingStatusIcon = NSImageView()
+        screenRecordingStatusIcon.translatesAutoresizingMaskIntoConstraints = false
+        screenRecordingStatusIcon.imageScaling = .scaleProportionallyUpOrDown
+        screenRecordingStatusView.addSubview(screenRecordingStatusIcon)
+        self.screenRecordingStatusIcon = screenRecordingStatusIcon
+
+        let screenRecordingStatusLabel = NSTextField(wrappingLabelWithString: "")
+        screenRecordingStatusLabel.font = NSFont.systemFont(ofSize: 12)
+        screenRecordingStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        screenRecordingStatusView.addSubview(screenRecordingStatusLabel)
+        self.screenRecordingStatusLabel = screenRecordingStatusLabel
+
+        let screenRecordingOpenSettingsButton = NSButton(title: "Open Settings…", target: self, action: #selector(openScreenRecordingSettings))
+        screenRecordingOpenSettingsButton.bezelStyle = NSButton.BezelStyle.recessed
+        screenRecordingOpenSettingsButton.controlSize = NSControl.ControlSize.small
+        screenRecordingOpenSettingsButton.translatesAutoresizingMaskIntoConstraints = false
+        screenRecordingStatusView.addSubview(screenRecordingOpenSettingsButton)
+
+        NSLayoutConstraint.activate([
+            screenRecordingStatusIcon.leadingAnchor.constraint(equalTo: screenRecordingStatusView.leadingAnchor, constant: 12),
+            screenRecordingStatusIcon.centerYAnchor.constraint(equalTo: screenRecordingStatusView.centerYAnchor),
+            screenRecordingStatusIcon.widthAnchor.constraint(equalToConstant: 16),
+            screenRecordingStatusIcon.heightAnchor.constraint(equalToConstant: 16),
+
+            screenRecordingStatusLabel.leadingAnchor.constraint(equalTo: screenRecordingStatusIcon.trailingAnchor, constant: 8),
+            screenRecordingStatusLabel.centerYAnchor.constraint(equalTo: screenRecordingStatusView.centerYAnchor),
+            screenRecordingStatusLabel.trailingAnchor.constraint(lessThanOrEqualTo: screenRecordingOpenSettingsButton.leadingAnchor, constant: -8),
+
+            screenRecordingOpenSettingsButton.trailingAnchor.constraint(equalTo: screenRecordingStatusView.trailingAnchor, constant: -12),
+            screenRecordingOpenSettingsButton.centerYAnchor.constraint(equalTo: screenRecordingStatusView.centerYAnchor),
         ])
 
         let launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch Zonogy at login", target: self, action: #selector(launchAtLoginToggled(_:)))
@@ -166,7 +208,12 @@ final class GeneralPreferencesViewController: NSViewController {
             accessibilityStatusView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             accessibilityStatusView.heightAnchor.constraint(equalToConstant: 36),
 
-            launchAtLoginCheckbox.topAnchor.constraint(equalTo: accessibilityStatusView.bottomAnchor, constant: 18),
+            screenRecordingStatusView.topAnchor.constraint(equalTo: accessibilityStatusView.bottomAnchor, constant: 10),
+            screenRecordingStatusView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            screenRecordingStatusView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            screenRecordingStatusView.heightAnchor.constraint(equalToConstant: 36),
+
+            launchAtLoginCheckbox.topAnchor.constraint(equalTo: screenRecordingStatusView.bottomAnchor, constant: 18),
             launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             launchAtLoginHintLabel.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 6),
@@ -217,9 +264,10 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 580)
+        self.preferredContentSize = NSSize(width: 500, height: 630)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
+        syncScreenRecordingStatus()
         syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
         syncWinShotCheckboxes()
@@ -241,6 +289,7 @@ final class GeneralPreferencesViewController: NSViewController {
         stopAccessibilityPolling()
         accessibilityPollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.syncAccessibilityStatus()
+            self?.syncScreenRecordingStatus()
         }
     }
 
@@ -346,8 +395,33 @@ final class GeneralPreferencesViewController: NSViewController {
         }
     }
 
+    private func syncScreenRecordingStatus() {
+        let hasAccess = CGPreflightScreenCaptureAccess()
+
+        if hasAccess {
+            screenRecordingStatusView?.layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.15).cgColor
+            screenRecordingStatusView?.layer?.cornerRadius = 6
+            screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Granted")
+            screenRecordingStatusIcon?.contentTintColor = .systemGreen
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission granted (only used for WinShot feature)"
+            screenRecordingStatusLabel?.textColor = .labelColor
+        } else {
+            screenRecordingStatusView?.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.15).cgColor
+            screenRecordingStatusView?.layer?.cornerRadius = 6
+            screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Required")
+            screenRecordingStatusIcon?.contentTintColor = .systemOrange
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission not granted (only used for WinShot feature)"
+            screenRecordingStatusLabel?.textColor = .labelColor
+        }
+    }
+
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func openScreenRecordingSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
         NSWorkspace.shared.open(url)
     }
 }
