@@ -4,7 +4,7 @@
 - Unless otherwise told, Agent should read the SPECIFICATION.md file since it gives the big-picture perspective on the project.
 - The desired specification is in SPECIFICATION.md. If told to _implement the updated specification_, Agent should use `git diff SPECIFICATION.md` to see uncommitted changes and implement only those changes. (Ignoring minor formatting changes in SPECIFICATION.md file.) Afterward, if Agent noticed errors in the updates to the specification, it should tell the user what they are and offer to fix them.
 - When git committing, Agent should include SPECIFICATION.md if it was changed by Agent or the user.
-- When Agent is asked to commit, please split `git add` and `git commit -m ...` in _separate shell calls_, allowing the user to not approve the second while still approving the first. IMPORTANT: The commit message should identify the Agent (eg claude or codex) at the end.
+- When Agent is asked to commit, please split `git add` and `git commit -m ...` in _separate shell calls_, allowing the user to stage or unstage something in between the two calls. IMPORTANT: The commit message should identify the Agent (eg claude or codex) at the end.
 - After making changes to code files, the Agent should rebuild the tool to make sure that there are no errors, and to make sure that the user can easily execute the new version.
 - When adding/refactoring pure deterministic logic (geometry/policy/selection), Agent should add or update a `--self-test` guardrail test to lock in the new invariant. For OS/Accessibility-heavy changes, prefer a short manual verification checklist.
 - For changes touching behavior covered in `TEST-REGRESSIONS.md`, Agent should read those entries before editing and update/add an entry when fixing a new regression.
