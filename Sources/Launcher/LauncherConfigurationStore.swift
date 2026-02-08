@@ -91,6 +91,8 @@ enum LauncherConfigurationStore {
         let template = LauncherConfiguration(
             items: [
                 LauncherConfigurationItem(path: "~/Downloads", alias: nil),
+                LauncherConfigurationItem(path: "~/Documents", alias: nil),
+                LauncherConfigurationItem(path: "/Applications", alias: nil),
             ],
             notes: "Add items as {\"path\": \"/path/to/file/or/directory\", \"alias\": \"optional\"}. Restart Zonogy to reload."
         )

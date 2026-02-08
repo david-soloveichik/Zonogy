@@ -7,28 +7,11 @@
   ],
   "bundleExceptions": [
     {
-      "bundleIdentifier": "com.valvesoftware.steam.helper",
-      "ignoreActivationPolicy": true,
+      "bundleIdentifier": "com.adobe.illustrator",
       "ignoreZoomButtonRequirement": true
     },
     {
-      "bundleIdentifier": "com.apple.mail",
-      "hasMainWindow": true
-    },
-    {
-      "bundleIdentifier": "com.apple.Notes",
-      "hasMainWindow": true
-    },
-    {
       "bundleIdentifier": "com.apple.MobileSMS",
-      "hasMainWindow": true
-    },
-    {
-      "bundleIdentifier": "com.apple.iCal",
-      "hasMainWindow": true
-    },
-    {
-      "bundleIdentifier": "com.apple.reminders",
       "hasMainWindow": true
     },
     {
@@ -36,7 +19,15 @@
       "hasMainWindow": true
     },
     {
+      "bundleIdentifier": "com.apple.Notes",
+      "hasMainWindow": true
+    },
+    {
       "bundleIdentifier": "com.apple.Photos",
+      "hasMainWindow": true
+    },
+    {
+      "bundleIdentifier": "com.apple.iCal",
       "hasMainWindow": true
     },
     {
@@ -44,32 +35,52 @@
       "treatAXUnknownFullWidthAsFullScreen": true
     },
     {
-      "bundleIdentifier": "com.apple.Safari",
-      "treatAXUnknownFullWidthAsFullScreen": true
+      "bundleIdentifier": "com.apple.mail",
+      "hasMainWindow": true
     },
     {
-      "bundleIdentifier": "com.google.Chrome",
-      "treatAXUnknownFullWidthAsFullScreen": true
-    },
-    {
-      "bundleIdentifier": "org.mozilla.firefox",
-      "disallowEmptyTitleWindows": true
-    },
-    {
-      "bundleIdentifier": "com.adobe.illustrator",
-      "ignoreZoomButtonRequirement": true
+      "bundleIdentifier": "com.apple.reminders",
+      "hasMainWindow": true
     },
     {
       "bundleIdentifier": "com.daisydiskapp.DaisyDisk",
       "ignoreHeightRequirement": true
     },
     {
-      "bundleIdentifier": "us.zoom.xos",
-      "snapToZoneOnSelfResize": true
+      "bundleIdentifier": "com.google.Chrome",
+      "treatAXUnknownFullWidthAsFullScreen": true
     },
     {
       "bundleIdentifier": "com.hnc.Discord",
       "excludedWindowTitles": ["Discord Updater"]
+    },
+    {
+      "bundleIdentifier": "com.microsoft.Powerpoint",
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
+      "bundleIdentifier": "com.microsoft.autoupdate2",
+      "hasMainWindow": true,
+      "ignoreHeightRequirement": true
+    },
+    {
+      "bundleIdentifier": "com.titanium.OnyX",
+      "ignoreHeightRequirement": true,
+      "snapToZoneOnSelfResize": true
+    },
+    {
+      "bundleIdentifier": "com.valvesoftware.steam.helper",
+      "ignoreActivationPolicy": true,
+      "ignoreZoomButtonRequirement": true
+    },
+    {
+      "bundleIdentifier": "org.mozilla.firefox",
+      "disallowEmptyTitleWindows": true,
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
+      "bundleIdentifier": "us.zoom.xos",
+      "snapToZoneOnSelfResize": true
     }
   ]
 }
