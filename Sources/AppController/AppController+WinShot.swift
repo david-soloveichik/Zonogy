@@ -321,6 +321,10 @@ extension AppController {
             return
         }
 
+        // Restoring a snapshot implies re-entering managed tiling. Ensure UnderCovers is exited so
+        // placeholders are not incorrectly suppressed after the restore.
+        endUnderCovers(on: screenId, reason: "winshot-restore", recreatePlaceholders: false)
+
         // Ensure the Launcher doesn't steal focus/cover restored windows mid-restore.
         if launcherController.isActive {
             launcherController.hide()
@@ -711,14 +715,18 @@ extension AppController {
         let element = managed.backing.element
         let accessibilityFrame = screen.screenToAccessibility(screenFrame)
 
-        var position = accessibilityFrame.origin
-        if let positionValue = AXValueCreate(.cgPoint, &position) {
-            AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
-        }
+        // Mark this as a programmatic update so any resulting AX moved/resized notifications
+        // are ignored (avoids misclassifying restore pre-positioning as a user drag/resize).
+        windowController.performProgrammaticUpdate(for: managed.windowId) {
+            var position = accessibilityFrame.origin
+            if let positionValue = AXValueCreate(.cgPoint, &position) {
+                AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
+            }
 
-        var size = accessibilityFrame.size
-        if let sizeValue = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+            var size = accessibilityFrame.size
+            if let sizeValue = AXValueCreate(.cgSize, &size) {
+                AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+            }
         }
     }
 
