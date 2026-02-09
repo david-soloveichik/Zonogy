@@ -140,8 +140,10 @@ extension AppController {
         let currentOccupancyByScreen = currentWinShotZoneOccupancyByScreen()
 
         guard hasObservedWinShotZoneOccupancyBaseline else {
-            hasObservedWinShotZoneOccupancyBaseline = true
-            lastWinShotZoneOccupancyByScreen = currentOccupancyByScreen
+            initializeWinShotAutoSaveBaselineIfNeeded(
+                reason: "first-observation-\(reasons.joined(separator: "+"))",
+                occupancyOverride: currentOccupancyByScreen
+            )
             return
         }
 
@@ -170,6 +172,32 @@ extension AppController {
         let reasonSuffix = reasons.isEmpty ? "unspecified" : reasons.joined(separator: "+")
         for screenId in orderedScreenIds(changedScreenIds) {
             createWinShotSnapshot(on: screenId, reason: "zone-occupancy-changed-\(reasonSuffix)")
+        }
+    }
+
+    internal func initializeWinShotAutoSaveBaselineIfNeeded(
+        reason: String,
+        occupancyOverride: [CGDirectDisplayID: WinShotZoneOccupancyState]? = nil
+    ) {
+        guard !hasObservedWinShotZoneOccupancyBaseline else {
+            return
+        }
+
+        let occupancyByScreen = occupancyOverride ?? currentWinShotZoneOccupancyByScreen()
+        hasObservedWinShotZoneOccupancyBaseline = true
+        lastWinShotZoneOccupancyByScreen = occupancyByScreen
+
+        guard isWinShotEnabled,
+              isWinShotAutoSaveOnZoneOccupancyChangeEnabled else {
+            return
+        }
+
+        let screenIds = orderedScreenIds(Set(occupancyByScreen.keys))
+        for screenId in screenIds {
+            guard screenHasWindowsInZones(screenId) else {
+                continue
+            }
+            createWinShotSnapshot(on: screenId, reason: "auto-save-baseline-\(reason)")
         }
     }
 
