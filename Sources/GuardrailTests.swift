@@ -51,6 +51,9 @@ enum GuardrailTests {
         if !WinShotZoneOccupancyStateTests.run() {
             allPassed = false
         }
+        if !WinShotChooserInitialSelectionPolicyTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

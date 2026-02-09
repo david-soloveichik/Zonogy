@@ -100,6 +100,11 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         chooserView?.selectPrevious()
     }
 
+    /// Select a specific snapshot index.
+    func selectIndex(_ index: Int) {
+        chooserView?.selectIndex(index)
+    }
+
     /// Refresh the chooser with updated snapshots (called when snapshots change while chooser is open)
     func refreshSnapshots(_ snapshots: [WinShotSnapshot]) {
         guard isActive, let screenId = currentScreenId else { return }

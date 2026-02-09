@@ -273,7 +273,20 @@ extension AppController {
             return
         }
 
+        let initialSelectedIndex: Int = {
+            guard snapshots.count > 1 else {
+                return 0
+            }
+
+            let currentWindowIds = Set(collectCurrentWindows(on: screenId).map { $0.windowId })
+            return WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotWindowSets: snapshots.map { $0.allWindowIds },
+                currentWindowIds: currentWindowIds
+            )
+        }()
+
         winShotChooserController.show(snapshots: snapshots, on: screenId)
+        winShotChooserController.selectIndex(initialSelectedIndex)
     }
 
     /// Refresh the WinShot chooser if it's currently open for the given screen
