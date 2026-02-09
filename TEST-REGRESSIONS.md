@@ -15,3 +15,6 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: Restoring a WinShot snapshot with an empty tiling zone can leave that zone without its placeholder because restore sync ran before removing windows that should be absent.
   - Think about: WinShot restore must remove/minimize non-snapshot windows before its sync pass so placeholder reconciliation sees the final occupancy state.
+
+- Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
+  - Think about: Preserve a real post-open grace window and/or require unmanaged-focus state to stabilize (short debounce or repeated confirmation) before dismissing.
