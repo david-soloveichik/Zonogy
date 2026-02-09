@@ -394,11 +394,21 @@ extension AppController {
                 windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
             }
 
-            // Step 9: Sync and refresh
+            // Step 9: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing tiled windows.
+            // We must remove these windows before sync so placeholder creation sees the final empty zones.
+            for window in windowsToMinimize {
+                minimizeWindowProgrammatically(window, reason: "winshot-restore")
+                // Explicitly remove the window from all zones (and any temporary zone)
+                // so that zones which are empty in the snapshot end up truly empty,
+                // allowing placeholders to be restored correctly.
+                removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
+            }
+
+            // Step 10: Sync and refresh based on final tiling occupancy.
             syncWindowsToZones()
             refreshIndicators()
 
-            // Step 10: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
+            // Step 11: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
             if let tempItem = temporaryWorkItem {
                 // Unminimize if needed
                 if tempItem.wasMinimized {
@@ -425,16 +435,6 @@ extension AppController {
                 }
 
                 scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
-            }
-
-            // Step 11: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing new windows.
-            // This ordering makes the UI feel faster since users see new windows appear immediately.
-            for window in windowsToMinimize {
-                minimizeWindowProgrammatically(window, reason: "winshot-restore")
-                // Explicitly remove the window from all zones (and any temporary zone)
-                // so that zones which are empty in the snapshot end up truly empty,
-                // allowing placeholders to be restored correctly.
-                removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
             }
 
             // Step 12: Activate the previously active window
