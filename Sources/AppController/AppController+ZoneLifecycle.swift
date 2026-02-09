@@ -336,6 +336,7 @@ extension AppController {
             "Minimize rollback: restoring window \(managed.windowId) to zone \(key.index) on screen \(screenIndex) (reason: \(cleanupReason))"
         )
         windowPlacementManager.placeWindow(managed, into: key, reason: "\(cleanupReason)-rollback")
+        handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "minimize-rollback")
     }
 
     // Protocol convenience overload (no duration parameter)

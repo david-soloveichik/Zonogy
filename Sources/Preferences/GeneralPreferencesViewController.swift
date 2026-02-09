@@ -148,12 +148,14 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(winShotHintLabel)
         self.winShotHintLabel = winShotHintLabel
 
-        let winShotAutoSaveCheckbox = NSButton(checkboxWithTitle: "Auto-save snapshot on Clear Zones", target: self, action: #selector(winShotAutoSaveToggled(_:)))
+        let winShotAutoSaveCheckbox = NSButton(checkboxWithTitle: "Auto-save snapshots on zone occupancy changes", target: self, action: #selector(winShotAutoSaveToggled(_:)))
         winShotAutoSaveCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(winShotAutoSaveCheckbox)
         self.winShotAutoSaveCheckbox = winShotAutoSaveCheckbox
 
-        let winShotAutoSaveHintLabel = NSTextField(wrappingLabelWithString: "Automatically create a snapshot before clearing zones.")
+        let winShotAutoSaveHintLabel = NSTextField(
+            wrappingLabelWithString: "Automatically save when windows are placed, removed, or moved between zones (including Clear/Reset and snapshot recalls)."
+        )
         winShotAutoSaveHintLabel.font = NSFont.systemFont(ofSize: 12)
         winShotAutoSaveHintLabel.textColor = .secondaryLabelColor
         winShotAutoSaveHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -328,7 +330,7 @@ final class GeneralPreferencesViewController: NSViewController {
 
     @objc private func winShotAutoSaveToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
-        AppController.shared.setWinShotAutoSaveOnClearZonesEnabledFromSettings(enabled)
+        AppController.shared.setWinShotAutoSaveOnZoneOccupancyChangeEnabledFromSettings(enabled)
         syncWinShotCheckboxes()
     }
 
@@ -336,7 +338,7 @@ final class GeneralPreferencesViewController: NSViewController {
         let winShotEnabled = AppController.shared.isWinShotEnabled
         winShotCheckbox?.state = winShotEnabled ? .on : .off
 
-        let autoSaveEnabled = AppController.shared.isWinShotAutoSaveOnClearZonesEnabled
+        let autoSaveEnabled = AppController.shared.isWinShotAutoSaveOnZoneOccupancyChangeEnabled
         winShotAutoSaveCheckbox?.state = autoSaveEnabled ? .on : .off
         winShotAutoSaveCheckbox?.isEnabled = winShotEnabled
         winShotAutoSaveHintLabel?.textColor = winShotEnabled ? .secondaryLabelColor : .tertiaryLabelColor

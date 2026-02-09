@@ -4,8 +4,9 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 ## Creating Snapshots
 
-- Automatically created when pressing Clear/Reset Zones shortcut (Control-Cmd-Escape or variant) when the corresponding screen has managed windows in any zone (tiling or temporary).
-- Automatically created before restoring a different snapshot (if current windows differ from snapshot being restored), allowing the user to return to their previous arrangement.
+- With WinShot auto-save enabled in Preferences, snapshots are created whenever zone occupancy changes on a screen (window placed, removed, or moved between tiling and/or temporary zones).
+- Special case of this rule: Clear/Reset Zones (Control-Cmd-Escape or variant) captures the pre-clear arrangement when that screen has managed windows.
+- Special case of this rule: before restoring a different snapshot, if current windows differ from the target snapshot, the current arrangement is captured so the user can return to it.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot.
 - Snapshots are screen-specific (cannot restore across screens).

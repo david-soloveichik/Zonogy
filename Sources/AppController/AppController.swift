@@ -84,6 +84,16 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()
     internal let winShotManager = WinShotManager()
+    /// Last observed per-screen occupancy snapshot used to detect WinShot auto-save triggers.
+    internal var lastWinShotZoneOccupancyByScreen: [CGDirectDisplayID: WinShotZoneOccupancyState] = [:]
+    /// Prevents treating startup state as an occupancy "change".
+    internal var hasObservedWinShotZoneOccupancyBaseline = false
+    /// Coalesces multiple occupancy-change triggers into one evaluation per run loop.
+    internal var pendingWinShotZoneOccupancyAutoSaveWorkItem: DispatchWorkItem?
+    /// Reasons collected while an occupancy evaluation is pending (for diagnostics only).
+    internal var pendingWinShotZoneOccupancyAutoSaveReasons: Set<String> = []
+    /// Depth counter for temporarily suppressing occupancy-change auto-save during bulk operations.
+    internal var winShotZoneOccupancyAutoSaveSuppressionDepth = 0
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
         controller.delegate = self

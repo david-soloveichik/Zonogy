@@ -11,16 +11,21 @@ enum WinShotPreferencesStore {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotEnabled)
     }
 
-    /// Returns whether auto-save on Clear Zones is enabled.
-    /// Defaults to true when key is not set (so enabling WinShot automatically enables auto-save).
-    static func loadAutoSaveOnClearZones() -> Bool {
-        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZones) == nil {
-            return true
+    /// Returns whether auto-save on occupancy changes is enabled.
+    /// Defaults to true when no preference has been stored.
+    static func loadAutoSaveOnZoneOccupancyChange() -> Bool {
+        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange) != nil {
+            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange)
         }
-        return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZones)
+
+        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZonesLegacy) != nil {
+            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZonesLegacy)
+        }
+
+        return true
     }
 
-    static func saveAutoSaveOnClearZones(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotAutoSaveOnClearZones)
+    static func saveAutoSaveOnZoneOccupancyChange(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange)
     }
 }

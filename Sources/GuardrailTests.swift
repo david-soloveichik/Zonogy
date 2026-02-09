@@ -48,6 +48,9 @@ enum GuardrailTests {
         if !PreferredWindowSelectionTests.run() {
             allPassed = false
         }
+        if !WinShotZoneOccupancyStateTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

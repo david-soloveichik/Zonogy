@@ -8,8 +8,8 @@ extension AppController {
         WinShotPreferencesStore.loadEnabled()
     }
 
-    internal var isWinShotAutoSaveOnClearZonesEnabled: Bool {
-        WinShotPreferencesStore.loadAutoSaveOnClearZones()
+    internal var isWinShotAutoSaveOnZoneOccupancyChangeEnabled: Bool {
+        WinShotPreferencesStore.loadAutoSaveOnZoneOccupancyChange()
     }
 
     internal func setWinShotEnabledFromSettings(_ enabled: Bool) {
@@ -17,9 +17,9 @@ extension AppController {
         WinShotPreferencesStore.saveEnabled(enabled)
     }
 
-    internal func setWinShotAutoSaveOnClearZonesEnabledFromSettings(_ enabled: Bool) {
-        Logger.debug("WinShot: settings updated autoSaveOnClearZones=\(enabled)")
-        WinShotPreferencesStore.saveAutoSaveOnClearZones(enabled)
+    internal func setWinShotAutoSaveOnZoneOccupancyChangeEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("WinShot: settings updated autoSaveOnZoneOccupancyChange=\(enabled)")
+        WinShotPreferencesStore.saveAutoSaveOnZoneOccupancyChange(enabled)
     }
 
     // MARK: - Snapshot Creation
@@ -86,6 +86,140 @@ extension AppController {
         }
 
         return false
+    }
+
+    internal var isWinShotAutoSaveOnZoneOccupancyChangeSuppressed: Bool {
+        winShotZoneOccupancyAutoSaveSuppressionDepth > 0
+    }
+
+    @discardableResult
+    internal func withWinShotAutoSaveOnZoneOccupancyChangeSuppressed<T>(
+        reason: String,
+        _ body: () -> T
+    ) -> T {
+        winShotZoneOccupancyAutoSaveSuppressionDepth += 1
+        defer {
+            winShotZoneOccupancyAutoSaveSuppressionDepth = max(0, winShotZoneOccupancyAutoSaveSuppressionDepth - 1)
+            if winShotZoneOccupancyAutoSaveSuppressionDepth == 0 {
+                pendingWinShotZoneOccupancyAutoSaveWorkItem?.cancel()
+                pendingWinShotZoneOccupancyAutoSaveWorkItem = nil
+                pendingWinShotZoneOccupancyAutoSaveReasons.removeAll()
+                refreshWinShotZoneOccupancyBaseline(reason: "suppression-ended-\(reason)")
+            }
+        }
+        Logger.debug(
+            "WinShot: suppressing occupancy-change auto-save (reason: \(reason), depth: \(winShotZoneOccupancyAutoSaveSuppressionDepth))"
+        )
+        return body()
+    }
+
+    internal func handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: String) {
+        pendingWinShotZoneOccupancyAutoSaveReasons.insert(reason)
+
+        if isWinShotAutoSaveOnZoneOccupancyChangeSuppressed {
+            refreshWinShotZoneOccupancyBaseline(reason: "suppressed-\(reason)")
+            return
+        }
+
+        if pendingWinShotZoneOccupancyAutoSaveWorkItem != nil {
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.flushWinShotAutoSaveForZoneOccupancyChange()
+        }
+        pendingWinShotZoneOccupancyAutoSaveWorkItem = workItem
+        DispatchQueue.main.async(execute: workItem)
+    }
+
+    private func flushWinShotAutoSaveForZoneOccupancyChange() {
+        pendingWinShotZoneOccupancyAutoSaveWorkItem = nil
+        let reasons = pendingWinShotZoneOccupancyAutoSaveReasons.sorted()
+        pendingWinShotZoneOccupancyAutoSaveReasons.removeAll()
+
+        let currentOccupancyByScreen = currentWinShotZoneOccupancyByScreen()
+
+        guard hasObservedWinShotZoneOccupancyBaseline else {
+            hasObservedWinShotZoneOccupancyBaseline = true
+            lastWinShotZoneOccupancyByScreen = currentOccupancyByScreen
+            return
+        }
+
+        let changedScreenIds = WinShotZoneOccupancyChangeDetector.changedScreenIds(
+            previous: lastWinShotZoneOccupancyByScreen,
+            current: currentOccupancyByScreen
+        )
+        lastWinShotZoneOccupancyByScreen = currentOccupancyByScreen
+
+        guard !changedScreenIds.isEmpty else {
+            return
+        }
+
+        guard isWinShotEnabled,
+              isWinShotAutoSaveOnZoneOccupancyChangeEnabled else {
+            return
+        }
+
+        guard !isWinShotAutoSaveOnZoneOccupancyChangeSuppressed else {
+            Logger.debug(
+                "WinShot: occupancy changed but auto-save flush is suppressed (reasons: \(reasons.joined(separator: ",")))"
+            )
+            return
+        }
+
+        let reasonSuffix = reasons.isEmpty ? "unspecified" : reasons.joined(separator: "+")
+        for screenId in orderedScreenIds(changedScreenIds) {
+            createWinShotSnapshot(on: screenId, reason: "zone-occupancy-changed-\(reasonSuffix)")
+        }
+    }
+
+    private func refreshWinShotZoneOccupancyBaseline(reason: String) {
+        let currentOccupancyByScreen = currentWinShotZoneOccupancyByScreen()
+        hasObservedWinShotZoneOccupancyBaseline = true
+        lastWinShotZoneOccupancyByScreen = currentOccupancyByScreen
+        _ = reason
+    }
+
+    private func currentWinShotZoneOccupancyByScreen() -> [CGDirectDisplayID: WinShotZoneOccupancyState] {
+        var screenIdsInOrder = screenOrder
+        for screenId in screenContexts.keys where !screenIdsInOrder.contains(screenId) {
+            screenIdsInOrder.append(screenId)
+        }
+
+        var occupancyByScreen: [CGDirectDisplayID: WinShotZoneOccupancyState] = [:]
+        for screenId in screenIdsInOrder {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+
+            var tiledOccupantsByZoneIndex: [Int: Int] = [:]
+            for zone in context.zoneController.allZones {
+                guard let windowId = zone.occupantWindowId,
+                      windowController.window(withId: windowId) != nil else {
+                    continue
+                }
+                tiledOccupantsByZoneIndex[zone.index] = windowId
+            }
+
+            let temporaryOccupantWindowId = temporaryZoneCoordinator.occupant(on: screenId)?.windowId
+            occupancyByScreen[screenId] = WinShotZoneOccupancyState(
+                tiledOccupantsByZoneIndex: tiledOccupantsByZoneIndex,
+                temporaryOccupantWindowId: temporaryOccupantWindowId
+            )
+        }
+
+        return occupancyByScreen
+    }
+
+    private func orderedScreenIds(_ screenIds: Set<CGDirectDisplayID>) -> [CGDirectDisplayID] {
+        var ordered: [CGDirectDisplayID] = []
+        for screenId in screenOrder where screenIds.contains(screenId) {
+            ordered.append(screenId)
+        }
+
+        let remaining = screenIds.subtracting(Set(ordered)).sorted()
+        ordered.append(contentsOf: remaining)
+        return ordered
     }
 
     // MARK: - Chooser UI
@@ -176,168 +310,170 @@ extension AppController {
             createWinShotSnapshot(on: screenId, reason: "pre-restore")
         }
 
-        Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))")
+        withWinShotAutoSaveOnZoneOccupancyChangeSuppressed(reason: "winshot-restore") {
+            Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))")
 
-        // Step 1: Identify current windows on this screen (excluding placeholders)
-        let currentWindows = collectCurrentWindows(on: screenId)
+            // Step 1: Identify current windows on this screen (excluding placeholders)
+            let currentWindows = collectCurrentWindows(on: screenId)
 
-        // Step 2: Identify which windows are in the snapshot
-        let snapshotWindowIds = snapshot.allWindowIds
+            // Step 2: Identify which windows are in the snapshot
+            let snapshotWindowIds = snapshot.allWindowIds
 
-        // Step 3: Find windows to minimize (current but not in snapshot)
-        let windowsToMinimize = currentWindows.filter { !snapshotWindowIds.contains($0.windowId) }
+            // Step 3: Find windows to minimize (current but not in snapshot)
+            let windowsToMinimize = currentWindows.filter { !snapshotWindowIds.contains($0.windowId) }
 
-        // Step 4: Restore zone configuration
-        restoreZoneConfiguration(snapshot: snapshot, context: context)
+            // Step 4: Restore zone configuration
+            restoreZoneConfiguration(snapshot: snapshot, context: context)
 
-        // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
-        var zoneWorkItems: [ZoneRestoreWorkItem] = []
-        var temporaryWorkItem: TemporaryRestoreWorkItem?
+            // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
+            var zoneWorkItems: [ZoneRestoreWorkItem] = []
+            var temporaryWorkItem: TemporaryRestoreWorkItem?
 
-        // Prepare zone restoration work items
-        for (zoneIndex, identity) in snapshot.zoneAssignments {
-            if let workItem = prepareZoneRestore(
-                identity: identity,
-                zoneIndex: zoneIndex,
-                on: screenId,
-                context: context,
-                descriptor: descriptor
-            ) {
-                zoneWorkItems.append(workItem)
+            // Prepare zone restoration work items
+            for (zoneIndex, identity) in snapshot.zoneAssignments {
+                if let workItem = prepareZoneRestore(
+                    identity: identity,
+                    zoneIndex: zoneIndex,
+                    on: screenId,
+                    context: context,
+                    descriptor: descriptor
+                ) {
+                    zoneWorkItems.append(workItem)
+                }
             }
-        }
 
-        // Prepare temporary zone work item
-        if let tempIdentity = snapshot.temporaryZoneOccupant {
-            temporaryWorkItem = prepareTemporaryZoneRestore(
-                identity: tempIdentity,
-                targetFrame: snapshot.temporaryZoneFrame,
-                on: screenId,
-                descriptor: descriptor
-            )
-        }
-
-        let restoredActiveWindowId = snapshot.activeWindowId
-        let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
-
-        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows FIRST.
-        // Unminimizing first makes the UI feel faster since users see new windows immediately.
-        // Suppress deminiaturize notifications to prevent re-placement loops.
-        let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
-        if !minimizedZoneWindowIds.isEmpty {
-            suppressNextEvents(for: minimizedZoneWindowIds, events: [.deminiaturized], reason: "winshot-restore")
-        }
-        for workItem in zoneWorkItems where workItem.wasMinimized {
-            prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
-            let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
-            windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
-        }
-
-        // Step 6b: ActiveFit coordination.
-        // Schedule ActiveFit suppression BEFORE assignment to prevent assignment from triggering ActiveFit.
-        // After the restore settles, ActiveFit will re-evaluate reveal/rest mode for the active zone window.
-        let zoneWindowIds = zoneWorkItems.map { $0.managed.windowId }
-        let activeZoneWindowId: Int? = {
-            guard let activeId = snapshot.activeWindowId,
-                  zoneWindowIds.contains(activeId) else {
-                return nil
+            // Prepare temporary zone work item
+            if let tempIdentity = snapshot.temporaryZoneOccupant {
+                temporaryWorkItem = prepareTemporaryZoneRestore(
+                    identity: tempIdentity,
+                    targetFrame: snapshot.temporaryZoneFrame,
+                    on: screenId,
+                    descriptor: descriptor
+                )
             }
-            return activeId
-        }()
-        if !zoneWindowIds.isEmpty {
-            scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateRevealModeFor: activeZoneWindowId)
-        }
 
-        // Step 7: ASSIGNMENT PHASE - Assign tiled windows to their zones
-        for workItem in zoneWorkItems {
-            context.zoneController.assignWindow(windowId: workItem.managed.windowId, toZoneIndex: workItem.zoneIndex)
-            setManagedWindow(workItem.managed, screenId: screenId, zoneIndex: workItem.zoneIndex)
-        }
+            let restoredActiveWindowId = snapshot.activeWindowId
+            let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
-        // Step 8: POSITION PHASE - Move tiled windows to their target frames
-        for workItem in zoneWorkItems {
-            windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
-        }
+            // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows FIRST.
+            // Unminimizing first makes the UI feel faster since users see new windows immediately.
+            // Suppress deminiaturize notifications to prevent re-placement loops.
+            let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
+            if !minimizedZoneWindowIds.isEmpty {
+                suppressNextEvents(for: minimizedZoneWindowIds, events: [.deminiaturized], reason: "winshot-restore")
+            }
+            for workItem in zoneWorkItems where workItem.wasMinimized {
+                prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
+                let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
+                windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
+            }
 
-        // Step 9: Sync and refresh
-        syncWindowsToZones()
-        refreshIndicators()
+            // Step 6b: ActiveFit coordination.
+            // Schedule ActiveFit suppression BEFORE assignment to prevent assignment from triggering ActiveFit.
+            // After the restore settles, ActiveFit will re-evaluate reveal/rest mode for the active zone window.
+            let zoneWindowIds = zoneWorkItems.map { $0.managed.windowId }
+            let activeZoneWindowId: Int? = {
+                guard let activeId = snapshot.activeWindowId,
+                      zoneWindowIds.contains(activeId) else {
+                    return nil
+                }
+                return activeId
+            }()
+            if !zoneWindowIds.isEmpty {
+                scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateRevealModeFor: activeZoneWindowId)
+            }
 
-        // Step 10: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
-        if let tempItem = temporaryWorkItem {
-            // Unminimize if needed
-            if tempItem.wasMinimized {
-                suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
+            // Step 7: ASSIGNMENT PHASE - Assign tiled windows to their zones
+            for workItem in zoneWorkItems {
+                context.zoneController.assignWindow(windowId: workItem.managed.windowId, toZoneIndex: workItem.zoneIndex)
+                setManagedWindow(workItem.managed, screenId: screenId, zoneIndex: workItem.zoneIndex)
+            }
+
+            // Step 8: POSITION PHASE - Move tiled windows to their target frames
+            for workItem in zoneWorkItems {
+                windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
+            }
+
+            // Step 9: Sync and refresh
+            syncWindowsToZones()
+            refreshIndicators()
+
+            // Step 10: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
+            if let tempItem = temporaryWorkItem {
+                // Unminimize if needed
+                if tempItem.wasMinimized {
+                    suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
+                    if let targetFrame = tempItem.targetFrame {
+                        prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+                    }
+                    let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
+                    windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
+                }
+
+                // Assign to temporary zone (only center if no stored frame)
+                let hasStoredFrame = tempItem.targetFrame != nil
+                assignWindowToTemporaryZone(
+                    tempItem.managed,
+                    on: screenId,
+                    centerWindow: !hasStoredFrame,
+                    reason: "winshot-restore"
+                )
+
+                // Position to stored frame
                 if let targetFrame = tempItem.targetFrame {
-                    prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+                    windowController.moveWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
                 }
-                let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
-                windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
+
+                scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
             }
 
-            // Assign to temporary zone (only center if no stored frame)
-            let hasStoredFrame = tempItem.targetFrame != nil
-            assignWindowToTemporaryZone(
-                tempItem.managed,
-                on: screenId,
-                centerWindow: !hasStoredFrame,
-                reason: "winshot-restore"
-            )
-
-            // Position to stored frame
-            if let targetFrame = tempItem.targetFrame {
-                windowController.moveWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+            // Step 11: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing new windows.
+            // This ordering makes the UI feel faster since users see new windows appear immediately.
+            for window in windowsToMinimize {
+                minimizeWindowProgrammatically(window, reason: "winshot-restore")
+                // Explicitly remove the window from all zones (and any temporary zone)
+                // so that zones which are empty in the snapshot end up truly empty,
+                // allowing placeholders to be restored correctly.
+                removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
             }
 
-            scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
-        }
-
-        // Step 11: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing new windows.
-        // This ordering makes the UI feel faster since users see new windows appear immediately.
-        for window in windowsToMinimize {
-            minimizeWindowProgrammatically(window, reason: "winshot-restore")
-            // Explicitly remove the window from all zones (and any temporary zone)
-            // so that zones which are empty in the snapshot end up truly empty,
-            // allowing placeholders to be restored correctly.
-            removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
-        }
-
-        // Step 12: Activate the previously active window
-        // Use the temporary zone activation workaround if the active window is in the temporary zone.
-        snapshot.logDebugDetails(context: "restoring")
-        if let activeWindowId = snapshot.activeWindowId,
-           let activeWindow = windowController.window(withId: activeWindowId) {
-            if temporaryWorkItem?.managed.windowId == activeWindowId {
-                activateTemporaryZoneWindow(activeWindow, reason: "winshot-restore")
-            } else {
-                activateWindow(activeWindow)
-            }
-        }
-
-        // Step 13: Update targeting in "independent of focus" mode
-        // If the targeted zone is on the restored screen, apply standard targeting rules.
-        // If the targeted zone is on another screen, leave targeting as is.
-        if targetingMode != .followsFocus {
-            let targetOnRestoredScreen: Bool
-            if let tiledKey = targetedZoneKey {
-                targetOnRestoredScreen = tiledKey.screenId == screenId
-            } else if let tempScreenId = targetedTemporaryScreenId {
-                targetOnRestoredScreen = tempScreenId == screenId
-            } else {
-                targetOnRestoredScreen = false
-            }
-
-            if targetOnRestoredScreen {
-                // Apply standard targeting preference: lowest-index empty zone, or temporary zone if all filled
-                if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
-                    targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
+            // Step 12: Activate the previously active window
+            // Use the temporary zone activation workaround if the active window is in the temporary zone.
+            snapshot.logDebugDetails(context: "restoring")
+            if let activeWindowId = snapshot.activeWindowId,
+               let activeWindow = windowController.window(withId: activeWindowId) {
+                if temporaryWorkItem?.managed.windowId == activeWindowId {
+                    activateTemporaryZoneWindow(activeWindow, reason: "winshot-restore")
                 } else {
-                    targetedZoneManager.setTemporaryTarget(on: screenId, reason: "winshot-restore")
+                    activateWindow(activeWindow)
                 }
             }
-        }
 
-        Logger.debug("WinShot: Snapshot restoration complete")
+            // Step 13: Update targeting in "independent of focus" mode
+            // If the targeted zone is on the restored screen, apply standard targeting rules.
+            // If the targeted zone is on another screen, leave targeting as is.
+            if targetingMode != .followsFocus {
+                let targetOnRestoredScreen: Bool
+                if let tiledKey = targetedZoneKey {
+                    targetOnRestoredScreen = tiledKey.screenId == screenId
+                } else if let tempScreenId = targetedTemporaryScreenId {
+                    targetOnRestoredScreen = tempScreenId == screenId
+                } else {
+                    targetOnRestoredScreen = false
+                }
+
+                if targetOnRestoredScreen {
+                    // Apply standard targeting preference: lowest-index empty zone, or temporary zone if all filled
+                    if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
+                        targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
+                    } else {
+                        targetedZoneManager.setTemporaryTarget(on: screenId, reason: "winshot-restore")
+                    }
+                }
+            }
+
+            Logger.debug("WinShot: Snapshot restoration complete")
+        }
     }
 
     /// Prepare a zone restoration work item (does all prep work, returns nil if window not found)
