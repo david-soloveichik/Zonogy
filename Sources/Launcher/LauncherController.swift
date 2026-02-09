@@ -42,6 +42,7 @@ final class LauncherController {
     private var appTerminationObserver: Any?
     private var lastAnchor: Anchor?
     private var autoShowGraceUntil: Date?
+    private var pendingAutoShowGraceOnOpen = false
 
     private(set) var isActive = false
 
@@ -57,7 +58,8 @@ final class LauncherController {
     /// Show the Launcher with a grace period that prevents immediate dismissal from focus changes.
     /// Use this when auto-showing (e.g., zone became empty) to handle macOS auto-focus behavior.
     func autoShow() {
-        autoShowGraceUntil = Date().addingTimeInterval(Self.autoShowGracePeriod)
+        // Start the grace timer only after the panel is actually shown.
+        pendingAutoShowGraceOnOpen = true
         show()
     }
 
@@ -69,6 +71,9 @@ final class LauncherController {
     }
 
     func show() {
+        let shouldStartAutoShowGrace = pendingAutoShowGraceOnOpen
+        pendingAutoShowGraceOnOpen = false
+
         guard let delegate = delegate else {
             Logger.debug("Launcher: Cannot show - no delegate")
             return
@@ -127,6 +132,12 @@ final class LauncherController {
             }
 
             window?.makeKeyAndOrderFront(nil)
+
+            if shouldStartAutoShowGrace {
+                self.autoShowGraceUntil = Date().addingTimeInterval(Self.autoShowGracePeriod)
+            } else {
+                self.autoShowGraceUntil = nil
+            }
         }
 
         startKeyMonitor()
@@ -146,6 +157,7 @@ final class LauncherController {
         hostingView = nil
         model = nil
         lastAnchor = nil
+        pendingAutoShowGraceOnOpen = false
         autoShowGraceUntil = nil
 
         isActive = false
