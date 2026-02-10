@@ -10,7 +10,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot.
 - Snapshots are screen-specific (cannot restore across screens).
-- Max 10 snapshots per screen; oldest removed when limit exceeded.
+- Max snapshots per screen is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
 - If creating a snapshot with the same exact windows as an existing one, the old snapshot is replaced.
 

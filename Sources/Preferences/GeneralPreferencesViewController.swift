@@ -16,10 +16,6 @@ final class GeneralPreferencesViewController: NSViewController {
     private var launchAtLoginHintLabel: NSTextField?
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
-    private var winShotCheckbox: NSButton?
-    private var winShotHintLabel: NSTextField?
-    private var winShotAutoSaveCheckbox: NSButton?
-    private var winShotAutoSaveHintLabel: NSTextField?
     private var autoShowLauncherCheckbox: NSButton?
     private var autoShowLauncherHintLabel: NSTextField?
     private var targetingModePopUpButton: NSPopUpButton?
@@ -136,32 +132,6 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(dockMenusHintLabel)
         self.dockMenusHintLabel = dockMenusHintLabel
 
-        let winShotCheckbox = NSButton(checkboxWithTitle: "Enable WinShot", target: self, action: #selector(winShotToggled(_:)))
-        winShotCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(winShotCheckbox)
-        self.winShotCheckbox = winShotCheckbox
-
-        let winShotHintLabel = NSTextField(wrappingLabelWithString: "Save and restore window arrangement snapshots with Control-Cmd-Tab. (Requires Screen Recording permission.)")
-        winShotHintLabel.font = NSFont.systemFont(ofSize: 12)
-        winShotHintLabel.textColor = .secondaryLabelColor
-        winShotHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(winShotHintLabel)
-        self.winShotHintLabel = winShotHintLabel
-
-        let winShotAutoSaveCheckbox = NSButton(checkboxWithTitle: "Auto-save snapshots on zone occupancy changes", target: self, action: #selector(winShotAutoSaveToggled(_:)))
-        winShotAutoSaveCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(winShotAutoSaveCheckbox)
-        self.winShotAutoSaveCheckbox = winShotAutoSaveCheckbox
-
-        let winShotAutoSaveHintLabel = NSTextField(
-            wrappingLabelWithString: "Automatically save when windows are placed, removed, or moved between zones (including Clear/Reset and snapshot recalls)."
-        )
-        winShotAutoSaveHintLabel.font = NSFont.systemFont(ofSize: 12)
-        winShotAutoSaveHintLabel.textColor = .secondaryLabelColor
-        winShotAutoSaveHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(winShotAutoSaveHintLabel)
-        self.winShotAutoSaveHintLabel = winShotAutoSaveHintLabel
-
         let autoShowLauncherCheckbox = NSButton(checkboxWithTitle: "Automatically show Launcher for empty tiling zones", target: self, action: #selector(autoShowLauncherToggled(_:)))
         autoShowLauncherCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(autoShowLauncherCheckbox)
@@ -236,21 +206,7 @@ final class GeneralPreferencesViewController: NSViewController {
             dockMenusHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            winShotCheckbox.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
-            winShotCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            winShotHintLabel.topAnchor.constraint(equalTo: winShotCheckbox.bottomAnchor, constant: 6),
-            winShotHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            winShotHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            winShotAutoSaveCheckbox.topAnchor.constraint(equalTo: winShotHintLabel.bottomAnchor, constant: 10),
-            winShotAutoSaveCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-
-            winShotAutoSaveHintLabel.topAnchor.constraint(equalTo: winShotAutoSaveCheckbox.bottomAnchor, constant: 6),
-            winShotAutoSaveHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 60),
-            winShotAutoSaveHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            targetingModeLabel.topAnchor.constraint(equalTo: winShotAutoSaveHintLabel.bottomAnchor, constant: 18),
+            targetingModeLabel.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
             targetingModeLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             targetingModePopUpButton.centerYAnchor.constraint(equalTo: targetingModeLabel.centerYAnchor),
@@ -272,7 +228,6 @@ final class GeneralPreferencesViewController: NSViewController {
         syncScreenRecordingStatus()
         syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
-        syncWinShotCheckboxes()
         syncAutoShowLauncherCheckbox()
         syncTargetingModeControl()
     }
@@ -320,28 +275,6 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncDockMenusCheckbox() {
         let enabled = AppController.shared.isDockMenusEnabledInSettings
         dockMenusCheckbox?.state = enabled ? .on : .off
-    }
-
-    @objc private func winShotToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setWinShotEnabledFromSettings(enabled)
-        syncWinShotCheckboxes()
-    }
-
-    @objc private func winShotAutoSaveToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setWinShotAutoSaveOnZoneOccupancyChangeEnabledFromSettings(enabled)
-        syncWinShotCheckboxes()
-    }
-
-    private func syncWinShotCheckboxes() {
-        let winShotEnabled = AppController.shared.isWinShotEnabled
-        winShotCheckbox?.state = winShotEnabled ? .on : .off
-
-        let autoSaveEnabled = AppController.shared.isWinShotAutoSaveOnZoneOccupancyChangeEnabled
-        winShotAutoSaveCheckbox?.state = autoSaveEnabled ? .on : .off
-        winShotAutoSaveCheckbox?.isEnabled = winShotEnabled
-        winShotAutoSaveHintLabel?.textColor = winShotEnabled ? .secondaryLabelColor : .tertiaryLabelColor
     }
 
     @objc private func autoShowLauncherToggled(_ sender: NSButton) {

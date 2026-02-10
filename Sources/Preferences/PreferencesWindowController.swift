@@ -58,6 +58,13 @@ final class PreferencesWindowController: NSWindowController {
         launcherItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Launcher")
         tabVC.addTabViewItem(launcherItem)
 
+        // WinShot Snapshots tab
+        let winShotVC = WinShotSnapshotsPreferencesViewController()
+        let winShotItem = NSTabViewItem(viewController: winShotVC)
+        winShotItem.label = "WinShot Snapshots"
+        winShotItem.image = NSImage(systemSymbolName: "camera", accessibilityDescription: "WinShot Snapshots")
+        tabVC.addTabViewItem(winShotItem)
+
         window?.contentViewController = tabVC
         self.tabViewController = tabVC
     }

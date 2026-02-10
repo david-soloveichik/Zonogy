@@ -12,6 +12,10 @@ extension AppController {
         WinShotPreferencesStore.loadAutoSaveOnZoneOccupancyChange()
     }
 
+    internal var winShotMaxSnapshotsStoredInSettings: Int {
+        WinShotPreferencesStore.loadMaxSnapshotsStored()
+    }
+
     internal func setWinShotEnabledFromSettings(_ enabled: Bool) {
         Logger.debug("WinShot: settings updated enabled=\(enabled)")
         WinShotPreferencesStore.saveEnabled(enabled)
@@ -20,6 +24,17 @@ extension AppController {
     internal func setWinShotAutoSaveOnZoneOccupancyChangeEnabledFromSettings(_ enabled: Bool) {
         Logger.debug("WinShot: settings updated autoSaveOnZoneOccupancyChange=\(enabled)")
         WinShotPreferencesStore.saveAutoSaveOnZoneOccupancyChange(enabled)
+    }
+
+    internal func setWinShotMaxSnapshotsStoredFromSettings(_ value: Int) {
+        let normalized = WinShotPreferencesStore.normalizedMaxSnapshotsStored(value)
+        Logger.debug("WinShot: settings updated maxSnapshotsStored=\(normalized)")
+        WinShotPreferencesStore.saveMaxSnapshotsStored(normalized)
+        winShotManager.enforceConfiguredSnapshotLimit()
+
+        if let chooserScreenId = winShotChooserController.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: chooserScreenId)
+        }
     }
 
     // MARK: - Snapshot Creation
