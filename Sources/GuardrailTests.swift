@@ -54,6 +54,12 @@ enum GuardrailTests {
         if !WinShotChooserInitialSelectionPolicyTests.run() {
             allPassed = false
         }
+        if !WinShotTimelineLayoutTests.run() {
+            allPassed = false
+        }
+        if !WinShotTimelineConnectorRoutingTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

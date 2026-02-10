@@ -11,6 +11,8 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     private var thumbnailViews: [WinShotThumbnailView] = []
     private var selectedIndex: Int = 0
+    private var hoveredSnapshotId: UUID?
+    private var timelineView: WinShotTimelineView?
     private let scrollView: NSScrollView
     private let containerView: NSView
 
@@ -56,11 +58,11 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     /// Configure the view with snapshots, selecting the first one by default
     func configure(with snapshots: [WinShotSnapshot]) {
-        // Remove existing thumbnail views
-        for view in thumbnailViews {
-            view.removeFromSuperview()
-        }
+        // Remove existing content views.
+        containerView.subviews.forEach { $0.removeFromSuperview() }
         thumbnailViews.removeAll()
+        hoveredSnapshotId = nil
+        timelineView = nil
 
         containerView.wantsLayer = true
 
@@ -70,20 +72,36 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
                                 CGFloat(max(0, snapshots.count - 1)) * Self.spacing
 
         // Create new thumbnail views centered in container
+        var timelineEntries: [WinShotTimelineView.Entry] = []
         var xOffset: CGFloat = 0
 
         for snapshot in snapshots {
             let thumbnailView = WinShotThumbnailView(snapshot: snapshot)
             thumbnailView.delegate = self
             thumbnailView.frame.origin = NSPoint(x: xOffset, y: 0)
-            containerView.addSubview(thumbnailView)
             thumbnailViews.append(thumbnailView)
 
+            timelineEntries.append(
+                WinShotTimelineView.Entry(
+                    createdAt: snapshot.createdAt,
+                    tileCenterX: xOffset + (thumbnailSize.width / 2)
+                )
+            )
             xOffset += thumbnailSize.width + Self.spacing
         }
 
+        let contentHeight = thumbnailSize.height + WinShotTimelineView.verticalSpaceAboveThumbnails
+        let timelineView = WinShotTimelineView(frame: NSRect(x: 0, y: 0, width: totalContentWidth, height: contentHeight))
+        timelineView.configure(entries: timelineEntries)
+        containerView.addSubview(timelineView)
+        self.timelineView = timelineView
+
+        for thumbnailView in thumbnailViews {
+            containerView.addSubview(thumbnailView)
+        }
+
         // Container matches content size exactly; scroll view will center it
-        containerView.frame = NSRect(x: 0, y: 0, width: totalContentWidth, height: thumbnailSize.height)
+        containerView.frame = NSRect(x: 0, y: 0, width: totalContentWidth, height: contentHeight)
 
         // Select first item
         selectedIndex = 0
@@ -126,6 +144,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         for (index, view) in thumbnailViews.enumerated() {
             view.isSelected = (index == selectedIndex)
         }
+        timelineView?.setSelectedIndex(selectedIndex)
 
         guard selectedIndex < thumbnailViews.count else { return }
 
@@ -146,6 +165,24 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         delegate?.chooserView(self, didSelect: snapshotId)
     }
 
+    func thumbnailView(_ view: WinShotThumbnailView, didBeginHover snapshotId: UUID) {
+        hoveredSnapshotId = snapshotId
+        timelineView?.setHoveredIndex(indexForSnapshotId(snapshotId))
+    }
+
+    func thumbnailView(_ view: WinShotThumbnailView, didEndHover snapshotId: UUID) {
+        guard hoveredSnapshotId == snapshotId else {
+            return
+        }
+
+        hoveredSnapshotId = nil
+        timelineView?.setHoveredIndex(nil)
+    }
+
+    private func indexForSnapshotId(_ snapshotId: UUID) -> Int? {
+        thumbnailViews.firstIndex(where: { $0.snapshotId == snapshotId })
+    }
+
     /// Calculate the preferred window size for displaying the given number of snapshots
     static func preferredWindowSize(for snapshotCount: Int) -> NSSize {
         let thumbnailSize = WinShotThumbnailView.preferredSize
@@ -154,7 +191,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         let contentWidth = CGFloat(maxVisible) * thumbnailSize.width +
                            CGFloat(max(0, maxVisible - 1)) * spacing +
                            padding * 2
-        let contentHeight = thumbnailSize.height + padding * 2
+        let contentHeight = thumbnailSize.height + WinShotTimelineView.verticalSpaceAboveThumbnails + padding * 2
 
         return NSSize(width: max(contentWidth, 300), height: contentHeight)
     }
