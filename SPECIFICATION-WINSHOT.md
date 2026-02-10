@@ -21,6 +21,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Escape key or click outside to cancel.
 - Release Control-Cmd to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
 - Red "x" button on each snapshot allows deletion (appears on hover).
+- The chooser window width scales with screen width; the number of thumbnails visible without scrolling increases on wider screens, but never exceeds the WinShot "max snapshots stored" setting.
 - The chooser renders a horizontal timeline rail above thumbnails. Each snapshot has a timeline point whose x-position reflects its `createdAt` timestamp (most recent on the left), so visible gaps on the rail represent time gaps.
 - Thumbnail tiles remain evenly spaced. Each timeline point connects to its corresponding thumbnail with an orthogonal arrow path (down, then horizontal, then down); horizontal segments are staggered onto nearby lanes to avoid connector crossings whenever possible. Hovering or selecting a thumbnail highlights that snapshot's connector and timeline point.
 

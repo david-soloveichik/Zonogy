@@ -18,6 +18,10 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     private static let padding: CGFloat = 20
     private static let spacing: CGFloat = 16
+    private static let minVisibleTileCount = 1
+    private static let fallbackVisibleTileCount = 5
+    private static let maxScreenWidthFraction: CGFloat = 0.9
+    private static let minimumWindowWidth: CGFloat = 300
     
     override init(frame frameRect: NSRect) {
         scrollView = NSScrollView()
@@ -183,16 +187,47 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         thumbnailViews.firstIndex(where: { $0.snapshotId == snapshotId })
     }
 
-    /// Calculate the preferred window size for displaying the given number of snapshots
-    static func preferredWindowSize(for snapshotCount: Int) -> NSSize {
+    /// Calculate the preferred window size for displaying snapshots on the given screen.
+    static func preferredWindowSize(
+        for snapshotCount: Int,
+        screenVisibleWidth: CGFloat,
+        maxSnapshotsStored: Int
+    ) -> NSSize {
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        let maxVisible = min(snapshotCount, 5)  // Show at most 5 thumbnails without scrolling
-
-        let contentWidth = CGFloat(maxVisible) * thumbnailSize.width +
-                           CGFloat(max(0, maxVisible - 1)) * spacing +
+        let visibleCount = visibleTileCount(
+            for: snapshotCount,
+            screenVisibleWidth: screenVisibleWidth,
+            maxSnapshotsStored: maxSnapshotsStored
+        )
+        let contentWidth = CGFloat(visibleCount) * thumbnailSize.width +
+                           CGFloat(max(0, visibleCount - 1)) * spacing +
                            padding * 2
         let contentHeight = thumbnailSize.height + WinShotTimelineView.verticalSpaceAboveThumbnails + padding * 2
 
-        return NSSize(width: max(contentWidth, 300), height: contentHeight)
+        return NSSize(width: max(contentWidth, minimumWindowWidth), height: contentHeight)
+    }
+
+    static func visibleTileCount(
+        for snapshotCount: Int,
+        screenVisibleWidth: CGFloat,
+        maxSnapshotsStored: Int
+    ) -> Int {
+        let cappedSnapshotCount = max(0, min(snapshotCount, maxSnapshotsStored))
+        guard cappedSnapshotCount > 0 else {
+            return 0
+        }
+
+        if screenVisibleWidth <= 0 {
+            return min(cappedSnapshotCount, fallbackVisibleTileCount)
+        }
+
+        let widthBudget = max(screenVisibleWidth * maxScreenWidthFraction, minimumWindowWidth)
+        let thumbnailSize = WinShotThumbnailView.preferredSize
+        let perTileWidth = thumbnailSize.width + spacing
+        let fitFloat = (widthBudget - (padding * 2) + spacing) / perTileWidth
+        let fitCount = Int(floor(fitFloat))
+        let widthLimitedCount = max(minVisibleTileCount, fitCount)
+
+        return min(cappedSnapshotCount, widthLimitedCount)
     }
 }

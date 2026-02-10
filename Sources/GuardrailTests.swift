@@ -54,6 +54,9 @@ enum GuardrailTests {
         if !WinShotSnapshotOccupancySignatureTests.run() {
             allPassed = false
         }
+        if !WinShotChooserViewTests.run() {
+            allPassed = false
+        }
         if !WinShotChooserInitialSelectionPolicyTests.run() {
             allPassed = false
         }
