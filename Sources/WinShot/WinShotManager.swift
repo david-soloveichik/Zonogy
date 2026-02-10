@@ -82,10 +82,14 @@ final class WinShotManager {
             return nil
         }
 
-        // Check for duplicate window set
-        let windowIds = Set(zoneAssignments.values.map { $0.windowId } + (tempIdentity.map { [$0.windowId] } ?? []))
-        if let existingId = findSnapshotWithSameWindows(windowIds, on: screenId) {
-            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same windows")
+        // Check for duplicate occupancy signature (zone assignments + present empty zones).
+        let occupancySignature = WinShotSnapshotOccupancySignature(
+            presentZoneIndices: zoneFrames.keys,
+            tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
+            temporaryZoneWindowId: tempIdentity?.windowId
+        )
+        if let existingId = findSnapshotWithSameOccupancySignature(occupancySignature, on: screenId) {
+            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same occupancy signature")
             deleteSnapshot(existingId)
         }
 
@@ -205,11 +209,14 @@ final class WinShotManager {
         }
     }
 
-    private func findSnapshotWithSameWindows(_ windowIds: Set<Int>, on screenId: CGDirectDisplayID) -> UUID? {
+    private func findSnapshotWithSameOccupancySignature(
+        _ signature: WinShotSnapshotOccupancySignature,
+        on screenId: CGDirectDisplayID
+    ) -> UUID? {
         guard let screenSnapshots = snapshots[screenId] else { return nil }
 
         for snapshot in screenSnapshots {
-            if snapshot.allWindowIds == windowIds {
+            if WinShotSnapshotOccupancySignature(snapshot: snapshot) == signature {
                 return snapshot.id
             }
         }

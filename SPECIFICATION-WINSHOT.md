@@ -6,13 +6,13 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 - With WinShot auto-save enabled in Preferences, snapshots are created whenever zone occupancy changes on a screen (window placed, removed, or moved between tiling and/or temporary zones).
 - Special case of this rule: Clear/Reset Zones (Control-Cmd-Escape or variant) captures the pre-clear arrangement when that screen has managed windows.
-- Special case of this rule: before restoring a different snapshot, if current windows differ from the target snapshot, the current arrangement is captured so the user can return to it.
+- Special case of this rule: before restoring a different snapshot, if the current zone occupancy signature differs from the target snapshot, the current arrangement is captured so the user can return to it.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot.
 - Snapshots are screen-specific (cannot restore across screens).
 - Max snapshots per screen is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
-- If creating a snapshot with the same exact windows as an existing one, the old snapshot is replaced.
+- If creating a snapshot with the same zone occupancy signature as an existing one, the old snapshot is replaced. The signature includes each window's zone assignment, the temporary-zone occupant, and which tiling zones are present even when empty.
 
 ## Chooser Window
 

@@ -293,10 +293,12 @@ extension AppController {
                 return 0
             }
 
-            let currentWindowIds = Set(collectCurrentWindows(on: screenId).map { $0.windowId })
+            guard let currentOccupancySignature = currentSnapshotOccupancySignature(on: screenId) else {
+                return 0
+            }
             return WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
-                snapshotWindowSets: snapshots.map { $0.allWindowIds },
-                currentWindowIds: currentWindowIds
+                snapshotOccupancySignatures: snapshots.map { WinShotSnapshotOccupancySignature(snapshot: $0) },
+                currentOccupancySignature: currentOccupancySignature
             )
         }()
 
@@ -363,10 +365,11 @@ extension AppController {
         scheduleActivityRecordingSuppression(reason: "winshot-restore")
 
         // Auto-save current state before restoring, so user can return to it later.
-        // Only create if current windows differ from target snapshot to avoid
+        // Only create when occupancy differs from the target snapshot to avoid
         // the deduplication logic deleting our target snapshot.
-        let currentWindowIds = Set(collectCurrentWindows(on: screenId).map { $0.windowId })
-        if currentWindowIds != snapshot.allWindowIds {
+        let targetOccupancySignature = WinShotSnapshotOccupancySignature(snapshot: snapshot)
+        if let currentOccupancySignature = currentSnapshotOccupancySignature(on: screenId),
+           currentOccupancySignature != targetOccupancySignature {
             createWinShotSnapshot(on: screenId, reason: "pre-restore")
         }
 
@@ -698,6 +701,29 @@ extension AppController {
         }
 
         return windows
+    }
+
+    private func currentSnapshotOccupancySignature(on screenId: CGDirectDisplayID) -> WinShotSnapshotOccupancySignature? {
+        guard let context = screenContexts[screenId] else {
+            return nil
+        }
+
+        let zones = context.zoneController.allZones
+        var tiledWindowIdsByZoneIndex: [Int: Int] = [:]
+
+        for zone in zones {
+            guard let windowId = zone.occupantWindowId,
+                  windowController.window(withId: windowId) != nil else {
+                continue
+            }
+            tiledWindowIdsByZoneIndex[zone.index] = windowId
+        }
+
+        return WinShotSnapshotOccupancySignature(
+            presentZoneIndices: zones.map(\.index),
+            tiledWindowIdsByZoneIndex: tiledWindowIdsByZoneIndex,
+            temporaryZoneWindowId: temporaryZoneCoordinator.occupant(on: screenId)?.windowId
+        )
     }
 
     private func restoreZoneConfiguration(snapshot: WinShotSnapshot, context: ScreenContext) {

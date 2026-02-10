@@ -13,46 +13,125 @@ enum WinShotChooserInitialSelectionPolicyTests {
             }
         }
 
-        do {
-            let current: Set<Int> = [1, 2]
-            let sets: [Set<Int>] = [[1, 2], [3], [4, 5]]
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
-            assert(index == 1, "should skip the most recent snapshot when it matches current windows")
+        func signature(
+            presentZoneIndices: [Int],
+            tiledWindowIdsByZoneIndex: [Int: Int],
+            temporaryZoneWindowId: Int? = nil
+        ) -> WinShotSnapshotOccupancySignature {
+            WinShotSnapshotOccupancySignature(
+                presentZoneIndices: presentZoneIndices,
+                tiledWindowIdsByZoneIndex: tiledWindowIdsByZoneIndex,
+                temporaryZoneWindowId: temporaryZoneWindowId
+            )
         }
 
         do {
-            let current: Set<Int> = [1, 2]
-            let sets: [Set<Int>] = [[3], [1, 2]]
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
-            assert(index == 0, "should keep index 0 when it differs from current windows")
+            let current = signature(
+                presentZoneIndices: [1, 2],
+                tiledWindowIdsByZoneIndex: [1: 1, 2: 2]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 3]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [2: 4], temporaryZoneWindowId: 5)
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
+            assert(index == 1, "should skip the most recent snapshot when it matches current occupancy")
         }
 
         do {
-            let current: Set<Int> = [1, 2]
-            let sets: [Set<Int>] = [[1, 2]]
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
+            let current = signature(
+                presentZoneIndices: [1, 2],
+                tiledWindowIdsByZoneIndex: [1: 1, 2: 2]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 3]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
+            assert(index == 0, "should keep index 0 when it differs from current occupancy")
+        }
+
+        do {
+            let current = signature(
+                presentZoneIndices: [1, 2],
+                tiledWindowIdsByZoneIndex: [1: 1, 2: 2]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
             assert(index == 0, "should fall back to 0 when no other snapshot exists")
         }
 
         do {
-            let current: Set<Int> = [1, 2]
-            let sets: [Set<Int>] = [[1, 2], [1, 2], [9]]
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
-            assert(index == 2, "should select the first snapshot that differs from current windows")
+            let current = signature(
+                presentZoneIndices: [1, 2],
+                tiledWindowIdsByZoneIndex: [1: 1, 2: 2]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 9])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
+            assert(index == 2, "should select the first snapshot that differs from current occupancy")
         }
 
         do {
-            let current: Set<Int> = []
-            let sets: [Set<Int>] = [[101]]
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
+            let current = signature(
+                presentZoneIndices: [1],
+                tiledWindowIdsByZoneIndex: [:]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1], tiledWindowIdsByZoneIndex: [1: 101])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
             assert(index == 0, "empty current set should still select the first snapshot")
         }
 
         do {
-            let current: Set<Int> = [1]
-            let sets: [Set<Int>] = []
-            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(snapshotWindowSets: sets, currentWindowIds: current)
+            let current = signature(
+                presentZoneIndices: [1],
+                tiledWindowIdsByZoneIndex: [1: 1]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = []
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
             assert(index == 0, "empty snapshot list should return 0")
+        }
+
+        do {
+            let current = signature(
+                presentZoneIndices: [1, 2],
+                tiledWindowIdsByZoneIndex: [1: 1, 2: 2]
+            )
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 2, 2: 1]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: current
+            )
+            assert(index == 0, "same windows in different zones should count as a different snapshot")
         }
 
         if allPassed {
@@ -61,4 +140,3 @@ enum WinShotChooserInitialSelectionPolicyTests {
         return allPassed
     }
 }
-
