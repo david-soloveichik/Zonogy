@@ -35,58 +35,56 @@ extension AppController {
         let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
-        // WinShot: preserve current behavior by saving the pre-clear state before bulk changes.
-        if isWinShotEnabled && isWinShotAutoSaveOnZoneOccupancyChangeEnabled {
+        // WinShot: capture the pre-clear state before applying bulk clear/reset changes.
+        if isWinShotEnabled && isWinShotAutoSaveSnapshotsEnabled {
             if !allEmpty || temporaryZoneCoordinator.occupant(on: screenId) != nil {
                 createWinShotSnapshot(on: screenId, reason: "clear-zones-\(reason)")
             }
         }
 
-        withWinShotAutoSaveOnZoneOccupancyChangeSuppressed(reason: "clear-or-reset-zones-\(reason)") {
-            // Also empty the temporary zone on the selected screen
-            temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
+        // Also empty the temporary zone on the selected screen
+        temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
 
-            if allEmpty {
-                Logger.debug("Clear/reset zones (\(reason)): all zones empty on screen \(screenIndex), resetting to 1 zone")
-                let removedWindowIds = context.zoneController.setZoneCount(to: 1)
+        if allEmpty {
+            Logger.debug("Clear/reset zones (\(reason)): all zones empty on screen \(screenIndex), resetting to 1 zone")
+            let removedWindowIds = context.zoneController.setZoneCount(to: 1)
 
-                for windowId in removedWindowIds {
-                    if let managed = windowController.window(withId: windowId) {
-                        windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
-                    }
+            for windowId in removedWindowIds {
+                if let managed = windowController.window(withId: windowId) {
+                    windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
                 }
-
-                placeholderCoordinator.clearPlaceholdersForScreen(screenId)
-
-                syncWindowsToZones()
-                activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
-            } else {
-                Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
-                var minimizedCount = 0
-
-                for zone in zones {
-                    if let windowId = zone.occupantWindowId,
-                       let managed = windowController.window(withId: windowId) {
-                        minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
-                        removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
-                        minimizedCount += 1
-                    }
-                }
-
-                Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedCount) window(s) on screen \(screenIndex)")
-                syncWindowsToZones()
             }
 
-            // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.
-            if context.zoneController.zone(at: 1) != nil {
-                targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
-            } else {
-                targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
+            placeholderCoordinator.clearPlaceholdersForScreen(screenId)
+
+            syncWindowsToZones()
+            activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
+        } else {
+            Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
+            var minimizedCount = 0
+
+            for zone in zones {
+                if let windowId = zone.occupantWindowId,
+                   let managed = windowController.window(withId: windowId) {
+                    minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
+                    removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
+                    minimizedCount += 1
+                }
             }
 
-            // Auto-show Launcher after clearing zones (analogous to emptying a zone).
-            autoShowLauncherIfEmptyTargetedTiledZone()
+            Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedCount) window(s) on screen \(screenIndex)")
+            syncWindowsToZones()
         }
+
+        // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.
+        if context.zoneController.zone(at: 1) != nil {
+            targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
+        } else {
+            targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
+        }
+
+        // Auto-show Launcher after clearing zones (analogous to emptying a zone).
+        autoShowLauncherIfEmptyTargetedTiledZone()
     }
 
     internal func resolveCursorScreenId() -> CGDirectDisplayID? {

@@ -162,7 +162,6 @@ extension AppController {
         cancelAllPendingRecaptureWorkItems()
         cancelPendingScreenTopologyRefreshWork()
         cancelPendingFullScreenAsyncChecks()
-        cancelPendingWinShotOccupancyAutoSaveWork()
         cancelTemporaryZoneProtectionAsyncWork()
         cancelPendingWindowActivityRecord()
 
@@ -200,12 +199,6 @@ extension AppController {
 
         pendingFullScreenSpaceChangeWorkItem?.cancel()
         pendingFullScreenSpaceChangeWorkItem = nil
-    }
-
-    private func cancelPendingWinShotOccupancyAutoSaveWork() {
-        pendingWinShotZoneOccupancyAutoSaveWorkItem?.cancel()
-        pendingWinShotZoneOccupancyAutoSaveWorkItem = nil
-        pendingWinShotZoneOccupancyAutoSaveReasons.removeAll()
     }
 
     private func cancelTemporaryZoneProtectionAsyncWork() {

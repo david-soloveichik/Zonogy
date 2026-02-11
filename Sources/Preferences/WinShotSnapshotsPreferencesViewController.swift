@@ -34,7 +34,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.winShotHintLabel = winShotHintLabel
 
         let winShotAutoSaveCheckbox = NSButton(
-            checkboxWithTitle: "Auto-save snapshots on zone occupancy changes",
+            checkboxWithTitle: "Auto-save snapshots on Clear/Reset Zones",
             target: self,
             action: #selector(winShotAutoSaveToggled(_:))
         )
@@ -43,7 +43,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.winShotAutoSaveCheckbox = winShotAutoSaveCheckbox
 
         let winShotAutoSaveHintLabel = NSTextField(
-            wrappingLabelWithString: "Automatically save when windows are placed, removed, or moved between zones (including Clear/Reset and snapshot recalls)."
+            wrappingLabelWithString: "Automatically capture the pre-clear arrangement before using Clear/Reset Zones, when managed windows are present."
         )
         winShotAutoSaveHintLabel.font = NSFont.systemFont(ofSize: 12)
         winShotAutoSaveHintLabel.textColor = .secondaryLabelColor
@@ -140,7 +140,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
 
     @objc private func winShotAutoSaveToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
-        AppController.shared.setWinShotAutoSaveOnZoneOccupancyChangeEnabledFromSettings(enabled)
+        AppController.shared.setWinShotAutoSaveSnapshotsEnabledFromSettings(enabled)
         syncControls()
     }
 
@@ -168,7 +168,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         let winShotEnabled = AppController.shared.isWinShotEnabled
         winShotCheckbox?.state = winShotEnabled ? .on : .off
 
-        let autoSaveEnabled = AppController.shared.isWinShotAutoSaveOnZoneOccupancyChangeEnabled
+        let autoSaveEnabled = AppController.shared.isWinShotAutoSaveSnapshotsEnabled
         winShotAutoSaveCheckbox?.state = autoSaveEnabled ? .on : .off
         winShotAutoSaveCheckbox?.isEnabled = winShotEnabled
         winShotAutoSaveHintLabel?.textColor = winShotEnabled ? .secondaryLabelColor : .tertiaryLabelColor

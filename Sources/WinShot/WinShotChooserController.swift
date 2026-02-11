@@ -230,8 +230,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         }
 
         // Hide the window first, then dispatch restoration asynchronously
-        // so the window is fully off-screen before any screenshot capture
-        // (e.g., for pre-restore snapshots)
+        // so the chooser is fully off-screen before restore-side window moves.
         hide()
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }

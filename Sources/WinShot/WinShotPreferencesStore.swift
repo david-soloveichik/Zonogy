@@ -15,22 +15,17 @@ enum WinShotPreferencesStore {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotEnabled)
     }
 
-    /// Returns whether auto-save on occupancy changes is enabled.
+    /// Returns whether automatic snapshot creation is enabled.
     /// Defaults to true when no preference has been stored.
-    static func loadAutoSaveOnZoneOccupancyChange() -> Bool {
-        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange) != nil {
-            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange)
+    static func loadAutoSaveSnapshots() -> Bool {
+        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveSnapshots) != nil {
+            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveSnapshots)
         }
-
-        if UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZonesLegacy) != nil {
-            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.winShotAutoSaveOnClearZonesLegacy)
-        }
-
         return true
     }
 
-    static func saveAutoSaveOnZoneOccupancyChange(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotAutoSaveOnZoneOccupancyChange)
+    static func saveAutoSaveSnapshots(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.winShotAutoSaveSnapshots)
     }
 
     static func loadMaxSnapshotsStored() -> Int {

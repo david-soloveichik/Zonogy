@@ -27,7 +27,6 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func scheduleTemporaryZoneProtection(windowId: Int)
     func clearTemporaryZoneProtection(windowId: Int)
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String)
-    func handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: String)
 }
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
@@ -113,7 +112,6 @@ final class TemporaryZoneCoordinator {
         Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
         host.refreshResizeHandles()
-        host.handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "temporary-zone-assign")
     }
 
     func minimizeOccupant(on screenId: CGDirectDisplayID, reason: String) {
@@ -131,7 +129,6 @@ final class TemporaryZoneCoordinator {
         )
         host.refreshIndicators()
         host.refreshResizeHandles()
-        host.handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "temporary-zone-minimize")
     }
 
     func clear(windowId: Int, minimize: Bool, reason: String) {
@@ -151,7 +148,6 @@ final class TemporaryZoneCoordinator {
         }
         host.refreshIndicators()
         host.refreshResizeHandles()
-        host.handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "temporary-zone-clear")
     }
 
     func handleFocusChange(pid: pid_t, focusedWindowId: Int?) {
@@ -248,7 +244,6 @@ final class TemporaryZoneCoordinator {
 
         host.refreshIndicators()
         host.refreshResizeHandles()
-        host.handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "temporary-zone-deferred-minimize")
         return true
     }
 
@@ -326,7 +321,6 @@ final class TemporaryZoneCoordinator {
 
         host.refreshIndicators()
         host.refreshResizeHandles()
-        host.handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "temporary-zone-cross-screen-drop")
         return true
     }
     
