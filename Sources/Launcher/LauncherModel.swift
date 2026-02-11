@@ -62,9 +62,9 @@ final class LauncherModel: ObservableObject {
     }
 
     deinit {
-        let center = NSWorkspace.shared.notificationCenter
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
         for observer in workspaceObservers {
-            center.removeObserver(observer)
+            workspaceCenter.removeObserver(observer)
         }
     }
 

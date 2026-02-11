@@ -4,18 +4,22 @@ import AppKit
 import Foundation
 
 struct DefaultAppProvider: AppProviding {
+    static func standardApplicationRoots(fileManager: FileManager = .default) -> [URL] {
+        [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/System/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/System/Library/CoreServices/Applications", isDirectory: true),
+            fileManager.homeDirectoryForCurrentUser.appending(path: "Applications", directoryHint: .isDirectory),
+        ]
+    }
+
     /// Apps in non-standard locations that should always be included
     private static let explicitApps: [URL] = [
         URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
     ]
 
     func discoverApplications(skipIcons: Bool = false) async -> [LaunchItem] {
-        let candidateRoots: [URL] = [
-            URL(fileURLWithPath: "/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Library/CoreServices/Applications", isDirectory: true),
-            FileManager.default.homeDirectoryForCurrentUser.appending(path: "Applications", directoryHint: .isDirectory),
-        ]
+        let candidateRoots = Self.standardApplicationRoots()
 
         var seen: Set<String> = []
         var results: [LaunchItem] = []

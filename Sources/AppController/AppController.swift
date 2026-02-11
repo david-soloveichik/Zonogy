@@ -92,6 +92,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()
+    internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
@@ -297,6 +298,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.windowPlacementManager.delegate = self
         self.dragDropCoordinator.delegate = self
         self.menuBarManager.delegate = self
+        self.launcherInstallWatchService.reloadHandler = { [weak self] in
+            self?.reloadLauncherItems()
+        }
         prepareExistingApplicationWindows()
         scanAllWindowsForFullScreenState()
         hotkeyService.start(delegate: self)
@@ -315,6 +319,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
         }
         refreshIndicators()
+
+        // Watch app install roots and refresh launcher cache when installations change.
+        launcherInstallWatchService.start()
 
         // Pre-load launcher app list in background for instant launcher opens
         Task.detached(priority: .utility) {
@@ -342,6 +349,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         displayMonitor.stop()
         zoneClickInterceptor.stop()
         stopDockMenus()
+        launcherInstallWatchService.stop()
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         temporaryIndicatorManager.tearDown()
