@@ -23,4 +23,4 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
   - Think about: Route sleep-sensitive timer/work-item cancellation through `cancelSleepSensitiveAsyncWork(reason:)` (in `AppController+SleepWake.swift`), and only resume AX-dependent work after wake readiness gates are satisfied.
 
 - Bug report: Launcher app-list cache can refresh in the background while the Launcher is open, but the visible list stays stale until close/reopen.
-  - Think about: Before reloading launcher cache, either dismiss an active Launcher or explicitly refresh live Launcher state; keep one consistent approach across manual and automatic reload paths.
+  - Think about: Keep reload behavior consistent across manual and automatic paths, and refresh live Launcher app-list state in place (without dismissing) when cache reload completes.

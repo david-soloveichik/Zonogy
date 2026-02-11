@@ -4,10 +4,6 @@ import AppKit
 
 extension AppController {
     internal func reloadLauncherItems() {
-        if launcherController.isActive {
-            launcherController.hide()
-            Logger.debug("Launcher: Hidden because launcher items are reloading")
-        }
         Task {
             await LauncherAppCache.shared.reload()
         }

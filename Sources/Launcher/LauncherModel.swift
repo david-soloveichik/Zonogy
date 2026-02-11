@@ -52,6 +52,7 @@ final class LauncherModel: ObservableObject {
     private var savedAppQuery: String = ""
     private var allItems: [LaunchItem] = []
     private var workspaceObservers: [NSObjectProtocol] = []
+    private var defaultCenterObservers: [NSObjectProtocol] = []
 
     private var usageStore: LaunchItemUsageStore { LaunchItemUsageStore.shared }
 
@@ -59,12 +60,18 @@ final class LauncherModel: ObservableObject {
         reloadItems()
         refreshRunningApps()
         setupWorkspaceObservers()
+        setupCacheObservers()
     }
 
     deinit {
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         for observer in workspaceObservers {
             workspaceCenter.removeObserver(observer)
+        }
+
+        let defaultCenter = NotificationCenter.default
+        for observer in defaultCenterObservers {
+            defaultCenter.removeObserver(observer)
         }
     }
 
@@ -89,6 +96,19 @@ final class LauncherModel: ObservableObject {
             }
         }
         workspaceObservers = [launchObserver, terminateObserver]
+    }
+
+    private func setupCacheObservers() {
+        let observer = NotificationCenter.default.addObserver(
+            forName: .launcherAppCacheDidReload,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reloadItems(preserveSelection: true)
+            }
+        }
+        defaultCenterObservers = [observer]
     }
 
     private func refreshRunningApps() {
@@ -124,8 +144,14 @@ final class LauncherModel: ObservableObject {
     }
 
     func reloadItems() {
+        reloadItems(preserveSelection: false)
+    }
+
+    private func reloadItems(preserveSelection: Bool) {
         allItems = LauncherAppCache.shared.cachedItems()
-        updateFilteredItems(preserveSelection: false)
+        if case .appList = mode {
+            updateFilteredItems(preserveSelection: preserveSelection)
+        }
     }
 
     func requestSearchFieldFocus() {

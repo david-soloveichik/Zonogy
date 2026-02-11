@@ -3,6 +3,10 @@
 import AppKit
 import Foundation
 
+extension Notification.Name {
+    static let launcherAppCacheDidReload = Notification.Name("LauncherAppCacheDidReload")
+}
+
 @MainActor
 final class LauncherAppCache {
     static let shared = LauncherAppCache()
@@ -44,6 +48,7 @@ final class LauncherAppCache {
         items = combined.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
         isLoaded = true
 
+        NotificationCenter.default.post(name: .launcherAppCacheDidReload, object: nil)
         Logger.debug("LauncherAppCache: Reloaded \(items.count) items, icon cache cleared")
     }
 
