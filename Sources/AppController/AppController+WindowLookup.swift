@@ -62,51 +62,80 @@ extension AppController {
         return ZoneKey(screenId: screenId, index: fallbackZone.index)
     }
 
-    /// Returns the screen ID where an unmanaged window currently has focus.
-    /// Returns nil if the focused window is managed (in a tiling zone or temporary zone), or if Zonogy is frontmost.
-    internal func screenIdForUnmanagedFocusedWindow() -> CGDirectDisplayID? {
+    internal enum UnmanagedFocusResolution {
+        case managed
+        case unmanaged(screenId: CGDirectDisplayID, reason: String)
+        case unresolved(pid: pid_t, reason: String)
+    }
+
+    /// Resolves whether frontmost focus is managed, confirmed unmanaged, or unresolved.
+    /// Unmanaged focus requires positive confirmation; transient AX failures stay unresolved.
+    internal func resolveUnmanagedFocusState() -> UnmanagedFocusResolution {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
-            return nil
+            return .managed
         }
 
         let pid = frontmostApp.processIdentifier
         guard pid != getpid() else {
-            return nil  // Zonogy is frontmost
+            return .managed
         }
 
-        // Check if the focused window is tracked and managed
-        if let managed = windowController.focusedWindowIfTracked(pid: pid) {
-            // Window is tracked; check if it's actually managed (has zone assignment or is in temporary zone)
-            if managed.zoneIndex != nil || isWindowInTemporaryZone(managed.windowId) {
-                return nil  // Managed window - don't hide resize bars
-            }
-        }
-
-        // The focused window is either untracked or tracked but not managed.
-        // Get its frame via accessibility to determine which screen it's on.
         let appElement = windowController.accessibilityWatcher.applicationElement(for: pid)
-
         var windowObject: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
-        guard result == .success,
+        let focusedWindowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
+        guard focusedWindowResult == .success,
               let windowObject,
               CFGetTypeID(windowObject) == AXUIElementGetTypeID() else {
-            return nil
+            return .unresolved(pid: pid, reason: "focused-window-\(focusedWindowResult.logDescription)")
+        }
+        let focusedWindow = unsafeBitCast(windowObject, to: AXUIElement.self)
+
+        if let tracked = windowController.managedWindow(matching: focusedWindow),
+           tracked.zoneIndex != nil || isWindowInTemporaryZone(tracked.windowId) {
+            return .managed
         }
 
-        let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
+        if let bundleId = frontmostApp.bundleIdentifier,
+           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+            guard let screenId = screenId(forWindowElement: focusedWindow) else {
+                return .unresolved(pid: pid, reason: "ignored-bundle-screen-unavailable")
+            }
+            return .unmanaged(screenId: screenId, reason: "ignored-bundle")
+        }
 
+        guard let externalIdentifier = windowController.externalIdentifier(for: focusedWindow) else {
+            return .unresolved(pid: pid, reason: "missing-cgwindowid")
+        }
+
+        let isMinimized = windowController.isWindowMinimized(focusedWindow)
+        let passesNonWindowIdCriteria = windowController.isStandardWindow(
+            focusedWindow,
+            pid: pid,
+            cgWindowId: CGWindowID(externalIdentifier.cgWindowId),
+            skipSubroleCheck: isMinimized
+        )
+
+        guard !passesNonWindowIdCriteria else {
+            return .unresolved(pid: pid, reason: "window-appears-manageable")
+        }
+
+        guard let screenId = screenId(forWindowElement: focusedWindow) else {
+            return .unresolved(pid: pid, reason: "unmanaged-screen-unavailable")
+        }
+
+        return .unmanaged(screenId: screenId, reason: "fails-non-windowid-management-criteria")
+    }
+
+    private func screenId(forWindowElement windowElement: AXUIElement) -> CGDirectDisplayID? {
         guard let position = ManagedWindow.copyCGPointValue(element: windowElement, attribute: kAXPositionAttribute as CFString),
               let size = ManagedWindow.copyCGSizeValue(element: windowElement, attribute: kAXSizeAttribute as CFString) else {
             return nil
         }
-
         let accessibilityFrame = CGRect(origin: position, size: size)
         let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
             accessibilityFrame: accessibilityFrame,
             primaryScreenBounds: primaryScreenBounds
         )
-
         return screenIdForCocoaFrame(cocoaFrame)
     }
 }

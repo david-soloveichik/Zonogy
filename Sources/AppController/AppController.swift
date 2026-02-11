@@ -26,6 +26,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let displacedWindowId: Int?
         let displacedWindowFrame: CGRect?
     }
+    struct UnmanagedFocusRetryState {
+        let pid: pid_t
+        var attempt: Int
+        var workItem: DispatchWorkItem?
+    }
 
     static let shared = AppController()
 
@@ -76,6 +81,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
     /// Used to hide zone resize bars on that screen.
     internal var unmanagedFocusedWindowScreenId: CGDirectDisplayID?
+    /// Retry state for unresolved unmanaged-focus classification.
+    /// A focus is only treated as unmanaged once confirmed; transient AX failures retry first.
+    internal var unmanagedFocusRetryState: UnmanagedFocusRetryState?
+    internal let unmanagedFocusRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by AltTab to determine initial selection without an AX call.
     internal var currentFrontmostManagedWindowId: Int?

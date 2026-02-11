@@ -183,6 +183,7 @@ If the front-most managed window on a screen would overlap a zone resize bar, th
 When the temporary zone is occupied on a screen, hide all zone resize bars on that screen to avoid overlapping the temporary window.
 
 When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.
+For this rule, and Launcher auto-show suppression, unmanaged focus must be confirmed (with retries) as described in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
 
 #### Resizing Managed Windows
 

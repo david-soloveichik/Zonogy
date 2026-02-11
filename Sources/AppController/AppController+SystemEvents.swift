@@ -232,12 +232,26 @@ extension AppController {
     }
 
     /// Updates `unmanagedFocusedWindowScreenId` based on the current frontmost window.
-    /// If the focused window is unmanaged, stores its screen ID; otherwise clears the state.
+    /// If the focused window is confirmed unmanaged, stores its screen ID; otherwise clears the state.
     /// Calls `refreshResizeHandles()` when the state changes, and hides the Launcher if it's
     /// on the screen where an unmanaged window now has focus.
     internal func updateUnmanagedFocusState() {
         let previousScreenId = unmanagedFocusedWindowScreenId
-        let newScreenId = screenIdForUnmanagedFocusedWindow()
+        let resolution = resolveUnmanagedFocusState()
+        let newScreenId: CGDirectDisplayID?
+
+        switch resolution {
+        case .managed:
+            cancelUnmanagedFocusRetry()
+            newScreenId = nil
+        case .unmanaged(let screenId, _):
+            cancelUnmanagedFocusRetry()
+            newScreenId = screenId
+        case .unresolved(let pid, let reason):
+            scheduleUnmanagedFocusRetry(for: pid, reason: reason)
+            newScreenId = nil
+        }
+
         unmanagedFocusedWindowScreenId = newScreenId
 
         if previousScreenId != newScreenId {
@@ -254,6 +268,60 @@ extension AppController {
                 }
             }
         }
+    }
+
+    internal func cancelUnmanagedFocusRetry() {
+        unmanagedFocusRetryState?.workItem?.cancel()
+        unmanagedFocusRetryState = nil
+    }
+
+    private func scheduleUnmanagedFocusRetry(for pid: pid_t, reason: String) {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+            cancelUnmanagedFocusRetry()
+            return
+        }
+
+        if unmanagedFocusRetryState?.pid != pid {
+            cancelUnmanagedFocusRetry()
+            unmanagedFocusRetryState = UnmanagedFocusRetryState(pid: pid, attempt: 0, workItem: nil)
+        }
+
+        guard var retry = unmanagedFocusRetryState else {
+            return
+        }
+
+        if let workItem = retry.workItem, !workItem.isCancelled {
+            return
+        }
+
+        guard retry.attempt < unmanagedFocusRetryDelays.count else {
+            Logger.debug("Unmanaged focus retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(reason))")
+            unmanagedFocusRetryState = nil
+            return
+        }
+
+        let delay = unmanagedFocusRetryDelays[retry.attempt]
+        let nextAttempt = retry.attempt + 1
+        Logger.debug(
+            "Scheduling unmanaged focus retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (reason: \(reason))"
+        )
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                self.cancelUnmanagedFocusRetry()
+                return
+            }
+
+            self.unmanagedFocusRetryState?.workItem = nil
+            self.unmanagedFocusRetryState?.attempt = nextAttempt
+            Logger.debug("Executing unmanaged focus retry #\(nextAttempt) for pid \(pid)")
+            self.updateUnmanagedFocusState()
+        }
+
+        retry.workItem = workItem
+        unmanagedFocusRetryState = retry
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     // MARK: - DisplayReconfigurationMonitorDelegate

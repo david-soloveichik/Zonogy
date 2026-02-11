@@ -16,6 +16,7 @@ extension AppController {
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
         validationRetryManager.cancelAllValidationRetries()
+        cancelUnmanagedFocusRetry()
         cancelWakeReadinessTimer(reason: "cancelled (screensDidSleep)")
         // Cancel any delayed accessibility frame retries so none fire while displays are asleep.
         windowController.cancelAllAccessibilityFrameRetries()
