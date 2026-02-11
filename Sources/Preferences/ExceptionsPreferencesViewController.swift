@@ -22,6 +22,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         setupHintLabel(in: containerView)
 
         self.view = containerView
+        self.preferredContentSize = NSSize(width: 500, height: 400)
     }
 
     override func viewDidLoad() {

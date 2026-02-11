@@ -20,6 +20,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
         setupHintLabel(in: containerView)
 
         self.view = containerView
+        self.preferredContentSize = NSSize(width: 500, height: 400)
     }
 
     override func viewDidLoad() {

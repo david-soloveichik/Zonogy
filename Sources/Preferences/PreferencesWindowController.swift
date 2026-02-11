@@ -8,7 +8,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 580),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 630),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -29,7 +29,6 @@ final class PreferencesWindowController: NSWindowController {
     private func setupTabViewController() {
         let tabVC = NSTabViewController()
         tabVC.tabStyle = .toolbar
-
         // General tab
         let generalVC = GeneralPreferencesViewController()
         let generalItem = NSTabViewItem(viewController: generalVC)

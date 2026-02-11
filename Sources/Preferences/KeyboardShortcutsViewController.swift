@@ -25,6 +25,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         setupResetButton(in: containerView)
 
         self.view = containerView
+        self.preferredContentSize = NSSize(width: 500, height: 400)
     }
 
     private func setupTableView(in container: NSView) {
