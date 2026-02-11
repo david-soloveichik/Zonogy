@@ -21,3 +21,6 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
   - Think about: Preserve a real post-open grace window and/or require unmanaged-focus state to stabilize (short debounce or repeated confirmation) before dismissing.
+
+- Bug report: Sleep/wake can leave delayed retries or timers running into AX-not-ready periods, causing false window pruning or other incorrect lifecycle actions.
+  - Think about: Route sleep-sensitive timer/work-item cancellation through `cancelSleepSensitiveAsyncWork(reason:)` (in `AppController+SleepWake.swift`), and only resume AX-dependent work after wake readiness gates are satisfied.

@@ -276,6 +276,11 @@ extension AppController {
     }
 
     private func scheduleUnmanagedFocusRetry(for pid: pid_t, reason: String) {
+        guard !screensAsleep else {
+            cancelUnmanagedFocusRetry()
+            return
+        }
+
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
             cancelUnmanagedFocusRetry()
             return
@@ -308,6 +313,10 @@ extension AppController {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            guard !self.screensAsleep else {
+                self.cancelUnmanagedFocusRetry()
+                return
+            }
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
                 self.cancelUnmanagedFocusRetry()
                 return

@@ -15,23 +15,7 @@ extension AppController {
         screensAsleep = true
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
-        validationRetryManager.cancelAllValidationRetries()
-        cancelUnmanagedFocusRetry()
-        cancelWakeReadinessTimer(reason: "cancelled (screensDidSleep)")
-        // Cancel any delayed accessibility frame retries so none fire while displays are asleep.
-        windowController.cancelAllAccessibilityFrameRetries()
-        // Cancel any pending window capture retries driven by AX notifications.
-        capturePipeline.cancelAllRetries()
-        // Cancel any pending screen-change recapture timers so they don't run during sleep.
-        cancelAllPendingRecaptureWorkItems()
-        // Cancel any pending screen-change debounce timer.
-        pendingScreenChangeWorkItem?.cancel()
-        pendingScreenChangeWorkItem = nil
-        pendingScreenChangeReason = nil
-        pendingScreenChangeIncludesWake = false
-        pendingScreenChangeDisplayIds.removeAll()
-        // Clear any activity recording suppression.
-        activityRecordingSuppressedUntil = nil
+        cancelSleepSensitiveAsyncWork(reason: "screensDidSleep")
     }
 
     internal func handleScreensDidWake() {
@@ -159,6 +143,76 @@ extension AppController {
         // this rebuilds screen topology, minimizes windows on removed displays,
         // syncs windows to zones, and schedules recapture passes.
         scheduleScreenTopologyRefresh(reason: "wake", includesWake: true)
+    }
+
+    // MARK: - Sleep-sensitive async work cancellation
+
+    /// Central cancellation funnel for timers/work items that must not run while screens are asleep.
+    /// Any new delayed AX/window-state work should be cancelled from this path.
+    internal func cancelSleepSensitiveAsyncWork(reason: String) {
+        validationRetryManager.cancelAllValidationRetries()
+        cancelUnmanagedFocusRetry()
+        cancelWakeReadinessTimer(reason: "cancelled (\(reason))")
+        cancelWakeAXWindowPollingTimer(reason: reason)
+
+        // AX/state pipelines that should not execute during sleep.
+        windowController.cancelAllAccessibilityFrameRetries()
+        capturePipeline.cancelAllRetries()
+        cancelAllPendingRecaptureWorkItems()
+        cancelPendingScreenTopologyRefreshWork()
+        cancelPendingFullScreenAsyncChecks()
+        cancelPendingWinShotOccupancyAutoSaveWork()
+        cancelTemporaryZoneProtectionAsyncWork()
+        cancelPendingWindowActivityRecord()
+
+        // Clear suppression windows since they are no longer meaningful across sleep transitions.
+        activityRecordingSuppressedUntil = nil
+    }
+
+    private func cancelWakeAXWindowPollingTimer(reason: String) {
+        guard let timer = wakeAXWindowPollingTimer else {
+            return
+        }
+        timer.cancel()
+        wakeAXWindowPollingTimer = nil
+        Logger.debug("SleepWake: cancelled AX window polling timer (reason: \(reason))")
+    }
+
+    private func cancelPendingScreenTopologyRefreshWork() {
+        pendingScreenChangeWorkItem?.cancel()
+        pendingScreenChangeWorkItem = nil
+        pendingScreenChangeReason = nil
+        pendingScreenChangeIncludesWake = false
+        pendingScreenChangeDisplayIds.removeAll()
+    }
+
+    private func cancelPendingFullScreenAsyncChecks() {
+        for workItem in fullScreenCheckWorkItemsByWindowId.values {
+            workItem.cancel()
+        }
+        fullScreenCheckWorkItemsByWindowId.removeAll()
+
+        for workItem in fullScreenCheckWorkItemsByElement.values {
+            workItem.cancel()
+        }
+        fullScreenCheckWorkItemsByElement.removeAll()
+
+        pendingFullScreenSpaceChangeWorkItem?.cancel()
+        pendingFullScreenSpaceChangeWorkItem = nil
+    }
+
+    private func cancelPendingWinShotOccupancyAutoSaveWork() {
+        pendingWinShotZoneOccupancyAutoSaveWorkItem?.cancel()
+        pendingWinShotZoneOccupancyAutoSaveWorkItem = nil
+        pendingWinShotZoneOccupancyAutoSaveReasons.removeAll()
+    }
+
+    private func cancelTemporaryZoneProtectionAsyncWork() {
+        for workItem in temporaryZoneProtectionExpirationWorkItems.values {
+            workItem.cancel()
+        }
+        temporaryZoneProtectionExpirationWorkItems.removeAll()
+        temporaryZoneProtectionDeadlines.removeAll()
     }
 
     // MARK: - Event gating helper
