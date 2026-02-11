@@ -48,6 +48,27 @@ enum GuardrailTests {
         if !PreferredWindowSelectionTests.run() {
             allPassed = false
         }
+        if !WinShotZoneOccupancyStateTests.run() {
+            allPassed = false
+        }
+        if !WinShotSnapshotOccupancySignatureTests.run() {
+            allPassed = false
+        }
+        if !WinShotChooserViewTests.run() {
+            allPassed = false
+        }
+        if !WinShotChooserInitialSelectionPolicyTests.run() {
+            allPassed = false
+        }
+        if !WinShotPreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !WinShotTimelineLayoutTests.run() {
+            allPassed = false
+        }
+        if !WinShotTimelineConnectorRoutingTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

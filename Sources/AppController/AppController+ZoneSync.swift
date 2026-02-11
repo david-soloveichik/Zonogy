@@ -247,6 +247,8 @@ extension AppController {
         lastSyncKnownZoneKeys = postPromotionSnapshot.known
         lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
 
+        handlePotentialWinShotAutoSaveForZoneOccupancyChange(reason: "sync")
+
         // Phase 7: ensure targeting and indicators are consistent with the new
         // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
         targetedZoneManager.ensureTargetedZone(reason: "sync")

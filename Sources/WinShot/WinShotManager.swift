@@ -2,7 +2,6 @@
 import AppKit
 
 final class WinShotManager {
-    static let maxSnapshotsPerScreen = 10
     private static let thumbnailHeight: CGFloat = 200
 
     private var snapshots: [CGDirectDisplayID: [WinShotSnapshot]] = [:]
@@ -83,10 +82,14 @@ final class WinShotManager {
             return nil
         }
 
-        // Check for duplicate window set
-        let windowIds = Set(zoneAssignments.values.map { $0.windowId } + (tempIdentity.map { [$0.windowId] } ?? []))
-        if let existingId = findSnapshotWithSameWindows(windowIds, on: screenId) {
-            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same windows")
+        // Check for duplicate occupancy signature (zone assignments + present empty zones).
+        let occupancySignature = WinShotSnapshotOccupancySignature(
+            presentZoneIndices: zoneFrames.keys,
+            tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
+            temporaryZoneWindowId: tempIdentity?.windowId
+        )
+        if let existingId = findSnapshotWithSameOccupancySignature(occupancySignature, on: screenId) {
+            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same occupancy signature")
             deleteSnapshot(existingId)
         }
 
@@ -171,6 +174,14 @@ final class WinShotManager {
         }
     }
 
+    /// Enforces the configured per-screen snapshot limit immediately across all screens.
+    func enforceConfiguredSnapshotLimit() {
+        let maxPerScreen = WinShotPreferencesStore.loadMaxSnapshotsStored()
+        for screenId in snapshots.keys {
+            trimSnapshotsIfNeeded(for: screenId, maxPerScreen: maxPerScreen)
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func addSnapshot(_ snapshot: WinShotSnapshot, for screenId: CGDirectDisplayID) {
@@ -181,18 +192,31 @@ final class WinShotManager {
         // Insert at the beginning (newest first)
         snapshots[screenId]?.insert(snapshot, at: 0)
 
-        // Enforce max limit
-        if let count = snapshots[screenId]?.count, count > Self.maxSnapshotsPerScreen {
+        let maxPerScreen = WinShotPreferencesStore.loadMaxSnapshotsStored()
+        trimSnapshotsIfNeeded(for: screenId, maxPerScreen: maxPerScreen)
+    }
+
+    private func trimSnapshotsIfNeeded(for screenId: CGDirectDisplayID, maxPerScreen: Int) {
+        guard snapshots[screenId] != nil else {
+            return
+        }
+
+        while let count = snapshots[screenId]?.count, count > maxPerScreen {
             let removed = snapshots[screenId]?.removeLast()
-            Logger.debug("WinShot: Removed oldest snapshot \(removed?.id.uuidString ?? "unknown") to stay within limit")
+            Logger.debug(
+                "WinShot: Removed oldest snapshot \(removed?.id.uuidString ?? "unknown") to stay within limit \(maxPerScreen)"
+            )
         }
     }
 
-    private func findSnapshotWithSameWindows(_ windowIds: Set<Int>, on screenId: CGDirectDisplayID) -> UUID? {
+    private func findSnapshotWithSameOccupancySignature(
+        _ signature: WinShotSnapshotOccupancySignature,
+        on screenId: CGDirectDisplayID
+    ) -> UUID? {
         guard let screenSnapshots = snapshots[screenId] else { return nil }
 
         for snapshot in screenSnapshots {
-            if snapshot.allWindowIds == windowIds {
+            if WinShotSnapshotOccupancySignature(snapshot: snapshot) == signature {
                 return snapshot.id
             }
         }

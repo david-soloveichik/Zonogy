@@ -50,7 +50,13 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         self.chooserView = chooserView
 
         // Size window based on content
-        let windowSize = WinShotChooserView.preferredWindowSize(for: snapshots.count)
+        let maxSnapshotsStored = WinShotPreferencesStore.loadMaxSnapshotsStored()
+        let screenVisibleWidth = visibleFrameWidth(for: screenId)
+        let windowSize = WinShotChooserView.preferredWindowSize(
+            for: snapshots.count,
+            screenVisibleWidth: screenVisibleWidth,
+            maxSnapshotsStored: maxSnapshotsStored
+        )
         window?.setContentSize(windowSize)
         chooserView.frame = NSRect(origin: .zero, size: windowSize)
 
@@ -100,6 +106,11 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         chooserView?.selectPrevious()
     }
 
+    /// Select a specific snapshot index.
+    func selectIndex(_ index: Int) {
+        chooserView?.selectIndex(index)
+    }
+
     /// Refresh the chooser with updated snapshots (called when snapshots change while chooser is open)
     func refreshSnapshots(_ snapshots: [WinShotSnapshot]) {
         guard isActive, let screenId = currentScreenId else { return }
@@ -123,7 +134,13 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         }
 
         // Resize window if snapshot count changed significantly
-        let windowSize = WinShotChooserView.preferredWindowSize(for: snapshots.count)
+        let maxSnapshotsStored = WinShotPreferencesStore.loadMaxSnapshotsStored()
+        let screenVisibleWidth = visibleFrameWidth(for: screenId)
+        let windowSize = WinShotChooserView.preferredWindowSize(
+            for: snapshots.count,
+            screenVisibleWidth: screenVisibleWidth,
+            maxSnapshotsStored: maxSnapshotsStored
+        )
         window?.setContentSize(windowSize)
         chooserView?.frame = NSRect(origin: .zero, size: windowSize)
         window?.centerOnScreen(screenId)
@@ -253,5 +270,18 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
     deinit {
         hide()
+    }
+
+    private func visibleFrameWidth(for screenId: CGDirectDisplayID) -> CGFloat {
+        guard let screen = NSScreen.screens.first(where: { screen in
+            guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+                return false
+            }
+            return CGDirectDisplayID(screenNumber.uint32Value) == screenId
+        }) else {
+            return NSScreen.main?.visibleFrame.width ?? 0
+        }
+
+        return screen.visibleFrame.width
     }
 }
