@@ -263,6 +263,10 @@ extension AppController {
         let delay: TimeInterval = attempt == 1 ? 0.12 : 0.2
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
+            guard !self.screensAsleep else {
+                Logger.debug("Minimize verification skipped for window \(windowId) because screens are asleep (reason: \(cleanupReason))")
+                return
+            }
             guard let managed = self.windowController.window(withId: windowId) else {
                 Logger.debug("Minimize verification: window \(windowId) no longer tracked (reason: \(cleanupReason))")
                 return

@@ -158,6 +158,7 @@ extension AppController {
         // AX/state pipelines that should not execute during sleep.
         windowController.cancelAllAccessibilityFrameRetries()
         capturePipeline.cancelAllRetries()
+        deferredMinimizationCoordinator.cancelAll(reason: reason)
         cancelAllPendingRecaptureWorkItems()
         cancelPendingScreenTopologyRefreshWork()
         cancelPendingFullScreenAsyncChecks()

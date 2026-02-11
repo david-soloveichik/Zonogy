@@ -266,6 +266,10 @@ extension AppController {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self else { return }
+            guard !self.screensAsleep else {
+                Logger.debug("scheduleCapture: aborting capture for pid \(pid) because screens are asleep")
+                return
+            }
             guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
                 Logger.debug("scheduleCapture: pid \(pid) no longer running, aborting capture")
                 return

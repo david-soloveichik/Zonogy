@@ -378,6 +378,11 @@ extension AppController {
             }
             Logger.debug("ActiveFit: suppression cleared for windows \(windowIds)")
 
+            guard !self.screensAsleep else {
+                Logger.debug("ActiveFit: skipping post-restore reveal evaluation while screens are asleep")
+                return
+            }
+
             // Evaluate reveal mode for the active window after restore settles
             if let activeWindowId,
                let managed = self.windowController.window(withId: activeWindowId),
