@@ -222,7 +222,7 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 630)
+        self.preferredContentSize = NSSize(width: 500, height: 525)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
