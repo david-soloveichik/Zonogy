@@ -44,7 +44,6 @@ final class PlaceholderManager {
         static let closeButtonSheen = "placeholder.close.sheen"
         static let closeButtonInnerRing = "placeholder.close.inner-ring"
         static let searchPillBase = "placeholder.search.base"
-        static let searchPillSheen = "placeholder.search.sheen"
     }
 
     weak var delegate: PlaceholderManagerDelegate?
@@ -262,41 +261,22 @@ final class PlaceholderManager {
         layer.cornerRadius = pillHeight / 2
         layer.borderWidth = 1
         layer.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
-        layer.shadowColor = NSColor.black.withAlphaComponent(0.08).cgColor
-        layer.shadowOpacity = 1.0
-        layer.shadowRadius = 1.5
-        layer.shadowOffset = CGSize(width: 0, height: -1)
         layer.backgroundColor = NSColor.clear.cgColor
-        layer.masksToBounds = false
 
         removeSublayers(named: LayerName.searchPillBase, from: layer)
-        removeSublayers(named: LayerName.searchPillSheen, from: layer)
 
-        let baseGradient = CAGradientLayer()
-        baseGradient.name = LayerName.searchPillBase
-        baseGradient.frame = layer.bounds
-        baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        baseGradient.cornerRadius = pillHeight / 2
-        baseGradient.colors = [
-            NSColor.white.withAlphaComponent(0.22).cgColor,
+        let gradient = CAGradientLayer()
+        gradient.name = LayerName.searchPillBase
+        gradient.frame = layer.bounds
+        gradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        gradient.cornerRadius = pillHeight / 2
+        gradient.colors = [
+            NSColor.white.withAlphaComponent(0.36).cgColor,
             NSColor.white.withAlphaComponent(0.1).cgColor
         ]
-        baseGradient.startPoint = CGPoint(x: 0.1, y: 1.0)
-        baseGradient.endPoint = CGPoint(x: 0.9, y: 0.0)
-        layer.insertSublayer(baseGradient, at: 0)
-
-        let sheen = CAGradientLayer()
-        sheen.name = LayerName.searchPillSheen
-        sheen.frame = layer.bounds.insetBy(dx: 1, dy: 1)
-        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        sheen.cornerRadius = max(0, pillHeight / 2 - 1)
-        sheen.colors = [
-            NSColor.white.withAlphaComponent(0.15).cgColor,
-            NSColor.clear.cgColor
-        ]
-        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
-        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
-        layer.addSublayer(sheen)
+        gradient.startPoint = CGPoint(x: 0.1, y: 1.0)
+        gradient.endPoint = CGPoint(x: 0.9, y: 0.0)
+        layer.insertSublayer(gradient, at: 0)
     }
 
     private func removeSublayers(named layerName: String, from layer: CALayer) {
