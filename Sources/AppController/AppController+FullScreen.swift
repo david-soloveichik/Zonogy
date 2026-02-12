@@ -14,6 +14,16 @@ extension AppController {
         handleFullScreenPauseStateChange(for: displayId)
     }
 
+    internal var isFullScreenDebugOverlayEnabledInSettings: Bool {
+        DebugPreferencesStore.loadFullScreenOverlayEnabled()
+    }
+
+    internal func setFullScreenDebugOverlayEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("FullScreenDebugOverlay: settings updated enabled=\(enabled)")
+        DebugPreferencesStore.saveFullScreenOverlayEnabled(enabled)
+        applyFullScreenDebugOverlayConfiguration(enabled: enabled)
+    }
+
     /// Update the debug overlay for a specific display based on full-screen state.
     internal func updateFullScreenDebugOverlay(for displayId: CGDirectDisplayID) {
         guard let overlay = fullScreenDebugOverlay else { return }
@@ -43,6 +53,19 @@ extension AppController {
         for displayId in screenContexts.keys {
             updateFullScreenDebugOverlay(for: displayId)
         }
+    }
+
+    private func applyFullScreenDebugOverlayConfiguration(enabled: Bool) {
+        if enabled {
+            if fullScreenDebugOverlay == nil {
+                fullScreenDebugOverlay = FullScreenDebugOverlayController(primaryScreenBounds: primaryScreenBounds)
+            }
+            updateAllFullScreenDebugOverlays()
+            return
+        }
+
+        fullScreenDebugOverlay?.hideAll()
+        fullScreenDebugOverlay = nil
     }
 
     internal func isScreenPausedForFullScreen(_ screenId: CGDirectDisplayID) -> Bool {

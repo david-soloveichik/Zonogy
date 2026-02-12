@@ -5,7 +5,11 @@ import Foundation
 enum UserDefaultsKeys {
     // MARK: - Dock Menus
     static let dockMenusEnabled = "Zonogy.dockMenus.enabled"
+
+    // MARK: - Debug
+    static let debugLogToFile = "Zonogy.debug.logToFile"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"
+    static let fullScreenDebugOverlay = "Zonogy.fullScreen.debugOverlay"
 
     // MARK: - Launcher
     static let launcherAutoShowForEmptyZones = "Zonogy.launcher.autoShowForEmptyZones"

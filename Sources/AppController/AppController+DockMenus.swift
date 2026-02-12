@@ -5,8 +5,11 @@ import Foundation
 /// DockMenus feature wiring and lifecycle management.
 extension AppController {
     internal var isDockMenusEnabledInSettings: Bool {
-        let config = effectiveDockMenusConfiguration()
-        return config.isEnabled || config.showsDockFrameOverlay
+        DockMenusPreferencesStore.loadEnabled()
+    }
+
+    internal var isDockMenusDebugOverlayEnabledInSettings: Bool {
+        DebugPreferencesStore.loadDockMenusOverlayEnabled()
     }
 
     internal func startDockMenusIfConfigured() {
@@ -38,10 +41,16 @@ extension AppController {
         applyDockMenusConfiguration()
     }
 
+    internal func setDockMenusDebugOverlayEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("DockMenus: settings updated debugOverlay=\(enabled)")
+        DebugPreferencesStore.saveDockMenusOverlayEnabled(enabled)
+        applyDockMenusConfiguration()
+    }
+
     private func effectiveDockMenusConfiguration() -> DockMenusConfiguration {
         DockMenusConfiguration(
             enabled: DockMenusPreferencesStore.loadEnabled(),
-            debugDockFrameOverlay: DockMenusPreferencesStore.loadDebugOverlay()
+            debugDockFrameOverlay: DebugPreferencesStore.loadDockMenusOverlayEnabled()
         )
     }
 

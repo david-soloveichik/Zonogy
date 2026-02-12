@@ -1,8 +1,5 @@
 import Foundation
 
-/// Set to true to show a blue debug border around the Dock frame.
-private let kShowDebugDockFrameOverlay = false
-
 /// Configures DockMenus enablement and debug behavior.
 struct DockMenusConfiguration: Decodable {
     let enabled: Bool?
@@ -18,7 +15,7 @@ struct DockMenusConfiguration: Decodable {
     }
 
     var showsDockFrameOverlay: Bool {
-        debugDockFrameOverlay ?? kShowDebugDockFrameOverlay
+        debugDockFrameOverlay ?? false
     }
 
     static let disabled = DockMenusConfiguration(enabled: false, debugDockFrameOverlay: false)

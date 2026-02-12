@@ -265,8 +265,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.placeholderManager = PlaceholderManager()
         self.placeholderCoordinator = PlaceholderCoordinator(placeholderManager: self.placeholderManager)
 
-        // Initialize full-screen debug overlay if enabled
-        self.fullScreenDebugOverlay = kShowDebugFullScreenOverlay
+        // Initialize full-screen debug overlay from persisted Debug preferences
+        self.fullScreenDebugOverlay = DebugPreferencesStore.loadFullScreenOverlayEnabled()
             ? FullScreenDebugOverlayController(primaryScreenBounds: contextStore.primaryScreenBounds)
             : nil
 

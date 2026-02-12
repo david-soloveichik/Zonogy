@@ -1,9 +1,6 @@
 /// Draws orange debug borders around screens in full-screen mode.
 import AppKit
 
-/// Set to true to show orange debug borders around full-screen screens.
-let kShowDebugFullScreenOverlay = true
-
 /// Manages debug overlay windows that show orange borders around screens in full-screen mode.
 final class FullScreenDebugOverlayController {
     private static let windowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 100)
