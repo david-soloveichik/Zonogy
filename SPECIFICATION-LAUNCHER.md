@@ -15,7 +15,7 @@ The Launcher opens via:
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
-    Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice to minimize the window and remove its tiling zone.
+    Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice (or Cmd-M then Cmd-W) to minimize the window and remove its tiling zone.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
@@ -148,7 +148,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 - **Left arrow (in window list):** When cursor is at start of search string, same as Shift-Tab (return to app list)
 - **Shift-Tab or Escape (in window list):** Return to main app list
 - **Escape (in main list):** Dismiss launcher without action
-- **Cmd-M:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
+- **Cmd-M / Cmd-W:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
 
 ### Mouse Interaction
 
@@ -158,7 +158,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
 ### Shortcut Forwarding
 
-Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmost non-Zonogy application) so users can issue common commands while the Launcher is visible: Cmd-N (new window), Cmd-Shift-N (new private window), Cmd-O (open), Cmd-W (close window), and Cmd-Q (quit).
+Certain keyboard shortcuts are forwarded to the menu bar owner app (the frontmost non-Zonogy application) so users can issue common commands while the Launcher is visible: Cmd-N (new window), Cmd-Shift-N (new private window), Cmd-O (open), and Cmd-Q (quit).
 
 ### Window List Mode
 

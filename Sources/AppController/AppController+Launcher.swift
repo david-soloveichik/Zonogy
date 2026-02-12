@@ -322,6 +322,20 @@ extension AppController: LauncherControllerDelegate {
         Logger.debug("Launcher: Activated app \(bundleIdentifier)")
     }
 
+    // MARK: - Zone Removal
+
+    func launcherControllerDidRequestRemoveZone(_ controller: LauncherController) {
+        guard let key = targetedZoneKey else { return }
+        if let context = screenContexts[key.screenId],
+           context.zoneController.allZones.count > 1 {
+            Logger.debug("Launcher: Removing targeted zone \(key.index) on screen \(screenContextStore.loggingIndex(for: key.screenId))")
+            _ = performRemoveZone(at: key.index, on: key.screenId, announce: false)
+        } else {
+            Logger.debug("Launcher: Only 1 zone, hiding Launcher")
+            launcherController.hide()
+        }
+    }
+
     // MARK: - Dismissal
 
     func launcherControllerDidDismiss(_ controller: LauncherController) {

@@ -423,17 +423,9 @@ extension AppController {
             case .minimizeActiveWindow:
                 // If Launcher is open and targeting a tiled zone, remove that zone instead.
                 // If only 1 zone on screen, just hide Launcher (don't enter UnderCovers).
-                if self.launcherController.isActive,
-                   let key = self.targetedZoneKey {
-                    if let context = self.screenContexts[key.screenId],
-                       context.zoneController.allZones.count > 1 {
-                        Logger.debug("Cmd-M with Launcher open: removing targeted zone \(key.index) on screen \(self.screenContextStore.loggingIndex(for: key.screenId))")
-                        _ = self.performRemoveZone(at: key.index, on: key.screenId, announce: false)
-                    } else {
-                        Logger.debug("Cmd-M with Launcher open: only 1 zone, hiding Launcher")
-                        self.launcherController.hide()
-                    }
-                } else if !self.launcherController.isActive {
+                if self.launcherController.isActive {
+                    self.launcherControllerDidRequestRemoveZone(self.launcherController)
+                } else {
                     self.minimizeActiveWindow()
                 }
             case .minimizeWindowOrRemoveZoneAtCursor:

@@ -27,6 +27,9 @@ protocol LauncherControllerDelegate: AnyObject {
 
     /// Returns the PID of the application that owns the menu bar (frontmost non-Zonogy app)
     func menuBarOwnerPid() -> pid_t?
+
+    /// Called when the user presses a zone-removal shortcut (Cmd-M or Cmd-W) while the Launcher is open
+    func launcherControllerDidRequestRemoveZone(_ controller: LauncherController)
 }
 
 final class LauncherController {
@@ -380,6 +383,14 @@ final class LauncherController {
                 }
                 return false
 
+            case 13:  // W key
+                // Cmd-W removes the targeted zone (same as Cmd-M)
+                if event.modifierFlags.contains(.command) {
+                    delegate?.launcherControllerDidRequestRemoveZone(self)
+                    return true
+                }
+                return false
+
             default:
                 // Forward specific shortcuts to the menu bar owner app
                 if forwardShortcutIfNeeded(event) {
@@ -481,15 +492,9 @@ final class LauncherController {
                 shouldForward = false
                 forwardModifiers = []
             }
-        case 13:  // W key
-            if hasCommand && !hasShift && !hasOption && !hasControl {
-                // Cmd-W
-                shouldForward = true
-                forwardModifiers = [.maskCommand]
-            } else {
-                shouldForward = false
-                forwardModifiers = []
-            }
+        case 13:  // W key (Cmd-W handled above as zone removal)
+            shouldForward = false
+            forwardModifiers = []
         default:
             shouldForward = false
             forwardModifiers = []
