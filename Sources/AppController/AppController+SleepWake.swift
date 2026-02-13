@@ -156,7 +156,7 @@ extension AppController {
         cancelWakeAXWindowPollingTimer(reason: reason)
 
         // AX/state pipelines that should not execute during sleep.
-        windowController.cancelAllAccessibilityFrameRetries()
+        windowController.cancelAllAccessibilityFrameRetries(reason: "sleep-sensitive-cancel-\(reason)")
         capturePipeline.cancelAllRetries()
         deferredMinimizationCoordinator.cancelAll(reason: reason)
         cancelAllPendingRecaptureWorkItems()

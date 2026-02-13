@@ -128,7 +128,7 @@ class WindowController {
     }
 
     /// Cancel all scheduled accessibility frame retries and clear their bookkeeping.
-    func cancelAllAccessibilityFrameRetries() {
+    func cancelAllAccessibilityFrameRetries(reason: String? = nil) {
         for (_, workItem) in accessibilityFrameRetryWorkItems {
             workItem.cancel()
         }
@@ -136,7 +136,11 @@ class WindowController {
         accessibilityFrameRetryWorkItems.removeAll()
         pendingAccessibilityFrameRetryWindowIds.removeAll()
         if count > 0 {
-            Logger.debug("Cancelled \(count) pending accessibility frame retry/retries")
+            if let reason {
+                Logger.debug("Cancelled \(count) pending accessibility frame retry/retries (reason: \(reason))")
+            } else {
+                Logger.debug("Cancelled \(count) pending accessibility frame retry/retries")
+            }
         }
     }
 
