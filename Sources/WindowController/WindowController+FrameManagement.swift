@@ -219,8 +219,7 @@ extension WindowController {
         targetScreenFrame: CGRect,
         screen: ScreenDescriptor,
         trigger: AccessibilityFrameRetryTrigger,
-        policy: AccessibilityFrameRetryPolicy = .onlyWhenOffscreen,
-        delay: TimeInterval = 0.25
+        policy: AccessibilityFrameRetryPolicy = .onlyWhenOffscreen
     ) {
         // Avoid scheduling retries while a zone resize drag is in progress.
         if delegate?.isZoneResizeDragInProgress() ?? false {
@@ -244,12 +243,22 @@ extension WindowController {
             }
         }
 
-        if pendingAccessibilityFrameRetryWindowIds.contains(windowId) {
+        if let existing = accessibilityFrameRetryStates[windowId] {
+            if framesRoughlyEqual(existing.targetScreenFrame, targetScreenFrame) {
+                Logger.debug(
+                    "Skipping frame retry schedule for window \(windowId) - retry already pending " +
+                    "(trigger: \(trigger.logLabel), policy: \(policy.logLabel))"
+                )
+                return
+            }
+            // Target changed — cancel the stale chain and start fresh.
             Logger.debug(
-                "Skipping frame retry schedule for window \(windowId) - retry already pending " +
-                "(trigger: \(trigger.logLabel), policy: \(policy.logLabel))"
+                "Cancelling stale frame retry chain for window \(windowId) " +
+                "(old target: \(existing.targetScreenFrame), new target: \(targetScreenFrame))"
             )
-            return
+            var stale = existing
+            stale.cancel()
+            accessibilityFrameRetryStates.removeValue(forKey: windowId)
         }
 
         // Skip retry if window is being managed by ActiveFit
@@ -258,38 +267,92 @@ extension WindowController {
             return
         }
 
-        pendingAccessibilityFrameRetryWindowIds.insert(windowId)
-        Logger.debug(
-            "Scheduling delayed frame retry for window \(windowId) in \(String(format: "%.2f", delay))s " +
-            "(trigger: \(trigger.logLabel), policy: \(policy.logLabel), target: \(targetScreenFrame))"
+        var state = FrameRetryState(targetScreenFrame: targetScreenFrame)
+        scheduleNextFrameRetryAttempt(
+            state: &state,
+            windowId: windowId,
+            element: element,
+            targetScreenFrame: targetScreenFrame,
+            screen: screen,
+            trigger: trigger,
+            policy: policy
         )
+    }
+
+    /// Schedules the next attempt in a frame retry chain. Advances the attempt counter,
+    /// picks the corresponding delay, and dispatches a work item that re-applies the frame.
+    /// When attempts are exhausted the state is removed and no further retries are scheduled.
+    private func scheduleNextFrameRetryAttempt(
+        state: inout FrameRetryState,
+        windowId: Int,
+        element: AXUIElement,
+        targetScreenFrame: CGRect,
+        screen: ScreenDescriptor,
+        trigger: AccessibilityFrameRetryTrigger,
+        policy: AccessibilityFrameRetryPolicy
+    ) {
+        let delays = WindowController.frameRetryDelays
+
+        guard state.attempt < delays.count else {
+            Logger.debug(
+                "Frame retry exhausted for window \(windowId) after \(delays.count) attempt(s) " +
+                "(trigger: \(trigger.logLabel))"
+            )
+            state.cancel()
+            accessibilityFrameRetryStates.removeValue(forKey: windowId)
+            return
+        }
+
+        let delay = delays[state.attempt]
+        state.attempt += 1
+        let currentAttempt = state.attempt
+
+        state.cancel()
 
         let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
 
-        // Cancel any existing work item for this window before scheduling a new one.
-        accessibilityFrameRetryWorkItems[windowId]?.cancel()
+        Logger.debug(
+            "Scheduling frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
+            "in \(String(format: "%.2f", delay))s " +
+            "(trigger: \(trigger.logLabel), policy: \(policy.logLabel), target: \(targetScreenFrame))"
+        )
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
 
-            // Clear bookkeeping for this window's retry regardless of whether we proceed.
-            self.pendingAccessibilityFrameRetryWindowIds.remove(windowId)
-            self.accessibilityFrameRetryWorkItems.removeValue(forKey: windowId)
+            // Clear the work item reference but keep the state (with attempt counter) for potential re-scheduling.
+            if var stored = self.accessibilityFrameRetryStates[windowId] {
+                stored.workItem = nil
+                self.accessibilityFrameRetryStates[windowId] = stored
+            }
 
-            // Skip the delayed retry as well if a zone resize is still active.
+            // Skip the delayed retry if a zone resize is now active.
             if self.delegate?.isZoneResizeDragInProgress() ?? false {
-                Logger.debug("Skipping delayed frame retry execution for window \(windowId) - zone resize in progress")
+                Logger.debug("Skipping frame retry execution for window \(windowId) - zone resize in progress")
+                self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
                 return
             }
 
-            // Check again at execution time in case ActiveFit was activated after scheduling
+            // Check again at execution time in case ActiveFit was activated after scheduling.
             if self.delegate?.isWindowManagedByActiveFit(windowId: windowId) ?? false {
-                Logger.debug("Skipping delayed frame retry execution for window \(windowId) - now managed by ActiveFit")
+                Logger.debug("Skipping frame retry execution for window \(windowId) - now managed by ActiveFit")
+                self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
+                return
+            }
+
+            // If the window is already at the target frame, no further retries are needed.
+            if let current = self.accessibilityFrameForWindow(element: element, on: screen),
+               self.framesRoughlyEqual(current, targetScreenFrame) {
+                Logger.debug(
+                    "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
+                    "- frame already at target, stopping retries"
+                )
+                self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
                 return
             }
 
             Logger.debug(
-                "Executing delayed frame retry for window \(windowId) " +
+                "Executing frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
                 "(trigger: \(trigger.logLabel), policy: \(policy.logLabel))"
             )
 
@@ -309,28 +372,89 @@ extension WindowController {
                     screen: screen
                 )
 
-                guard result.applied else { return }
-
-                guard let final = self.accessibilityFrameForWindow(element: element, on: screen) else {
-                    self.logFrameReadFailure(windowId: windowId, screen: screen, context: "delayed-retry")
+                guard result.applied else {
+                    // Apply failed; schedule next attempt if available.
+                    self.scheduleFollowUpRetryIfNeeded(
+                        windowId: windowId, element: element,
+                        targetScreenFrame: targetScreenFrame, screen: screen,
+                        trigger: trigger, policy: policy
+                    )
                     return
                 }
 
-                if !self.framesRoughlyEqual(final, targetScreenFrame) {
+                guard let final = self.accessibilityFrameForWindow(element: element, on: screen) else {
+                    self.logFrameReadFailure(windowId: windowId, screen: screen, context: "retry-\(currentAttempt)")
+                    self.scheduleFollowUpRetryIfNeeded(
+                        windowId: windowId, element: element,
+                        targetScreenFrame: targetScreenFrame, screen: screen,
+                        trigger: trigger, policy: policy
+                    )
+                    return
+                }
+
+                if self.framesRoughlyEqual(final, targetScreenFrame) {
+                    Logger.debug(
+                        "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
+                        "- frame now matches target, stopping retries"
+                    )
+                    self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
+                } else {
                     self.logFrameMismatch(
                         windowId: windowId,
                         screen: screen,
-                        context: "delayed-retry",
+                        context: "retry-\(currentAttempt)",
                         target: targetScreenFrame,
                         actual: final,
                         order: order
+                    )
+                    self.scheduleFollowUpRetryIfNeeded(
+                        windowId: windowId, element: element,
+                        targetScreenFrame: targetScreenFrame, screen: screen,
+                        trigger: trigger, policy: policy
                     )
                 }
             }
         }
 
-        accessibilityFrameRetryWorkItems[windowId] = workItem
+        state.workItem = workItem
+        accessibilityFrameRetryStates[windowId] = state
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    /// If the retry state for a window still has remaining attempts, schedule the next one.
+    /// Otherwise clean up the state (retries exhausted).
+    private func scheduleFollowUpRetryIfNeeded(
+        windowId: Int,
+        element: AXUIElement,
+        targetScreenFrame: CGRect,
+        screen: ScreenDescriptor,
+        trigger: AccessibilityFrameRetryTrigger,
+        policy: AccessibilityFrameRetryPolicy
+    ) {
+        guard var state = accessibilityFrameRetryStates[windowId] else { return }
+
+        // Re-check bounds on follow-up attempts so we stop retrying once the frame
+        // is on-screen, matching the gate applied at initial scheduling time.
+        if policy == .onlyWhenOffscreen {
+            if let current = accessibilityFrameForWindow(element: element, on: screen) {
+                let cgFrame = actualCGWindowFrame(for: windowId)
+                let boundsCheckFrame = cgFrame ?? current
+                if frameIsWithinBounds(boundsCheckFrame, bounds: screen.visibleScreenBounds) {
+                    Logger.debug("Stopping frame retry chain for window \(windowId) - frame now within visible bounds")
+                    accessibilityFrameRetryStates.removeValue(forKey: windowId)
+                    return
+                }
+            }
+        }
+        scheduleNextFrameRetryAttempt(
+            state: &state,
+            windowId: windowId,
+            element: element,
+            targetScreenFrame: targetScreenFrame,
+            screen: screen,
+            trigger: trigger,
+            policy: policy
+        )
     }
 
     // MARK: - Update Order Decision

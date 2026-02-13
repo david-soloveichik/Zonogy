@@ -46,8 +46,8 @@ class WindowController {
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
-    internal var pendingAccessibilityFrameRetryWindowIds: Set<Int> = []
-    internal var accessibilityFrameRetryWorkItems: [Int: DispatchWorkItem] = [:]
+    internal static let frameRetryDelays: [TimeInterval] = [0.25, 0.5, 1.0, 3.0]
+    internal var accessibilityFrameRetryStates: [Int: FrameRetryState] = [:]
     internal var ignoredBundleIdentifiers: Set<String>
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
@@ -129,12 +129,11 @@ class WindowController {
 
     /// Cancel all scheduled accessibility frame retries and clear their bookkeeping.
     func cancelAllAccessibilityFrameRetries(reason: String? = nil) {
-        for (_, workItem) in accessibilityFrameRetryWorkItems {
-            workItem.cancel()
+        let count = accessibilityFrameRetryStates.count
+        for (_, var state) in accessibilityFrameRetryStates {
+            state.cancel()
         }
-        let count = accessibilityFrameRetryWorkItems.count
-        accessibilityFrameRetryWorkItems.removeAll()
-        pendingAccessibilityFrameRetryWindowIds.removeAll()
+        accessibilityFrameRetryStates.removeAll()
         if count > 0 {
             if let reason {
                 Logger.debug("Cancelled \(count) pending accessibility frame retry/retries (reason: \(reason))")
@@ -420,6 +419,17 @@ extension ManagedWindow {
             return nil
         }
         return size
+    }
+}
+
+internal struct FrameRetryState {
+    var attempt: Int = 0
+    var targetScreenFrame: CGRect
+    var workItem: DispatchWorkItem?
+
+    mutating func cancel() {
+        workItem?.cancel()
+        workItem = nil
     }
 }
 
