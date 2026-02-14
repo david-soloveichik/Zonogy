@@ -49,6 +49,26 @@ extension AppController {
         createWinShotSnapshot(on: screenId, reason: "user-save")
     }
 
+    /// Auto-save a pre-clear snapshot when the screen currently has managed windows.
+    internal func autoSavePreClearWinShotSnapshotIfNeeded(on screenId: CGDirectDisplayID, clearReason: String) {
+        guard isWinShotEnabled, isWinShotAutoSaveSnapshotsEnabled else {
+            return
+        }
+
+        guard let context = screenContexts[screenId] else {
+            return
+        }
+
+        let hasManagedWindows =
+            context.zoneController.allZones.contains(where: { !$0.isEmpty }) ||
+            temporaryZoneCoordinator.occupant(on: screenId) != nil
+        guard hasManagedWindows else {
+            return
+        }
+
+        createWinShotSnapshot(on: screenId, reason: "clear-zones-\(clearReason)")
+    }
+
     /// Create a WinShot snapshot for the specified screen if eligible
     @discardableResult
     internal func createWinShotSnapshot(on screenId: CGDirectDisplayID, reason: String) -> WinShotSnapshot? {
@@ -604,6 +624,11 @@ extension AppController: WinShotChooserControllerDelegate {
             Logger.debug("WinShot: Selected snapshot \(snapshotId) not found")
             return
         }
+
+        // Capture the same pre-clear auto-save snapshot that clear/reset would capture,
+        // without running clear/reset UI behavior before restore.
+        let screenId = snapshot.screenId
+        autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: "winshot-chooser-switch")
 
         restoreWinShotSnapshot(snapshot)
     }

@@ -36,11 +36,7 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
         // WinShot: capture the pre-clear state before applying bulk clear/reset changes.
-        if isWinShotEnabled && isWinShotAutoSaveSnapshotsEnabled {
-            if !allEmpty || temporaryZoneCoordinator.occupant(on: screenId) != nil {
-                createWinShotSnapshot(on: screenId, reason: "clear-zones-\(reason)")
-            }
-        }
+        autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
 
         // Also empty the temporary zone on the selected screen
         temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
