@@ -20,7 +20,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     private var chooserView: WinShotChooserView?
     private let modifierMonitor = WinShotModifierMonitor()
     private var keyMonitor: Any?
-    private var clickMonitor: Any?
+    private var clickMonitor: ClickOutsideMonitor?
 
     private(set) var isActive = false
     private(set) var currentScreenId: CGDirectDisplayID?
@@ -193,27 +193,18 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     // MARK: - Click Outside Monitoring
 
     private func startClickMonitor() {
-        guard clickMonitor == nil else { return }
-
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, self.isActive else { return }
-
-            // Check if click is outside the chooser window
-            guard let window = self.window else { return }
-
-            let screenLocation = NSEvent.mouseLocation
-            let windowFrame = window.frame
-            if !windowFrame.contains(screenLocation) {
-                self.cancel()
-            }
+        guard let window = window else { return }
+        let monitor = ClickOutsideMonitor(window: window, mode: .includeOwnApp) { [weak self] in
+            guard let self, self.isActive else { return }
+            self.cancel()
         }
+        monitor.start()
+        clickMonitor = monitor
     }
 
     private func stopClickMonitor() {
-        if let monitor = clickMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickMonitor = nil
-        }
+        clickMonitor?.stop()
+        clickMonitor = nil
     }
 
     // MARK: - Actions

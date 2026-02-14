@@ -41,7 +41,7 @@ final class LauncherController {
     private var model: LauncherModel?
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
-    private var clickMonitor: Any?
+    private var clickMonitor: ClickOutsideMonitor?
     private var appTerminationObserver: Any?
     private var lastAnchor: Anchor?
     private var autoShowGraceUntil: Date?
@@ -540,26 +540,18 @@ final class LauncherController {
     // MARK: - Click Outside Monitoring
 
     private func startClickMonitor() {
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, self.isActive else { return }
-
-            // Check if click is outside our window
-            if let window = self.window {
-                let windowFrame = window.frame
-                let screenPoint = NSEvent.mouseLocation
-
-                if !windowFrame.contains(screenPoint) {
-                    self.hide()
-                }
-            }
+        guard let window = window else { return }
+        let monitor = ClickOutsideMonitor(window: window, mode: .globalOnly) { [weak self] in
+            guard let self, self.isActive else { return }
+            self.hide()
         }
+        monitor.start()
+        clickMonitor = monitor
     }
 
     private func stopClickMonitor() {
-        if let monitor = clickMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickMonitor = nil
-        }
+        clickMonitor?.stop()
+        clickMonitor = nil
     }
 
     // MARK: - App Termination Observer

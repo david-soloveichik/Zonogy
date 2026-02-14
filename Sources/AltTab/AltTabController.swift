@@ -30,7 +30,7 @@ final class AltTabController {
     private var window: AltTabWindow?
     private var model: AltTabModel?
     private var hostingView: NSHostingView<AltTabView>?
-    private var clickMonitor: Any?
+    private var clickMonitor: ClickOutsideMonitor?
 
     private(set) var isActive = false
 
@@ -178,25 +178,17 @@ final class AltTabController {
     // MARK: - Click Outside Monitoring
 
     private func startClickMonitor() {
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, self.isActive else { return }
-
-            // Check if click is outside our window
-            if let window = self.window {
-                let windowFrame = window.frame
-                let screenPoint = NSEvent.mouseLocation
-
-                if !windowFrame.contains(screenPoint) {
-                    self.hide()
-                }
-            }
+        guard let window = window else { return }
+        let monitor = ClickOutsideMonitor(window: window, mode: .includeOwnApp) { [weak self] in
+            guard let self, self.isActive else { return }
+            self.hide()
         }
+        monitor.start()
+        clickMonitor = monitor
     }
 
     private func stopClickMonitor() {
-        if let monitor = clickMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickMonitor = nil
-        }
+        clickMonitor?.stop()
+        clickMonitor = nil
     }
 }
