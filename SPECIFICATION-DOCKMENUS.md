@@ -132,6 +132,7 @@ DockMenu dismisses when:
 ### Window Selection Semantics
 
 DockMenu differs from Launcher in how window selection works:
+
 - **In-zone windows:** Activated in place without moving to targeted zone.
 - **Minimized windows:** Unminimized into the currently targeted zone.
 
@@ -140,6 +141,7 @@ DockMenu differs from Launcher in how window selection works:
 ### AXSelectedChildrenChanged Does Not Signal Cursor Exit
 
 The Dock's `AXSelectedChildrenChanged` notification fires when:
+
 - Cursor begins hovering a Dock item (selectedChildren contains that item)
 - Cursor moves to a different Dock item (selectedChildren changes to new item)
 
