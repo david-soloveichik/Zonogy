@@ -35,7 +35,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     static let shared = AppController()
 
     internal let windowController: WindowController
-    internal let configuration: Configuration
+    internal var configuration: Configuration
     internal let validationRetryManager = ValidationRetryManager()
     internal let targetedZoneManager = TargetedZoneManager()
     internal let windowPlacementManager = WindowPlacementManager()
@@ -329,15 +329,23 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
     }
 
+    /// Reloads all configuration from config.json: ignoredBundleIdentifiers, applicationExceptionPolicy,
+    /// deriveBundleIdFromPathForProcesses, and refreshes the launcher app cache.
+    internal func reloadConfiguration() {
+        let newConfig = Configuration.load()
+        self.configuration = newConfig
+        self.windowController.ignoredBundleIdentifiers = newConfig.ignoredBundleIdentifiers
+        self.windowController.applicationExceptionPolicy = newConfig.applicationExceptionPolicy
+        Logger.debug("Reloaded configuration: \(newConfig.ignoredBundleIdentifiers.count) ignored bundles, \(newConfig.deriveBundleIdFromPathForProcesses.count) bundle-derived processes")
+        reloadLauncherItems()
+    }
+
     @objc private func handleExceptionsConfigurationDidChange() {
         // Ensure we're on main thread since we mutate shared state
         DispatchQueue.main.async { [weak self] in
             dispatchPrecondition(condition: .onQueue(.main))
             guard let self = self else { return }
-            let rules = ExceptionsConfigurationStore.loadRules()
-            let newPolicy = ApplicationExceptionPolicy(rules: rules)
-            self.windowController.applicationExceptionPolicy = newPolicy
-            Logger.debug("Reloaded exception policy with \(rules.count) rules")
+            self.reloadConfiguration()
         }
     }
 

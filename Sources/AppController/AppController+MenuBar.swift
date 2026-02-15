@@ -16,9 +16,8 @@ extension AppController {
         NSApplication.shared.terminate(nil)
     }
 
-    func menuBarManagerDidRequestReloadLauncher() {
-        Logger.debug("Reload Launcher List requested from menu bar")
-        reloadLauncherItems()
+    func menuBarManagerDidRequestReloadConfiguration() {
+        reloadConfiguration()
     }
 
     func menuBarManagerDidRequestPreferences() {
