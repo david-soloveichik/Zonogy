@@ -10,6 +10,7 @@ extension Notification.Name {
 enum ExceptionsConfigurationStore {
     private struct UserConfig: Codable {
         var ignoredBundleIdentifiers: [String]?
+        var deriveBundleIdFromPathForProcesses: [String]?
         var bundleExceptions: [ApplicationExceptionRule]?
     }
 
@@ -26,7 +27,10 @@ enum ExceptionsConfigurationStore {
     /// Call this before loading to ensure the file is present.
     static func ensureConfigExists() {
         let fileURL = configurationFileURL()
-        guard !FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            backfillMissingDefaults(in: fileURL)
+            return
+        }
 
         // Create directory if needed
         let directoryURL = fileURL.deletingLastPathComponent()
@@ -38,6 +42,7 @@ enum ExceptionsConfigurationStore {
         let defaults = loadBundledDefaults()
         let config = UserConfig(
             ignoredBundleIdentifiers: defaults.ignoredBundleIdentifiers,
+            deriveBundleIdFromPathForProcesses: defaults.deriveBundleIdFromPathForProcesses,
             bundleExceptions: defaults.bundleExceptions
         )
 
@@ -46,6 +51,30 @@ enum ExceptionsConfigurationStore {
         if let data = try? encoder.encode(config) {
             try? data.write(to: fileURL, options: [.atomic])
         }
+    }
+
+    /// Adds newly introduced default fields to existing config files without overriding
+    /// user-provided values.
+    private static func backfillMissingDefaults(in fileURL: URL) {
+        guard let data = try? Data(contentsOf: fileURL),
+              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        let key = "deriveBundleIdFromPathForProcesses"
+        guard object[key] == nil else {
+            return
+        }
+
+        let defaultProcesses = loadBundledDefaults().deriveBundleIdFromPathForProcesses ?? []
+        object[key] = defaultProcesses
+
+        guard JSONSerialization.isValidJSONObject(object),
+              let updatedData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else {
+            return
+        }
+
+        try? updatedData.write(to: fileURL, options: [.atomic])
     }
 
     /// Loads exception rules from config.json.
@@ -62,7 +91,7 @@ enum ExceptionsConfigurationStore {
     }
 
     /// Saves exception rules to config.json.
-    /// Preserves any ignoredBundleIdentifiers that may already exist in the file.
+    /// Preserves any unrelated configuration fields already present in the file.
     static func saveRules(_ rules: [ApplicationExceptionRule]) {
         let fileURL = configurationFileURL()
         let directoryURL = fileURL.deletingLastPathComponent()
