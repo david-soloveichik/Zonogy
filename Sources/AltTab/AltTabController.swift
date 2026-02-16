@@ -124,7 +124,7 @@ final class AltTabController {
         if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
             window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
         } else if let screenId = delegate.targetedScreenId() {
-            window?.centerOnScreen(screenId)
+            window?.centerOnScreen(screenId, forTemporaryZone: true)
         } else {
             window?.center()
         }
