@@ -23,6 +23,9 @@ protocol AltTabKeyInterceptorDelegate: AnyObject {
     /// Activate the currently selected AltTab window (called on modifier release).
     func altTabKeyInterceptorActivateSelection(_ interceptor: AltTabKeyInterceptor)
 
+    /// Switch AltTab to a different mode while it is already visible (e.g., all-windows ↔ current-app).
+    func altTabKeyInterceptorSwitchMode(_ interceptor: AltTabKeyInterceptor, mode: AltTabMode)
+
     /// Cancel AltTab without activation.
     func altTabKeyInterceptorCancel(_ interceptor: AltTabKeyInterceptor)
 
@@ -229,6 +232,31 @@ final class AltTabKeyInterceptor {
                 }
             }
             return nil
+        }
+
+        // Switch mode when the other AltTab shortcut key is pressed while engaged.
+        if delegate?.altTabKeyInterceptorIsAltTabVisible(self) == true {
+            let otherShortcuts: [(AltTabMode, ShortcutInfo?)] = [
+                (.allWindows, currentAltTabShortcut()),
+                (.currentAppOnly, currentAltTabCurrentAppShortcut())
+            ]
+
+            for (mode, shortcut) in otherShortcuts {
+                guard let shortcut, mode != engagedShortcut.mode else { continue }
+                if keyCode == shortcut.keyCode, relevantFlags.contains(shortcut.requiredModifiers) {
+                    self.engagedShortcut = EngagedShortcut(
+                        keyCode: shortcut.keyCode,
+                        requiredModifiers: shortcut.requiredModifiers,
+                        shiftIsRequired: shortcut.shiftIsRequired,
+                        mode: mode
+                    )
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        self.delegate?.altTabKeyInterceptorSwitchMode(self, mode: mode)
+                    }
+                    return nil
+                }
+            }
         }
 
         return Unmanaged.passUnretained(event)

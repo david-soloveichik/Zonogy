@@ -118,6 +118,22 @@ extension AppController: AltTabKeyInterceptorDelegate {
         }
     }
 
+    func altTabKeyInterceptorSwitchMode(_ interceptor: AltTabKeyInterceptor, mode: AltTabMode) {
+        Logger.debug("AltTab: Switching to \(mode == .allWindows ? "all windows" : "current app") mode")
+        switch mode {
+        case .allWindows:
+            altTabController.show(initialSelection: .mostRecent)
+        case .currentAppOnly:
+            guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
+                  let bundleId = frontmostApp.bundleIdentifier else {
+                altTabController.show(initialSelection: .mostRecent, appFilter: .noWindows)
+                return
+            }
+            let appName = frontmostApp.localizedName ?? bundleId
+            altTabController.show(initialSelection: .mostRecent, appFilter: .app(bundleId: bundleId, name: appName))
+        }
+    }
+
     func altTabKeyInterceptor(_ interceptor: AltTabKeyInterceptor, cycle direction: AltTabKeyInterceptor.Direction) {
         switch direction {
         case .next:
