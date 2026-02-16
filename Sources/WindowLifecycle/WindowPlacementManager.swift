@@ -180,13 +180,11 @@ class WindowPlacementManager {
             Logger.debug(
                 "Zone removal reassigning window \(managed.windowId) to zone \(zone.index) on \(context.descriptor.localizedName) [\(context.descriptor.displayId)]"
             )
-            let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
             assignWindowToZone(
                 managed,
                 zone: zone,
                 screenId: context.descriptor.displayId,
-                descriptor: descriptor,
-                zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+                descriptor: descriptor
             )
             return
         }
@@ -226,7 +224,6 @@ class WindowPlacementManager {
         originContext.zoneController.removeWindow(windowId: managed.windowId)
         delegate.clearManagedWindowZone(managed)
 
-        let destinationWasEmpty = zoneWasEmptyBeforePlacement(destinationZone)
         let displacement = displacementPlanIfNeeded(
             in: destinationZone,
             controller: destinationContext.zoneController,
@@ -238,8 +235,7 @@ class WindowPlacementManager {
             managed,
             zone: destinationZone,
             screenId: destinationKey.screenId,
-            descriptor: descriptor,
-            zoneWasEmptyBeforeAssignment: destinationWasEmpty
+            descriptor: descriptor
         )
 
         if minimizeDisplacedWindows {
@@ -265,13 +261,11 @@ class WindowPlacementManager {
         }
 
         if let emptyZone = controller.findEmptyZone() {
-            let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(emptyZone)
             assignWindowToZone(
                 managed,
                 zone: emptyZone,
                 screenId: screenId,
-                descriptor: descriptor,
-                zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+                descriptor: descriptor
             )
             return
         }
@@ -280,7 +274,6 @@ class WindowPlacementManager {
             return
         }
 
-        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(highestZone)
         let displacement = displacementPlanIfNeeded(
             in: highestZone,
             controller: controller,
@@ -292,8 +285,7 @@ class WindowPlacementManager {
             managed,
             zone: highestZone,
             screenId: screenId,
-            descriptor: descriptor,
-            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+            descriptor: descriptor
         )
 
         displacement?.finalize()
@@ -326,7 +318,7 @@ class WindowPlacementManager {
     ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old
     ///     zone per spec since it's now becoming empty. 
     ///   - forceRetargetAfterFill: Even if the destination zone isn't currently targeted, pretend like it is for
-    ///     the purposes of applying the spec's "retarget after filling a targeted empty tiling zone" rule.
+    ///     the purposes of applying the spec's "retarget after filling a targeted tiling zone" rule.
     ///   - logIfUnassignedOnRemoval: Whether to log when the pre-placement cleanup finds that the window wasn't
     ///     assigned to any zone (use `false` for common expected cases like brand-new window placement).
     ///   - afterPlacementAction: Optional action to run after `managed` is placed (or no-op if it's already there), 
@@ -416,8 +408,6 @@ class WindowPlacementManager {
         let displacedMinimizeReason = "\(reason)-displaced"
         let retargetReason = "\(reason)-filled"
 
-        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
-
         SingleOccupantReplacement.replaceIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: managed.windowId,
@@ -431,7 +421,6 @@ class WindowPlacementManager {
                     zone: zone,
                     screenId: zoneKey.screenId,
                     descriptor: descriptor,
-                    zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment,
                     forceRetargetAfterFill: forceRetargetAfterFill,
                     retargetReason: retargetReason
                 )
@@ -448,7 +437,6 @@ class WindowPlacementManager {
         zone: Zone,
         screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor,
-        zoneWasEmptyBeforeAssignment: Bool,
         forceRetargetAfterFill: Bool = false,
         retargetReason: String = "zone-filled"
     ) {
@@ -476,8 +464,7 @@ class WindowPlacementManager {
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
-        if zoneWasEmptyBeforeAssignment,
-           delegate.targetingMode == .independentOfFocus,
+        if delegate.targetingMode == .independentOfFocus,
            (wasTargetedZone || forceRetargetAfterFill) {
             delegate.targetedZoneManager.retargetAfterFillingZone(filledZoneKey, reason: retargetReason)
         }
@@ -495,7 +482,6 @@ class WindowPlacementManager {
             return nil
         }
 
-        let zoneWasEmptyBeforeAssignment = zoneWasEmptyBeforePlacement(zone)
         let displacement = DisplacedWindowPlanner.planIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: managed.windowId,
@@ -509,16 +495,9 @@ class WindowPlacementManager {
             managed,
             zone: zone,
             screenId: targetKey.screenId,
-            descriptor: descriptor,
-            zoneWasEmptyBeforeAssignment: zoneWasEmptyBeforeAssignment
+            descriptor: descriptor
         )
         return DragAssignmentResult(displacedWindow: displacement?.displaced)
-    }
-
-    private func zoneWasEmptyBeforePlacement(_ zone: Zone) -> Bool {
-        // A zone is empty if it has no window assigned
-        // (placeholders are managed separately and not tracked in zones)
-        return zone.occupantWindowId == nil
     }
 
     /// Finds the first zone that can accept a window displaced by zone removal.

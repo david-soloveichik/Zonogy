@@ -167,8 +167,7 @@ class TargetedZoneManager {
         applyRetargetDestination(destination, reason: reason)
     }
 
-    /// Shared retarget preference order for when a targeted empty tiling zone is filled or a targeted
-    /// tiling zone is removed:
+    /// Shared retarget preference order for when a targeted tiling zone is filled or removed:
     /// 1) Lowest-index empty tiling zone on the same screen
     /// 2) Lowest-index empty tiling zone on a different screen (tie-break by screen index)
     /// 3) Temporary zone on the same screen
