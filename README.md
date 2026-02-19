@@ -72,3 +72,7 @@ Exactly one zone is **targeted** at any moment, indicated by a glowing indicator
 ## Development
 
 Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the repo serve as the single source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
+
+## History
+
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but Zonogy is a (passionate!) hobby. I originally built it for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a temporary floater), so that's the limit. It's open source, so you're welcome to fork it and make it your own.
