@@ -14,7 +14,7 @@ Virtual desktops like macOS's built-in Spaces have another limitation: a window 
 
 In addition, Zonogy tackles a gap in window switching: most launchers and Spotlight let you switch to an *application*, but not a specific *window* within it. Zonogy offers two complementary paths here. **DockMenus** let you hover over any Dock icon to see that app's windows and pick one — or just click the icon to open the app's "main" or most recently used window. The **Launcher** takes a keyboard-first approach: drill down into an app and search its windows by title, all within an overlay that appears directly in the zone you're about to fill — making the choice feel concrete and intentional.
 
-Drag and drop is woven throughout: drag an app from the Dock onto a zone, or drop a document onto a placeholder to open it right where you want it. Drag something to the "new zone indicator" and it opens in a new zone. Multi-screen setups are first-class — each screen gets its own independent set of zones.
+Drag and drop is woven throughout: drag windows between zones to swap them, drag an app from the Dock onto a zone, or drop a document onto a placeholder to open it right where you want it. Drag something to the "new zone indicator" and it opens in a new zone. Multi-screen setups are first-class — each screen gets its own independent set of zones.
 
 ## Core Concepts
 
