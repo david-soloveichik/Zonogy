@@ -26,7 +26,7 @@ Exactly one zone is **targeted** at any moment, indicated by a glowing indicator
 
 Filling the targeted tiling zone advances to the next empty tiling zone (or the temporary zone if none are empty), emptying a tiling zone makes it targeted, and you can retarget any tiling zone with a `Control-Command` click. (Alternative mode: **target follows focus**, where activating a window retargets to that window's zone.)
 
-<!-- IMAGE: Three panels showing the 1-zone, 2-zone, and 3-zone layouts with placeholders visible in empty zones. -->
+![Zone layouts: 1-zone (full screen), 2-zone (left/right split), 3-zone (left column + right top/bottom), and 3-zone + temp zone. Target indicators glow above the targeted zone.](docs/images/zone-layouts.svg)
 
 ## Features
 
