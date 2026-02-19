@@ -34,7 +34,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 
 <!-- IMAGE: The Launcher overlay visible inside an empty zone, showing a search field with a list of app icons and window titles. -->
 
-- **AltTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. (<code>Cmd-`</code> cycles windows of the current application.)
+- **AltTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency.
 
 - **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements. A visual timeline chooser lets you scrub through past snapshots.
 
@@ -45,8 +45,23 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 <!-- IMAGE: A DockMenu panel floating above a Dock icon, showing the app's icon/name header and a short list of its managed windows. One zone in the background is highlighted as if a drag target. -->
 
 - **ActiveFit** — windows in the right column that can't shrink to fit are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
-- **Drag and drop** — drag windows between zones to swap or rearrange. Drop files or URLs onto empty zones to open them directly in the right place.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
+
+## Mouse Controls
+
+| Gesture | Action |
+| --- | --- |
+| Click new zone pill (right edge of each screen) | Add a tiling zone |
+| Click targeting indicator (above zones or bottom edge of each screen) | Target that zone |
+| Click empty zone placeholder | Target that zone |
+| `Control-Cmd`-click anywhere in a zone (even if zone is occupied) | Target that zone |
+| Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
+| Drag window → tiling zone | Move it there, swapping if occupied |
+| Drag window → new zone pill | Add a zone and place the window in it |
+| Drag window → temporary zone indicator | Float the window above the tiles |
+| Hold `Control-Cmd` during drag | Promote between tiled and temporary zone |
+| Drag file or URL → empty zone or new zone pill | Open it there with the default app |
+| Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |
 
 ## Default Keyboard Shortcuts (configurable)
 
@@ -56,14 +71,13 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 | --- | --- |
 | `Control-Cmd-=` | Add a zone |
 | `Control-Cmd--` | Remove zone (following preference order) |
-| `Control-Cmd-Click` | Target clicked tiling zone |
+| `Cmd-M` | Minimize active window; with Launcher open, removes the zone (so `Cmd-M` twice = minimize + remove zone) |
+| `Cmd-Tab` | AltTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
+| `Control-Cmd-/` | Save WinShot snapshot |
+| `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Control-Cmd-Arrows` | Change target zone with arrow keys |
 | `Control-Cmd-Space` | Open Launcher |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
-| `Control-Cmd-/` | Save WinShot snapshot |
-| `Control-Cmd-Tab` | Browse WinShot snapshots |
-| `Cmd-Tab` | AltTab window switcher |
-| `Cmd-M` | Minimize active window; with Launcher open, removes the zone (so `Cmd-M` twice = minimize + remove zone) |
 
 ## Requirements
 
