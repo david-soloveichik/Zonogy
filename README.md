@@ -24,6 +24,8 @@ Each screen has 1–3 **tiling zones** that form the main layout, plus a **tempo
 
 Exactly one zone is **targeted** at any moment, indicated by a glowing indicator above the zone. New or unminimized windows are always placed into the targeted zone.
 
+Filling the targeted tiling zone advances to the next empty tiling zone (or the temporary zone if none are empty), emptying a tiling zone makes it targeted, and you can retarget any tiling zone with a `Control-Command` click. (Alternative mode: **target follows focus**, where activating a window retargets to that window's zone.)
+
 <!-- IMAGE: Three panels showing the 1-zone, 2-zone, and 3-zone layouts with placeholders visible in empty zones. -->
 
 ## Features
@@ -54,9 +56,10 @@ Exactly one zone is **targeted** at any moment, indicated by a glowing indicator
 | --- | --- |
 | `Control-Cmd-=` | Add a zone |
 | `Control-Cmd--` | Remove zone (following preference order) |
-| `Control-Cmd-Arrows` | Navigate target zone |
+| `Control-Cmd-Click` | Target clicked tiling zone |
+| `Control-Cmd-Arrows` | Change target zone with arrow keys |
 | `Control-Cmd-Space` | Open Launcher |
-| `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice goes into a single-zone layout. |
+| `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Cmd-Tab` | AltTab window switcher |
@@ -75,4 +78,4 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 
 ## History
 
-My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but Zonogy is a (passionate!) hobby. I originally built it for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a temporary floater), so that's the limit. It's open source, so you're welcome to fork it and make it your own.
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but window management is a (passionate and strangely obsessive) hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a temporary floater), so that's the limit. Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
