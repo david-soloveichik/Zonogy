@@ -1,10 +1,10 @@
-/// AltTab minimized window switcher integration
+/// CmdTab minimized window switcher integration
 import AppKit
 
-extension AppController: AltTabControllerDelegate {
+extension AppController: CmdTabControllerDelegate {
     // MARK: - Window Selection
 
-    func altTabController(_ controller: AltTabController, didSelectWindow window: LauncherWindowItem) {
+    func cmdTabController(_ controller: CmdTabController, didSelectWindow window: LauncherWindowItem) {
         // Reuse the Launcher's window selection logic
         // In-zone windows are activated in place; not-in-zone windows go to target zone
         handleWindowSelection(window, activateInPlace: window.isPlacedInZone)
@@ -12,9 +12,9 @@ extension AppController: AltTabControllerDelegate {
 
     // MARK: - Dismissal
 
-    func altTabControllerDidDismiss(_ controller: AltTabController) {
-        Logger.debug("AltTab: Dismissed")
-        altTabKeyInterceptor.resetEngagement()
+    func cmdTabControllerDidDismiss(_ controller: CmdTabController) {
+        Logger.debug("CmdTab: Dismissed")
+        cmdTabKeyInterceptor.resetEngagement()
     }
 
     // MARK: - All Managed Windows Provider
@@ -85,18 +85,18 @@ extension AppController: AltTabControllerDelegate {
     }
 }
 
-extension AppController: AltTabKeyInterceptorDelegate {
-    func altTabKeyInterceptorIsAltTabVisible(_ interceptor: AltTabKeyInterceptor) -> Bool {
-        altTabController.isActive
+extension AppController: CmdTabKeyInterceptorDelegate {
+    func cmdTabKeyInterceptorIsCmdTabVisible(_ interceptor: CmdTabKeyInterceptor) -> Bool {
+        cmdTabController.isActive
     }
 
-    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction, mode: AltTabMode) -> Bool {
+    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool {
         // Dismiss Launcher if active to avoid overlapping overlays.
         if launcherController.isActive {
             launcherController.hide()
         }
 
-        let initialSelection: AltTabController.InitialSelection
+        let initialSelection: CmdTabController.InitialSelection
         switch initialDirection {
         case .next:
             initialSelection = .mostRecent
@@ -106,52 +106,52 @@ extension AppController: AltTabKeyInterceptorDelegate {
 
         switch mode {
         case .allWindows:
-            return altTabController.show(initialSelection: initialSelection)
+            return cmdTabController.show(initialSelection: initialSelection)
         case .currentAppOnly:
             guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
                   let bundleId = frontmostApp.bundleIdentifier else {
                 // No frontmost app or no bundle identifier - show empty state
-                return altTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
+                return cmdTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
             }
             let appName = frontmostApp.localizedName ?? bundleId
-            return altTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
+            return cmdTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
         }
     }
 
-    func altTabKeyInterceptorSwitchMode(_ interceptor: AltTabKeyInterceptor, mode: AltTabMode) {
-        Logger.debug("AltTab: Switching to \(mode == .allWindows ? "all windows" : "current app") mode")
+    func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode) {
+        Logger.debug("CmdTab: Switching to \(mode == .allWindows ? "all windows" : "current app") mode")
         switch mode {
         case .allWindows:
-            altTabController.show(initialSelection: .mostRecent)
+            cmdTabController.show(initialSelection: .mostRecent)
         case .currentAppOnly:
             guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
                   let bundleId = frontmostApp.bundleIdentifier else {
-                altTabController.show(initialSelection: .mostRecent, appFilter: .noWindows)
+                cmdTabController.show(initialSelection: .mostRecent, appFilter: .noWindows)
                 return
             }
             let appName = frontmostApp.localizedName ?? bundleId
-            altTabController.show(initialSelection: .mostRecent, appFilter: .app(bundleId: bundleId, name: appName))
+            cmdTabController.show(initialSelection: .mostRecent, appFilter: .app(bundleId: bundleId, name: appName))
         }
     }
 
-    func altTabKeyInterceptor(_ interceptor: AltTabKeyInterceptor, cycle direction: AltTabKeyInterceptor.Direction) {
+    func cmdTabKeyInterceptor(_ interceptor: CmdTabKeyInterceptor, cycle direction: CmdTabKeyInterceptor.Direction) {
         switch direction {
         case .next:
-            altTabController.selectNext()
+            cmdTabController.selectNext()
         case .previous:
-            altTabController.selectPrevious()
+            cmdTabController.selectPrevious()
         }
     }
 
-    func altTabKeyInterceptorActivateSelection(_ interceptor: AltTabKeyInterceptor) {
-        altTabController.activateSelectedWindow()
+    func cmdTabKeyInterceptorActivateSelection(_ interceptor: CmdTabKeyInterceptor) {
+        cmdTabController.activateSelectedWindow()
     }
 
-    func altTabKeyInterceptorCancel(_ interceptor: AltTabKeyInterceptor) {
-        altTabController.hide()
+    func cmdTabKeyInterceptorCancel(_ interceptor: CmdTabKeyInterceptor) {
+        cmdTabController.hide()
     }
 
-    func altTabKeyInterceptorShouldHandleEvents(_ interceptor: AltTabKeyInterceptor) -> Bool {
+    func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool {
         !hotkeyService.isSuspended
     }
 }

@@ -34,7 +34,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 
 <!-- IMAGE: The Launcher overlay visible inside an empty zone, showing a search field with a list of app icons and window titles. -->
 
-- **AltTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency.
+- **CmdTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency.
 
 - **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements. A visual timeline chooser lets you scrub through past snapshots.
 
@@ -72,7 +72,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 | `Control-Cmd-=` | Add a zone |
 | `Control-Cmd--` | Remove zone (following preference order) |
 | `Cmd-M` | Minimize active window; with Launcher open, removes the zone (so `Cmd-M` twice = minimize + remove zone) |
-| `Cmd-Tab` | AltTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
+| `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Control-Cmd-Arrows` | Change target zone with arrow keys |
@@ -82,7 +82,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 ## Requirements
 
 - **macOS** — tested on Sequoia 15.7.3 and Tahoe 26.3
-- **Accessibility** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (AltTab's Cmd-Tab override, shortcuts, and zone click targeting)
+- **Accessibility** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (CmdTab's Cmd-Tab override, shortcuts, and zone click targeting)
 - **Screen Recording** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
 - **Automation** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.
 

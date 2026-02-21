@@ -43,7 +43,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let dragDropCoordinator = DragDropCoordinator()
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()
-    internal let altTabKeyInterceptor = AltTabKeyInterceptor()
+    internal let cmdTabKeyInterceptor = CmdTabKeyInterceptor()
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
@@ -86,7 +86,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var unmanagedFocusRetryState: UnmanagedFocusRetryState?
     internal let unmanagedFocusRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
-    /// Updated by windowFocusChanged; used by AltTab to determine initial selection without an AX call.
+    /// Updated by windowFocusChanged; used by CmdTab to determine initial selection without an AX call.
     internal var currentFrontmostManagedWindowId: Int?
     internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
@@ -104,8 +104,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         controller.delegate = self
         return controller
     }()
-    internal lazy var altTabController: AltTabController = {
-        let controller = AltTabController()
+    internal lazy var cmdTabController: CmdTabController = {
+        let controller = CmdTabController()
         controller.delegate = self
         return controller
     }()
@@ -173,7 +173,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Deadline until which notification-driven window activity recording is suppressed
     /// to prevent "twitchy" recordings during temporary zone/WinShot operations.
     internal var activityRecordingSuppressedUntil: Date?
-    /// Minimum time a window must remain focused before it is recorded for AltTab/Launcher recency ordering.
+    /// Minimum time a window must remain focused before it is recorded for CmdTab/Launcher recency ordering.
     internal let windowActivityRecordingStabilityDelay: TimeInterval = 0.25
     /// Pending delayed activity recording work item for the currently focused window.
     internal var pendingWindowActivityRecordWorkItem: DispatchWorkItem?
@@ -307,7 +307,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
         zoneClickInterceptor.start(delegate: self)
-        altTabKeyInterceptor.start(delegate: self)
+        cmdTabKeyInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")

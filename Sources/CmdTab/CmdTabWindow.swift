@@ -1,8 +1,8 @@
-/// Floating panel window for the AltTab overlay
+/// Floating panel window for the CmdTab overlay
 
 import AppKit
 
-final class AltTabWindow: NSPanel {
+final class CmdTabWindow: NSPanel {
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 350),

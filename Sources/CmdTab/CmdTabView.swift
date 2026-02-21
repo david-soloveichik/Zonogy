@@ -1,10 +1,10 @@
-/// SwiftUI view for the AltTab window switcher - displays a clickable window list without search
+/// SwiftUI view for the CmdTab window switcher - displays a clickable window list without search
 
 import AppKit
 import SwiftUI
 
-struct AltTabView: View {
-    @ObservedObject var model: AltTabModel
+struct CmdTabView: View {
+    @ObservedObject var model: CmdTabModel
     let headerText: String
     let onActivateSelected: () -> Void
 
@@ -25,7 +25,7 @@ struct AltTabView: View {
                     ScrollView {
                         LazyVStack(spacing: 2) {
                             ForEach(Array(model.windows.enumerated()), id: \.element.id) { index, window in
-                                AltTabRowView(
+                                CmdTabRowView(
                                     window: window,
                                     isSelected: index == model.selectedIndex
                                 )
@@ -60,8 +60,8 @@ struct AltTabView: View {
     }
 }
 
-/// Row view for a single window in AltTab
-struct AltTabRowView: View {
+/// Row view for a single window in CmdTab
+struct CmdTabRowView: View {
     let window: LauncherWindowItem
     let isSelected: Bool
 

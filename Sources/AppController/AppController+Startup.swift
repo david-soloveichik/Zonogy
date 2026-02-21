@@ -6,7 +6,7 @@ import ApplicationServices
 extension AppController {
     /// Restarts the app after accessibility permissions are granted.
     /// This ensures all CGEventTap-based interceptors (DockMenus, ZoneClickInterceptor,
-    /// AltTabKeyInterceptor) initialize correctly with the new permissions.
+    /// CmdTabKeyInterceptor) initialize correctly with the new permissions.
     func restartAfterAccessibilityGranted() {
         Logger.debug("Accessibility permission granted - restarting app")
 

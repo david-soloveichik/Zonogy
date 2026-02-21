@@ -45,7 +45,7 @@ extension AppController {
 
     /// Update targeting immediately, but only record window activity if the window remains focused for
     /// `windowActivityRecordingStabilityDelay`.
-    /// AltTab/Launcher recency should ignore brief intermediate activations that can occur during
+    /// CmdTab/Launcher recency should ignore brief intermediate activations that can occur during
     /// app/window switching flows (e.g., the app's previously-frontmost window becomes key briefly).
     internal func recordActiveWindowForHistoryDebounced(windowId: Int, pid: pid_t, reason: String) {
         updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)

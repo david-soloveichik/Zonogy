@@ -27,8 +27,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
         // Window Switchers
         case showLauncher
-        case showAltTab
-        case showAltTabCurrentApp
+        case showCmdTab
+        case showCmdTabCurrentApp
 
         // WinShot Snapshots
         case showWinShotChooser
@@ -55,8 +55,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .targetTilingZone: return "Target Tiling Zone"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
-            case .showAltTab: return "AltTab Window Switcher"
-            case .showAltTabCurrentApp: return "AltTab (Current App Only)"
+            case .showCmdTab: return "CmdTab Window Switcher"
+            case .showCmdTabCurrentApp: return "CmdTab (Current App Only)"
             // WinShot Snapshots
             case .showWinShotChooser: return "Show WinShot Switcher"
             case .saveWinShotSnapshot: return "Save WinShot Snapshot"
@@ -99,9 +99,9 @@ final class KeyboardShortcutPreferences: ObservableObject {
             // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
-            case .showAltTab:
+            case .showCmdTab:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Tab), modifiers: cmdOnly)
-            case .showAltTabCurrentApp:
+            case .showCmdTabCurrentApp:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Grave), modifiers: cmdOnly)
             // WinShot Snapshots
             case .showWinShotChooser:

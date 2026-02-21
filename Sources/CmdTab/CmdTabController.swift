@@ -1,14 +1,14 @@
-/// Coordinates the AltTab window switcher UI and window activation
+/// Coordinates the CmdTab window switcher UI and window activation
 
 import AppKit
 import SwiftUI
 
-protocol AltTabControllerDelegate: AnyObject {
-    /// Called when a window is selected from the AltTab list
-    func altTabController(_ controller: AltTabController, didSelectWindow window: LauncherWindowItem)
+protocol CmdTabControllerDelegate: AnyObject {
+    /// Called when a window is selected from the CmdTab list
+    func cmdTabController(_ controller: CmdTabController, didSelectWindow window: LauncherWindowItem)
 
-    /// Called when AltTab is dismissed without selection
-    func altTabControllerDidDismiss(_ controller: AltTabController)
+    /// Called when CmdTab is dismissed without selection
+    func cmdTabControllerDidDismiss(_ controller: CmdTabController)
 
     /// Returns the frame of the targeted zone in screen coordinates, and its screen descriptor
     func targetedZoneFrame() -> (CGRect, ScreenDescriptor)?
@@ -24,12 +24,12 @@ protocol AltTabControllerDelegate: AnyObject {
     func frontmostManagedWindowId() -> Int?
 }
 
-final class AltTabController {
-    weak var delegate: AltTabControllerDelegate?
+final class CmdTabController {
+    weak var delegate: CmdTabControllerDelegate?
 
-    private var window: AltTabWindow?
-    private var model: AltTabModel?
-    private var hostingView: NSHostingView<AltTabView>?
+    private var window: CmdTabWindow?
+    private var model: CmdTabModel?
+    private var hostingView: NSHostingView<CmdTabView>?
     private var clickMonitor: ClickOutsideMonitor?
 
     private(set) var isActive = false
@@ -48,7 +48,7 @@ final class AltTabController {
     @discardableResult
     func show(initialSelection: InitialSelection = .mostRecent, appFilter: AppFilter = .allWindows) -> Bool {
         guard let delegate = delegate else {
-            Logger.debug("AltTab: Cannot show - no delegate")
+            Logger.debug("CmdTab: Cannot show - no delegate")
             return false
         }
 
@@ -73,7 +73,7 @@ final class AltTabController {
         }
 
         // Show UI even if empty (will display empty state)
-        let model = AltTabModel(windows: allWindows, wrapsAround: wrapsAround)
+        let model = CmdTabModel(windows: allWindows, wrapsAround: wrapsAround)
         self.model = model
 
         if !allWindows.isEmpty {
@@ -94,17 +94,17 @@ final class AltTabController {
 
         // Create window if needed
         if window == nil {
-            window = AltTabWindow()
+            window = CmdTabWindow()
         }
 
         // Create the SwiftUI view
-        let altTabView = AltTabView(
+        let cmdTabView = CmdTabView(
             model: model,
             headerText: headerText,
             onActivateSelected: { [weak self] in self?.activateSelectedWindow() }
         )
 
-        let hostingView = NSHostingView(rootView: altTabView)
+        let hostingView = NSHostingView(rootView: cmdTabView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         self.hostingView = hostingView
 
@@ -134,7 +134,7 @@ final class AltTabController {
         startClickMonitor()
 
         isActive = true
-        Logger.debug("AltTab: Opened with \(model.windows.count) windows")
+        Logger.debug("CmdTab: Opened with \(model.windows.count) windows")
         return true
     }
 
@@ -146,12 +146,12 @@ final class AltTabController {
         model = nil
 
         isActive = false
-        Logger.debug("AltTab: Closed")
+        Logger.debug("CmdTab: Closed")
 
-        delegate?.altTabControllerDidDismiss(self)
+        delegate?.cmdTabControllerDidDismiss(self)
     }
 
-    /// Activates the currently selected window and dismisses AltTab
+    /// Activates the currently selected window and dismisses CmdTab
     func activateSelectedWindow() {
         guard let model = model,
               let selectedWindow = model.selectedWindow else {
@@ -162,7 +162,7 @@ final class AltTabController {
         hide()
 
         // Notify delegate
-        delegate?.altTabController(self, didSelectWindow: selectedWindow)
+        delegate?.cmdTabController(self, didSelectWindow: selectedWindow)
     }
 
     /// Move selection to next window in the list

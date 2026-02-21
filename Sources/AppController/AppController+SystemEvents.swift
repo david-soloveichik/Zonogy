@@ -88,7 +88,7 @@ extension AppController {
         currentFrontmostManagedWindowId = focusedManagedWindow?.windowId
         refreshResizeHandles()
 
-        // Record window activity for AltTab recency tracking.
+        // Record window activity for CmdTab recency tracking.
         // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations.
         if let applicationPid = application?.processIdentifier,
            let focusedManagedWindow,

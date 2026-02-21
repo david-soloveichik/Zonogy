@@ -108,7 +108,7 @@ extension AppController {
         activeFitClearSuppressionForWindow(windowId)
     }
 
-    /// Resolves the frontmost managed window id used for resize-handle/AltTab behavior.
+    /// Resolves the frontmost managed window id used for resize-handle/CmdTab behavior.
     /// We only trust focus-change notifications from the currently frontmost app and
     /// preserve the last known managed focus across transient AX nil-focus failures.
     private func resolveFrontmostManagedWindowId(pid: pid_t, focusedWindowId: Int?) -> Int? {
@@ -187,7 +187,7 @@ extension AppController {
             recordActiveWindowForHistoryDebounced(windowId: windowId, pid: pid, reason: "focus-changed")
         }
 
-        // Track frontmost managed window for AltTab initial selection and resize-handle
+        // Track frontmost managed window for CmdTab initial selection and resize-handle
         // overlap avoidance. Ignore stale background-app focus events and tolerate
         // transient AX nil-focus failures for the frontmost app.
         currentFrontmostManagedWindowId = resolveFrontmostManagedWindowId(

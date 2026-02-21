@@ -444,7 +444,7 @@ class WindowPlacementManager {
 
         delegate.cancelPendingMinimization(windowId: managed.windowId)
 
-        // Record activity for windows placed into zones so they appear in AltTab/Launcher recency lists.
+        // Record activity for windows placed into zones so they appear in CmdTab/Launcher recency lists.
         delegate.windowController.recordWindowActivity(windowId: managed.windowId)
 
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)

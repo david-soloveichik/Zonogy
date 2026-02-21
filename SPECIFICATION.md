@@ -127,7 +127,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 
 - **Targeting independent of focus** (default): Targeting is controlled by the rules and shortcuts below and does not automatically change when focus changes.
 - **Targeting follows focus:** Same as “Targeting independent of focus” except:
-  - When a window becomes active in a zone (tiling or temporary), that zone becomes targeted. “Active” must follow the exact same semantics as the history/recency tracking used by Launcher ordering / AltTab.
+  - When a window becomes active in a zone (tiling or temporary), that zone becomes targeted. “Active” must follow the exact same semantics as the history/recency tracking used by Launcher ordering / CmdTab.
   - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the temporary zone).
 
 **Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter.
@@ -315,9 +315,9 @@ For the application launcher and window switcher feature (Control-Command-Space)
 
 For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATION-DOCKMENUS.md](SPECIFICATION-DOCKMENUS.md)**.
 
-## AltTab
+## CmdTab
 
-For the AltTab window switcher feature, see **[SPECIFICATION-ALTTAB.md](SPECIFICATION-ALTTAB.md)**.
+For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFICATION-CMDTAB.md)**.
 
 ## Developer Tools
 

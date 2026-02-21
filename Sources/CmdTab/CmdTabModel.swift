@@ -1,8 +1,8 @@
-/// State management for the AltTab window switcher
+/// State management for the CmdTab window switcher
 
 import Foundation
 
-final class AltTabModel: ObservableObject {
+final class CmdTabModel: ObservableObject {
     /// All managed windows ordered by recency (most recent first)
     let windows: [LauncherWindowItem]
 

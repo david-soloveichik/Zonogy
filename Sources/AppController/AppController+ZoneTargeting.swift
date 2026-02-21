@@ -195,9 +195,9 @@ extension AppController {
             return false
         }
 
-        // AltTab: while the AltTab overlay is visible, disable Control-Command click targeting
-        // to avoid conflicts with AltTab interactions.
-        if altTabController.isActive {
+        // CmdTab: while the CmdTab overlay is visible, disable Control-Command click targeting
+        // to avoid conflicts with CmdTab interactions.
+        if cmdTabController.isActive {
             return false
         }
 

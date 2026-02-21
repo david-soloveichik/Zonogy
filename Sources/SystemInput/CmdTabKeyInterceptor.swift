@@ -1,39 +1,39 @@
-/// Intercepts the configured AltTab keyboard chord via a global CGEventTap (Input Monitoring)
+/// Intercepts the configured CmdTab keyboard chord via a global CGEventTap (Input Monitoring)
 
 import ApplicationServices
 import Carbon
 import Foundation
 
-/// Mode for AltTab window filtering
-enum AltTabMode {
+/// Mode for CmdTab window filtering
+enum CmdTabMode {
     case allWindows
     case currentAppOnly
 }
 
-protocol AltTabKeyInterceptorDelegate: AnyObject {
-    /// Return true when AltTab UI is currently visible.
-    func altTabKeyInterceptorIsAltTabVisible(_ interceptor: AltTabKeyInterceptor) -> Bool
+protocol CmdTabKeyInterceptorDelegate: AnyObject {
+    /// Return true when CmdTab UI is currently visible.
+    func cmdTabKeyInterceptorIsCmdTabVisible(_ interceptor: CmdTabKeyInterceptor) -> Bool
 
-    /// Request that AltTab be shown. Return true if it was shown.
-    func altTabKeyInterceptorShowAltTab(_ interceptor: AltTabKeyInterceptor, initialDirection: AltTabKeyInterceptor.Direction, mode: AltTabMode) -> Bool
+    /// Request that CmdTab be shown. Return true if it was shown.
+    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool
 
-    /// Cycle AltTab selection in the given direction (only called while AltTab is visible).
-    func altTabKeyInterceptor(_ interceptor: AltTabKeyInterceptor, cycle direction: AltTabKeyInterceptor.Direction)
+    /// Cycle CmdTab selection in the given direction (only called while CmdTab is visible).
+    func cmdTabKeyInterceptor(_ interceptor: CmdTabKeyInterceptor, cycle direction: CmdTabKeyInterceptor.Direction)
 
-    /// Activate the currently selected AltTab window (called on modifier release).
-    func altTabKeyInterceptorActivateSelection(_ interceptor: AltTabKeyInterceptor)
+    /// Activate the currently selected CmdTab window (called on modifier release).
+    func cmdTabKeyInterceptorActivateSelection(_ interceptor: CmdTabKeyInterceptor)
 
-    /// Switch AltTab to a different mode while it is already visible (e.g., all-windows ↔ current-app).
-    func altTabKeyInterceptorSwitchMode(_ interceptor: AltTabKeyInterceptor, mode: AltTabMode)
+    /// Switch CmdTab to a different mode while it is already visible (e.g., all-windows ↔ current-app).
+    func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode)
 
-    /// Cancel AltTab without activation.
-    func altTabKeyInterceptorCancel(_ interceptor: AltTabKeyInterceptor)
+    /// Cancel CmdTab without activation.
+    func cmdTabKeyInterceptorCancel(_ interceptor: CmdTabKeyInterceptor)
 
-    /// Return false to temporarily disable AltTab interception (e.g., while recording shortcuts).
-    func altTabKeyInterceptorShouldHandleEvents(_ interceptor: AltTabKeyInterceptor) -> Bool
+    /// Return false to temporarily disable CmdTab interception (e.g., while recording shortcuts).
+    func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool
 }
 
-final class AltTabKeyInterceptor {
+final class CmdTabKeyInterceptor {
     enum Direction {
         case next
         case previous
@@ -45,7 +45,7 @@ final class AltTabKeyInterceptor {
         static let escapeKeyCode = CGKeyCode(kVK_Escape)
     }
 
-    weak var delegate: AltTabKeyInterceptorDelegate?
+    weak var delegate: CmdTabKeyInterceptorDelegate?
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -57,14 +57,14 @@ final class AltTabKeyInterceptor {
         let keyCode: CGKeyCode
         let requiredModifiers: CGEventFlags
         let shiftIsRequired: Bool
-        let mode: AltTabMode
+        let mode: CmdTabMode
     }
 
-    func start(delegate: AltTabKeyInterceptorDelegate) {
+    func start(delegate: CmdTabKeyInterceptorDelegate) {
         self.delegate = delegate
 
         guard eventTap == nil else {
-            Logger.debug("AltTabKeyInterceptor already running")
+            Logger.debug("CmdTabKeyInterceptor already running")
             return
         }
 
@@ -73,10 +73,10 @@ final class AltTabKeyInterceptor {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: CGEventMask(Constants.eventMask),
-            callback: AltTabKeyInterceptor.eventCallback,
+            callback: CmdTabKeyInterceptor.eventCallback,
             userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         ) else {
-            Logger.debug("Failed to install AltTab keyboard interceptor (missing Input Monitoring permission?)")
+            Logger.debug("Failed to install CmdTab keyboard interceptor (missing Input Monitoring permission?)")
             return
         }
 
@@ -86,7 +86,7 @@ final class AltTabKeyInterceptor {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
-        Logger.debug("AltTab keyboard interceptor started")
+        Logger.debug("CmdTab keyboard interceptor started")
     }
 
     func stop() {
@@ -114,7 +114,7 @@ final class AltTabKeyInterceptor {
         case .tapDisabledByUserInput, .tapDisabledByTimeout:
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("Re-enabled AltTab keyboard interceptor after timeout")
+                Logger.debug("Re-enabled CmdTab keyboard interceptor after timeout")
             }
             return Unmanaged.passUnretained(event)
         case .keyDown, .flagsChanged:
@@ -123,7 +123,7 @@ final class AltTabKeyInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        guard let delegate, delegate.altTabKeyInterceptorShouldHandleEvents(self) else {
+        guard let delegate, delegate.cmdTabKeyInterceptorShouldHandleEvents(self) else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -143,10 +143,10 @@ final class AltTabKeyInterceptor {
 
         // Session ends when any required modifier is released.
         guard relevantFlags.contains(engagedShortcut.requiredModifiers) else {
-            if delegate?.altTabKeyInterceptorIsAltTabVisible(self) == true {
+            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    self.delegate?.altTabKeyInterceptorActivateSelection(self)
+                    self.delegate?.cmdTabKeyInterceptorActivateSelection(self)
                 }
             }
 
@@ -165,10 +165,10 @@ final class AltTabKeyInterceptor {
             return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, event: event)
         }
 
-        // Try both AltTab shortcuts (all windows and current app only)
-        let shortcuts: [(AltTabMode, ShortcutInfo?)] = [
-            (.allWindows, currentAltTabShortcut()),
-            (.currentAppOnly, currentAltTabCurrentAppShortcut())
+        // Try both CmdTab shortcuts (all windows and current app only)
+        let shortcuts: [(CmdTabMode, ShortcutInfo?)] = [
+            (.allWindows, currentCmdTabShortcut()),
+            (.currentAppOnly, currentCmdTabCurrentAppShortcut())
         ]
 
         var matchedShortcut: EngagedShortcut?
@@ -197,7 +197,7 @@ final class AltTabKeyInterceptor {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            _ = self.delegate?.altTabKeyInterceptorShowAltTab(self, initialDirection: direction, mode: shortcut.mode)
+            _ = self.delegate?.cmdTabKeyInterceptorShowCmdTab(self, initialDirection: direction, mode: shortcut.mode)
         }
 
         // Swallow to override the system app switcher.
@@ -212,10 +212,10 @@ final class AltTabKeyInterceptor {
         }
 
         // Cancel (even while modifiers are held).
-        if keyCode == Constants.escapeKeyCode, delegate?.altTabKeyInterceptorIsAltTabVisible(self) == true {
+        if keyCode == Constants.escapeKeyCode, delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.delegate?.altTabKeyInterceptorCancel(self)
+                self.delegate?.cmdTabKeyInterceptorCancel(self)
             }
             isEngaged = false
             self.engagedShortcut = nil
@@ -224,21 +224,21 @@ final class AltTabKeyInterceptor {
 
         // Cycle on repeated presses of the configured key while the required modifiers are held.
         if keyCode == engagedShortcut.keyCode, relevantFlags.contains(engagedShortcut.requiredModifiers) {
-            if delegate?.altTabKeyInterceptorIsAltTabVisible(self) == true {
+            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
                 let direction = cyclingDirection(for: relevantFlags, engagedShortcut: engagedShortcut)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    self.delegate?.altTabKeyInterceptor(self, cycle: direction)
+                    self.delegate?.cmdTabKeyInterceptor(self, cycle: direction)
                 }
             }
             return nil
         }
 
-        // Switch mode when the other AltTab shortcut key is pressed while engaged.
-        if delegate?.altTabKeyInterceptorIsAltTabVisible(self) == true {
-            let otherShortcuts: [(AltTabMode, ShortcutInfo?)] = [
-                (.allWindows, currentAltTabShortcut()),
-                (.currentAppOnly, currentAltTabCurrentAppShortcut())
+        // Switch mode when the other CmdTab shortcut key is pressed while engaged.
+        if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
+            let otherShortcuts: [(CmdTabMode, ShortcutInfo?)] = [
+                (.allWindows, currentCmdTabShortcut()),
+                (.currentAppOnly, currentCmdTabCurrentAppShortcut())
             ]
 
             for (mode, shortcut) in otherShortcuts {
@@ -252,7 +252,7 @@ final class AltTabKeyInterceptor {
                     )
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
-                        self.delegate?.altTabKeyInterceptorSwitchMode(self, mode: mode)
+                        self.delegate?.cmdTabKeyInterceptorSwitchMode(self, mode: mode)
                     }
                     return nil
                 }
@@ -268,8 +268,8 @@ final class AltTabKeyInterceptor {
         let shiftIsRequired: Bool
     }
 
-    private func currentAltTabShortcut() -> ShortcutInfo? {
-        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showAltTab) else {
+    private func currentCmdTabShortcut() -> ShortcutInfo? {
+        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showCmdTab) else {
             return nil
         }
 
@@ -283,8 +283,8 @@ final class AltTabKeyInterceptor {
         )
     }
 
-    private func currentAltTabCurrentAppShortcut() -> ShortcutInfo? {
-        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showAltTabCurrentApp) else {
+    private func currentCmdTabCurrentAppShortcut() -> ShortcutInfo? {
+        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showCmdTabCurrentApp) else {
             return nil
         }
 
@@ -339,7 +339,7 @@ final class AltTabKeyInterceptor {
         guard let userInfo else {
             return Unmanaged.passUnretained(cgEvent)
         }
-        let interceptor = Unmanaged<AltTabKeyInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
+        let interceptor = Unmanaged<CmdTabKeyInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
         return interceptor.processEvent(cgEvent, type: type)
     }
 
