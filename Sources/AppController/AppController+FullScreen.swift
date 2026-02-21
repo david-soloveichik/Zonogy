@@ -362,8 +362,52 @@ extension AppController {
                 Logger.debug("Launcher: Hidden because target screen entered full-screen")
             }
         } else {
+            _ = placeTrackedButUnzonedWindowsAfterFullScreenExit(on: displayId)
             // Re-sync to restore placeholders and indicators on the screen that exited full-screen.
             syncWindowsToZones()
         }
+    }
+
+    /// Full-screen pause: when a screen exits full-screen mode, place any managed windows that
+    /// were deferred on that screen. Spec: prefer lowest-index empty tiling zone on that screen;
+    /// if none exists, place into that screen's temporary zone.
+    @discardableResult
+    private func placeTrackedButUnzonedWindowsAfterFullScreenExit(on screenId: CGDirectDisplayID) -> Int {
+        guard !isScreenPausedForFullScreen(screenId) else {
+            return 0
+        }
+
+        let baseReason = "full-screen-exited"
+        let placedCount = withTrackedButUnzonedWindows(
+            reason: baseReason,
+            candidateKind: "full-screen-exit",
+            restrictedToScreenId: screenId,
+            skipFullScreenPausedScreens: false,
+            logSkipFullScreenPaused: false
+        ) { window in
+            let destination: TargetedZoneManager.TargetedDestination = {
+                guard let controller = zoneController(for: screenId),
+                      let emptyZone = controller.findEmptyZone() else {
+                    return .temporary(screenId: screenId)
+                }
+                return .tiled(ZoneKey(screenId: screenId, index: emptyZone.index))
+            }()
+
+            windowPlacementManager.placeWindow(
+                window,
+                into: destination,
+                centerTemporaryWindow: true,
+                reason: "\(baseReason)-deferred-placement",
+                retargetOnRemoval: true,
+                forceRetargetAfterFill: false,
+                logIfUnassignedOnRemoval: false
+            )
+        }
+
+        if placedCount > 0 {
+            Logger.debug("Full-screen exit placed \(placedCount) deferred window(s) on screen \(screenContextStore.loggingIndex(for: screenId))")
+        }
+
+        return placedCount
     }
 }

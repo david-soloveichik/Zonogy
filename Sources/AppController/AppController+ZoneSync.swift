@@ -260,6 +260,15 @@ extension AppController {
     }
 
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {
+        if let resolvedScreenId = detectScreenId(for: managed),
+           isScreenPausedForFullScreen(resolvedScreenId) {
+            let screenIndex = screenContextStore.loggingIndex(for: resolvedScreenId)
+            Logger.debug(
+                "Deferring placement for window \(managed.windowId) because screen \(screenIndex) is paused for full-screen"
+            )
+            return true
+        }
+
         // Chrome merges kill the dragged window until the drop completes; avoid evicting the sibling.
         guard let targetedZoneKey = targetedZoneKey else {
             return false
@@ -276,6 +285,10 @@ extension AppController {
               occupant.backing.pid == pid else {
             return false
         }
+        Logger.debug(
+            "Deferring placement for window \(managed.windowId) because of active drag tear-out " +
+                "targeting zone \(targetedZoneKey.index) on screen \(screenContextStore.loggingIndex(for: targetedZoneKey.screenId))"
+        )
         return true
     }
 

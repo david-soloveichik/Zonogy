@@ -80,34 +80,15 @@ extension AppController {
     /// Returns the number of windows placed.
     @discardableResult
     internal func placeTrackedButUnzonedWindows(reason: String) -> Int {
-        var placedCount = 0
-        let candidateWindowIds: [Int] = windowController.allWindows.compactMap { (window: ManagedWindow) -> Int? in
-            guard !window.isMinimizedPerAccessibility,
-                  zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInTemporaryZone(window.windowId) else {
-                return nil
-            }
-            return window.windowId
-        }
-
-        for windowId in candidateWindowIds {
-            // Re-resolve each candidate from the registry so recapture never
-            // places a window object that was pruned after candidate collection.
-            guard let window = windowController.window(withId: windowId) else {
-                Logger.debug("\(reason.capitalized): skipping recapture candidate \(windowId); no longer managed")
-                continue
-            }
-
-            guard !window.isMinimizedPerAccessibility,
-                  zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInTemporaryZone(windowId) else {
-                continue
-            }
-
+        withTrackedButUnzonedWindows(
+            reason: reason,
+            candidateKind: "recapture",
+            restrictedToScreenId: nil,
+            skipFullScreenPausedScreens: true,
+            logSkipFullScreenPaused: true
+        ) { window in
             Logger.debug("\(reason.capitalized): placing tracked but unzoned window \(window.windowId)")
             windowPlacementManager.placeNewWindow(window, requestSync: false)
-            placedCount += 1
         }
-        return placedCount
     }
 }

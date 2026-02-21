@@ -119,7 +119,9 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the sc
 
 **Targeting rule:** Exactly one zone (tiling zone or temporary zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
 
-**Full-screen pause:** When a screen is in native macOS full-screen mode, Zonogy pauses on that screen. No Zonogy UI/overlays should appear there (placeholders, Launcher, targeting indicators, add‑zone indicator, zone resize bars, drag overlays). Zones on that screen are not targetable; when a screen enters full‑screen mode, retarget using normal rules. (If all screens are full‑screen, target screen 0 (normal rules) as a last resort.)
+**Full-screen pause:** When a screen is in native macOS full-screen mode, Zonogy pauses on that screen. No Zonogy UI/overlays should appear there (placeholders, Launcher, targeting indicators, add‑zone indicator, zone resize bars, drag overlays, etc). Zones on that screen are not targetable; when a screen enters full‑screen mode, retarget using normal rules. (If all screens are full‑screen, target screen 0 (normal rules) as a last resort to maintain the invariant that one zone is always targeted.)
+
+When a screen is full-screen, and a managed window appears on that screen (eg opens or unminimized), we defer placing that window until that screen exits full-screen mode. Then we place that window on that same screen using reuse the standard placement/recapture pipeline (ie prefer the lowest-index empty tiling zone on that screen; if no empty tiling zone exists, place it into that screen's temporary zone).
 
 **Targeting modes:** Zonogy supports two targeting modes (switchable in Zonogy Preferences → General):
 

@@ -127,9 +127,9 @@ class WindowPlacementManager {
                 logIfUnassigned: false
             )
             managed.zoneIndex = nil
-            let screenId = targetedKey?.screenId ?? delegate.detectScreenId(for: managed) ?? delegate.activeScreenId()
+            let screenId = delegate.detectScreenId(for: managed) ?? targetedKey?.screenId ?? delegate.activeScreenId()
             delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
-            Logger.debug("Deferring placement for window \(managed.windowId); awaiting drag/drop completion")
+            Logger.debug("Deferring placement for window \(managed.windowId)")
             return
         }
 
