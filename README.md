@@ -8,7 +8,9 @@ Replace the launch-then-arrange ritual with predictable window placement.
 
 ## Why Zonogy?
 
-Tiling window managers promise to tame a cluttered screen — but they feel **twitchy**. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach: you define **zones** that persist even when empty, so your layout stays **stable**. Exactly one zone is always **targeted**, and that's where the next window will appear.
+[first paragraph should summarize all of the rest of this section]
+
+Tiling window managers promise to tame a cluttered screen — but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach: you define **zones** that persist even when empty, so your layout stays stable. Exactly one zone is always **targeted**, and that's where the next window will appear.
 
 Virtual desktops like macOS's built-in Spaces have another limitation: a window can only belong to one space. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows. After all, the same window — your email, a reference doc — often belongs to more than one task; your tools shouldn't force you to choose.
 
@@ -93,3 +95,12 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 ## History
 
 My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but window management is a (passionate and strangely obsessive) hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a temporary floater), so that's the limit. Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
+
+## Additional suggestions
+
+Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
+```sh
+$ defaults write -g NSZoomButtonShowMenu -bool no
+$ # to bring it back:
+$ defaults delete -g NSZoomButtonShowMenu
+```
