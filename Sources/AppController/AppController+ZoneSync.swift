@@ -335,6 +335,9 @@ extension AppController {
         // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
         if case .liveResize(let screenId) = mode {
             refreshZoneIndicators(forScreens: Set([screenId]))
+            if launcherController.isActive, targetedScreenId() == screenId {
+                launcherController.repositionIfNeeded()
+            }
             return
         }
         targetedZoneManager.ensureTargetedZone(reason: "sync")
