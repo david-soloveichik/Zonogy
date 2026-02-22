@@ -46,14 +46,23 @@ final class ZoneResizeHandleManager {
 
     private final class HandleView: NSView {
         weak var delegate: ZoneResizeHandleManagerDelegate?
+        weak var dragOverlay: ZoneResizeDragOverlay?
         let screenId: CGDirectDisplayID
         let separatorIndex: Int
         let orientation: ZoneLayout.SeparatorOrientation
-        
+
         private var isHovering = false
         private var isDragging = false
         private var hasActiveResizeDrag = false
-        private static weak var activeDragView: HandleView?
+        /// When true, the overlay is drawing the bar — suppress local drawing to avoid a double bar.
+        private var suppressBarDrawing = false
+        fileprivate static weak var activeDragView: HandleView?
+
+        /// Accumulated delta and throttle timer for heavy layout work.
+        /// The timer fires at a fixed interval (~20Hz) so the main thread stays
+        /// free between ticks for processing mouse events and overlay moves.
+        private var pendingDelta: CGPoint = .zero
+        fileprivate var syncTimer: Timer?
         
         // Visual bar customization
         private let barThickness: CGFloat = 4.0
@@ -105,7 +114,7 @@ final class ZoneResizeHandleManager {
         }
 
         override func draw(_ dirtyRect: NSRect) {
-            guard isHovering || isDragging else { return }
+            guard (isHovering || isDragging), !suppressBarDrawing else { return }
             
             // Draw the white bar
             // The view frame matches the margin (8px wide/tall)
@@ -135,16 +144,34 @@ final class ZoneResizeHandleManager {
         override func mouseDown(with event: NSEvent) {
             HandleView.activeDragView = self
             isDragging = true
+
+            // Show the drag overlay at the handle window's current Cocoa frame.
+            // The overlay provides smooth visual tracking independent of layout work.
+            if let handleWindow = window {
+                dragOverlay?.show(cocoaFrame: handleWindow.frame, orientation: orientation)
+                suppressBarDrawing = true
+            }
             needsDisplay = true
         }
         
         override func mouseUp(with event: NSEvent) {
+            // Stop the throttle timer and flush any remaining accumulated delta
+            // so the final layout exactly matches the overlay position.
+            syncTimer?.invalidate()
+            syncTimer = nil
+            if pendingDelta.x != 0 || pendingDelta.y != 0 {
+                let delta = pendingDelta
+                pendingDelta = .zero
+                delegate?.resizeHandleDragged(screenId: screenId, separatorIndex: separatorIndex, delta: delta)
+            }
             if hasActiveResizeDrag {
                 delegate?.resizeHandleDragEnded(screenId: screenId, separatorIndex: separatorIndex)
             }
             hasActiveResizeDrag = false
             HandleView.activeDragView = nil
             isDragging = false
+            dragOverlay?.hide()
+            suppressBarDrawing = false
             needsDisplay = true
         }
 
@@ -155,23 +182,34 @@ final class ZoneResizeHandleManager {
             }
 
             isDragging = true
-            needsDisplay = true
-            
-            // Convert delta to screen coordinates logic if needed
-            // event.deltaX/Y are in screen points usually
-            // Note: Y direction flip between screen and event delta might be tricky?
-            // NSEvent deltaY: + is UP usually?
-            // Screen coords: Y increases DOWN.
-            // So dragging UP (positive deltaY) means DECREASING Y in screen coords.
-            // So deltaY needs to be inverted?
-            
-            // Actually, let's check AppKit docs or experiment.
-            // Usually deltaY is + for up movement.
-            // If I drag the horizontal separator UP (deltaY > 0), I want the Y coordinate to DECREASE.
-            // So the change in screen coordinate Y is -deltaY.
-            
-            let delta = CGPoint(x: event.deltaX, y: event.deltaY)
-            delegate?.resizeHandleDragged(screenId: screenId, separatorIndex: separatorIndex, delta: delta)
+
+            // Move the drag overlay immediately for smooth visual tracking.
+            // NSEvent deltaY: positive = downward (screen direction).
+            // Cocoa Y: positive = upward. So negate deltaY for Cocoa window movement.
+            dragOverlay?.moveByDelta(dx: event.deltaX, dy: -event.deltaY)
+
+            // Accumulate deltas. A repeating timer (~20Hz) drains the accumulated
+            // delta into the delegate, keeping the main thread free between ticks
+            // so mouse events and overlay moves stay responsive.
+            pendingDelta.x += event.deltaX
+            pendingDelta.y += event.deltaY
+
+            if syncTimer == nil {
+                let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+                    guard let self = self else { return }
+                    let delta = self.pendingDelta
+                    guard delta.x != 0 || delta.y != 0 else { return }
+                    self.pendingDelta = .zero
+                    self.delegate?.resizeHandleDragged(
+                        screenId: self.screenId,
+                        separatorIndex: self.separatorIndex,
+                        delta: delta
+                    )
+                }
+                // Schedule in .common modes so it fires during mouse-tracking.
+                RunLoop.main.add(timer, forMode: .common)
+                syncTimer = timer
+            }
         }
     }
 
@@ -186,6 +224,7 @@ final class ZoneResizeHandleManager {
     }
 
     weak var delegate: ZoneResizeHandleManagerDelegate?
+    private let dragOverlay = ZoneResizeDragOverlay()
     private var handles: [String: Handle] = [:] // Key: "screenId-index"
 
     func present(over descriptors: [ZoneSeparatorDescriptor]) {
@@ -202,12 +241,16 @@ final class ZoneResizeHandleManager {
             )
 
             if let handle = handles[key] {
-                if handle.window.frame != cocoaFrame {
+                // While a drag is active on this handle, the overlay provides the
+                // visual bar — skip repositioning to avoid layout-driven stutter.
+                let isDragging = HandleView.activeDragView === handle.view
+                if !isDragging, handle.window.frame != cocoaFrame {
                     handle.window.setFrame(cocoaFrame, display: true)
-                    handle.view.setFrameSize(cocoaFrame.size) // triggers draw
+                    handle.view.setFrameSize(cocoaFrame.size)
                     handle.view.needsDisplay = true
                 }
                 handle.view.delegate = delegate
+                handle.view.dragOverlay = dragOverlay
                 handle.window.orderFrontRegardless()
                 pendingRemoval.remove(key)
                 continue
@@ -216,6 +259,7 @@ final class ZoneResizeHandleManager {
             let window = HandleWindow(frame: cocoaFrame)
             let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, index: descriptor.index, orientation: descriptor.orientation)
             view.delegate = delegate
+            view.dragOverlay = dragOverlay
             view.autoresizingMask = [.width, .height]
             window.contentView = view
             window.orderFrontRegardless()
@@ -234,7 +278,11 @@ final class ZoneResizeHandleManager {
     }
     
     func tearDown() {
+        dragOverlay.hide()
         for handle in handles.values {
+            // Invalidate any active sync timer so it doesn't fire after teardown.
+            handle.view.syncTimer?.invalidate()
+            handle.view.syncTimer = nil
             handle.window.orderOut(nil)
             handle.window.close()
         }

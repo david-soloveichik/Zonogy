@@ -176,7 +176,7 @@ When a new tiling zone is created via an explicit add-zone action (e.g., `Contro
 
 #### Resizing Empty or Occupied Zones (via zone resize bars)
 
-Zones are resized by dragging a zone resize bar: a thin white separator located in the margin between zones. This bar is only visible when the mouse hovers over the margin between zones. Dragging it adjusts the layout ratios for the involved zones.
+Zones are resized by dragging a zone resize bar: a thin white separator located in the margin between zones. This bar is only visible when the mouse hovers over the margin between zones. Dragging it adjusts the layout ratios for the involved zones. During a drag, a dedicated overlay bar tracks the mouse directly (independent of window repositioning) so the bar visual stays smooth even when managed windows lag behind.
 
 If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 2 or 3. When the window exits reveal mode (loses focus or moves to a different window), the bars return to the normal layout.
 
