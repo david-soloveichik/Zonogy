@@ -116,6 +116,9 @@ extension AppController {
         // Phase 3: walk every screen and zone, and for each zone that already
         // has a real window, move/resize that window into the zone's content
         // frame (with margins) unless ActiveFit says to preserve reveal mode.
+        // During a zone resize drag, skip AX window moves on screens that
+        // aren't being resized — their zone frames haven't changed.
+        let resizeDragScreenId = zoneResizeDragScreenId
         for screenId in screenOrder {
             guard let context = screenContexts[screenId],
                   let descriptor = descriptor(for: screenId) else {
@@ -132,6 +135,13 @@ extension AppController {
                         // current reveal frame but still treat it as assigned
                         // to this zone for bookkeeping and targeting.
                         Logger.debug("Sync skipping zone \(zone.index) on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: screenId))] due to active ActiveFit window \(windowId)")
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
+                    // During a resize drag, only move windows on the screen
+                    // being resized — other screens' frames are unchanged.
+                    if let dragScreen = resizeDragScreenId, screenId != dragScreen {
                         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                         assignedWindowIds.insert(windowId)
                         continue

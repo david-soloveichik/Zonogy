@@ -60,6 +60,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// True while the user is actively dragging a zone separator (live zone resize).
     /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.
     internal var zoneResizeDragInProgress = false
+    internal var zoneResizeDragScreenId: CGDirectDisplayID?
     internal var isZoneResizeInProgress = false
     internal var lastActiveApplicationPid: pid_t?
     internal let capturePipeline: WindowCapturePipeline

@@ -95,6 +95,7 @@ extension AppController {
     internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
         Logger.debug("Zone resize drag began on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
         zoneResizeDragInProgress = true
+        zoneResizeDragScreenId = screenId
         activeFitZoneResizeLoggedWindowIds.removeAll()
         // Return any window in reveal mode to rest mode before live resizing.
         exitRevealMode(reason: "zone-resize-begin")
@@ -103,6 +104,7 @@ extension AppController {
     internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
         Logger.debug("Zone resize drag ended on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
         zoneResizeDragInProgress = false
+        zoneResizeDragScreenId = nil
         activeFitZoneResizeLoggedWindowIds.removeAll()
 
         // When resizing stops, if the active window qualifies, re-evaluate ActiveFit.
