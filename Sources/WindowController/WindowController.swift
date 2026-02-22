@@ -48,6 +48,7 @@ class WindowController {
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
     internal static let frameRetryDelays: [TimeInterval] = [0.25, 0.5, 1.0, 3.0]
     internal var accessibilityFrameRetryStates: [Int: FrameRetryState] = [:]
+    internal var nextAccessibilityFrameRetryChainId: UInt64 = 1
     internal var ignoredBundleIdentifiers: Set<String>
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
@@ -423,6 +424,7 @@ extension ManagedWindow {
 }
 
 internal struct FrameRetryState {
+    let chainId: UInt64
     var attempt: Int = 0
     var targetScreenFrame: CGRect
     var workItem: DispatchWorkItem?

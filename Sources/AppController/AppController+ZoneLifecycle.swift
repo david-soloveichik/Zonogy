@@ -141,12 +141,14 @@ extension AppController {
         // Apply resize
         context.zoneController.resizeBySeparator(index: separatorIndex, delta: scalarDelta)
 
-        // Sync windows and handles to new layout
-        syncWindowsToZones()
+        // Live separator drags only change zone geometry; use the fast sync path
+        // and defer full reconciliation/indicator refresh until mouse-up.
+        syncWindowsToZonesForLiveResize(screenId: screenId)
     }
 
     func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int) {
         endZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
+        syncWindowsToZones()
     }
 
     // MARK: - Event suppression helpers

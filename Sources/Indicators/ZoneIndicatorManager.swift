@@ -12,6 +12,11 @@ protocol ZoneIndicatorManagerDelegate: AnyObject {
 }
 
 final class ZoneIndicatorManager {
+    private enum PresentScope {
+        case all
+        case screens(Set<CGDirectDisplayID>)
+    }
+
     private final class IndicatorWindow: NSPanel {
         init(frame: NSRect) {
             super.init(
@@ -128,7 +133,24 @@ final class ZoneIndicatorManager {
     private var handles: [ZoneKey: IndicatorHandle] = [:]
 
     func present(over descriptors: [ZoneIndicatorDescriptor]) {
-        var pendingRemoval = Set(handles.keys)
+        present(over: descriptors, scope: .all)
+    }
+
+    /// Update indicators for a subset of screens, preserving indicators on all others.
+    func present(over descriptors: [ZoneIndicatorDescriptor], forScreens screenIds: Set<CGDirectDisplayID>) {
+        present(over: descriptors, scope: .screens(screenIds))
+    }
+
+    private func present(over descriptors: [ZoneIndicatorDescriptor], scope: PresentScope) {
+        let removalCandidates: Set<ZoneKey> = {
+            switch scope {
+            case .all:
+                return Set(handles.keys)
+            case .screens(let screenIds):
+                return Set(handles.keys.filter { screenIds.contains($0.screenId) })
+            }
+        }()
+        var pendingRemoval = removalCandidates
 
         for descriptor in descriptors {
             let frame = descriptor.cocoaFrame.standardized

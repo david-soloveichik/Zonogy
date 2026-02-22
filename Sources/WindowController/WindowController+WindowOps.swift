@@ -38,6 +38,11 @@ extension WindowController {
 
     /// Show a window at the specified frame (frame is in screen-local coordinates)
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
+        cancelAccessibilityFrameRetryIfSuperseded(
+            windowId: managedWindow.windowId,
+            newTargetScreenFrame: frame,
+            reason: "show-window"
+        )
         let element = managedWindow.backing.element
         // Accessibility API uses screen coordinates directly
         performProgrammaticUpdate(for: managedWindow.windowId) {

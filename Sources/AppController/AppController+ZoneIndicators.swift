@@ -5,6 +5,48 @@ import ApplicationServices
 /// Zone indicator refresh: visual UI for zone targeting, add-zone, temporary zone, and resize handles.
 extension AppController {
 
+    private func zoneIndicatorDescriptors(forScreens screenIds: Set<CGDirectDisplayID>? = nil) -> [ZoneIndicatorDescriptor] {
+        var descriptors: [ZoneIndicatorDescriptor] = []
+
+        for (screenId, context) in screenContexts {
+            if let screenIds, !screenIds.contains(screenId) {
+                continue
+            }
+            guard !isScreenPausedForFullScreen(screenId) else {
+                continue
+            }
+            let screenDescriptor = context.descriptor
+            for zone in context.zoneController.allZones {
+                let key = ZoneKey(screenId: screenId, index: zone.index)
+                let frame = indicatorFrame(for: zone, controller: context.zoneController, descriptor: screenDescriptor)
+                guard frame.width > 0, frame.height > 0 else {
+                    continue
+                }
+                descriptors.append(
+                    ZoneIndicatorDescriptor(
+                        key: key,
+                        cocoaFrame: frame,
+                        isTargeted: key == targetedZoneKey
+                    )
+                )
+            }
+        }
+
+        return descriptors
+    }
+
+    internal func refreshZoneIndicators(forScreens screenIds: Set<CGDirectDisplayID>? = nil) {
+        let descriptors = zoneIndicatorDescriptors(forScreens: screenIds)
+
+        if let screenIds {
+            indicatorManager.present(over: descriptors, forScreens: screenIds)
+        } else if descriptors.isEmpty {
+            indicatorManager.tearDown()
+        } else {
+            indicatorManager.present(over: descriptors)
+        }
+    }
+
     private func indicatorFrame(for zone: Zone, controller: ZoneController, descriptor: ScreenDescriptor) -> CGRect {
         let screenBounds = descriptor.visibleScreenBounds.standardized
         let contentFrame = frameWithMargin(for: zone, in: controller).standardized
@@ -52,34 +94,7 @@ extension AppController {
     }
 
     internal func refreshIndicators() {
-        // Refresh zone indicators
-        var descriptors: [ZoneIndicatorDescriptor] = []
-
-        for (screenId, context) in screenContexts {
-            guard !isScreenPausedForFullScreen(screenId) else {
-                continue
-            }
-            let screenDescriptor = context.descriptor
-            for zone in context.zoneController.allZones {
-                let key = ZoneKey(screenId: screenId, index: zone.index)
-                let frame = indicatorFrame(for: zone, controller: context.zoneController, descriptor: screenDescriptor)
-                guard frame.width > 0, frame.height > 0 else {
-                    continue
-                }
-                let descriptor = ZoneIndicatorDescriptor(
-                    key: key,
-                    cocoaFrame: frame,
-                    isTargeted: key == targetedZoneKey
-                )
-                descriptors.append(descriptor)
-            }
-        }
-
-        if descriptors.isEmpty {
-            indicatorManager.tearDown()
-        } else {
-            indicatorManager.present(over: descriptors)
-        }
+        refreshZoneIndicators()
 
         // Refresh add-zone indicators
         var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []

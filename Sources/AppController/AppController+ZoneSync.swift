@@ -4,6 +4,28 @@ import ApplicationServices
 
 /// Zone synchronization: keeping windows, placeholders, and layout model in lockstep.
 extension AppController {
+    private enum ZoneSyncMode {
+        case full
+        case liveResize(screenId: CGDirectDisplayID)
+
+        var isLiveResize: Bool {
+            switch self {
+            case .full:
+                return false
+            case .liveResize:
+                return true
+            }
+        }
+
+        func debugLabel(in appController: AppController) -> String {
+            switch self {
+            case .full:
+                return "full"
+            case .liveResize(let screenId):
+                return "live-resize screen \(appController.screenContextStore.logDescription(for: screenId))"
+            }
+        }
+    }
 
     // MARK: - Synchronization
 
@@ -26,7 +48,28 @@ extension AppController {
     /// 7. Refresh targeted zone state, temporary‑zone targeting, and visual
     ///    indicators so the UI matches the new layout.
     internal func syncWindowsToZones(recentlyPlacedInTempZone: Int? = nil) {
+        runZoneSync(mode: .full, recentlyPlacedInTempZone: recentlyPlacedInTempZone)
+    }
+
+    /// Fast sync path for live zone-resize dragging.
+    /// Assumes occupancy/topology are stable and focuses on applying updated geometry.
+    internal func syncWindowsToZonesForLiveResize(screenId: CGDirectDisplayID) {
+        runZoneSync(mode: .liveResize(screenId: screenId), recentlyPlacedInTempZone: nil)
+    }
+
+    private func nextCoalescedZoneSyncMode(pendingTempZoneExclusion: Int?) -> ZoneSyncMode {
+        if pendingTempZoneExclusion != nil {
+            return .full
+        }
+        if zoneResizeDragInProgress, let dragScreenId = zoneResizeDragScreenId {
+            return .liveResize(screenId: dragScreenId)
+        }
+        return .full
+    }
+
+    private func runZoneSync(mode: ZoneSyncMode, recentlyPlacedInTempZone: Int?) {
         let tempZoneExclusion = recentlyPlacedInTempZone
+        let isLiveResizeSync = mode.isLiveResize
 
         // Ensure only one sync runs at a time. If a sync is already underway,
         // just record that another pass is needed; the deferred block below
@@ -45,67 +88,72 @@ extension AppController {
                 pendingSync = false
                 let pendingTempZoneExclusion = pendingSyncRecentlyPlacedInTempZone
                 pendingSyncRecentlyPlacedInTempZone = nil
-                syncWindowsToZones(recentlyPlacedInTempZone: pendingTempZoneExclusion)
+                let nextMode = nextCoalescedZoneSyncMode(pendingTempZoneExclusion: pendingTempZoneExclusion)
+                runZoneSync(mode: nextMode, recentlyPlacedInTempZone: pendingTempZoneExclusion)
             }
         }
 
-        Logger.debug("Syncing windows to zones")
+        Logger.debug("Syncing windows to zones (\(mode.debugLabel(in: self)))")
 
         // Phase 1: prune any windows that have been destroyed according to the
         // underlying Accessibility / CGWindow APIs, and remove them from zones
         // so no layout continues to reference dead windows.
-        let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
-        if !prunedWindowIds.isEmpty {
-            handleDestroyedWindows(
-                prunedWindowIds,
-                reason: "sync-prune-destroyed",
-                retarget: true,
-                shouldSync: false,
-                shouldRefreshWinShotChooser: true
-            )
+        if !isLiveResizeSync {
+            let prunedWindowIds = windowController.pruneDestroyedExternalWindows()
+            if !prunedWindowIds.isEmpty {
+                handleDestroyedWindows(
+                    prunedWindowIds,
+                    reason: "sync-prune-destroyed",
+                    retarget: true,
+                    shouldSync: false,
+                    shouldRefreshWinShotChooser: true
+                )
+            }
         }
 
         // Phase 2: clear stale zone occupancy. Even if a destroyed window was
         // pruned earlier, recapture/sync interleavings can leave a zone with a
         // dead occupant ID. Reconcile occupancy against the live registry.
-        let liveWindowIds = Set(windowController.allWindows.map { $0.windowId })
-        var zoneSnapshots: [ZoneOccupancyReconciler.ZoneOccupantSnapshot] = []
-        for screenId in screenOrder {
-            guard let context = screenContexts[screenId] else {
-                continue
-            }
-            for zone in context.zoneController.allZones {
-                zoneSnapshots.append(
-                    ZoneOccupancyReconciler.ZoneOccupantSnapshot(
-                        key: ZoneKey(screenId: screenId, index: zone.index),
-                        occupantWindowId: zone.occupantWindowId
+        if !isLiveResizeSync {
+            let liveWindowIds = Set(windowController.allWindows.map { $0.windowId })
+            var zoneSnapshots: [ZoneOccupancyReconciler.ZoneOccupantSnapshot] = []
+            for screenId in screenOrder {
+                guard let context = screenContexts[screenId] else {
+                    continue
+                }
+                for zone in context.zoneController.allZones {
+                    zoneSnapshots.append(
+                        ZoneOccupancyReconciler.ZoneOccupantSnapshot(
+                            key: ZoneKey(screenId: screenId, index: zone.index),
+                            occupantWindowId: zone.occupantWindowId
+                        )
                     )
-                )
+                }
             }
-        }
-        let staleOccupants = ZoneOccupancyReconciler.staleOccupants(
-            from: zoneSnapshots,
-            liveWindowIds: liveWindowIds
-        )
-        var firstClearedZoneKey: ZoneKey?
-        for stale in staleOccupants {
-            guard let context = screenContexts[stale.key.screenId],
-                  let zone = context.zoneController.zone(at: stale.key.index),
-                  zone.occupantWindowId == stale.windowId else {
-                continue
-            }
-            Logger.debug(
-                "Sync clearing stale zone occupant \(stale.windowId) from zone \(stale.key.index) " +
-                "on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: stale.key.screenId))]"
+            let staleOccupants = ZoneOccupancyReconciler.staleOccupants(
+                from: zoneSnapshots,
+                liveWindowIds: liveWindowIds
             )
-            context.zoneController.removeWindow(windowId: stale.windowId)
-            if firstClearedZoneKey == nil {
-                firstClearedZoneKey = stale.key
+            var firstClearedZoneKey: ZoneKey?
+            for stale in staleOccupants {
+                guard let context = screenContexts[stale.key.screenId],
+                      let zone = context.zoneController.zone(at: stale.key.index),
+                      zone.occupantWindowId == stale.windowId else {
+                    continue
+                }
+                Logger.debug(
+                    "Sync clearing stale zone occupant \(stale.windowId) from zone \(stale.key.index) " +
+                    "on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: stale.key.screenId))]"
+                )
+                context.zoneController.removeWindow(windowId: stale.windowId)
+                if firstClearedZoneKey == nil {
+                    firstClearedZoneKey = stale.key
+                }
             }
-        }
-        if let firstClearedZoneKey {
-            targetedZoneManager.setTargetedZone(firstClearedZoneKey, reason: "sync-cleared-stale-occupant")
-            autoShowLauncherIfEmptyTargetedTiledZone()
+            if let firstClearedZoneKey {
+                targetedZoneManager.setTargetedZone(firstClearedZoneKey, reason: "sync-cleared-stale-occupant")
+                autoShowLauncherIfEmptyTargetedTiledZone()
+            }
         }
 
         // Tracks all non‑placeholder windows that end up with a valid zone
@@ -119,7 +167,14 @@ extension AppController {
         // During a zone resize drag, skip AX window moves on screens that
         // aren't being resized — their zone frames haven't changed.
         let resizeDragScreenId = zoneResizeDragScreenId
-        for screenId in screenOrder {
+        let phase3ScreenOrder: [CGDirectDisplayID]
+        switch mode {
+        case .full:
+            phase3ScreenOrder = screenOrder
+        case .liveResize(let screenId):
+            phase3ScreenOrder = [screenId]
+        }
+        for screenId in phase3ScreenOrder {
             guard let context = screenContexts[screenId],
                   let descriptor = descriptor(for: screenId) else {
                 continue
@@ -141,7 +196,7 @@ extension AppController {
                     }
                     // During a resize drag, only move windows on the screen
                     // being resized — other screens' frames are unchanged.
-                    if let dragScreen = resizeDragScreenId, screenId != dragScreen {
+                    if !isLiveResizeSync, let dragScreen = resizeDragScreenId, screenId != dragScreen {
                         setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                         assignedWindowIds.insert(windowId)
                         continue
@@ -162,103 +217,126 @@ extension AppController {
         // Phase 4: sync placeholder windows so every empty zone has a matching placeholder
         // (unless explicitly suppressed for this pass). PlaceholderCoordinator owns and
         // tracks placeholder windows internally.
-        placeholderCoordinator.syncPlaceholders(
-            screenOrder: screenOrder,
-            contextProvider: { screenId in
-                guard let context = self.screenContexts[screenId],
-                      let descriptor = self.descriptor(for: screenId) else {
-                    return nil
-                }
-                let zoneController = context.zoneController
-                return PlaceholderCoordinatorScreenContext(
-                    descriptor: descriptor,
-                    zoneController: zoneController,
-                    displayFrameForZone: { zone in
-                        self.frameWithMargin(for: zone, in: zoneController)
-                    }
-                )
-            },
-            shouldSuppressPlaceholder: { [weak self] key in
-                guard let self = self else { return false }
-                if self.isScreenPausedForFullScreen(key.screenId) {
-                    return true
-                }
-                // UnderCovers suppresses the single-zone placeholder on that screen while active.
-                return self.isUnderCoversActive(on: key.screenId) && key.index == 1
+        let placeholderContextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext? = { screenId in
+            guard let context = self.screenContexts[screenId],
+                  let descriptor = self.descriptor(for: screenId) else {
+                return nil
             }
-        )
+            let zoneController = context.zoneController
+            return PlaceholderCoordinatorScreenContext(
+                descriptor: descriptor,
+                zoneController: zoneController,
+                displayFrameForZone: { zone in
+                    self.frameWithMargin(for: zone, in: zoneController)
+                }
+            )
+        }
+        let shouldSuppressPlaceholder: (ZoneKey) -> Bool = { key in
+            if self.isScreenPausedForFullScreen(key.screenId) {
+                return true
+            }
+            // UnderCovers suppresses the single-zone placeholder on that screen while active.
+            return self.isUnderCoversActive(on: key.screenId) && key.index == 1
+        }
+        switch mode {
+        case .full:
+            placeholderCoordinator.syncPlaceholders(
+                screenOrder: screenOrder,
+                contextProvider: placeholderContextProvider,
+                shouldSuppressPlaceholder: shouldSuppressPlaceholder
+            )
+        case .liveResize(let screenId):
+            placeholderCoordinator.syncPlaceholders(
+                forScreens: [screenId],
+                contextProvider: placeholderContextProvider,
+                shouldSuppressPlaceholder: shouldSuppressPlaceholder
+            )
+        }
 
         // Placeholder windows are now managed separately by PlaceholderCoordinator
         let placeholderCount = placeholderCoordinator.activePlaceholderCount
 
         // Calculate zone occupancy for logging/diagnostics.
-        var occupiedZones = 0
-        var emptyZones = 0
-        for context in screenContexts.values {
-            for zone in context.zoneController.allZones {
-                if zone.isEmpty {
-                    emptyZones += 1
-                } else {
-                    occupiedZones += 1
+        if isLiveResizeSync {
+            Logger.debug(
+                "Sync complete (\(mode.debugLabel(in: self))): assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount)"
+            )
+        } else {
+            var occupiedZones = 0
+            var emptyZones = 0
+            for context in screenContexts.values {
+                for zone in context.zoneController.allZones {
+                    if zone.isEmpty {
+                        emptyZones += 1
+                    } else {
+                        occupiedZones += 1
+                    }
                 }
             }
+            Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty")
         }
-
-        Logger.debug("Sync complete: assigned \(assignedWindowIds.count) window(s), placeholders \(placeholderCount), zones: \(occupiedZones) occupied, \(emptyZones) empty")
 
         // Phase 5: clean up stale assignments. Any window that was *not*
         // assigned to a tiled zone in this pass and is *not* parked in the
         // temporary floating zone should no longer be treated as zoned.
-        for window in windowController.allWindows {
-            if assignedWindowIds.contains(window.windowId) {
-                continue
+        if !isLiveResizeSync {
+            for window in windowController.allWindows {
+                if assignedWindowIds.contains(window.windowId) {
+                    continue
+                }
+                if isWindowInTemporaryZone(window.windowId) {
+                    continue
+                }
+                clearManagedWindowZone(window)
             }
-            if isWindowInTemporaryZone(window.windowId) {
-                continue
-            }
-            clearManagedWindowZone(window)
         }
 
         // Phase 6: promote temporary zone occupants into newly-emptied tiling zones.
         // Spec: "When a tiling zone on a screen becomes empty and that screen has
         // a temporary-zone occupant, promote the temporary window into the emptied zone."
-        func snapshotZoneKeys() -> (known: Set<ZoneKey>, empty: Set<ZoneKey>) {
-            var known = Set<ZoneKey>()
-            var empty = Set<ZoneKey>()
+        if !isLiveResizeSync {
+            func snapshotZoneKeys() -> (known: Set<ZoneKey>, empty: Set<ZoneKey>) {
+                var known = Set<ZoneKey>()
+                var empty = Set<ZoneKey>()
 
-            for screenId in screenOrder {
-                guard let context = screenContexts[screenId] else {
-                    continue
-                }
-                for zone in context.zoneController.allZones {
-                    let key = ZoneKey(screenId: screenId, index: zone.index)
-                    known.insert(key)
-                    if isZoneEffectivelyEmpty(zone) {
-                        empty.insert(key)
+                for screenId in screenOrder {
+                    guard let context = screenContexts[screenId] else {
+                        continue
+                    }
+                    for zone in context.zoneController.allZones {
+                        let key = ZoneKey(screenId: screenId, index: zone.index)
+                        known.insert(key)
+                        if isZoneEffectivelyEmpty(zone) {
+                            empty.insert(key)
+                        }
                     }
                 }
+
+                return (known, empty)
             }
 
-            return (known, empty)
+            let prePromotionSnapshot = snapshotZoneKeys()
+            let newlyEmptiedZones = prePromotionSnapshot.empty
+                .intersection(lastSyncKnownZoneKeys)
+                .subtracting(lastSyncEmptyZoneKeys)
+
+            promoteTemporaryZoneOccupantsIfNeeded(
+                newlyEmptiedZones: newlyEmptiedZones,
+                excluding: tempZoneExclusion,
+                reason: "sync"
+            )
+
+            let postPromotionSnapshot = snapshotZoneKeys()
+            lastSyncKnownZoneKeys = postPromotionSnapshot.known
+            lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
         }
-
-        let prePromotionSnapshot = snapshotZoneKeys()
-        let newlyEmptiedZones = prePromotionSnapshot.empty
-            .intersection(lastSyncKnownZoneKeys)
-            .subtracting(lastSyncEmptyZoneKeys)
-
-        promoteTemporaryZoneOccupantsIfNeeded(
-            newlyEmptiedZones: newlyEmptiedZones,
-            excluding: tempZoneExclusion,
-            reason: "sync"
-        )
-
-        let postPromotionSnapshot = snapshotZoneKeys()
-        lastSyncKnownZoneKeys = postPromotionSnapshot.known
-        lastSyncEmptyZoneKeys = postPromotionSnapshot.empty
 
         // Phase 7: ensure targeting and indicators are consistent with the new
         // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
+        if case .liveResize(let screenId) = mode {
+            refreshZoneIndicators(forScreens: Set([screenId]))
+            return
+        }
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         refreshIndicators()
         refreshResizeHandles()

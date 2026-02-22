@@ -3,6 +3,11 @@ import AppKit
 /// Manages lifecycle of placeholder windows across zones.
 /// Placeholders are created when needed and closed when no longer needed.
 final class PlaceholderCoordinator {
+    private enum SyncScope {
+        case all
+        case screens(Set<CGDirectDisplayID>)
+    }
+
     enum CloseReason {
         case replacedByWindow
         case idle
@@ -33,6 +38,34 @@ final class PlaceholderCoordinator {
     /// Creates/shows placeholders for empty zones, closes them for occupied/suppressed zones.
     func syncPlaceholders(
         screenOrder: [CGDirectDisplayID],
+        contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
+        shouldSuppressPlaceholder: (ZoneKey) -> Bool
+    ) {
+        syncPlaceholders(
+            screenOrder: screenOrder,
+            scope: .all,
+            contextProvider: contextProvider,
+            shouldSuppressPlaceholder: shouldSuppressPlaceholder
+        )
+    }
+
+    /// Synchronize placeholders only for a subset of screens, preserving placeholders on all others.
+    func syncPlaceholders(
+        forScreens screenOrder: [CGDirectDisplayID],
+        contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
+        shouldSuppressPlaceholder: (ZoneKey) -> Bool
+    ) {
+        syncPlaceholders(
+            screenOrder: screenOrder,
+            scope: .screens(Set(screenOrder)),
+            contextProvider: contextProvider,
+            shouldSuppressPlaceholder: shouldSuppressPlaceholder
+        )
+    }
+
+    private func syncPlaceholders(
+        screenOrder: [CGDirectDisplayID],
+        scope: SyncScope,
         contextProvider: (CGDirectDisplayID) -> PlaceholderCoordinatorScreenContext?,
         shouldSuppressPlaceholder: (ZoneKey) -> Bool
     ) {
@@ -67,7 +100,15 @@ final class PlaceholderCoordinator {
         }
 
         // Close placeholders that are no longer needed (collect keys first to avoid mutating while iterating)
-        let keysToRemove = activePlaceholders.keys.filter { !neededKeys.contains($0) }
+        let keysToRemove = activePlaceholders.keys.filter { key in
+            guard !neededKeys.contains(key) else { return false }
+            switch scope {
+            case .all:
+                return true
+            case .screens(let screenIds):
+                return screenIds.contains(key.screenId)
+            }
+        }
         for key in keysToRemove {
             guard let placeholder = activePlaceholders[key] else { continue }
             let reason: CloseReason = contextProvider(key.screenId)

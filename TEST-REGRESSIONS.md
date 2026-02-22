@@ -10,6 +10,9 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
   - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.
 
+- Bug report: After zone resizing, the Codex window can "jump" toward an older zone position a moment later.
+  - Think about: Delayed AX frame retries can outlive newer retargeted moves; cancel/invalidate stale retry chains on retarget and guard retry work items so replaced chains cannot execute.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the temporary zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 

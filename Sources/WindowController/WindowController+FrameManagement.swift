@@ -4,8 +4,35 @@ import ApplicationServices
 
 /// Frame application, retry logic, and coordinate system handling for window positioning.
 extension WindowController {
+    func cancelAccessibilityFrameRetryIfSuperseded(
+        windowId: Int,
+        newTargetScreenFrame: CGRect,
+        reason: String
+    ) {
+        guard let existing = accessibilityFrameRetryStates[windowId] else {
+            return
+        }
+        guard !framesRoughlyEqual(existing.targetScreenFrame, newTargetScreenFrame) else {
+            return
+        }
+
+        Logger.debug(
+            "Cancelling stale frame retry chain for window \(windowId) " +
+            "(old target: \(existing.targetScreenFrame), new target: \(newTargetScreenFrame), reason: \(reason))"
+        )
+        var stale = existing
+        stale.cancel()
+        accessibilityFrameRetryStates.removeValue(forKey: windowId)
+    }
+
     /// Resize and reposition a window to match a frame (frame is in screen-local coordinates)
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect, on screen: ScreenDescriptor) {
+        cancelAccessibilityFrameRetryIfSuperseded(
+            windowId: managedWindow.windowId,
+            newTargetScreenFrame: frame,
+            reason: "new-programmatic-move"
+        )
+
         let currentFrame = actualFrameInScreenCoordinates(for: managedWindow, on: screen)
 
         if framesRoughlyEqual(currentFrame, frame) {
@@ -252,13 +279,11 @@ extension WindowController {
                 return
             }
             // Target changed — cancel the stale chain and start fresh.
-            Logger.debug(
-                "Cancelling stale frame retry chain for window \(windowId) " +
-                "(old target: \(existing.targetScreenFrame), new target: \(targetScreenFrame))"
+            cancelAccessibilityFrameRetryIfSuperseded(
+                windowId: windowId,
+                newTargetScreenFrame: targetScreenFrame,
+                reason: "retry-target-changed"
             )
-            var stale = existing
-            stale.cancel()
-            accessibilityFrameRetryStates.removeValue(forKey: windowId)
         }
 
         // Skip retry if window is being managed by ActiveFit
@@ -267,7 +292,9 @@ extension WindowController {
             return
         }
 
-        var state = FrameRetryState(targetScreenFrame: targetScreenFrame)
+        let chainId = nextAccessibilityFrameRetryChainId
+        nextAccessibilityFrameRetryChainId &+= 1
+        var state = FrameRetryState(chainId: chainId, targetScreenFrame: targetScreenFrame)
         scheduleNextFrameRetryAttempt(
             state: &state,
             windowId: windowId,
@@ -306,6 +333,7 @@ extension WindowController {
         let delay = delays[state.attempt]
         state.attempt += 1
         let currentAttempt = state.attempt
+        let chainId = state.chainId
 
         state.cancel()
 
@@ -320,8 +348,19 @@ extension WindowController {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
 
+            guard var stored = self.accessibilityFrameRetryStates[windowId] else {
+                return
+            }
+            guard stored.chainId == chainId else {
+                Logger.debug(
+                    "Skipping stale frame retry execution for window \(windowId) " +
+                    "- retry chain was replaced"
+                )
+                return
+            }
+
             // Clear the work item reference but keep the state (with attempt counter) for potential re-scheduling.
-            if var stored = self.accessibilityFrameRetryStates[windowId] {
+            if stored.workItem != nil {
                 stored.workItem = nil
                 self.accessibilityFrameRetryStates[windowId] = stored
             }
