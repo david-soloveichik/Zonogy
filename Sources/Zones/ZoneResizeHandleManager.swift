@@ -31,7 +31,7 @@ final class ZoneResizeHandleManager {
             isOpaque = false
             hasShadow = false
             backgroundColor = .clear
-            level = .floating 
+            level = .floating
             collectionBehavior = [
                 .moveToActiveSpace,
                 .transient,
@@ -46,7 +46,7 @@ final class ZoneResizeHandleManager {
 
     private final class HandleView: NSView {
         weak var delegate: ZoneResizeHandleManagerDelegate?
-        weak var dragOverlay: ZoneResizeDragOverlay?
+        unowned let dragOverlay: ZoneResizeDragOverlay
         let screenId: CGDirectDisplayID
         let separatorIndex: Int
         let orientation: ZoneLayout.SeparatorOrientation
@@ -62,18 +62,13 @@ final class ZoneResizeHandleManager {
         /// The timer fires at a fixed interval (~20Hz) so the main thread stays
         /// free between ticks for processing mouse events and overlay moves.
         private var pendingDelta: CGPoint = .zero
-        fileprivate var syncTimer: Timer?
-        
-        // Visual bar customization
-        private let barThickness: CGFloat = 4.0
-        private let barColor = NSColor.white.withAlphaComponent(0.9)
-        private let barCornerRadius: CGFloat = 2.0
-        private let barInset: CGFloat = 4.0 // Inset from ends of the margin
+        private var syncTimer: Timer?
 
-        init(frame frameRect: NSRect, screenId: CGDirectDisplayID, index: Int, orientation: ZoneLayout.SeparatorOrientation) {
+        init(frame frameRect: NSRect, screenId: CGDirectDisplayID, index: Int, orientation: ZoneLayout.SeparatorOrientation, dragOverlay: ZoneResizeDragOverlay) {
             self.screenId = screenId
             self.separatorIndex = index
             self.orientation = orientation
+            self.dragOverlay = dragOverlay
             super.init(frame: frameRect)
             wantsLayer = true
             ForceClickSuppression.apply(to: self)
@@ -83,13 +78,26 @@ final class ZoneResizeHandleManager {
             fatalError("init(coder:) has not been implemented")
         }
 
+        /// Force-reset all drag state for teardown or abnormal cleanup.
+        func resetDragState() {
+            syncTimer?.invalidate()
+            syncTimer = nil
+            pendingDelta = .zero
+            hasActiveResizeDrag = false
+            if HandleView.activeDragView === self {
+                HandleView.activeDragView = nil
+            }
+            isDragging = false
+            suppressBarDrawing = false
+        }
+
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach { removeTrackingArea($0) }
             let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .cursorUpdate]
             addTrackingArea(NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil))
         }
-        
+
         override func cursorUpdate(with event: NSEvent) {
             switch orientation {
             case .vertical:
@@ -98,7 +106,7 @@ final class ZoneResizeHandleManager {
                 NSCursor.resizeUpDown.set()
             }
         }
-        
+
         override func mouseEntered(with event: NSEvent) {
             // Prevent other handles from lighting up if a drag is in progress
             if let dragger = HandleView.activeDragView, dragger !== self {
@@ -115,32 +123,9 @@ final class ZoneResizeHandleManager {
 
         override func draw(_ dirtyRect: NSRect) {
             guard (isHovering || isDragging), !suppressBarDrawing else { return }
-            
-            // Draw the white bar
-            // The view frame matches the margin (8px wide/tall)
-            // We want to draw a thinner bar centered in it.
-            
-            let drawRect: NSRect
-            switch orientation {
-            case .vertical:
-                // Center horizontally, inset vertically
-                let x = (bounds.width - barThickness) / 2
-                let y = barInset
-                let height = max(0, bounds.height - (barInset * 2))
-                drawRect = NSRect(x: x, y: y, width: barThickness, height: height)
-            case .horizontal:
-                // Center vertically, inset horizontally
-                let y = (bounds.height - barThickness) / 2
-                let x = barInset
-                let width = max(0, bounds.width - (barInset * 2))
-                drawRect = NSRect(x: x, y: y, width: width, height: barThickness)
-            }
-            
-            barColor.setFill()
-            let path = NSBezierPath(roundedRect: drawRect, xRadius: barCornerRadius, yRadius: barCornerRadius)
-            path.fill()
+            ZoneResizeBarStyle.draw(in: bounds, orientation: orientation)
         }
-        
+
         override func mouseDown(with event: NSEvent) {
             HandleView.activeDragView = self
             isDragging = true
@@ -148,12 +133,12 @@ final class ZoneResizeHandleManager {
             // Show the drag overlay at the handle window's current Cocoa frame.
             // The overlay provides smooth visual tracking independent of layout work.
             if let handleWindow = window {
-                dragOverlay?.show(cocoaFrame: handleWindow.frame, orientation: orientation)
+                dragOverlay.show(cocoaFrame: handleWindow.frame, orientation: orientation)
                 suppressBarDrawing = true
             }
             needsDisplay = true
         }
-        
+
         override func mouseUp(with event: NSEvent) {
             // Stop the throttle timer and flush any remaining accumulated delta
             // so the final layout exactly matches the overlay position.
@@ -164,15 +149,20 @@ final class ZoneResizeHandleManager {
                 pendingDelta = .zero
                 delegate?.resizeHandleDragged(screenId: screenId, separatorIndex: separatorIndex, delta: delta)
             }
-            if hasActiveResizeDrag {
-                delegate?.resizeHandleDragEnded(screenId: screenId, separatorIndex: separatorIndex)
-            }
+
+            // Clean up all drag state BEFORE notifying delegate, so the full
+            // sync triggered by dragEnded can freely reposition this handle.
+            let hadActiveResizeDrag = hasActiveResizeDrag
             hasActiveResizeDrag = false
             HandleView.activeDragView = nil
             isDragging = false
-            dragOverlay?.hide()
+            dragOverlay.hide()
             suppressBarDrawing = false
             needsDisplay = true
+
+            if hadActiveResizeDrag {
+                delegate?.resizeHandleDragEnded(screenId: screenId, separatorIndex: separatorIndex)
+            }
         }
 
         override func mouseDragged(with event: NSEvent) {
@@ -184,9 +174,9 @@ final class ZoneResizeHandleManager {
             isDragging = true
 
             // Move the drag overlay immediately for smooth visual tracking.
-            // NSEvent deltaY: positive = downward (screen direction).
-            // Cocoa Y: positive = upward. So negate deltaY for Cocoa window movement.
-            dragOverlay?.moveByDelta(dx: event.deltaX, dy: -event.deltaY)
+            // NSEvent deltaY follows screen/CGEvent convention: positive = downward.
+            // Cocoa window Y is inverted: positive = upward. Negate to match.
+            dragOverlay.moveByDelta(dx: event.deltaX, dy: -event.deltaY)
 
             // Accumulate deltas. A repeating timer (~20Hz) drains the accumulated
             // delta into the delegate, keeping the main thread free between ticks
@@ -250,16 +240,14 @@ final class ZoneResizeHandleManager {
                     handle.view.needsDisplay = true
                 }
                 handle.view.delegate = delegate
-                handle.view.dragOverlay = dragOverlay
                 handle.window.orderFrontRegardless()
                 pendingRemoval.remove(key)
                 continue
             }
 
             let window = HandleWindow(frame: cocoaFrame)
-            let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, index: descriptor.index, orientation: descriptor.orientation)
+            let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, index: descriptor.index, orientation: descriptor.orientation, dragOverlay: dragOverlay)
             view.delegate = delegate
-            view.dragOverlay = dragOverlay
             view.autoresizingMask = [.width, .height]
             window.contentView = view
             window.orderFrontRegardless()
@@ -270,19 +258,22 @@ final class ZoneResizeHandleManager {
         }
 
         for key in pendingRemoval {
-            if let handle = handles.removeValue(forKey: key) {
+            if let handle = handles[key] {
+                // Never close a handle mid-drag — the gesture owns it until mouse-up.
+                if HandleView.activeDragView === handle.view {
+                    continue
+                }
+                handles.removeValue(forKey: key)
                 handle.window.orderOut(nil)
                 handle.window.close()
             }
         }
     }
-    
+
     func tearDown() {
         dragOverlay.hide()
         for handle in handles.values {
-            // Invalidate any active sync timer so it doesn't fire after teardown.
-            handle.view.syncTimer?.invalidate()
-            handle.view.syncTimer = nil
+            handle.view.resetDragState()
             handle.window.orderOut(nil)
             handle.window.close()
         }

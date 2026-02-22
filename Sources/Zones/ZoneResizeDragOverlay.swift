@@ -35,11 +35,6 @@ final class ZoneResizeDragOverlay {
     private final class OverlayView: NSView {
         let orientation: ZoneLayout.SeparatorOrientation
 
-        private let barThickness: CGFloat = 4.0
-        private let barColor = NSColor.white.withAlphaComponent(0.9)
-        private let barCornerRadius: CGFloat = 2.0
-        private let barInset: CGFloat = 4.0
-
         init(frame: NSRect, orientation: ZoneLayout.SeparatorOrientation) {
             self.orientation = orientation
             super.init(frame: frame)
@@ -51,23 +46,7 @@ final class ZoneResizeDragOverlay {
         }
 
         override func draw(_ dirtyRect: NSRect) {
-            let drawRect: NSRect
-            switch orientation {
-            case .vertical:
-                let x = (bounds.width - barThickness) / 2
-                let y = barInset
-                let height = max(0, bounds.height - (barInset * 2))
-                drawRect = NSRect(x: x, y: y, width: barThickness, height: height)
-            case .horizontal:
-                let y = (bounds.height - barThickness) / 2
-                let x = barInset
-                let width = max(0, bounds.width - (barInset * 2))
-                drawRect = NSRect(x: x, y: y, width: width, height: barThickness)
-            }
-
-            barColor.setFill()
-            let path = NSBezierPath(roundedRect: drawRect, xRadius: barCornerRadius, yRadius: barCornerRadius)
-            path.fill()
+            ZoneResizeBarStyle.draw(in: bounds, orientation: orientation)
         }
     }
 

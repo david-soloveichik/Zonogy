@@ -57,11 +57,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
     internal var liveResizingZoneKey: ZoneKey?
-    /// True while the user is actively dragging a zone separator (live zone resize).
+    /// The screen being resized during a zone resize drag, or nil if no drag is active.
     /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.
-    internal var zoneResizeDragInProgress = false
     internal var zoneResizeDragScreenId: CGDirectDisplayID?
-    internal var isZoneResizeInProgress = false
+    internal var zoneResizeDragInProgress: Bool { zoneResizeDragScreenId != nil }
     internal var lastActiveApplicationPid: pid_t?
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
