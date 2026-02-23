@@ -17,8 +17,8 @@ struct ZoneLayout {
     private(set) var leftWidthRatio: CGFloat = 0.5
     private(set) var rightTopHeightRatio: CGFloat = 0.5
 
-    private let minWidthRatio: CGFloat = 0.1
-    private let minHeightRatio: CGFloat = 0.1
+    static let minWidthRatio: CGFloat = 0.1
+    static let minHeightRatio: CGFloat = 0.1
     private let marginSize: CGFloat = 8.0
 
     /// Computes the frame rectangles for the specified number of zones using default ratios.
@@ -192,8 +192,8 @@ struct ZoneLayout {
     }
 
     private func clampWidthRatio(_ ratio: CGFloat) -> CGFloat {
-        let minRatio = minWidthRatio
-        let maxRatio = 1 - minWidthRatio
+        let minRatio = Self.minWidthRatio
+        let maxRatio = 1 - Self.minWidthRatio
         guard maxRatio > minRatio else {
             return 0.5
         }
@@ -201,8 +201,8 @@ struct ZoneLayout {
     }
 
     private func clampHeightRatio(_ ratio: CGFloat) -> CGFloat {
-        let minRatio = minHeightRatio
-        let maxRatio = 1 - minHeightRatio
+        let minRatio = Self.minHeightRatio
+        let maxRatio = 1 - Self.minHeightRatio
         guard maxRatio > minRatio else {
             return 0.5
         }

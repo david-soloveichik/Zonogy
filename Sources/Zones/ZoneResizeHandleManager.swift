@@ -62,6 +62,13 @@ final class ZoneResizeHandleManager {
         /// The timer fires at a fixed interval (~20Hz) so the main thread stays
         /// free between ticks for processing mouse events and overlay moves.
         private var pendingDelta: CGPoint = .zero
+        /// Unapplied drag delta in Cocoa coordinates (y up).
+        ///
+        /// When the overlay is clamped at the minimum/maximum zone size, the cursor can
+        /// continue moving while the bar is pinned. This "overshoot" is stored here so
+        /// reversing direction first consumes the overshoot (re-acquiring the bar) before
+        /// the overlay starts moving again.
+        private var uncommittedCocoaDelta: CGPoint = .zero
         private var syncTimer: Timer?
 
         init(frame frameRect: NSRect, screenId: CGDirectDisplayID, index: Int, orientation: ZoneLayout.SeparatorOrientation, dragOverlay: ZoneResizeDragOverlay) {
@@ -83,6 +90,7 @@ final class ZoneResizeHandleManager {
             syncTimer?.invalidate()
             syncTimer = nil
             pendingDelta = .zero
+            uncommittedCocoaDelta = .zero
             hasActiveResizeDrag = false
             if HandleView.activeDragView === self {
                 HandleView.activeDragView = nil
@@ -129,14 +137,51 @@ final class ZoneResizeHandleManager {
         override func mouseDown(with event: NSEvent) {
             HandleView.activeDragView = self
             isDragging = true
+            uncommittedCocoaDelta = .zero
 
             // Show the drag overlay at the handle window's current Cocoa frame.
             // The overlay provides smooth visual tracking independent of layout work.
+            // Clamp to the zone layout's min/max ratio so the bar can't visually
+            // exceed the minimum zone size.
             if let handleWindow = window {
-                dragOverlay.show(cocoaFrame: handleWindow.frame, orientation: orientation)
+                let movementRange = Self.overlayMovementRange(
+                    orientation: orientation,
+                    overlayFrame: handleWindow.frame,
+                    screen: handleWindow.screen
+                )
+                dragOverlay.show(cocoaFrame: handleWindow.frame, orientation: orientation, movementRange: movementRange)
                 suppressBarDrawing = true
             }
             needsDisplay = true
+        }
+
+        /// Compute the allowed overlay origin range on the movement axis from
+        /// the screen's visible frame and ZoneLayout's min ratio constants.
+        private static func overlayMovementRange(
+            orientation: ZoneLayout.SeparatorOrientation,
+            overlayFrame: CGRect,
+            screen: NSScreen?
+        ) -> ClosedRange<CGFloat> {
+            guard let visibleFrame = screen?.visibleFrame else {
+                return (-CGFloat.greatestFiniteMagnitude)...(CGFloat.greatestFiniteMagnitude)
+            }
+            switch orientation {
+            case .vertical:
+                let minRatio = ZoneLayout.minWidthRatio
+                let halfWidth = overlayFrame.width / 2
+                let minX = visibleFrame.minX + visibleFrame.width * minRatio - halfWidth
+                let maxX = visibleFrame.minX + visibleFrame.width * (1 - minRatio) - halfWidth
+                return minX...maxX
+            case .horizontal:
+                // In screen coords (y down), separator at ratio r is at visibleHeight * r.
+                // In Cocoa coords (y up), that maps to visibleFrame.maxY - visibleHeight * r,
+                // so a larger ratio = lower Cocoa Y.
+                let minRatio = ZoneLayout.minHeightRatio
+                let halfHeight = overlayFrame.height / 2
+                let lowY = visibleFrame.maxY - visibleFrame.height * (1 - minRatio) - halfHeight
+                let highY = visibleFrame.maxY - visibleFrame.height * minRatio - halfHeight
+                return lowY...highY
+            }
         }
 
         override func mouseUp(with event: NSEvent) {
@@ -156,6 +201,7 @@ final class ZoneResizeHandleManager {
             hasActiveResizeDrag = false
             HandleView.activeDragView = nil
             isDragging = false
+            uncommittedCocoaDelta = .zero
             dragOverlay.hide()
             suppressBarDrawing = false
             needsDisplay = true
@@ -176,13 +222,23 @@ final class ZoneResizeHandleManager {
             // Move the drag overlay immediately for smooth visual tracking.
             // NSEvent deltaY follows screen/CGEvent convention: positive = downward.
             // Cocoa window Y is inverted: positive = upward. Negate to match.
-            dragOverlay.moveByDelta(dx: event.deltaX, dy: -event.deltaY)
+            //
+            // Track overshoot beyond the clamp so the cursor can move past the limit
+            // while the bar is pinned, then re-acquire the bar when reversing direction.
+            switch orientation {
+            case .vertical:
+                uncommittedCocoaDelta.x += event.deltaX
+            case .horizontal:
+                uncommittedCocoaDelta.y += -event.deltaY
+            }
+            let applied = dragOverlay.moveByDelta(dx: uncommittedCocoaDelta.x, dy: uncommittedCocoaDelta.y)
+            uncommittedCocoaDelta.x -= applied.x
+            uncommittedCocoaDelta.y -= applied.y
 
-            // Accumulate deltas. A repeating timer (~20Hz) drains the accumulated
-            // delta into the delegate, keeping the main thread free between ticks
-            // so mouse events and overlay moves stay responsive.
-            pendingDelta.x += event.deltaX
-            pendingDelta.y += event.deltaY
+            // Convert applied delta back from Cocoa to screen convention:
+            // X is the same; Y is negated (Cocoa up → screen down).
+            pendingDelta.x += applied.x
+            pendingDelta.y += -applied.y
 
             if syncTimer == nil {
                 let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in

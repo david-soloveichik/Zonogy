@@ -52,9 +52,13 @@ final class ZoneResizeDragOverlay {
 
     private var overlayPanel: OverlayPanel?
     private var activeOrientation: ZoneLayout.SeparatorOrientation?
+    /// Allowed range for the overlay origin on the movement axis (Cocoa coordinates).
+    private var movementRange: ClosedRange<CGFloat>?
 
     /// Show the overlay at the given Cocoa frame (matching the handle window's current frame).
-    func show(cocoaFrame: CGRect, orientation: ZoneLayout.SeparatorOrientation) {
+    /// `movementRange` clamps the overlay origin on its movement axis so it cannot
+    /// exceed the zone layout's minimum size ratios.
+    func show(cocoaFrame: CGRect, orientation: ZoneLayout.SeparatorOrientation, movementRange: ClosedRange<CGFloat>) {
         hide()
 
         let panel = OverlayPanel(frame: cocoaFrame)
@@ -68,21 +72,31 @@ final class ZoneResizeDragOverlay {
 
         overlayPanel = panel
         activeOrientation = orientation
+        self.movementRange = movementRange
     }
 
     /// Move the overlay by raw event deltas. Cocoa coordinates: +dx = right, +dy = up.
-    /// Movement is constrained to the separator's axis: vertical bars move left/right only,
-    /// horizontal bars move up/down only.
-    func moveByDelta(dx: CGFloat, dy: CGFloat) {
-        guard let panel = overlayPanel, let orientation = activeOrientation else { return }
+    /// Movement is constrained to the separator's axis and clamped to the movement range
+    /// so the bar cannot visually exceed the minimum zone size.
+    /// Returns the actual delta applied after clamping (Cocoa coordinates).
+    func moveByDelta(dx: CGFloat, dy: CGFloat) -> CGPoint {
+        guard let panel = overlayPanel, let orientation = activeOrientation else { return .zero }
         let origin = panel.frame.origin
         switch orientation {
         case .vertical:
-            // Vertical separator divides left/right zones — moves only horizontally.
-            panel.setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y))
+            var newX = origin.x + dx
+            if let range = movementRange {
+                newX = min(max(newX, range.lowerBound), range.upperBound)
+            }
+            panel.setFrameOrigin(NSPoint(x: newX, y: origin.y))
+            return CGPoint(x: newX - origin.x, y: 0)
         case .horizontal:
-            // Horizontal separator divides top/bottom zones — moves only vertically.
-            panel.setFrameOrigin(NSPoint(x: origin.x, y: origin.y + dy))
+            var newY = origin.y + dy
+            if let range = movementRange {
+                newY = min(max(newY, range.lowerBound), range.upperBound)
+            }
+            panel.setFrameOrigin(NSPoint(x: origin.x, y: newY))
+            return CGPoint(x: 0, y: newY - origin.y)
         }
     }
 
@@ -94,5 +108,6 @@ final class ZoneResizeDragOverlay {
             overlayPanel = nil
         }
         activeOrientation = nil
+        movementRange = nil
     }
 }
