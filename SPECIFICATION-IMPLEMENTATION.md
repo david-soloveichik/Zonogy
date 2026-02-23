@@ -84,4 +84,6 @@ At startup (after window capture) and after display reconfiguration, we also ite
 
 We also re-scan full-screen state after active Space changes, since some apps (e.g., Safari video) don't emit resize events for their full-screen windows. This rescan is debounced (250ms) and uses the same `AXFullScreen` query pipeline.
 
+In addition, `AXFullScreen` can remain true for full-screen windows on inactive Spaces. To avoid a stale per-screen "full-screen pause", after space/focus updates we verify the currently focused window: if its display is paused but that focused window does not claim full-screen, we clear the tracked full-screen state for that display.
+
 As fallback when `AXFullScreen` is absent or unreliable: for managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their accessibility frame width matches the screen width exactly.

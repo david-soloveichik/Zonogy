@@ -241,11 +241,29 @@ extension AppController {
         let newScreenId: CGDirectDisplayID?
 
         switch resolution {
-        case .managed:
+        case .managed(let window, let pid, let focusedElement):
+            cancelUnmanagedFocusRetry()
+            let focusedScreenId = window.screenDisplayId ?? detectScreenId(for: window)
+            if let focusedScreenId {
+                repairFullScreenPauseStateFromFocusedWindowIfNeeded(
+                    focusedWindow: focusedElement,
+                    pid: pid,
+                    screenId: focusedScreenId,
+                    reason: "managed-focus"
+                )
+            }
+            newScreenId = nil
+        case .managedUnknown:
             cancelUnmanagedFocusRetry()
             newScreenId = nil
-        case .unmanaged(let screenId, _):
+        case .unmanaged(let screenId, let pid, let focusedElement, let reason):
             cancelUnmanagedFocusRetry()
+            repairFullScreenPauseStateFromFocusedWindowIfNeeded(
+                focusedWindow: focusedElement,
+                pid: pid,
+                screenId: screenId,
+                reason: "unmanaged-focus-\(reason)"
+            )
             newScreenId = screenId
         case .unresolved(let pid, let reason):
             scheduleUnmanagedFocusRetry(for: pid, reason: reason)

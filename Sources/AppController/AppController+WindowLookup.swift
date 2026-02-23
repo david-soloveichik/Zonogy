@@ -63,8 +63,9 @@ extension AppController {
     }
 
     internal enum UnmanagedFocusResolution {
-        case managed
-        case unmanaged(screenId: CGDirectDisplayID, reason: String)
+        case managed(window: ManagedWindow, pid: pid_t, focusedElement: AXUIElement)
+        case managedUnknown
+        case unmanaged(screenId: CGDirectDisplayID, pid: pid_t, focusedElement: AXUIElement, reason: String)
         case unresolved(pid: pid_t, reason: String)
     }
 
@@ -72,12 +73,12 @@ extension AppController {
     /// Unmanaged focus requires positive confirmation; transient AX failures stay unresolved.
     internal func resolveUnmanagedFocusState() -> UnmanagedFocusResolution {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
-            return .managed
+            return .managedUnknown
         }
 
         let pid = frontmostApp.processIdentifier
         guard pid != getpid() else {
-            return .managed
+            return .managedUnknown
         }
 
         let appElement = windowController.accessibilityWatcher.applicationElement(for: pid)
@@ -92,7 +93,7 @@ extension AppController {
 
         if let tracked = windowController.managedWindow(matching: focusedWindow),
            tracked.zoneIndex != nil || isWindowInTemporaryZone(tracked.windowId) {
-            return .managed
+            return .managed(window: tracked, pid: pid, focusedElement: focusedWindow)
         }
 
         if let bundleId = frontmostApp.bundleIdentifier,
@@ -100,7 +101,7 @@ extension AppController {
             guard let screenId = screenId(forWindowElement: focusedWindow) else {
                 return .unresolved(pid: pid, reason: "ignored-bundle-screen-unavailable")
             }
-            return .unmanaged(screenId: screenId, reason: "ignored-bundle")
+            return .unmanaged(screenId: screenId, pid: pid, focusedElement: focusedWindow, reason: "ignored-bundle")
         }
 
         guard let externalIdentifier = windowController.externalIdentifier(for: focusedWindow) else {
@@ -123,7 +124,12 @@ extension AppController {
             return .unresolved(pid: pid, reason: "unmanaged-screen-unavailable")
         }
 
-        return .unmanaged(screenId: screenId, reason: "fails-non-windowid-management-criteria")
+        return .unmanaged(
+            screenId: screenId,
+            pid: pid,
+            focusedElement: focusedWindow,
+            reason: "fails-non-windowid-management-criteria"
+        )
     }
 
     private func screenId(forWindowElement windowElement: AXUIElement) -> CGDirectDisplayID? {

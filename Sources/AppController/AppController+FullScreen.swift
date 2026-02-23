@@ -72,6 +72,38 @@ extension AppController {
         fullScreenTracker.isFullScreen(displayId: screenId)
     }
 
+    /// Clears a stale full-screen pause when the currently focused window on a display is not
+    /// actually full-screen. This repairs cases where `AXFullScreen` remains true for a window
+    /// that moved to an inactive Space.
+    internal func repairFullScreenPauseStateFromFocusedWindowIfNeeded(
+        focusedWindow: AXUIElement,
+        pid: pid_t,
+        screenId: CGDirectDisplayID,
+        reason: String
+    ) {
+        guard isScreenPausedForFullScreen(screenId) else {
+            return
+        }
+
+        let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        let treatAsFullScreen = shouldTreatAXUnknownWindowAsFullScreen(
+            element: focusedWindow,
+            bundleIdentifier: bundleId,
+            screenDisplayId: screenId
+        )
+        let focusedClaimsFullScreen = FullScreenTracker.isWindowFullScreen(element: focusedWindow) || treatAsFullScreen
+        guard !focusedClaimsFullScreen else {
+            return
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug(
+            "FullScreenTracker: clearing stale full-screen pause on screen \(screenIndex) " +
+                "because focused window is not full-screen (reason: \(reason))"
+        )
+        fullScreenTracker.clearFullScreenState(displayId: screenId, reason: "focused-window-not-full-screen-\(reason)")
+    }
+
     /// Notify full-screen tracker that an application terminated.
     internal func notifyFullScreenTrackerOfAppTermination(pid: pid_t) {
         clearFullScreenElementCache(for: pid)
@@ -138,6 +170,7 @@ extension AppController {
             self.pendingFullScreenSpaceChangeWorkItem = nil
             Logger.debug("FullScreenTracker: refreshing full-screen state after active space change")
             self.scanAllWindowsForFullScreenState()
+            self.updateUnmanagedFocusState()
         }
 
         pendingFullScreenSpaceChangeWorkItem?.cancel()
@@ -164,6 +197,13 @@ extension AppController {
         guard windowController.ensureAccessibilityPermissions() else {
             return
         }
+
+        // Batch updates so a rescan (especially after a space change) cannot transiently
+        // unpause then re-pause a screen while we are still enumerating windows.
+        let previousFullScreenDisplayIds = fullScreenTracker.fullScreenDisplayIds
+        let savedDelegate = fullScreenTracker.delegate
+        fullScreenTracker.delegate = nil
+        defer { fullScreenTracker.delegate = savedDelegate }
 
         var observedWindowIds: Set<CGWindowID> = []
 
@@ -206,6 +246,13 @@ extension AppController {
             }
         }
         updateAllFullScreenDebugOverlays()
+
+        let newFullScreenDisplayIds = fullScreenTracker.fullScreenDisplayIds
+        let changedDisplayIds = previousFullScreenDisplayIds.symmetricDifference(newFullScreenDisplayIds)
+        for displayId in changedDisplayIds {
+            updateFullScreenDebugOverlay(for: displayId)
+            handleFullScreenPauseStateChange(for: displayId)
+        }
     }
 
     private func checkWindowFullScreenState(

@@ -1,5 +1,9 @@
 /// Tracks which screens have full-screen windows from eligible apps using the AXFullScreen attribute.
 ///
+/// Note: `AXFullScreen` can remain true for windows on inactive Spaces. A best-effort WindowServer
+/// on-screen-only check helps ignore minimized/off-screen windows, but it does not reliably exclude
+/// inactive-Space full-screen windows, so we also repair stale pause based on the focused window.
+///
 /// Detection approach:
 /// 1. Query the `AXFullScreen` attribute via Accessibility API
 /// 2. Listen to `kAXResizedNotification` which fires when windows enter/exit full-screen
@@ -66,6 +70,31 @@ final class FullScreenTracker {
         return CFBooleanGetValue(unsafeBitCast(value, to: CFBoolean.self))
     }
 
+    /// Best-effort check for whether a window is visible in the current active Space(s) according to
+    /// the WindowServer (i.e., included in the on-screen-only window list).
+    /// - Returns:
+    ///   - `true` when the window is on-screen
+    ///   - `false` when the window is known to be off-screen/minimized or no longer exists
+    ///   - `nil` when it cannot be determined (API failure or missing keys)
+    private static func isWindowOnScreen(cgWindowId: CGWindowID) -> Bool? {
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        for windowInfo in windowList {
+            if let windowNumber = windowInfo[kCGWindowNumber as String] as? Int,
+               CGWindowID(windowNumber) == cgWindowId {
+                return true
+            }
+            if let windowNumber = windowInfo[kCGWindowNumber as String] as? NSNumber,
+               CGWindowID(windowNumber.intValue) == cgWindowId {
+                return true
+            }
+        }
+
+        return false
+    }
+
     /// Handle a window entering or exiting full-screen mode.
     /// Called when a resize notification is received for an observed window.
     /// - Parameters:
@@ -85,7 +114,23 @@ final class FullScreenTracker {
         screenDisplayId: CGDirectDisplayID,
         treatAsFullScreen: Bool
     ) {
-        let isFullScreen = FullScreenTracker.isWindowFullScreen(element: element) || treatAsFullScreen
+        let claimsFullScreen = FullScreenTracker.isWindowFullScreen(element: element) || treatAsFullScreen
+        // Only pause a screen when the full-screen window is actually visible in the active Space.
+        // If we cannot determine on-screen status, stay conservative and treat it as visible.
+        let isOnScreen: Bool = {
+            guard claimsFullScreen else { return true }
+            let onScreen = FullScreenTracker.isWindowOnScreen(cgWindowId: cgWindowId)
+            if onScreen == false {
+                let windowIdDesc = windowId.map(String.init) ?? "n/a"
+                let bundleDesc = bundleIdentifier ?? "unknown"
+                Logger.debug(
+                    "FullScreenTracker: ignoring full-screen windowId \(windowIdDesc) (CGWindowID \(cgWindowId), bundle: \(bundleDesc)) " +
+                        "because it is not on-screen in the active Space(s)"
+                )
+            }
+            return onScreen ?? true
+        }()
+        let isFullScreen = claimsFullScreen && isOnScreen
         let existingEntry = trackedEntry(for: cgWindowId, pid: pid)
         let existingInfo = existingEntry?.info
         let wasFullScreen = existingInfo != nil
@@ -187,6 +232,20 @@ final class FullScreenTracker {
         for displayId in displayIds {
             delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
         }
+    }
+
+    /// Clear full-screen tracking state for a single display.
+    func clearFullScreenState(displayId: CGDirectDisplayID, reason: String) {
+        guard let cleared = fullScreenWindows.removeValue(forKey: displayId) else {
+            return
+        }
+
+        let screenIndex = ScreenContextStore.loggingIndex(for: displayId)
+        Logger.debug(
+            "FullScreenTracker: clearing full-screen state on screen \(screenIndex) " +
+                "(reason: \(reason), previous: \(windowDescriptor(cleared)))"
+        )
+        delegate?.fullScreenTracker(self, didChangeFullScreenStateFor: displayId)
     }
 
     private func trackedEntry(for cgWindowId: CGWindowID, pid: pid_t) -> (displayId: CGDirectDisplayID, info: FullScreenWindowInfo)? {
