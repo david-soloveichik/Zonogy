@@ -66,7 +66,7 @@ extension AppController {
         case managed(window: ManagedWindow, pid: pid_t, focusedElement: AXUIElement)
         case managedUnknown
         case unmanaged(screenId: CGDirectDisplayID, pid: pid_t, focusedElement: AXUIElement, reason: String)
-        case unresolved(pid: pid_t, reason: String)
+        case unresolved(pid: pid_t, focusedElement: AXUIElement?, reason: String)
     }
 
     /// Resolves whether frontmost focus is managed, confirmed unmanaged, or unresolved.
@@ -87,7 +87,7 @@ extension AppController {
         guard focusedWindowResult == .success,
               let windowObject,
               CFGetTypeID(windowObject) == AXUIElementGetTypeID() else {
-            return .unresolved(pid: pid, reason: "focused-window-\(focusedWindowResult.logDescription)")
+            return .unresolved(pid: pid, focusedElement: nil, reason: "focused-window-\(focusedWindowResult.logDescription)")
         }
         let focusedWindow = unsafeBitCast(windowObject, to: AXUIElement.self)
 
@@ -99,13 +99,13 @@ extension AppController {
         if let bundleId = frontmostApp.bundleIdentifier,
            configuration.ignoredBundleIdentifiers.contains(bundleId) {
             guard let screenId = screenId(forWindowElement: focusedWindow) else {
-                return .unresolved(pid: pid, reason: "ignored-bundle-screen-unavailable")
+                return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "ignored-bundle-screen-unavailable")
             }
             return .unmanaged(screenId: screenId, pid: pid, focusedElement: focusedWindow, reason: "ignored-bundle")
         }
 
         guard let externalIdentifier = windowController.externalIdentifier(for: focusedWindow) else {
-            return .unresolved(pid: pid, reason: "missing-cgwindowid")
+            return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "missing-cgwindowid")
         }
 
         let isMinimized = windowController.isWindowMinimized(focusedWindow)
@@ -117,11 +117,11 @@ extension AppController {
         )
 
         guard !passesNonWindowIdCriteria else {
-            return .unresolved(pid: pid, reason: "window-appears-manageable")
+            return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "window-appears-manageable")
         }
 
         guard let screenId = screenId(forWindowElement: focusedWindow) else {
-            return .unresolved(pid: pid, reason: "unmanaged-screen-unavailable")
+            return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "unmanaged-screen-unavailable")
         }
 
         return .unmanaged(

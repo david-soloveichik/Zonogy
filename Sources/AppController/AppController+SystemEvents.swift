@@ -265,7 +265,17 @@ extension AppController {
                 reason: "unmanaged-focus-\(reason)"
             )
             newScreenId = screenId
-        case .unresolved(let pid, let reason):
+        case .unresolved(let pid, let focusedElement, let reason):
+            if reason == "window-appears-manageable",
+               let focusedElement,
+               let focusedScreenId = detectScreenId(for: focusedElement) {
+                repairFullScreenPauseStateFromFocusedWindowIfNeeded(
+                    focusedWindow: focusedElement,
+                    pid: pid,
+                    screenId: focusedScreenId,
+                    reason: "unresolved-focus-\(reason)"
+                )
+            }
             scheduleUnmanagedFocusRetry(for: pid, reason: reason)
             newScreenId = nil
         }
