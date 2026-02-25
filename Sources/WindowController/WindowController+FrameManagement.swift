@@ -499,7 +499,7 @@ extension WindowController {
     // MARK: - Update Order Decision
 
     /// Decide whether to set size or position first so intermediate frames stay on-screen when possible.
-    private func preferredAccessibilityUpdateOrder(
+    internal func preferredAccessibilityUpdateOrder(
         currentFrame: CGRect?,
         targetFrame: CGRect,
         visibleBounds: CGRect
@@ -673,21 +673,48 @@ extension WindowController {
         // Compute accessibility-coordinate frame on the main thread (pure math).
         let targetAXFrame = screen.screenToAccessibility(targetScreenFrame)
 
+        // Choose size-vs-position order using the previous target as "current frame"
+        // (no AX read needed) so intermediate frames stay on-screen when possible.
+        let order: AccessibilityUpdateOrder
+        if positionChanged && sizeChanged {
+            order = preferredAccessibilityUpdateOrder(
+                currentFrame: previousTargetScreenFrame,
+                targetFrame: targetScreenFrame,
+                visibleBounds: screen.visibleScreenBounds
+            )
+        } else {
+            order = .sizeThenPosition // only one attribute changing; order irrelevant
+        }
+
         // Dispatch AX writes to the serial background queue.
         // AXUIElementSetAttributeValue is thread-safe (Mach IPC under the hood).
         // The serial queue ensures writes to different windows within a tick are
         // ordered, and that successive ticks cannot interleave for the same window.
         liveResizeAXQueue.async { [weak self] in
             guard let self else { return }
-            if sizeChanged {
-                _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
-            }
-            if positionChanged {
-                _ = self.setAccessibilityPoint(
-                    element: element,
-                    attribute: kAXPositionAttribute as CFString,
-                    point: targetAXFrame.origin
-                )
+            switch order {
+            case .sizeThenPosition:
+                if sizeChanged {
+                    _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
+                }
+                if positionChanged {
+                    _ = self.setAccessibilityPoint(
+                        element: element,
+                        attribute: kAXPositionAttribute as CFString,
+                        point: targetAXFrame.origin
+                    )
+                }
+            case .positionThenSize:
+                if positionChanged {
+                    _ = self.setAccessibilityPoint(
+                        element: element,
+                        attribute: kAXPositionAttribute as CFString,
+                        point: targetAXFrame.origin
+                    )
+                }
+                if sizeChanged {
+                    _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
+                }
             }
         }
     }
