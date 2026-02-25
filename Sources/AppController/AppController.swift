@@ -61,6 +61,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.
     internal var zoneResizeDragScreenId: CGDirectDisplayID?
     internal var zoneResizeDragInProgress: Bool { zoneResizeDragScreenId != nil }
+    /// Per-window target frames from the previous live-resize tick.
+    /// Used to detect which frame components changed so we can skip unchanged AX writes.
+    /// Cleared when the drag ends.
+    internal var liveResizePreviousFrames: [Int: CGRect] = [:]
     internal var lastActiveApplicationPid: pid_t?
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager

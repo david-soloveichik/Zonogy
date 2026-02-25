@@ -58,6 +58,12 @@ class WindowController {
     internal let primaryScreenBounds: CGRect
     internal var applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
+    /// Serial background queue for dispatching AX writes during live zone resize drags.
+    /// Keeps the main thread free while window position/size updates proceed in order.
+    internal let liveResizeAXQueue = DispatchQueue(
+        label: "com.zonogy.live-resize-ax",
+        qos: .userInteractive
+    )
 
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.

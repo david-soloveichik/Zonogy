@@ -95,6 +95,7 @@ extension AppController {
     internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
         Logger.debug("Zone resize drag began on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
         zoneResizeDragScreenId = screenId
+        liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
         // Return any window in reveal mode to rest mode before live resizing.
         exitRevealMode(reason: "zone-resize-begin")
@@ -103,6 +104,7 @@ extension AppController {
     internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
         Logger.debug("Zone resize drag ended on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
         zoneResizeDragScreenId = nil
+        liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
 
         // When resizing stops, if the active window qualifies, re-evaluate ActiveFit.
@@ -146,6 +148,9 @@ extension AppController {
 
     func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int) {
         endZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
+        // Drain any in-flight async AX writes before the full sync, so stale
+        // background writes cannot overwrite the corrected final frames.
+        windowController.drainLiveResizeQueue()
         syncWindowsToZones()
     }
 

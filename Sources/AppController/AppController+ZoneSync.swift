@@ -195,7 +195,21 @@ extension AppController {
                     // Normal case: compute the zone's content frame (respecting
                     // the 8px/4px margins) and move the window into it.
                     let displayFrame = frameWithMargin(for: zone, in: controller)
-                    windowController.moveWindow(managed, to: displayFrame, on: descriptor)
+                    if isLiveResizeSync {
+                        // Fast path: dispatch AX writes to a background queue,
+                        // skip unchanged attributes based on previous target.
+                        let previousFrame = liveResizePreviousFrames[windowId]
+                        windowController.moveWindowForLiveResize(
+                            windowId: windowId,
+                            element: managed.backing.element,
+                            targetScreenFrame: displayFrame,
+                            previousTargetScreenFrame: previousFrame,
+                            screen: descriptor
+                        )
+                        liveResizePreviousFrames[windowId] = displayFrame
+                    } else {
+                        windowController.moveWindow(managed, to: displayFrame, on: descriptor)
+                    }
                     // If the user had manually resized this window, once we
                     // snap it back to the zone we can clear the detached flag.
                     manualResizeDetachedWindowIds.remove(windowId)

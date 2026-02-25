@@ -633,4 +633,69 @@ extension WindowController {
         let status = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
         return status == .success
     }
+
+    // MARK: - Live Resize (Async)
+
+    /// Lightweight window move for live zone resize drags.
+    ///
+    /// Compares the new target to the previous target to skip unchanged AX attributes,
+    /// then dispatches only the needed AX writes to a serial background queue.
+    /// No AX reads, readback, retry, or opposite-order pass — the final full sync
+    /// on drag end handles correctness.
+    func moveWindowForLiveResize(
+        windowId: Int,
+        element: AXUIElement,
+        targetScreenFrame: CGRect,
+        previousTargetScreenFrame: CGRect?,
+        screen: ScreenDescriptor
+    ) {
+        let positionChanged: Bool
+        let sizeChanged: Bool
+        let tolerance: CGFloat = 0.5
+
+        if let prev = previousTargetScreenFrame {
+            positionChanged = abs(targetScreenFrame.origin.x - prev.origin.x) > tolerance
+                           || abs(targetScreenFrame.origin.y - prev.origin.y) > tolerance
+            sizeChanged = abs(targetScreenFrame.width - prev.width) > tolerance
+                       || abs(targetScreenFrame.height - prev.height) > tolerance
+        } else {
+            // First tick of the drag — must set both.
+            positionChanged = true
+            sizeChanged = true
+        }
+
+        guard positionChanged || sizeChanged else { return }
+
+        // Mark as programmatic update on the main thread BEFORE dispatching, so
+        // AXMoved/AXResized observation handlers won't trigger spurious reflows.
+        performProgrammaticUpdate(for: windowId) { /* no-op: actual work is async */ }
+
+        // Compute accessibility-coordinate frame on the main thread (pure math).
+        let targetAXFrame = screen.screenToAccessibility(targetScreenFrame)
+
+        // Dispatch AX writes to the serial background queue.
+        // AXUIElementSetAttributeValue is thread-safe (Mach IPC under the hood).
+        // The serial queue ensures writes to different windows within a tick are
+        // ordered, and that successive ticks cannot interleave for the same window.
+        liveResizeAXQueue.async { [weak self] in
+            guard let self else { return }
+            if sizeChanged {
+                _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
+            }
+            if positionChanged {
+                _ = self.setAccessibilityPoint(
+                    element: element,
+                    attribute: kAXPositionAttribute as CFString,
+                    point: targetAXFrame.origin
+                )
+            }
+        }
+    }
+
+    /// Block until all pending live-resize AX writes have completed.
+    /// Called before the drag-end full sync to prevent stale async writes
+    /// from overwriting the final corrected frames.
+    func drainLiveResizeQueue() {
+        liveResizeAXQueue.sync {}
+    }
 }
