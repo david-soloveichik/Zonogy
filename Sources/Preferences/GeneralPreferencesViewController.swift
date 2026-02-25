@@ -22,7 +22,7 @@ final class GeneralPreferencesViewController: NSViewController {
     private var targetingModeHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 630))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 630))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -222,7 +222,7 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 525)
+        self.preferredContentSize = NSSize(width: 580, height: 525)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()

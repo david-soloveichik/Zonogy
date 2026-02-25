@@ -19,13 +19,13 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 400))
 
         setupTableView(in: containerView)
         setupResetButton(in: containerView)
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 525)
+        self.preferredContentSize = NSSize(width: 580, height: 525)
     }
 
     private func setupTableView(in container: NSView) {

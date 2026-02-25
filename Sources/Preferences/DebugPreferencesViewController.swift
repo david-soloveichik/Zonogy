@@ -7,7 +7,7 @@ final class DebugPreferencesViewController: NSViewController {
     private var fullScreenOverlayCheckbox: NSButton?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 380))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 380))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -136,7 +136,7 @@ final class DebugPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 380)
+        self.preferredContentSize = NSSize(width: 580, height: 380)
         syncControls()
     }
 

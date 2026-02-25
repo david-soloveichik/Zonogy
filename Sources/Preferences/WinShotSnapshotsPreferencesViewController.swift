@@ -12,7 +12,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     private var maxSnapshotsHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 320))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 320))
 
         let titleLabel = NSTextField(labelWithString: "WinShot Snapshots")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -128,7 +128,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 500, height: 320)
+        self.preferredContentSize = NSSize(width: 580, height: 320)
         syncControls()
     }
 
