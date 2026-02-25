@@ -686,12 +686,10 @@ extension WindowController {
             order = .sizeThenPosition // only one attribute changing; order irrelevant
         }
 
-        // Dispatch AX writes to the serial background queue.
-        // AXUIElementSetAttributeValue is thread-safe (Mach IPC under the hood).
-        // The serial queue ensures writes to different windows within a tick are
-        // ordered, and that successive ticks cannot interleave for the same window.
-        liveResizeAXInFlight += 1
-        liveResizeAXQueue.async { [weak self] in
+        // Accumulate the AX write as a closure. The caller is responsible for
+        // calling flushLiveResizeWrites() after all per-window calls to dispatch
+        // the batch as a single queue item.
+        pendingLiveResizeWrites.append { [weak self] in
             guard let self else { return }
             switch order {
             case .sizeThenPosition:
@@ -717,9 +715,21 @@ extension WindowController {
                     _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
                 }
             }
+        }
+    }
+
+    /// Dispatch all pending live-resize AX writes as a single batch on the
+    /// background queue. One batch = one in-flight flag, so the frame-skip
+    /// check in ZoneResizeHandleManager sees a precise busy signal.
+    func flushLiveResizeWrites() {
+        guard !pendingLiveResizeWrites.isEmpty else { return }
+        let writes = pendingLiveResizeWrites
+        pendingLiveResizeWrites = []
+        isLiveResizeAXBatchInFlight = true
+        liveResizeAXQueue.async {
+            for write in writes { write() }
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.liveResizeAXInFlight -= 1
+                self?.isLiveResizeAXBatchInFlight = false
             }
         }
     }
@@ -728,6 +738,7 @@ extension WindowController {
     /// Called before the drag-end full sync to prevent stale async writes
     /// from overwriting the final corrected frames.
     func drainLiveResizeQueue() {
+        flushLiveResizeWrites()
         liveResizeAXQueue.sync {}
     }
 }

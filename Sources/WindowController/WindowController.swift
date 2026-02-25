@@ -64,10 +64,13 @@ class WindowController {
         label: "com.zonogy.live-resize-ax",
         qos: .userInteractive
     )
-    /// Number of AX write blocks dispatched but not yet completed (main-thread only).
-    internal var liveResizeAXInFlight = 0
+    /// Pending AX write closures accumulated by `moveWindowForLiveResize`,
+    /// dispatched as a single batch by `flushLiveResizeWrites()`.
+    internal var pendingLiveResizeWrites: [() -> Void] = []
+    /// True when the live-resize AX queue has a batch still in flight (main-thread only).
+    internal var isLiveResizeAXBatchInFlight = false
     /// True when the live-resize AX queue has pending work, used for frame-skipping.
-    internal var isLiveResizeAXQueueBusy: Bool { liveResizeAXInFlight > 0 }
+    internal var isLiveResizeAXQueueBusy: Bool { isLiveResizeAXBatchInFlight }
 
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.

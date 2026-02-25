@@ -219,6 +219,11 @@ extension AppController {
             }
         }
 
+        // Flush accumulated live-resize AX writes as a single batch.
+        if isLiveResizeSync {
+            windowController.flushLiveResizeWrites()
+        }
+
         // Phase 4: sync placeholder windows so every empty zone has a matching placeholder
         // (unless explicitly suppressed for this pass). PlaceholderCoordinator owns and
         // tracks placeholder windows internally.
