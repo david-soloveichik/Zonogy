@@ -690,6 +690,7 @@ extension WindowController {
         // AXUIElementSetAttributeValue is thread-safe (Mach IPC under the hood).
         // The serial queue ensures writes to different windows within a tick are
         // ordered, and that successive ticks cannot interleave for the same window.
+        liveResizeAXInFlight += 1
         liveResizeAXQueue.async { [weak self] in
             guard let self else { return }
             switch order {
@@ -715,6 +716,10 @@ extension WindowController {
                 if sizeChanged {
                     _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
                 }
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.liveResizeAXInFlight -= 1
             }
         }
     }

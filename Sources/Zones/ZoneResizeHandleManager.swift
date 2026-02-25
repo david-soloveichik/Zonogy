@@ -13,6 +13,9 @@ protocol ZoneResizeHandleManagerDelegate: AnyObject {
     func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int)
     func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint)
     func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int)
+    /// Returns true when the previous resize sync's AX writes are still in flight,
+    /// allowing the caller to skip a tick and let delta accumulate.
+    func isResizeHandleSyncBusy() -> Bool
 }
 
 final class ZoneResizeHandleManager {
@@ -241,10 +244,14 @@ final class ZoneResizeHandleManager {
             pendingDelta.y += -applied.y
 
             if syncTimer == nil {
-                let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+                let timer = Timer(timeInterval: 0.025, repeats: true) { [weak self] _ in
                     guard let self = self else { return }
                     let delta = self.pendingDelta
                     guard delta.x != 0 || delta.y != 0 else { return }
+                    // Frame-skip: if the previous AX writes haven't finished,
+                    // let delta accumulate so the next flush sends a larger jump
+                    // instead of queuing up stale intermediate positions.
+                    if self.delegate?.isResizeHandleSyncBusy() == true { return }
                     self.pendingDelta = .zero
                     self.delegate?.resizeHandleDragged(
                         screenId: self.screenId,

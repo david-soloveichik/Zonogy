@@ -146,6 +146,10 @@ extension AppController {
         syncWindowsToZonesForLiveResize(screenId: screenId)
     }
 
+    func isResizeHandleSyncBusy() -> Bool {
+        windowController.isLiveResizeAXQueueBusy
+    }
+
     func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int) {
         endZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
         // Drain any in-flight async AX writes before the full sync, so stale
