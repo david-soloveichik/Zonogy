@@ -216,7 +216,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let sheet = NSWindow(contentViewController: editVC)
         sheet.styleMask = [.titled, .closable]
         sheet.title = "Edit Exception: \(rule.bundleIdentifier)"
-        sheet.setContentSize(NSSize(width: 450, height: 350))
+        sheet.setContentSize(NSSize(width: 450, height: 420))
 
         window.beginSheet(sheet) { _ in }
     }
@@ -319,6 +319,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
+        if rule.requireActiveZoomButton == true { parts.append("activeZoom") }
         if rule.ignoreHeightRequirement == true { parts.append("height") }
         if let titles = rule.excludedWindowTitles, !titles.isEmpty {
             parts.append("excl:\(titles.count)")

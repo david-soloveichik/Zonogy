@@ -14,6 +14,8 @@ struct ApplicationExceptionRule: Codable {
     /// Some apps (e.g., Keynote presentation windows) don't expose `AXFullScreen` reliably.
     /// When enabled, Zonogy treats `AXUnknown` windows that span the full screen width as full-screen.
     let treatAXUnknownFullWidthAsFullScreen: Bool?
+    /// When enabled, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it.
+    let requireActiveZoomButton: Bool?
     let excludedWindowTitles: [String]?
 
     init(
@@ -25,6 +27,7 @@ struct ApplicationExceptionRule: Codable {
         hasMainWindow: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil,
         treatAXUnknownFullWidthAsFullScreen: Bool? = nil,
+        requireActiveZoomButton: Bool? = nil,
         excludedWindowTitles: [String]? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
@@ -35,6 +38,7 @@ struct ApplicationExceptionRule: Codable {
         self.hasMainWindow = hasMainWindow
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
         self.treatAXUnknownFullWidthAsFullScreen = treatAXUnknownFullWidthAsFullScreen
+        self.requireActiveZoomButton = requireActiveZoomButton
         self.excludedWindowTitles = excludedWindowTitles
     }
 
@@ -49,6 +53,7 @@ struct ApplicationExceptionRule: Codable {
             hasMainWindow: override.hasMainWindow ?? hasMainWindow,
             snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
             treatAXUnknownFullWidthAsFullScreen: override.treatAXUnknownFullWidthAsFullScreen ?? treatAXUnknownFullWidthAsFullScreen,
+            requireActiveZoomButton: override.requireActiveZoomButton ?? requireActiveZoomButton,
             excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
         )
     }
@@ -115,6 +120,12 @@ struct ApplicationExceptionPolicy {
     /// By default, this heuristic is disabled since it can produce false positives during animations.
     func treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.treatAXUnknownFullWidthAsFullScreen ?? false
+    }
+
+    /// Returns true if the app requires the zoom button to be enabled (not grayed out)
+    /// for Zonogy to manage its windows.
+    func requiresActiveZoomButton(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.requireActiveZoomButton ?? false
     }
 
     /// Returns the list of window titles to exclude from management for this bundle.

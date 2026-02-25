@@ -151,6 +151,21 @@ extension WindowController {
             }
         }
 
+        // Check if zoom button is enabled (active), if required by per-app exception
+        if hasZoomButton, let zoomButtonValue,
+           CFGetTypeID(zoomButtonValue) == AXUIElementGetTypeID(),
+           let app = NSRunningApplication(processIdentifier: pid),
+           let bundleId = app.bundleIdentifier,
+           applicationExceptionPolicy.requiresActiveZoomButton(forBundleIdentifier: bundleId) {
+            let zoomElement = zoomButtonValue as! AXUIElement
+            var enabledRef: CFTypeRef?
+            let enabledStatus = AXUIElementCopyAttributeValue(zoomElement, kAXEnabledAttribute as CFString, &enabledRef)
+            if enabledStatus == .success, let enabled = enabledRef as? Bool, !enabled {
+                Logger.debug("\(contextPrefix): Zoom button is disabled (grayed out) and bundle \(bundleId) requires active zoom button")
+                return false
+            }
+        }
+
         // Check window height (must be >= 250px tall)
         if let size = ManagedWindow.copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) {
             if size.height < 250 {

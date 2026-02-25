@@ -413,6 +413,7 @@ Fields:
   - `bundleIdentifier` – the app's bundle identifier (e.g., `"com.apple.Dictionary"`).
   - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app's `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button.
+  - `requireActiveZoomButton` – when `true`, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it. (Has no effect when `ignoreZoomButtonRequirement` is `true` and the window has no zoom button at all.)
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.

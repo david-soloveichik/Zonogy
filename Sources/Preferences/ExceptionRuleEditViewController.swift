@@ -11,6 +11,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var hasMainWindowCheckbox: NSButton!
     private var ignoreActivationPolicyCheckbox: NSButton!
     private var ignoreZoomButtonCheckbox: NSButton!
+    private var requireActiveZoomButtonCheckbox: NSButton!
     private var ignoreHeightCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
@@ -27,7 +28,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 390))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 420))
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         setupUI(in: containerView)
@@ -161,6 +162,19 @@ final class ExceptionRuleEditViewController: NSViewController {
         ])
         topAnchor = ignoreZoomButtonCheckbox.bottomAnchor
 
+        requireActiveZoomButtonCheckbox = makeCheckbox(
+            title: "Require active zoom button",
+            tooltip: "Only manage windows whose zoom button is enabled (not grayed out)"
+        )
+        container.addSubview(requireActiveZoomButtonCheckbox)
+
+        NSLayoutConstraint.activate([
+            requireActiveZoomButtonCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            requireActiveZoomButtonCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            requireActiveZoomButtonCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = requireActiveZoomButtonCheckbox.bottomAnchor
+
         ignoreHeightCheckbox = makeCheckbox(
             title: "Ignore height requirement",
             tooltip: "Manage windows shorter than 250px"
@@ -245,6 +259,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
         ignoreActivationPolicyCheckbox.state = (originalRule.ignoreActivationPolicy == true) ? .on : .off
         ignoreZoomButtonCheckbox.state = (originalRule.ignoreZoomButtonRequirement == true) ? .on : .off
+        requireActiveZoomButtonCheckbox.state = (originalRule.requireActiveZoomButton == true) ? .on : .off
         ignoreHeightCheckbox.state = (originalRule.ignoreHeightRequirement == true) ? .on : .off
 
         if let titles = originalRule.excludedWindowTitles, !titles.isEmpty {
@@ -272,6 +287,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
             treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
+            requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,
             excludedWindowTitles: excludedTitles
         )
 
