@@ -57,19 +57,31 @@ extension AppController {
             activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
-            var minimizedCount = 0
+            var minimizedWindowIds: [Int] = []
 
             for zone in zones {
                 if let windowId = zone.occupantWindowId,
                    let managed = windowController.window(withId: windowId) {
                     minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
                     removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
-                    minimizedCount += 1
+                    minimizedWindowIds.append(windowId)
                 }
             }
 
-            Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedCount) window(s) on screen \(screenIndex)")
+            Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
             syncWindowsToZones()
+
+            // Verify minimization actually took effect. Verify minimization took effect. Some apps like Word seem to sometimes auto-activate
+            // sibling windows when one is minimized, which can cancel a rapid-fire minimize.
+            for windowId in minimizedWindowIds {
+                scheduleMinimizeVerification(
+                    windowId: windowId,
+                    emptiedZoneKey: nil,
+                    minimizeReason: "clear-zones-shortcut",
+                    cleanupReason: "clear-zones-shortcut",
+                    wasManualResizeDetached: false
+                )
+            }
         }
 
         // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.

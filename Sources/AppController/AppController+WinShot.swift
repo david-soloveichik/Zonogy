@@ -293,6 +293,18 @@ extension AppController {
             removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
         }
 
+        // Step 9b: Verify minimization took effect. Some apps like Word seem to sometimes auto-activate
+        // sibling windows when one is minimized, which can cancel a rapid-fire minimize.
+        for window in windowsToMinimize {
+            scheduleMinimizeVerification(
+                windowId: window.windowId,
+                emptiedZoneKey: nil,
+                minimizeReason: "winshot-restore",
+                cleanupReason: "winshot-restore",
+                wasManualResizeDetached: false
+            )
+        }
+
         // Step 10: Sync and refresh based on final tiling occupancy.
         syncWindowsToZones()
         refreshIndicators()
