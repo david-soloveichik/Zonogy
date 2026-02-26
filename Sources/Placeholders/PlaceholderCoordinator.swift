@@ -149,6 +149,19 @@ final class PlaceholderCoordinator {
         return true
     }
 
+    /// Update the targeted state on all active placeholders.
+    /// Exactly one placeholder (if any) will have isTargeted=true.
+    func setTargetedZone(_ key: ZoneKey?) {
+        for (zoneKey, placeholder) in activePlaceholders {
+            placeholder.setTargeted(zoneKey == key)
+        }
+    }
+
+    /// Flash the border of the placeholder for the given zone key, if it exists.
+    func flashPlaceholderBorder(for key: ZoneKey) {
+        activePlaceholders[key]?.flashBorder()
+    }
+
     /// Close and remove all placeholders for a specific screen.
     /// Used when zones are reorganized (added/removed) to prevent stale mappings.
     func clearPlaceholdersForScreen(_ screenId: CGDirectDisplayID) {

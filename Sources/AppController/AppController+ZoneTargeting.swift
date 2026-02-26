@@ -206,7 +206,19 @@ extension AppController {
         }
 
         targetedZoneManager.setTargetedZone(key, reason: "control-command-click")
+        flashTargetFeedback(for: key)
         return true
+    }
+
+    func flashTargetFeedback(for key: ZoneKey) {
+        if placeholderCoordinator.hasPlaceholder(for: key) {
+            placeholderCoordinator.flashPlaceholderBorder(for: key)
+        } else if let context = screenContexts[key.screenId],
+                  let zone = context.zoneController.zone(at: key.index) {
+            let screenFrame = frameWithMargin(for: zone, in: context.zoneController)
+            let cocoaFrame = context.descriptor.screenToCocoa(screenFrame)
+            zoneFlashOverlay.flash(at: cocoaFrame)
+        }
     }
 
 }

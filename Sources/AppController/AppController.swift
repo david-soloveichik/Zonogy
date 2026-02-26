@@ -69,6 +69,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator
+    internal let zoneFlashOverlay = ZoneFlashOverlay()
     internal let indicatorManager = ZoneIndicatorManager()
     internal let temporaryIndicatorManager = TemporaryZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()

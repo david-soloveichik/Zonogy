@@ -86,7 +86,7 @@ Both windows and placeholders preserve an 8 pixel buffer at the outer screen edg
 
 ### Placeholders
 
-Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "×" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**).
+Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "×" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**). When a placeholder's zone is targeted, its border is highlighted with a bluish tint to make the target destination visually clear.
 
 Placeholders stay anchored to their zone: dragging their surface does not reposition them, and they cannot be resized by dragging their edges. Resize zones via zone resize bars (see **Resizing Zones**).
 
@@ -130,16 +130,19 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
   - When a window becomes active in a zone (tiling or temporary), that zone becomes targeted. “Active” must follow the exact same semantics as the history/recency tracking used by Launcher ordering / CmdTab.
   - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the temporary zone).
 
-**Target indicator UI (tiling zones):** Every tiling zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. The targeted zone's indicator glows brighter.
+**Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone.
 
-**Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone. The indicator sits flush with the screen bottom so edge clicks hit it.
+**Temporary zone indicator UI:** Each screen renders a bottom-edge pill indicator for its temporary zone (whether it's targeted or not). The indicator sits flush with the screen bottom so edge clicks hit it. If that temp zone is targeted, the indicator is highlighted.
 
-**Indicator click behavior (both tiling and temporary zones):** Clicking a non-targeted indicator targets that zone. Clicking an already-targeted indicator opens the Launcher. Double-clicking any indicator targets the zone and opens the Launcher.
+**Indicator click behavior:**
+
+- Tiling zone indicator (shown only on the targeted tiling zone): clicking or double-clicking opens the Launcher.
+- Temporary zone indicator: clicking a non-targeted indicator targets that temporary zone; clicking an already-targeted indicator opens the Launcher. Double-clicking targets that temporary zone and opens the Launcher.
 
 **Target selection:**
 
 - Clicking a tiling zone placeholder window: target that tiling zone.
-- Control-Command + left-click anywhere inside a tiling zone (occupied window, placeholder, or empty space) targets that tiling zone; the gesture is consumed before it reaches the underlying window.
+- Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone; the gesture is consumed before it reaches the underlying window. A brief bluish border flash provides additional visual confirmation: for empty zones the placeholder border pulses; for occupied zones a transient border overlay appears over the zone frame.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
 - Whenever a window is placed into the targeted tiling zone (Targeting independent of focus mode): retarget using this priority:

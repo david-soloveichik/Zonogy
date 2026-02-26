@@ -18,6 +18,8 @@ extension AppController {
             let screenDescriptor = context.descriptor
             for zone in context.zoneController.allZones {
                 let key = ZoneKey(screenId: screenId, index: zone.index)
+                // Only show the indicator for the targeted zone.
+                guard key == targetedZoneKey else { continue }
                 let frame = indicatorFrame(for: zone, controller: context.zoneController, descriptor: screenDescriptor)
                 guard frame.width > 0, frame.height > 0 else {
                     continue
@@ -26,7 +28,7 @@ extension AppController {
                     ZoneIndicatorDescriptor(
                         key: key,
                         cocoaFrame: frame,
-                        isTargeted: key == targetedZoneKey
+                        isTargeted: true
                     )
                 )
             }
@@ -95,6 +97,7 @@ extension AppController {
 
     internal func refreshIndicators() {
         refreshZoneIndicators()
+        placeholderCoordinator.setTargetedZone(targetedZoneKey)
 
         // Refresh add-zone indicators
         var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []

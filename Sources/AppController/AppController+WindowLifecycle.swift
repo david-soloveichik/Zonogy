@@ -231,7 +231,9 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
         minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
-        targetedZoneManager.setTargetedZone(zoneKey(for: screenId, index: zoneIndex), reason: "placeholder-activated")
+        let key = zoneKey(for: screenId, index: zoneIndex)
+        targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
+        flashTargetFeedback(for: key)
     }
 
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {

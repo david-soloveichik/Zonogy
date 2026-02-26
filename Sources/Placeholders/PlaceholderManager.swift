@@ -356,8 +356,16 @@ final class PlaceholderContentView: NSView {
             }
         }
     }
+    var isTargeted: Bool = false {
+        didSet {
+            if isTargeted != oldValue {
+                updateBorderAppearance()
+            }
+        }
+    }
     private let normalBorderColor = NSColor.white.withAlphaComponent(0.45).cgColor
     private let highlightedBorderColor = NSColor.systemBlue.withAlphaComponent(0.72).cgColor
+    private let targetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.50).cgColor
 
     init(frame: NSRect, manager: PlaceholderManager, screenId: CGDirectDisplayID, zoneIndex: Int) {
         self.manager = manager
@@ -476,8 +484,38 @@ final class PlaceholderContentView: NSView {
 
     private func updateBorderAppearance() {
         guard let layer = layer else { return }
-        layer.borderWidth = isDropHighlighted ? 2.5 : 1.5
-        layer.borderColor = isDropHighlighted ? highlightedBorderColor : normalBorderColor
+        if isDropHighlighted {
+            layer.borderWidth = 2.5
+            layer.borderColor = highlightedBorderColor
+        } else if isTargeted {
+            layer.borderWidth = 3.5
+            layer.borderColor = targetedBorderColor
+        } else {
+            layer.borderWidth = 1.5
+            layer.borderColor = normalBorderColor
+        }
+    }
+
+    /// Flashes a vivid blue border that animates to the resting state, providing
+    /// immediate visual feedback for a Control+Command click.
+    func flashBorder() {
+        guard let layer = layer else { return }
+        let restingColor = isTargeted ? targetedBorderColor : normalBorderColor
+        let restingWidth: CGFloat = isTargeted ? 3.5 : 1.5
+
+        let colorAnim = CABasicAnimation(keyPath: "borderColor")
+        colorAnim.fromValue = NSColor.systemBlue.withAlphaComponent(0.88).cgColor
+        colorAnim.toValue = restingColor
+        colorAnim.duration = 0.45
+        colorAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(colorAnim, forKey: "borderColorFlash")
+
+        let widthAnim = CABasicAnimation(keyPath: "borderWidth")
+        widthAnim.fromValue = CGFloat(5.5)
+        widthAnim.toValue = restingWidth
+        widthAnim.duration = 0.45
+        widthAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(widthAnim, forKey: "borderWidthFlash")
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {

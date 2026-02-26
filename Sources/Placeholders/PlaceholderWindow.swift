@@ -48,4 +48,14 @@ final class PlaceholderWindow {
         self.zoneIndex = zoneIndex
         contentView?.update(screenId: screenId, zoneIndex: zoneIndex)
     }
+
+    /// Mark this placeholder as targeted or not, updating its border appearance.
+    func setTargeted(_ targeted: Bool) {
+        contentView?.isTargeted = targeted
+    }
+
+    /// Flash a vivid blue border to confirm a Control+Command-click targeting gesture.
+    func flashBorder() {
+        contentView?.flashBorder()
+    }
 }
