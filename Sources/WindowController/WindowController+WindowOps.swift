@@ -60,8 +60,12 @@ extension WindowController {
 
     /// Minimize a window
     func minimizeWindow(_ managedWindow: ManagedWindow) {
-        _ = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
-        Logger.debug("Minimized window \(managedWindow.windowId)")
+        let error = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+        if error != .success {
+            Logger.debug("WARNING: Minimize AX call failed for window \(managedWindow.windowId) (error \(error.rawValue))")
+        } else {
+            Logger.debug("Minimized window \(managedWindow.windowId)")
+        }
     }
 
     /// Unminimize a window
@@ -70,12 +74,17 @@ extension WindowController {
     ///   - synchronous: If false (default), adds a small delay to let any pre-positioning settle before the unminimize animation
     func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false, raise: Bool = true) {
         let element = managedWindow.backing.element
+        let windowId = managedWindow.windowId
         let perform = {
-            _ = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            let error = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            if error != .success {
+                Logger.debug("WARNING: Unminimize AX call failed for window \(windowId) (error \(error.rawValue))")
+            } else {
+                Logger.debug("Unminimized window \(windowId)")
+            }
             if raise {
                 _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
             }
-            Logger.debug("Unminimized window \(managedWindow.windowId)")
         }
 
         if synchronous {

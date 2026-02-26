@@ -127,6 +127,17 @@ extension WindowController {
 
         let appElement = accessibilityWatcher.applicationElement(for: pid)
 
+        // Check if this element belongs to an already-tracked window (same CGWindowID).
+        // This commonly happens when macOS fires AXWindowCreated after an unminimize,
+        // providing a fresh AXUIElement for the same window. We must rebind to keep
+        // the stored element reference current for future AX operations (minimize, etc).
+        if let identifier = externalIdentifier(for: element),
+           let existing = externalWindows[identifier] {
+            rebindElement(for: existing, newElement: element, appElement: appElement)
+            delegate?.windowElementDidCreate(element: element, pid: pid)
+            return
+        }
+
         let capturedWindow = captureWindowIfNeeded(
             element: element,
             pid: pid,
@@ -246,6 +257,33 @@ extension WindowController {
         } else {
             delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
         }
+    }
+
+    // MARK: - Element Rebinding
+
+    /// Atomically rebind a managed window to a new AXUIElement (same CGWindowID).
+    /// Called when macOS provides a fresh element for an already-tracked window
+    /// (e.g. after a minimize→unminimize cycle fires AXWindowCreated).
+    internal func rebindElement(for managed: ManagedWindow, newElement: AXUIElement, appElement: AXUIElement) {
+        let oldKey = AccessibilityElementKey(element: managed.backing.element)
+        let newKey = AccessibilityElementKey(element: newElement)
+
+        guard oldKey != newKey else {
+            // Same element instance; nothing to rebind.
+            return
+        }
+
+        // 1. Tear down old element tracking
+        removeAccessibilityTracking(for: managed)
+
+        // 2. Update the managed window's backing element
+        managed.backing.element = newElement
+
+        // 3. Re-establish tracking with the new element
+        externalWindowsByElement[newKey] = managed
+        registerAccessibilityNotifications(for: managed, appElement: appElement)
+
+        Logger.debug("Rebound AX element for window \(managed.windowId) (pid \(managed.backing.pid), CGWindowID \(managed.backing.cgWindowId))")
     }
 
     // MARK: - Cleanup

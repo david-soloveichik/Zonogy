@@ -14,7 +14,7 @@ struct ExternalWindowIdentifier: Hashable {
 /// CGWindowID is captured up front via `_AXUIElementGetWindow`; we refuse to manage the
 /// window if it cannot be obtained, so this value is always present once tracked.
 struct ManagedWindowBacking {
-    let element: AXUIElement
+    var element: AXUIElement
     let pid: pid_t
     let cgWindowId: Int  // CGWindowID from window server
 }
@@ -26,7 +26,7 @@ class ManagedWindow {
     let windowId: Int
 
     /// Backing implementation via accessibility.
-    let backing: ManagedWindowBacking
+    var backing: ManagedWindowBacking
 
     /// The zone index this window is currently assigned to, or `nil` if minimized/unassigned.
     var zoneIndex: Int?
