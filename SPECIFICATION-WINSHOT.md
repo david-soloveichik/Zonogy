@@ -29,6 +29,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Restores zone configuration to the saved count and frames.
 - Unminimizes windows that were minimized first, so users see new windows appear immediately.
 - Current windows not in the snapshot are minimized afterward.
+- Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Activates the previously active window.
 - **Targeting after restore:**
