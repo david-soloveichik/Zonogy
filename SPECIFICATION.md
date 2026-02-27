@@ -141,7 +141,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 
 **Target selection:**
 
-- Clicking a tiling zone placeholder window: target that tiling zone.
+- Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher.
 - Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone; the gesture is consumed before it reaches the underlying window. A brief bluish border flash provides additional visual confirmation: for empty zones the placeholder border pulses; for occupied zones a transient border overlay appears over the zone frame.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.

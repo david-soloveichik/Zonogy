@@ -223,17 +223,20 @@ extension AppController {
         }
     }
 
-    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int) {
+    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int, isDoubleClick: Bool) {
         if isScreenPausedForFullScreen(screenId) {
             Logger.debug("Placeholder activated on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
             return
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
+        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
         minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
         let key = zoneKey(for: screenId, index: zoneIndex)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
         flashTargetFeedback(for: key)
+        if isDoubleClick {
+            showLauncherIfAllowed(trigger: "placeholder-double-click")
+        }
     }
 
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {

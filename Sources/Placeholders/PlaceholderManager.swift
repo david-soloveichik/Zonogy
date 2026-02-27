@@ -15,8 +15,8 @@ private final class FirstClickButton: NSButton {
 
 /// Delegate protocol for placeholder UI events.
 protocol PlaceholderManagerDelegate: AnyObject {
-    /// Called when a placeholder window is activated (clicked).
-    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int)
+    /// Called when a placeholder window is activated (clicked or double-clicked).
+    func placeholderActivated(screenId: CGDirectDisplayID, zoneIndex: Int, isDoubleClick: Bool)
 
     /// Called when the close/put-away button is clicked.
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int)
@@ -312,10 +312,10 @@ final class PlaceholderManager {
 
     // MARK: - Internal Handlers
 
-    func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int) {
+    func handlePlaceholderActivation(screenId: CGDirectDisplayID, zoneIndex: Int, isDoubleClick: Bool) {
         let screenIndex = ScreenContextStore.screenIndex(for: screenId) ?? Int(screenId)
-        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex)")
-        delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex)
+        Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
+        delegate?.placeholderActivated(screenId: screenId, zoneIndex: zoneIndex, isDoubleClick: isDoubleClick)
     }
 
     func handlePlaceholderExternalDrop(
@@ -389,7 +389,7 @@ final class PlaceholderContentView: NSView {
         let isOnCloseButton = closeButton?.frame.contains(locationInView) == true
 
         if !isOnCloseButton {
-            manager?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex)
+            manager?.handlePlaceholderActivation(screenId: screenId, zoneIndex: zoneIndex, isDoubleClick: event.clickCount >= 2)
         }
         super.mouseDown(with: event)
     }
