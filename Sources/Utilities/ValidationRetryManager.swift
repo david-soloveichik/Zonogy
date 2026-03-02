@@ -13,7 +13,6 @@ class ValidationRetryManager {
     enum Trigger: String, Equatable {
         case unspecified = "unspecified"
         case workspaceActivationPreviousApp = "workspace-activation-previous-app"
-        case screenChange = "screen-change"
         case focusChanged = "focus-changed"
         case workspaceStateChange = "workspace-state-change"
     }

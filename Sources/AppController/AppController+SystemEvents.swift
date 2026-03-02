@@ -474,13 +474,6 @@ extension AppController {
             handleRemovedScreens(rebuildResult.removedContexts)
         }
 
-        // Validate all external windows to drop stale references
-        let pidsToValidate = Set(windowController.allWindows.map { $0.backing.pid })
-
-        for pid in pidsToValidate {
-            _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .screenChange)
-        }
-
         targetedZoneManager.ensureTargetedZone(reason: "screens-changed")
 
         syncWindowsToZones()
