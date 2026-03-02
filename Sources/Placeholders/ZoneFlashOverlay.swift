@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import QuartzCore
 
 /// Briefly flashes a blueish border around a zone frame to confirm a
@@ -34,7 +35,7 @@ final class ZoneFlashOverlay {
         let borderView = NSView(frame: CGRect(origin: .zero, size: cocoaFrame.size))
         borderView.wantsLayer = true
         if let layer = borderView.layer {
-            layer.cornerRadius = 12
+            layer.cornerRadius = isTahoe ? 20 : windowCornerRadius
             if #available(macOS 10.15, *) { layer.cornerCurve = .continuous }
             layer.borderWidth = 5.5
             layer.borderColor = NSColor.systemBlue.withAlphaComponent(0.88).cgColor

@@ -35,6 +35,13 @@ protocol PlaceholderManagerDelegate: AnyObject {
     func placeholderButtonMode(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode
 }
 
+/// Whether we're running on macOS Tahoe (26+) which uses larger window corners.
+let isTahoe = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+
+/// Window corner radius matching the current macOS version.
+/// macOS Tahoe (26+) uses 24pt; earlier versions use 12pt.
+let windowCornerRadius: CGFloat = isTahoe ? 24 : 12
+
 /// Creates and manages the UI for placeholder windows.
 /// Placeholders are visual representations of empty tiling zones.
 final class PlaceholderManager {
@@ -170,7 +177,7 @@ final class PlaceholderManager {
 
     private func applyPanelGlassStyle(to layer: CALayer) {
         layer.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.24).cgColor
-        layer.cornerRadius = 12
+        layer.cornerRadius = windowCornerRadius
         layer.borderWidth = 1.5
         layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
         layer.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
@@ -407,7 +414,7 @@ final class PlaceholderContentView: NSView {
     override func layout() {
         super.layout()
         if let layer = layer {
-            layer.cornerRadius = 12
+            layer.cornerRadius = windowCornerRadius
             updateBorderAppearance()
         }
         updateSearchPillLayout()
