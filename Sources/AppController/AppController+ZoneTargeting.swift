@@ -201,6 +201,23 @@ extension AppController {
             return false
         }
 
+        // Ctrl+Cmd-click on the Add Zone pill should behave like a regular left-click.
+        for (screenId, hitArea) in addIndicatorTracker.hitAreas {
+            if hitArea.contains(location) {
+                addZoneIndicatorManager(addZoneIndicatorManager, didClickIndicatorFor: screenId)
+                return true
+            }
+        }
+
+        // Ctrl+Cmd-click on the Temporary Zone indicator should behave like a regular left-click.
+        for (screenId, hitArea) in temporaryIndicatorTracker.hitAreas {
+            if hitArea.contains(location) {
+                let wasAlreadyTargeted = targetedTemporaryScreenId == screenId
+                temporaryZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: wasAlreadyTargeted, isDoubleClick: false)
+                return true
+            }
+        }
+
         guard let key = zoneKey(containingScreenPoint: location) else {
             return false
         }
