@@ -10,11 +10,21 @@ Beyond the self-evident paths (app termination removes all windows for that PID;
 
 ## Temporary Zone Protection Windows
 
-When a window is placed in the temporary zone, it receives a 0.7-second protection window during which focus-shift events will not minimize it. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the temporary zone occupant is reactivated to maintain the invariant that it remains the active window. This prevents a newly placed window from being immediately dismissed.
+When a window is placed in the temporary zone, it receives a 0.7-second protection window during which focus/front-most changes will not trigger occlusion-based temporary-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the temporary-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
 
 The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
 For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles.
+
+## Occlusion-Based Temporary Zone Minimization
+
+When a managed window assigned to a tiling zone, or a placeholder window, becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is *occluded* by something. If it is occluded, minimize the temporary window; otherwise leave it unminimized.
+
+Implementation notes:
+
+- Determine which windows are “in front” via `CGWindowListCopyWindowInfo` ordering (on-screen windows), using `CGWindowID` for stable identity.
+- Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
+- Define occlusion as: at least one in-front tiling-zone window’s bounds intersect the temporary window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives.
 
 ## Debounced Temporary Zone Minimization
 

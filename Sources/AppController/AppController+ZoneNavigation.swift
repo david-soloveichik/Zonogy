@@ -1,6 +1,5 @@
 import Foundation
 import AppKit
-import ApplicationServices
 
 /// Zone navigation: keyboard shortcuts and cursor-based zone operations.
 extension AppController {
@@ -212,14 +211,13 @@ extension AppController {
 
         // Multiple tiled candidates (e.g., ActiveFit overlap): use CG API to find topmost.
         let candidateCGIds = Set(candidates.map { $0.2 })
-        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        guard let windowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
             let (managed, pid, _) = candidates[0]
             return (managed, pid)
         }
 
-        for windowInfo in windowList {
-            guard let cgWindowId = windowInfo[kCGWindowNumber as String] as? Int,
-                  candidateCGIds.contains(cgWindowId),
+        for cgWindowId in windowNumbers {
+            guard candidateCGIds.contains(cgWindowId),
                   let match = candidates.first(where: { $0.2 == cgWindowId }) else {
                 continue
             }

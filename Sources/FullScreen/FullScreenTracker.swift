@@ -77,22 +77,11 @@ final class FullScreenTracker {
     ///   - `false` when the window is known to be off-screen/minimized or no longer exists
     ///   - `nil` when it cannot be determined (API failure or missing keys)
     private static func isWindowOnScreen(cgWindowId: CGWindowID) -> Bool? {
-        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        guard let windowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
             return nil
         }
 
-        for windowInfo in windowList {
-            if let windowNumber = windowInfo[kCGWindowNumber as String] as? Int,
-               CGWindowID(windowNumber) == cgWindowId {
-                return true
-            }
-            if let windowNumber = windowInfo[kCGWindowNumber as String] as? NSNumber,
-               CGWindowID(windowNumber.intValue) == cgWindowId {
-                return true
-            }
-        }
-
-        return false
+        return windowNumbers.contains(Int(cgWindowId))
     }
 
     /// Handle a window entering or exiting full-screen mode.

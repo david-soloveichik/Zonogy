@@ -166,7 +166,9 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 
 ### Temporary Zone Behavior
 
-Each screen has exactly one temporary zone for floating a single managed window over the tiled layout. When placed into the temporary zone, a window is centered and resized once. After that, the user may freely move/resize it without affecting tiled frames. Placing another window into the temporary zone minimizes the previous occupant. The temporary zone occupant is minimized when another managed window on the same screen becomes active/front-most. Temporary zones on other screens are unaffected.
+Each screen has exactly one temporary zone for floating a single managed window over the tiled layout. When placed into the temporary zone, a window is centered and resized once. After that, the user may freely move/resize it without affecting tiled frames. Placing another window into the temporary zone minimizes the previous occupant.
+
+**Occlusion-based minimization:** The temporary zone occupant is minimized when it becomes *occluded* by a managed tiling-zone window or a placeholder window (on the same screen). Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
 
 **Temporary recall (per screen):** Zonogy remembers the most recent window that occupied each screen’s temporary zone, along with that window’s most recent temporary-zone frame (position and size). When that screen’s temporary zone is empty and the user single-clicks its temporary zone indicator, Zonogy targets that temporary zone and (if the remembered window still exists and is currently minimized / not visible elsewhere) unminimizes it into the temporary zone and restores its saved frame.
 

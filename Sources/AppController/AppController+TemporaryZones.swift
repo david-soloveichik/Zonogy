@@ -3,6 +3,21 @@ import AppKit
 
 /// AppController extension for temporary zone assignment and management.
 extension AppController {
+    func placeholderOccluders(on screenId: CGDirectDisplayID) -> [OcclusionWindow] {
+        guard let context = screenContexts[screenId] else {
+            return []
+        }
+
+        let descriptor = context.descriptor
+        return placeholderCoordinator.placeholders(on: screenId).compactMap { placeholder in
+            guard let zone = context.zoneController.zone(at: placeholder.zoneIndex) else {
+                return nil
+            }
+            let frame = descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
+            return OcclusionWindow(cgWindowId: placeholder.cgWindowId, frame: frame)
+        }
+    }
+
     func temporaryZoneOccupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
         temporaryZoneCoordinator.occupant(on: screenId)
     }
@@ -108,13 +123,6 @@ extension AppController {
         }
     }
 
-    func minimizeTemporaryZoneOccupant(on screenId: CGDirectDisplayID, reason: String) {
-        if let occupant = temporaryZoneOccupant(on: screenId) {
-            clearTemporaryZoneProtection(windowId: occupant.windowId)
-        }
-        temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: reason)
-    }
-
     func clearTemporaryZone(for windowId: Int, minimize: Bool, reason: String) {
         temporaryZoneCoordinator.clear(windowId: windowId, minimize: minimize, reason: reason)
         clearTemporaryZoneProtection(windowId: windowId)
@@ -155,7 +163,10 @@ extension AppController {
         tiledToTemporaryDragContexts.removeValue(forKey: windowId)
     }
 
-    func emptyTemporaryZoneForNewTiledPlacement(on screenId: CGDirectDisplayID, excluding windowId: Int, reason: String) {
+    /// Requests occlusion-based minimization of the temporary-zone occupant on `screenId`
+    /// after a window was placed into a tiling zone on that screen.
+    /// This does not guarantee the temporary zone is emptied.
+    func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on screenId: CGDirectDisplayID, excluding windowId: Int, reason: String) {
         guard let occupant = temporaryZoneOccupant(on: screenId) else {
             return
         }
@@ -168,7 +179,7 @@ extension AppController {
             extendTemporaryZoneProtection(windowId: occupant.windowId)
             return
         }
-        minimizeTemporaryZoneOccupant(on: screenId, reason: reason)
+        queueDeferredMinimization(windowId: occupant.windowId, reason: "occlusion-check-\(reason)")
     }
 
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String) {

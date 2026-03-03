@@ -162,6 +162,13 @@ final class PlaceholderCoordinator {
         activePlaceholders[key]?.flashBorder()
     }
 
+    /// Returns the active placeholder windows on the given screen.
+    func placeholders(on screenId: CGDirectDisplayID) -> [PlaceholderWindow] {
+        activePlaceholders.compactMap { key, placeholder in
+            key.screenId == screenId ? placeholder : nil
+        }
+    }
+
     /// Close and remove all placeholders for a specific screen.
     /// Used when zones are reorganized (added/removed) to prevent stale mappings.
     func clearPlaceholdersForScreen(_ screenId: CGDirectDisplayID) {

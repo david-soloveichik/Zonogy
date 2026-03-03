@@ -7,6 +7,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     var targetingMode: TargetingMode { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenContextStore: ScreenContextStore { get }
+    func placeholderOccluders(on screenId: CGDirectDisplayID) -> [OcclusionWindow]
     var windowPlacementManager: WindowPlacementManager { get }
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
     func queueDeferredMinimization(windowId: Int, reason: String)
@@ -272,13 +273,20 @@ final class TemporaryZoneCoordinator {
     func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
         guard let host else { return false }
 
-        guard isFocusDrivenTemporaryMinimizationReason(reason) else {
+        guard isOcclusionBasedTemporaryMinimizationReason(reason) else {
             return true
         }
 
         guard let screenId = occupants.first(where: { $0.value == windowId })?.key else {
             Logger.debug(
                 "Temporary zone deferred minimization skipped for window \(windowId): no longer temporary occupant (reason: \(reason))"
+            )
+            return false
+        }
+
+        guard isTemporaryZoneOccupantOccluded(on: screenId, occupantWindowId: windowId) else {
+            Logger.debug(
+                "Temporary zone deferred minimization skipped for window \(windowId): not occluded (reason: \(reason))"
             )
             return false
         }
@@ -483,8 +491,11 @@ final class TemporaryZoneCoordinator {
         )
     }
 
-    private func isFocusDrivenTemporaryMinimizationReason(_ reason: String) -> Bool {
-        return reason.hasPrefix("focus-shift-") || reason == "workspace-activate"
+    private func isOcclusionBasedTemporaryMinimizationReason(_ reason: String) -> Bool {
+        reason.hasPrefix("focus-shift-") ||
+            reason == "workspace-activate" ||
+            reason.hasPrefix("placeholder-") ||
+            reason.hasPrefix("occlusion-check-")
     }
 
     private func updateMostRecentOccupantSnapshot(
@@ -507,6 +518,48 @@ final class TemporaryZoneCoordinator {
         Logger.debug(
             "Temporary zone recorded most recent occupant for screen \(host.screenContextStore.loggingIndex(for: screenId)): " +
                 "window \(windowId), frame \(screenFrame.map(String.init(describing:)) ?? "nil") (reason: \(reason))"
+        )
+    }
+
+    private func isTemporaryZoneOccupantOccluded(on screenId: CGDirectDisplayID, occupantWindowId: Int) -> Bool {
+        guard let host,
+              let occupant = host.windowController.window(withId: occupantWindowId),
+              let occupantFrame = host.windowController.actualFrameInAccessibilityCoordinates(for: occupant),
+              let context = host.screenContexts[screenId] else {
+            return false
+        }
+
+        var occluders: [OcclusionWindow] = []
+        occluders.reserveCapacity(context.zoneController.allZones.count + 4)
+
+        // Occupied tiling-zone managed windows.
+        for zone in context.zoneController.allZones {
+            guard let windowId = zone.occupantWindowId,
+                  windowId != occupantWindowId,
+                  let managed = host.windowController.window(withId: windowId),
+                  let frame = host.windowController.actualFrameInAccessibilityCoordinates(for: managed) else {
+                continue
+            }
+            occluders.append(OcclusionWindow(cgWindowId: managed.backing.cgWindowId, frame: frame))
+        }
+
+        // Empty-zone placeholders.
+        occluders.append(contentsOf: host.placeholderOccluders(on: screenId))
+
+        // Fast path: if nothing even overlaps geometrically, occlusion is impossible.
+        guard occluders.contains(where: { !$0.frame.intersection(occupantFrame).isNull }) else {
+            return false
+        }
+
+        guard let zOrder = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
+            return false
+        }
+
+        let target = OcclusionWindow(cgWindowId: occupant.backing.cgWindowId, frame: occupantFrame)
+        return WindowOcclusionPolicy.isOccluded(
+            target: target,
+            occluders: occluders,
+            zOrderFrontToBack: zOrder
         )
     }
 

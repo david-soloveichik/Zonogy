@@ -37,7 +37,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     )
     func cancelPendingMinimization(windowId: Int)
     func queueDeferredMinimization(windowId: Int, reason: String)
-    func emptyTemporaryZoneForNewTiledPlacement(
+    func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(
         on screenId: CGDirectDisplayID,
         excluding windowId: Int,
         reason: String
@@ -102,7 +102,7 @@ class WindowPlacementManager {
             )
             managed.zoneIndex = nil
             placeWindow(managed, on: preferredScreenId, reason: baseReason)
-            emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             if requestSync {
                 delegate.requestSync()
             }
@@ -143,7 +143,7 @@ class WindowPlacementManager {
             )
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen, reason: baseReason)
-            emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             if requestSync {
                 delegate.requestSync()
             }
@@ -383,7 +383,7 @@ class WindowPlacementManager {
 
         // If placed into a tiled zone, ensure any temporary occupant on that screen is minimized per policy.
         if managed.zoneIndex != nil {
-            emptyTemporaryZoneAfterPlacementIfNeeded(managed, reason: reason)
+            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: reason)
         }
     }
 
@@ -559,12 +559,12 @@ class WindowPlacementManager {
         )
     }
 
-    private func emptyTemporaryZoneAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {
+    private func queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {
         guard let delegate = delegate,
               managed.zoneIndex != nil,
               let screenId = managed.screenDisplayId else {
             return
         }
-        delegate.emptyTemporaryZoneForNewTiledPlacement(on: screenId, excluding: managed.windowId, reason: reason)
+        delegate.queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on: screenId, excluding: managed.windowId, reason: reason)
     }
 }

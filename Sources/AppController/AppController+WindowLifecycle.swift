@@ -230,7 +230,9 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
-        minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-activated")
+        if let occupant = temporaryZoneOccupant(on: screenId) {
+            queueDeferredMinimization(windowId: occupant.windowId, reason: "placeholder-activated")
+        }
         let key = zoneKey(for: screenId, index: zoneIndex)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
         flashTargetFeedback(for: key)
@@ -247,7 +249,9 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder search pill clicked for zone \(zoneIndex) on screen \(screenIndex)")
 
-        minimizeTemporaryZoneOccupant(on: screenId, reason: "placeholder-search-pill")
+        if let occupant = temporaryZoneOccupant(on: screenId) {
+            queueDeferredMinimization(windowId: occupant.windowId, reason: "placeholder-search-pill")
+        }
         let key = zoneKey(for: screenId, index: zoneIndex)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-search-pill")
 

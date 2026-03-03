@@ -24,6 +24,11 @@ final class PlaceholderWindow {
         self.zoneIndex = zoneIndex
     }
 
+    /// CoreGraphics window number (CGWindowID) for z-order comparisons.
+    var cgWindowId: Int {
+        panel.windowNumber
+    }
+
     /// Show the placeholder at the given frame (in screen coordinates).
     func show(at screenFrame: CGRect, on screen: ScreenDescriptor) {
         screenDisplayId = screen.displayId
