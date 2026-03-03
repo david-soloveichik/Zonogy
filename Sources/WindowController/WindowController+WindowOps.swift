@@ -97,6 +97,33 @@ extension WindowController {
         }
     }
 
+    /// Pre-position a window's frame while it is minimized so the subsequent unminimize animation
+    /// appears to "restore" into the intended location.
+    ///
+    /// - Parameter screenFrame: Frame in screen-local coordinates for `screen`.
+    func prePositionWindowWhileMinimized(
+        _ managedWindow: ManagedWindow,
+        to screenFrame: CGRect,
+        on screen: ScreenDescriptor,
+        reason: String
+    ) {
+        let element = managedWindow.backing.element
+        let targetAXFrame = screen.screenToAccessibility(screenFrame)
+        performProgrammaticUpdate(for: managedWindow.windowId) {
+            _ = setAccessibilityPoint(
+                element: element,
+                attribute: kAXPositionAttribute as CFString,
+                point: targetAXFrame.origin
+            )
+            _ = setAccessibilitySize(element: element, size: targetAXFrame.size)
+        }
+        let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
+        Logger.debug(
+            "Pre-positioned minimized window \(managedWindow.windowId) on screen \(screenIndex) " +
+                "to \(screenFrame) (reason: \(reason))"
+        )
+    }
+
     /// Close a window
     func closeWindow(_ managedWindow: ManagedWindow) {
         removeAccessibilityTracking(for: managedWindow)

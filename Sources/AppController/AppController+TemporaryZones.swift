@@ -191,4 +191,59 @@ extension AppController {
             }
         )
     }
+
+    /// If the temporary zone is empty on `screenId`, attempt to restore the most recent temporary-zone
+    /// occupant for that same screen (if it still exists and is currently minimized).
+    ///
+    /// Returns true if a window was restored.
+    @discardableResult
+    func attemptTemporaryZoneRecall(on screenId: CGDirectDisplayID, reason: String) -> Bool {
+        // Only recall into an empty temporary zone.
+        guard temporaryZoneOccupant(on: screenId) == nil else {
+            return false
+        }
+
+        guard let snapshot = temporaryZoneCoordinator.mostRecentOccupantSnapshot(on: screenId) else {
+            return false
+        }
+
+        guard let managed = windowController.window(withId: snapshot.windowId) else {
+            temporaryZoneCoordinator.clearMostRecentOccupantSnapshot(on: screenId)
+            return false
+        }
+
+        // Spec: if the window is open elsewhere (unminimized), do not pull it back into this temp zone.
+        guard managed.isMinimizedPerAccessibility else {
+            return false
+        }
+
+        guard let descriptor = descriptor(for: screenId) else {
+            return false
+        }
+
+        guard let targetFrame = snapshot.screenFrame
+            ?? temporaryZoneCoordinator.computePlacementFrame(for: managed, on: screenId),
+              targetFrame.width > 0,
+              targetFrame.height > 0 else {
+            return false
+        }
+
+        // Pre-position while minimized so the unminimize animation "restores" into place.
+        windowController.prePositionWindowWhileMinimized(
+            managed,
+            to: targetFrame,
+            on: descriptor,
+            reason: reason
+        )
+
+        // Prevent our own deminiaturize handler from running normal placement logic.
+        suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: reason)
+
+        // Unminimize and place back into the temporary zone without re-centering/resizing.
+        windowController.unminimizeWindow(managed, synchronous: true, raise: false)
+        removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: false, logIfUnassigned: false)
+        assignWindowToTemporaryZone(managed, on: screenId, centerWindow: false, reason: reason)
+
+        return true
+    }
 }
