@@ -165,6 +165,48 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             )
         }
 
+        // Temporary-zone floating window hides separator on overlap.
+        do {
+            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+                avoidFrame: CGRect(x: 40, y: 0, width: 30, height: 200)
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                frontmostManagedContext: nil,
+                temporaryZoneContext: tempCtx
+            )
+            assertEqual(adjusted, nil, label: "temp zone hides overlapping vertical separator")
+        }
+
+        // Temporary-zone floating window does not hide non-overlapping separator.
+        do {
+            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+                avoidFrame: CGRect(x: 70, y: 0, width: 30, height: 200)
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                frontmostManagedContext: nil,
+                temporaryZoneContext: tempCtx
+            )
+            assertEqual(adjusted, vertical.frame, label: "temp zone leaves non-overlapping separator")
+        }
+
+        // Temporary-zone hides horizontal separator on overlap.
+        do {
+            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+                avoidFrame: CGRect(x: 0, y: 40, width: 200, height: 30)
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                horizontal,
+                activeFitContext: nil,
+                frontmostManagedContext: nil,
+                temporaryZoneContext: tempCtx
+            )
+            assertEqual(adjusted, nil, label: "temp zone hides overlapping horizontal separator")
+        }
+
         if allPassed {
             print("ZoneResizeHandleVisibilityPolicyTests: all tests passed")
         }

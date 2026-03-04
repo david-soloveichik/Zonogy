@@ -256,18 +256,27 @@ extension AppController {
             if isScreenPausedForFullScreen(screenId) {
                 continue
             }
-            // When a screen's temporary zone holds a floating window,
-            // hide all resize handles on that screen so they don't
-            // overlap the temporary-zone UI.
-            if temporaryZoneOccupant(on: screenId) != nil {
-                continue
-            }
-
             // When an unmanaged window has focus on this screen,
             // hide all resize handles on that screen to avoid overlapping it.
             if unmanagedFocusedWindowScreenId == screenId {
                 continue
             }
+
+            // When the temporary zone is occupied, hide only the bars that
+            // the floating window actually overlaps (not all bars on the screen).
+            // During a resize drag the dragged bar stays visible.
+            let temporaryZoneContext: ZoneResizeHandleTemporaryZoneContext? = {
+                guard !zoneResizeDragInProgress,
+                      let occupant = temporaryZoneOccupant(on: screenId) else {
+                    return nil
+                }
+                let frame = windowController.actualFrameInScreenCoordinates(for: occupant, on: context.descriptor)
+                let avoidFrame = ZoneResizeHandleGeometry.insetAvoidanceFrame(
+                    frame,
+                    by: windowOverlapAllowance
+                )
+                return ZoneResizeHandleTemporaryZoneContext(avoidFrame: avoidFrame)
+            }()
 
             let frontmostManagedWindowOnScreen = frontmostManagedWindow?.zoneKey.screenId == screenId ? frontmostManagedWindow : nil
             let activeFitContext: ZoneResizeHandleAvoidanceContext? = {
@@ -302,7 +311,8 @@ extension AppController {
                 guard let frame = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                     sep,
                     activeFitContext: activeFitContext,
-                    frontmostManagedContext: frontmostManagedContext
+                    frontmostManagedContext: frontmostManagedContext,
+                    temporaryZoneContext: temporaryZoneContext
                 ) else {
                     continue
                 }

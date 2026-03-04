@@ -186,7 +186,7 @@ If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize 
 
 If the front-most managed window on a screen would overlap a zone resize bar, the bars adapt so they do not interfere with that active window: the vertical bar between zone 1 and zones 2/3 is hidden whenever it would intersect a front-most zone‑1 window, and the horizontal bar between zones 2 and 3 is shortened (or hidden if fully covered) so it stays outside the front‑most window (zone 1/2/3). Ignore small overlaps (e.g., window shadows) when computing these intersections. Recompute these bar adjustments immediately when the active/front‑most window changes (including app activation) and after a resize drag completes.
 
-When the temporary zone is occupied on a screen, hide all zone resize bars on that screen to avoid overlapping the temporary window.
+When the temporary zone is occupied on a screen, hide the zone resize bars that the temporary zone window would overlap. Bars that do not intersect the temporary window remain visible. (During an active resize drag, the dragged bar is never hidden by this rule.)
 
 When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.
 For this rule, and Launcher auto-show suppression, unmanaged focus must be confirmed (with retries) as described in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).

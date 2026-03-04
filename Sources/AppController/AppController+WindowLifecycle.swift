@@ -544,6 +544,7 @@ extension AppController {
         if temporaryDragHandler.isActive {
             temporaryDragHandler.endDrag(finalFrame: finalFrame)
             activeFitResumeAfterDrag(windowId: windowId)
+            refreshResizeHandles()
             return
         }
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
