@@ -80,8 +80,10 @@ extension AppController {
         // Get temporary zone occupant for this screen
         let tempOccupant = temporaryZoneCoordinator.occupant(on: screenId)
 
-        // Determine active window ID
-        let activeWindowId = resolveActiveWindowId(on: screenId)
+        // Determine active window ID.
+        // When a temporary zone occupant exists, always mark it as the active window so that
+        // restoration brings it to the front (temp zone floats above the tiled layout).
+        let activeWindowId = tempOccupant?.windowId ?? resolveActiveWindowId(on: screenId)
 
         let snapshot = winShotManager.createSnapshot(
             screenId: screenId,
@@ -247,25 +249,28 @@ extension AppController {
         let restoredActiveWindowId = snapshot.activeWindowId
         let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
-        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize tiled zone windows FIRST.
-        // Unminimizing first makes the UI feel faster since users see new windows immediately.
-        // Suppress deminiaturize notifications to prevent re-placement loops.
+        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize ALL windows (tiled + temporary)
+        // in parallel. Unminimizing first makes the UI feel faster since users see new windows
+        // immediately. Suppress deminiaturize notifications to prevent re-placement loops.
         let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
-        if !minimizedZoneWindowIds.isEmpty {
-            suppressNextEvents(for: minimizedZoneWindowIds, events: [.deminiaturized], reason: "winshot-restore")
+        var allMinimizedWindowIds = minimizedZoneWindowIds
+        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
+            allMinimizedWindowIds.append(tempItem.managed.windowId)
+        }
+        if !allMinimizedWindowIds.isEmpty {
+            suppressNextEvents(for: allMinimizedWindowIds, events: [.deminiaturized], reason: "winshot-restore")
         }
 
-        // Set up pending re-raise: when each unminimized window's deminiaturize notification
+        // Set up pending re-raise: when each non-active window's deminiaturize notification
         // arrives (suppressed), re-raise the active window so it stays in front.
-        // Skip if the active window is in the temporary zone (has its own activation workaround).
-        if !minimizedZoneWindowIds.isEmpty,
+        let nonActiveMinimizedIds = allMinimizedWindowIds.filter { $0 != restoredActiveWindowId }
+        if !nonActiveMinimizedIds.isEmpty,
            let activeId = restoredActiveWindowId,
-           temporaryWorkItem?.managed.windowId != activeId,
            let activeWindow = windowController.window(withId: activeId) {
             pendingRestoreRaise = PendingRestoreRaise(
                 element: activeWindow.backing.element,
                 pid: activeWindow.backing.pid,
-                pendingWindowIds: Set(minimizedZoneWindowIds)
+                pendingWindowIds: Set(nonActiveMinimizedIds)
             )
         }
 
@@ -273,6 +278,15 @@ extension AppController {
             prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
             let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
             windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
+        }
+
+        // Unminimize temporary zone window in parallel with tiled windows
+        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
+            if let targetFrame = tempItem.targetFrame {
+                prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+            }
+            let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
+            windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
         }
 
         // Step 6b: ActiveFit coordination.
@@ -327,19 +341,9 @@ extension AppController {
         syncWindowsToZones()
         refreshIndicators()
 
-        // Step 11: TEMPORARY ZONE RESTORATION - Restore last so it ends up on top and active
+        // Step 11: TEMPORARY ZONE ASSIGNMENT - Assign and position the temp zone window.
+        // Unminimization already happened in Step 6 (parallel with tiled windows).
         if let tempItem = temporaryWorkItem {
-            // Unminimize if needed
-            if tempItem.wasMinimized {
-                suppressNextEvents(for: [tempItem.managed.windowId], events: [.deminiaturized], reason: "winshot-restore")
-                if let targetFrame = tempItem.targetFrame {
-                    prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
-                }
-                let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
-                windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
-            }
-
-            // Assign to temporary zone (only center if no stored frame)
             let hasStoredFrame = tempItem.targetFrame != nil
             assignWindowToTemporaryZone(
                 tempItem.managed,
@@ -348,7 +352,6 @@ extension AppController {
                 reason: "winshot-restore"
             )
 
-            // Position to stored frame
             if let targetFrame = tempItem.targetFrame {
                 windowController.moveWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
             }

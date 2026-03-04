@@ -37,10 +37,25 @@ extension AppController {
         // WinShot: capture the pre-clear state before applying bulk clear/reset changes.
         autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
 
-        // Also empty the temporary zone on the selected screen
-        temporaryZoneCoordinator.minimizeOccupant(on: screenId, reason: "clear-zones-shortcut")
+        // Clear the temporary zone occupant (bookkeeping only, minimize batched below).
+        let tempOccupant = temporaryZoneCoordinator.occupant(on: screenId)
+        if let tempOccupant {
+            temporaryZoneCoordinator.clear(windowId: tempOccupant.windowId, minimize: false, reason: "clear-zones-shortcut")
+        }
 
         if allEmpty {
+            // Minimize temp zone occupant if any
+            if let tempOccupant {
+                minimizeWindowProgrammatically(tempOccupant, reason: "clear-zones-shortcut")
+                scheduleMinimizeVerification(
+                    windowId: tempOccupant.windowId,
+                    emptiedZoneKey: nil,
+                    minimizeReason: "clear-zones-shortcut",
+                    cleanupReason: "clear-zones-shortcut",
+                    wasManualResizeDetached: false
+                )
+            }
+
             Logger.debug("Clear/reset zones (\(reason)): all zones empty on screen \(screenIndex), resetting to 1 zone")
             let removedWindowIds = context.zoneController.setZoneCount(to: 1)
 
@@ -56,22 +71,38 @@ extension AppController {
             activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
-            var minimizedWindowIds: [Int] = []
 
+            // Collect all windows to minimize (temp zone + tiled zones)
+            var windowsToMinimize: [ManagedWindow] = []
+            if let tempOccupant {
+                windowsToMinimize.append(tempOccupant)
+            }
             for zone in zones {
                 if let windowId = zone.occupantWindowId,
                    let managed = windowController.window(withId: windowId) {
-                    minimizeWindowProgrammatically(managed, reason: "clear-zones-shortcut")
-                    removeWindowFromAllZones(windowId: windowId, reason: "clear-zones-shortcut", retarget: false)
-                    minimizedWindowIds.append(windowId)
+                    windowsToMinimize.append(managed)
                 }
+            }
+
+            // Suppress all miniaturize events at once, then minimize all in parallel
+            let minimizedWindowIds = windowsToMinimize.map { $0.windowId }
+            if !minimizedWindowIds.isEmpty {
+                suppressNextEvents(for: minimizedWindowIds, events: [.miniaturized], reason: "clear-zones-shortcut")
+            }
+            for managed in windowsToMinimize {
+                windowController.minimizeWindow(managed)
+            }
+
+            // Remove from zones after all minimizes are issued
+            for managed in windowsToMinimize {
+                removeWindowFromAllZones(windowId: managed.windowId, reason: "clear-zones-shortcut", retarget: false)
             }
 
             Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
             syncWindowsToZones()
 
-            // Verify minimization actually took effect. Verify minimization took effect. Some apps like Word seem to sometimes auto-activate
-            // sibling windows when one is minimized, which can cancel a rapid-fire minimize.
+            // Verify minimization actually took effect. Some apps like Word seem to sometimes
+            // auto-activate sibling windows when one is minimized, which can cancel a rapid-fire minimize.
             for windowId in minimizedWindowIds {
                 scheduleMinimizeVerification(
                     windowId: windowId,
