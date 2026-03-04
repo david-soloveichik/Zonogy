@@ -39,7 +39,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     func queueDeferredMinimization(windowId: Int, reason: String)
     func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(
         on screenId: CGDirectDisplayID,
-        excluding windowId: Int,
+        excluding windowId: Int?,
         reason: String
     )
 

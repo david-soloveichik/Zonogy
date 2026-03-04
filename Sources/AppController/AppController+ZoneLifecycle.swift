@@ -156,6 +156,8 @@ extension AppController {
         // background writes cannot overwrite the corrected final frames.
         windowController.drainLiveResizeQueue()
         syncWindowsToZones()
+        // Tiling windows may now occlude the temporary-zone window after the resize.
+        queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on: screenId, reason: "zone-resize-end")
     }
 
     // MARK: - Event suppression helpers

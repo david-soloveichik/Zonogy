@@ -179,11 +179,11 @@ extension AppController {
     /// Requests occlusion-based minimization of the temporary-zone occupant on `screenId`
     /// after a window was placed into a tiling zone on that screen.
     /// This does not guarantee the temporary zone is emptied.
-    func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on screenId: CGDirectDisplayID, excluding windowId: Int, reason: String) {
+    func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on screenId: CGDirectDisplayID, excluding windowId: Int? = nil, reason: String) {
         guard let occupant = temporaryZoneOccupant(on: screenId) else {
             return
         }
-        guard occupant.windowId != windowId else {
+        if let windowId, occupant.windowId == windowId {
             return
         }
         if shouldProtectTemporaryZoneOccupant(windowId: occupant.windowId) {

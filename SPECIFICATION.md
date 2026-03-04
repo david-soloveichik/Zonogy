@@ -195,7 +195,7 @@ For this rule, and Launcher auto-show suppression, unmanaged focus must be confi
 
 If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
 
-While the user is dragging a zone resize bar, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump.
+While the user is dragging a zone resize bar, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump. After the drag completes, run the standard occlusion check for the temporary-zone occupant on that screen (tiling windows may now occlude it).
 
 ### Repositioning and Resizing Window to Zone
 
