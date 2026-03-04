@@ -46,6 +46,9 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // UnderCovers coordination
     func willPlaceWindowIntoZone(on screenId: CGDirectDisplayID, zoneIndex: Int)
 
+    // Placement bookkeeping
+    func markWindowForNextSyncGeometrySkip(windowId: Int)
+
     // Synchronization
     func requestSync()
 }
@@ -462,6 +465,9 @@ class WindowPlacementManager {
         controller.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
         delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
+        // The assignment path already applied geometry; let the next full sync skip
+        // one immediate reapply for this window to avoid redundant AX writes.
+        delegate.markWindowForNextSyncGeometrySkip(windowId: managed.windowId)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
         if delegate.targetingMode == .independentOfFocus,

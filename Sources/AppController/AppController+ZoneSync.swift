@@ -38,23 +38,32 @@ extension AppController {
     ///    remove them from any zones that still reference them.
     /// 3. Reconcile zone occupancy so no zone references a missing managed window.
     /// 4. For every screen/zone, position the real window (if any) into its
-    ///    zone frame (respecting margins and ActiveFit reveal mode), and
-    ///    record which windows were actively assigned this pass.
+    ///    zone frame (respecting margins and ActiveFit reveal mode), except
+    ///    windows marked by placement bookkeeping for a one-pass geometry
+    ///    skip, and record which windows were actively assigned this pass.
     /// 5. Ask `PlaceholderCoordinator` to align placeholder windows with all
     ///    empty zones (except those that are suppressed or excluded), reusing
     ///    or creating placeholder windows as needed and hiding obsolete ones.
     /// 6. Clear stale zone assignments for any non‑placeholder window that was
     ///    not assigned this pass and is not in the temporary floating zone.
-    /// 7. Refresh targeted zone state, temporary‑zone targeting, and visual
+    /// 7. Promote temporary-zone occupants into newly emptied tiling zones
+    ///    when policy conditions are met.
+    /// 8. Refresh targeted zone state, temporary‑zone targeting, and visual
     ///    indicators so the UI matches the new layout.
     internal func syncWindowsToZones(recentlyPlacedInTempZone: Int? = nil) {
-        runZoneSync(mode: .full, recentlyPlacedInTempZone: recentlyPlacedInTempZone)
+        runZoneSync(
+            mode: .full,
+            recentlyPlacedInTempZone: recentlyPlacedInTempZone,
+        )
     }
 
     /// Fast sync path for live zone-resize dragging.
     /// Assumes occupancy/topology are stable and focuses on applying updated geometry.
     internal func syncWindowsToZonesForLiveResize(screenId: CGDirectDisplayID) {
-        runZoneSync(mode: .liveResize(screenId: screenId), recentlyPlacedInTempZone: nil)
+        runZoneSync(
+            mode: .liveResize(screenId: screenId),
+            recentlyPlacedInTempZone: nil,
+        )
     }
 
     private func nextCoalescedZoneSyncMode(pendingTempZoneExclusion: Int?) -> ZoneSyncMode {
@@ -80,6 +89,17 @@ extension AppController {
                 pendingSyncRecentlyPlacedInTempZone = recentlyPlacedInTempZone
             }
             return
+        }
+        // One-pass geometry-skip marks are only relevant for full syncs.
+        // Consume the set up front so each marked window is skipped at most once.
+        let skipGeometryWindowIds: Set<Int>
+        if isLiveResizeSync {
+            skipGeometryWindowIds = []
+        } else {
+            pendingSyncSkipGeometryCleanupWorkItem?.cancel()
+            pendingSyncSkipGeometryCleanupWorkItem = nil
+            skipGeometryWindowIds = pendingSyncSkipGeometryWindowIds
+            pendingSyncSkipGeometryWindowIds.removeAll()
         }
         isSyncingWindows = true
         defer {
@@ -183,6 +203,18 @@ extension AppController {
                 if let windowId = zone.occupantWindowId,
                    let managed = windowController.window(withId: windowId) {
                     let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
+                    if !isLiveResizeSync,
+                       skipGeometryWindowIds.contains(windowId) {
+                        Logger.debug(
+                            "Sync skipping geometry apply for window \(windowId) in zone \(zone.index) " +
+                                "on \(context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: screenId))] " +
+                                "due to recent placement bookkeeping"
+                        )
+                        manualResizeDetachedWindowIds.remove(windowId)
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
                     if activeFitShouldSkipSync(for: zoneKey, windowId: windowId) {
                         // For ActiveFit reveal mode, keep the window in its
                         // current reveal frame but still treat it as assigned
@@ -358,6 +390,27 @@ extension AppController {
 
     func requestSync() {
         syncWindowsToZones()
+    }
+
+    func markWindowForNextSyncGeometrySkip(windowId: Int) {
+        pendingSyncSkipGeometryWindowIds.insert(windowId)
+        schedulePendingSyncGeometrySkipCleanupIfNeeded()
+    }
+
+    /// Geometry-skip marks are intended for the placement operation's immediate follow-up sync.
+    /// If no such sync runs before the next runloop turn, clear the marks to avoid
+    /// unrelated later syncs accidentally consuming stale skip state.
+    private func schedulePendingSyncGeometrySkipCleanupIfNeeded() {
+        guard pendingSyncSkipGeometryCleanupWorkItem == nil else {
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingSyncSkipGeometryCleanupWorkItem = nil
+            self.pendingSyncSkipGeometryWindowIds.removeAll()
+        }
+        pendingSyncSkipGeometryCleanupWorkItem = workItem
+        DispatchQueue.main.async(execute: workItem)
     }
 
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {

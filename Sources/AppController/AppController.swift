@@ -54,6 +54,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isSyncingWindows = false
     internal var pendingSync = false
     internal var pendingSyncRecentlyPlacedInTempZone: Int?
+    /// Window IDs whose geometry reapply should be skipped for an immediate full sync pass.
+    internal var pendingSyncSkipGeometryWindowIds: Set<Int> = []
+    /// Next-runloop cleanup for unconsumed sync geometry-skip marks.
+    internal var pendingSyncSkipGeometryCleanupWorkItem: DispatchWorkItem?
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
     internal var liveResizingZoneKey: ZoneKey?

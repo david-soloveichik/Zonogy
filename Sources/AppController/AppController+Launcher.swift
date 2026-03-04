@@ -439,6 +439,8 @@ extension AppController: LauncherControllerDelegate {
         if !didActivateInPlacement {
             activateWindow(managed)
         }
+        // Placement already applied the target frame; sync will consume placement
+        // bookkeeping and skip one immediate geometry reapply for this window.
         syncWindowsToZones()
     }
 
