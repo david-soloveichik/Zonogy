@@ -76,18 +76,6 @@ extension WindowController {
         }
     }
 
-    internal enum AccessibilityFrameRetryPolicy {
-        case onlyWhenOffscreen
-        case forceAfterApplyFailure
-
-        var logLabel: String {
-            switch self {
-            case .onlyWhenOffscreen: return "only-when-offscreen"
-            case .forceAfterApplyFailure: return "force-after-apply-failure"
-            }
-        }
-    }
-
     internal enum AccessibilityFrameRetryTrigger {
         case applyFailure
         case postApplyFrameReadFailure
@@ -132,13 +120,13 @@ extension WindowController {
         )
 
         guard firstPass.applied else {
+            // AX call failed entirely — window hasn't moved.
             scheduleAccessibilityFrameRetryIfNeeded(
                 windowId: windowId,
                 element: element,
                 targetScreenFrame: targetScreenFrame,
                 screen: screen,
-                trigger: .applyFailure,
-                policy: .forceAfterApplyFailure
+                trigger: .applyFailure
             )
             return
         }
@@ -186,10 +174,10 @@ extension WindowController {
                     actual: final,
                     order: retryOrder
                 )
-                // Only schedule a delayed retry if the final frame still overflows the visible bounds.
-                // If the window is fully on-screen but merely refuses to shrink to the exact zone size,
-                // treat the current placement as "good enough" to avoid late jumps caused by retries.
-                if !frameIsWithinBounds(final, bounds: visibleBounds) {
+                // Only schedule a delayed retry if the origin is still wrong.
+                // Once position is correct, stop — regardless of size differences
+                // (e.g., a min-width window that can't shrink to the zone width).
+                if !originsRoughlyEqual(final.origin, targetScreenFrame.origin) {
                     scheduleAccessibilityFrameRetryIfNeeded(
                         windowId: windowId,
                         element: element,
@@ -245,8 +233,7 @@ extension WindowController {
         element: AXUIElement,
         targetScreenFrame: CGRect,
         screen: ScreenDescriptor,
-        trigger: AccessibilityFrameRetryTrigger,
-        policy: AccessibilityFrameRetryPolicy = .onlyWhenOffscreen
+        trigger: AccessibilityFrameRetryTrigger
     ) {
         // Avoid scheduling retries while a zone resize drag is in progress.
         if delegate?.isZoneResizeDragInProgress() ?? false {
@@ -254,27 +241,19 @@ extension WindowController {
             return
         }
 
-        if policy == .onlyWhenOffscreen {
-            // If the window is already fully within the visible screen bounds, do not
-            // schedule a retry. This prevents late retries from nudging windows that
-            // are visually in a good state (e.g., min-width windows that cannot shrink
-            // to the exact requested zone size).
-            if let current = accessibilityFrameForWindow(element: element, on: screen) {
-                let visibleBounds = screen.visibleScreenBounds
-                let cgFrame = actualCGWindowFrame(for: windowId)
-                let boundsCheckFrame = cgFrame ?? current
-                if frameIsWithinBounds(boundsCheckFrame, bounds: visibleBounds) {
-                    Logger.debug("Skipping frame retry for window \(windowId) - frame already within visible bounds")
-                    return
-                }
-            }
+        // If the window's origin already matches the target, don't retry — the position
+        // is correct even if the window's size differs (e.g., min-width constraints).
+        if let current = accessibilityFrameForWindow(element: element, on: screen),
+           originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
+            Logger.debug("Skipping frame retry for window \(windowId) - origin already at target")
+            return
         }
 
         if let existing = accessibilityFrameRetryStates[windowId] {
             if framesRoughlyEqual(existing.targetScreenFrame, targetScreenFrame) {
                 Logger.debug(
                     "Skipping frame retry schedule for window \(windowId) - retry already pending " +
-                    "(trigger: \(trigger.logLabel), policy: \(policy.logLabel))"
+                    "(trigger: \(trigger.logLabel))"
                 )
                 return
             }
@@ -301,8 +280,7 @@ extension WindowController {
             element: element,
             targetScreenFrame: targetScreenFrame,
             screen: screen,
-            trigger: trigger,
-            policy: policy
+            trigger: trigger
         )
     }
 
@@ -315,8 +293,7 @@ extension WindowController {
         element: AXUIElement,
         targetScreenFrame: CGRect,
         screen: ScreenDescriptor,
-        trigger: AccessibilityFrameRetryTrigger,
-        policy: AccessibilityFrameRetryPolicy
+        trigger: AccessibilityFrameRetryTrigger
     ) {
         let delays = WindowController.frameRetryDelays
 
@@ -327,6 +304,7 @@ extension WindowController {
             )
             state.cancel()
             accessibilityFrameRetryStates.removeValue(forKey: windowId)
+            delegate?.frameRetryDidSettle(windowId: windowId)
             return
         }
 
@@ -342,7 +320,7 @@ extension WindowController {
         Logger.debug(
             "Scheduling frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
             "in \(String(format: "%.2f", delay))s " +
-            "(trigger: \(trigger.logLabel), policy: \(policy.logLabel), target: \(targetScreenFrame))"
+            "(trigger: \(trigger.logLabel), target: \(targetScreenFrame))"
         )
 
         let workItem = DispatchWorkItem { [weak self] in
@@ -379,20 +357,21 @@ extension WindowController {
                 return
             }
 
-            // If the window is already at the target frame, no further retries are needed.
+            // If the window's origin already matches the target, no further retries needed.
             if let current = self.accessibilityFrameForWindow(element: element, on: screen),
-               self.framesRoughlyEqual(current, targetScreenFrame) {
+               self.originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
                 Logger.debug(
                     "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
-                    "- frame already at target, stopping retries"
+                    "- origin already at target, stopping retries"
                 )
                 self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
+                self.delegate?.frameRetryDidSettle(windowId: windowId)
                 return
             }
 
             Logger.debug(
                 "Executing frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
-                "(trigger: \(trigger.logLabel), policy: \(policy.logLabel))"
+                "(trigger: \(trigger.logLabel))"
             )
 
             self.performProgrammaticUpdate(for: windowId) {
@@ -412,11 +391,11 @@ extension WindowController {
                 )
 
                 guard result.applied else {
-                    // Apply failed; schedule next attempt if available.
+                    // Apply failed — window hasn't moved.
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger, policy: policy
+                        trigger: trigger
                     )
                     return
                 }
@@ -426,17 +405,18 @@ extension WindowController {
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger, policy: policy
+                        trigger: trigger
                     )
                     return
                 }
 
-                if self.framesRoughlyEqual(final, targetScreenFrame) {
+                if self.originsRoughlyEqual(final.origin, targetScreenFrame.origin) {
                     Logger.debug(
                         "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
-                        "- frame now matches target, stopping retries"
+                        "- origin now at target, stopping retries"
                     )
                     self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
+                    self.delegate?.frameRetryDidSettle(windowId: windowId)
                 } else {
                     self.logFrameMismatch(
                         windowId: windowId,
@@ -449,7 +429,7 @@ extension WindowController {
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger, policy: policy
+                        trigger: trigger
                     )
                 }
             }
@@ -467,23 +447,18 @@ extension WindowController {
         element: AXUIElement,
         targetScreenFrame: CGRect,
         screen: ScreenDescriptor,
-        trigger: AccessibilityFrameRetryTrigger,
-        policy: AccessibilityFrameRetryPolicy
+        trigger: AccessibilityFrameRetryTrigger
     ) {
         guard var state = accessibilityFrameRetryStates[windowId] else { return }
 
-        // Re-check bounds on follow-up attempts so we stop retrying once the frame
-        // is on-screen, matching the gate applied at initial scheduling time.
-        if policy == .onlyWhenOffscreen {
-            if let current = accessibilityFrameForWindow(element: element, on: screen) {
-                let cgFrame = actualCGWindowFrame(for: windowId)
-                let boundsCheckFrame = cgFrame ?? current
-                if frameIsWithinBounds(boundsCheckFrame, bounds: screen.visibleScreenBounds) {
-                    Logger.debug("Stopping frame retry chain for window \(windowId) - frame now within visible bounds")
-                    accessibilityFrameRetryStates.removeValue(forKey: windowId)
-                    return
-                }
-            }
+        // Stop retrying once the origin matches — position is correct even if the
+        // window's size differs (e.g., a min-width window that can't shrink to zone width).
+        if let current = accessibilityFrameForWindow(element: element, on: screen),
+           originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
+            Logger.debug("Stopping frame retry chain for window \(windowId) - origin now at target")
+            accessibilityFrameRetryStates.removeValue(forKey: windowId)
+            delegate?.frameRetryDidSettle(windowId: windowId)
+            return
         }
         scheduleNextFrameRetryAttempt(
             state: &state,
@@ -491,8 +466,7 @@ extension WindowController {
             element: element,
             targetScreenFrame: targetScreenFrame,
             screen: screen,
-            trigger: trigger,
-            policy: policy
+            trigger: trigger
         )
     }
 
@@ -532,6 +506,10 @@ extension WindowController {
                frame.minY >= bounds.minY - tolerance &&
                frame.maxX <= bounds.maxX + tolerance &&
                frame.maxY <= bounds.maxY + tolerance
+    }
+
+    internal func originsRoughlyEqual(_ lhs: CGPoint, _ rhs: CGPoint, tolerance: CGFloat = 2.0) -> Bool {
+        abs(lhs.x - rhs.x) <= tolerance && abs(lhs.y - rhs.y) <= tolerance
     }
 
     internal func framesRoughlyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 2.0) -> Bool {

@@ -141,6 +141,10 @@ class WindowController {
         mouseUpGlobalMonitor = nil
     }
 
+    func hasFrameRetryPending(for windowId: Int) -> Bool {
+        accessibilityFrameRetryStates[windowId] != nil
+    }
+
     /// Cancel all scheduled accessibility frame retries and clear their bookkeeping.
     func cancelAllAccessibilityFrameRetries(reason: String? = nil) {
         let count = accessibilityFrameRetryStates.count
@@ -469,4 +473,5 @@ protocol WindowControllerDelegate: AnyObject {
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool
     func isZoneResizeDragInProgress() -> Bool
+    func frameRetryDidSettle(windowId: Int)
 }

@@ -148,7 +148,8 @@ extension AppController {
         for managed: ManagedWindow,
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
-        reason: String
+        reason: String,
+        shouldPrimeWithRestMove: Bool = true
     ) {
         guard let context = screenContexts[screenId],
               let descriptor = descriptor(for: screenId),
@@ -164,10 +165,24 @@ extension AppController {
 
         let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
 
+        // If a frame retry is still pending (e.g., from initial placement), skip — the
+        // rest-mode moveWindow below would cancel the retry chain before it resizes the
+        // window to zone dimensions. The retry chain will call frameRetryDidSettle when
+        // it completes, triggering re-evaluation.
+        if windowController.hasFrameRetryPending(for: managed.windowId) {
+            Logger.debug("ActiveFit: skipping reveal evaluation for window \(managed.windowId); frame retry pending")
+            return
+        }
+
         // First move window to rest mode position (zone-anchored) to get accurate dimensions.
         // This prevents acting on stale dimensions (e.g., when a window just moved from another screen).
+        // Skip this priming move after a frame-retry settle callback to avoid starting a new retry loop.
         if activeFitState == nil {
-            windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
+            if shouldPrimeWithRestMove {
+                windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
+            } else {
+                Logger.debug("ActiveFit: evaluating settled frame for window \(managed.windowId) without rest-mode priming move")
+            }
         }
 
         let restOrigin = zoneFrame.origin
@@ -247,7 +262,8 @@ extension AppController {
         managed: ManagedWindow,
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
-        reason: String = "assignment-change"
+        reason: String = "assignment-change",
+        shouldPrimeWithRestMove: Bool = true
     ) {
         guard zoneIndex >= 2 else {
             clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
@@ -258,7 +274,29 @@ extension AppController {
             return
         }
 
-        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: reason)
+        enterRevealModeIfNeeded(
+            for: managed,
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            reason: reason,
+            shouldPrimeWithRestMove: shouldPrimeWithRestMove
+        )
+    }
+
+    /// Called by WindowController when a frame retry chain settles (target reached or exhausted).
+    /// Re-evaluates reveal mode based on the settled frame without issuing another rest-mode move.
+    internal func frameRetryDidSettle(windowId: Int) {
+        guard let managed = windowController.window(withId: windowId),
+              let screenId = managed.screenDisplayId,
+              let zoneIndex = managed.zoneIndex, zoneIndex >= 2 else { return }
+        guard isWindowActive(managed) else { return }
+        evaluateRevealModeForAssignment(
+            managed: managed,
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            reason: "retry-settled",
+            shouldPrimeWithRestMove: false
+        )
     }
 
     private func isWindowActive(_ managed: ManagedWindow) -> Bool {

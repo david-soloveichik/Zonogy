@@ -13,6 +13,9 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 - Bug report: After zone resizing, the Codex window can "jump" toward an older zone position a moment later.
   - Think about: Delayed AX frame retries can outlive newer retargeted moves; cancel/invalidate stale retry chains on retarget and guard retry work items so replaced chains cannot execute.
 
+- Bug report: A newly created window (eg Chrome) routed into zone 2/3 can enter ActiveFit reveal mode before it resizes to the zone size, leaving it not filling the zone.
+  - Think about: Entering reveal mode calls moveWindow which cancels the pending frame retry chain. ActiveFit must skip reveal evaluation when a frame retry is pending and re-evaluate when the retry settles.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the temporary zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 

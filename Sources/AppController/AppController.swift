@@ -170,7 +170,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var activeFitSuppressedWindowIds: Set<Int> = []
     /// Windows for which we've already logged zone-resize suppression (prevents log spam).
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
-
     internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
     internal let temporaryZoneProtectionDuration: TimeInterval = 0.5
     /// Work items scheduled to reactivate temporary zone windows when protection expires.
