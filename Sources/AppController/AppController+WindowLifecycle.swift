@@ -354,6 +354,14 @@ extension AppController {
         Logger.debug("Window \(windowId) did deminiaturize")
         if isEventSuppressed(windowId: windowId, event: .deminiaturized) {
             Logger.debug("Deminiaturize notification suppressed for window \(windowId)")
+            // Re-raise the active window after each unminimize animation to keep it in front.
+            // Activate the app too in case the unminimize stole app activation.
+            if var pending = pendingRestoreRaise, pending.pendingWindowIds.remove(windowId) != nil {
+                NSRunningApplication(processIdentifier: pending.pid)?.activate()
+                _ = AXUIElementPerformAction(pending.element, kAXRaiseAction as CFString)
+                Logger.debug("Re-raised restore active window after unminimize of window \(windowId)")
+                pendingRestoreRaise = pending.pendingWindowIds.isEmpty ? nil : pending
+            }
             return
         }
         guard let managed = windowController.window(withId: windowId) else { return }

@@ -33,3 +33,6 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: Placing a window into zone 2/3 can visibly flicker (rest-position move(s) before reveal).
   - Think about: Avoid immediate duplicate geometry writes for a just-placed window before ActiveFit reveal applies.
+
+- Bug report: WinShot restore can leave the active window behind other restored windows.
+  - Think about: Async unminimize animations complete after the active window's AXRaise; re-raise the active window when each suppressed deminiaturize notification arrives.

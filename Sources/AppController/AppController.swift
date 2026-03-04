@@ -196,6 +196,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     internal var eventSuppressions: [Int: [SuppressedEvent: SuppressionEntry]] = [:]
 
+    /// Tracks the active window that needs re-raising after each unminimize animation completes
+    /// during WinShot restoration. Cleared when all expected deminiaturize notifications arrive.
+    struct PendingRestoreRaise {
+        let element: AXUIElement
+        let pid: pid_t
+        var pendingWindowIds: Set<Int>
+    }
+    internal var pendingRestoreRaise: PendingRestoreRaise?
+
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {
         targetedZoneManager.targetedZoneKey

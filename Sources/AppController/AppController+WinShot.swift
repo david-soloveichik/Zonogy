@@ -200,6 +200,9 @@ extension AppController {
         // The explicitly restored active window will bypass this via direct recordWindowActivity call.
         scheduleActivityRecordingSuppression(reason: "winshot-restore")
 
+        // Clear any stale pending re-raise from a previous restore whose notifications never arrived.
+        pendingRestoreRaise = nil
+
         Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))")
 
         // Step 1: Identify current windows on this screen (excluding placeholders)
@@ -251,6 +254,21 @@ extension AppController {
         if !minimizedZoneWindowIds.isEmpty {
             suppressNextEvents(for: minimizedZoneWindowIds, events: [.deminiaturized], reason: "winshot-restore")
         }
+
+        // Set up pending re-raise: when each unminimized window's deminiaturize notification
+        // arrives (suppressed), re-raise the active window so it stays in front.
+        // Skip if the active window is in the temporary zone (has its own activation workaround).
+        if !minimizedZoneWindowIds.isEmpty,
+           let activeId = restoredActiveWindowId,
+           temporaryWorkItem?.managed.windowId != activeId,
+           let activeWindow = windowController.window(withId: activeId) {
+            pendingRestoreRaise = PendingRestoreRaise(
+                element: activeWindow.backing.element,
+                pid: activeWindow.backing.pid,
+                pendingWindowIds: Set(minimizedZoneWindowIds)
+            )
+        }
+
         for workItem in zoneWorkItems where workItem.wasMinimized {
             prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
             let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
