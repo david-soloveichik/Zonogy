@@ -137,10 +137,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 **Indicator click behavior:**
 
 - Tiling zone indicator (shown only on the targeted tiling zone): clicking or double-clicking opens the Launcher.
-- Temporary zone indicator:
-  - Single-click: target that temporary zone. If that temporary zone is empty, attempt a temporary recall (see Temporary Zone Behavior).
-  - Single-click on an already-targeted indicator (when no recall occurs): open the Launcher.
-  - Double-click: target that temporary zone and open the Launcher.
+- Temporary zone indicator: clicking a non-targeted indicator targets that temporary zone; clicking an already-targeted indicator opens the Launcher. Double-clicking targets that temporary zone and opens the Launcher.
 
 **Target selection:**
 
@@ -166,11 +163,13 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 
 ### Temporary Zone Behavior
 
-Each screen has exactly one temporary zone for floating a single managed window over the tiled layout. When placed into the temporary zone, a window is centered and resized once. After that, the user may freely move/resize it without affecting tiled frames. Placing another window into the temporary zone minimizes the previous occupant.
+Each screen has exactly one temporary zone for floating a single managed window over the tiled layout.
+
+When placed into the temporary zone, a window is centered and resized once. After that, the user may freely move/resize it without affecting tiled frames.
+
+Placing another window into the temporary zone minimizes the previous occupant.
 
 **Occlusion-based minimization:** The temporary zone occupant is minimized when it becomes *occluded* by a managed tiling-zone window or a placeholder window (on the same screen). Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
-
-**Temporary recall (per screen):** Zonogy remembers the most recent window that occupied each screen’s temporary zone, along with that window’s most recent temporary-zone frame (position and size). When that screen’s temporary zone is empty and the user single-clicks its temporary zone indicator, Zonogy targets that temporary zone and (if the remembered window still exists and is currently minimized / not visible elsewhere) unminimizes it into the temporary zone and restores its saved frame.
 
 When a tiling zone on a screen becomes empty and that screen has a temporary-zone occupant, promote the temporary window into the emptied zone **only if the temporary window’s current frame overlaps the emptied zone’s frame**. Exception: If the tiling zone became empty because the user explicitly moved that zone’s window into the temporary zone (e.g., by dragging onto the temporary zone indicator, by Control-Command drag promotion, or by placing it into the temporary zone via the Launcher), do not promote the temporary-zone occupant in response to that same emptying event.
 

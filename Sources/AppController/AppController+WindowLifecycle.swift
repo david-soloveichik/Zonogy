@@ -282,18 +282,7 @@ extension AppController {
         Logger.debug("Temporary zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-indicator-clicked")
 
-        if isDoubleClick {
-            showLauncherIfAllowed(trigger: "temporary-indicator-clicked")
-            return
-        }
-
-        if temporaryZoneOccupant(on: screenId) == nil {
-            if attemptTemporaryZoneRecall(on: screenId, reason: "temporary-indicator-clicked-recall") {
-                return
-            }
-        }
-
-        if wasAlreadyTargeted {
+        if isDoubleClick || wasAlreadyTargeted {
             showLauncherIfAllowed(trigger: "temporary-indicator-clicked")
         }
     }

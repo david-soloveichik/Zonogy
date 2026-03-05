@@ -32,13 +32,6 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
 
 /// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
 final class TemporaryZoneCoordinator {
-    struct RecallSnapshot: Equatable {
-        let windowId: Int
-        /// Last known frame of the window while it occupied this screen's temporary zone.
-        /// Expressed in screen-local coordinates for that screen.
-        let screenFrame: CGRect?
-    }
-
     private struct TiledFocusContext {
         let window: ManagedWindow
         let pid: pid_t
@@ -48,7 +41,6 @@ final class TemporaryZoneCoordinator {
     weak var host: TemporaryZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
-    private var mostRecentOccupantByScreenId: [CGDirectDisplayID: RecallSnapshot] = [:]
 
     init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
@@ -60,14 +52,6 @@ final class TemporaryZoneCoordinator {
             return nil
         }
         return host.windowController.window(withId: windowId)
-    }
-
-    func mostRecentOccupantSnapshot(on screenId: CGDirectDisplayID) -> RecallSnapshot? {
-        mostRecentOccupantByScreenId[screenId]
-    }
-
-    func clearMostRecentOccupantSnapshot(on screenId: CGDirectDisplayID) {
-        mostRecentOccupantByScreenId.removeValue(forKey: screenId)
     }
 
     func isWindowInTemporaryZone(_ windowId: Int) -> Bool {
@@ -88,14 +72,6 @@ final class TemporaryZoneCoordinator {
            let existingScreenId = occupants.first(where: { $0.value == managed.windowId })?.key {
             // Reassigning a window that's already in a temporary zone (e.g. screen migration).
             // Avoid a full clear cycle so we don't accidentally change targeting state.
-            if existingScreenId != screenId {
-                updateMostRecentOccupantSnapshot(
-                    screenId: existingScreenId,
-                    windowId: managed.windowId,
-                    managed: managed,
-                    reason: "\(reason)-reassign"
-                )
-            }
             host.clearTemporaryZoneProtection(windowId: managed.windowId)
             occupants.removeValue(forKey: existingScreenId)
         }
@@ -144,12 +120,6 @@ final class TemporaryZoneCoordinator {
               let occupant = occupant(on: screenId) else {
             return
         }
-        updateMostRecentOccupantSnapshot(
-            screenId: screenId,
-            windowId: occupant.windowId,
-            managed: occupant,
-            reason: reason
-        )
         host.clearTemporaryZoneProtection(windowId: occupant.windowId)
         occupant.isInTemporaryZone = false
         occupants.removeValue(forKey: screenId)
@@ -167,19 +137,12 @@ final class TemporaryZoneCoordinator {
               let entry = occupants.first(where: { $0.value == windowId }) else {
             return
         }
-        let screenId = entry.key
-        updateMostRecentOccupantSnapshot(
-            screenId: screenId,
-            windowId: windowId,
-            managed: host.windowController.window(withId: windowId),
-            reason: reason
-        )
         host.clearTemporaryZoneProtection(windowId: windowId)
         if let window = host.windowController.window(withId: windowId) {
             window.isInTemporaryZone = false
         }
         occupants.removeValue(forKey: entry.key)
-        Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
+        Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {
             host.clearManagedWindowZone(window)
             host.minimizeWindowProgrammatically(window, reason: reason)
@@ -201,12 +164,6 @@ final class TemporaryZoneCoordinator {
                 continue
             }
             guard let window = host.windowController.window(withId: occupantId) else {
-                updateMostRecentOccupantSnapshot(
-                    screenId: screenId,
-                    windowId: occupantId,
-                    managed: nil,
-                    reason: "focus-change-missing-occupant"
-                )
                 occupants.removeValue(forKey: screenId)
                 continue
             }
@@ -242,12 +199,6 @@ final class TemporaryZoneCoordinator {
                 continue
             }
             guard let window = host.windowController.window(withId: occupantId) else {
-                updateMostRecentOccupantSnapshot(
-                    screenId: screenId,
-                    windowId: occupantId,
-                    managed: nil,
-                    reason: "activation-change-missing-occupant"
-                )
                 occupants.removeValue(forKey: screenId)
                 continue
             }
@@ -290,13 +241,6 @@ final class TemporaryZoneCoordinator {
             )
             return false
         }
-
-        updateMostRecentOccupantSnapshot(
-            screenId: screenId,
-            windowId: windowId,
-            managed: host.windowController.window(withId: windowId),
-            reason: reason
-        )
 
         host.clearTemporaryZoneProtection(windowId: windowId)
         occupants.removeValue(forKey: screenId)
@@ -361,14 +305,6 @@ final class TemporaryZoneCoordinator {
         let destinationIndex = host.screenContextStore.loggingIndex(for: destinationScreenId)
 
         // Bookkeeping: move the dragged window to the destination screen's temporary zone.
-        // Record as the origin screen's most recent occupant so indicator-click recall won't
-        // accidentally revive an older minimized temp window on that screen.
-        updateMostRecentOccupantSnapshot(
-            screenId: originScreenId,
-            windowId: managed.windowId,
-            managed: nil,
-            reason: "cross-screen-move"
-        )
         occupants.removeValue(forKey: originScreenId)
         occupants[destinationScreenId] = managed.windowId
         host.setManagedWindow(managed, screenId: destinationScreenId, zoneIndex: nil)
@@ -496,29 +432,6 @@ final class TemporaryZoneCoordinator {
             reason == "workspace-activate" ||
             reason.hasPrefix("placeholder-") ||
             reason.hasPrefix("occlusion-check-")
-    }
-
-    private func updateMostRecentOccupantSnapshot(
-        screenId: CGDirectDisplayID,
-        windowId: Int,
-        managed: ManagedWindow?,
-        reason: String
-    ) {
-        guard let host else {
-            return
-        }
-
-        let screenFrame: CGRect? = {
-            guard let managed else { return nil }
-            guard let descriptor = host.descriptor(for: screenId) else { return nil }
-            return host.windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-        }()
-
-        mostRecentOccupantByScreenId[screenId] = RecallSnapshot(windowId: windowId, screenFrame: screenFrame)
-        Logger.debug(
-            "Temporary zone recorded most recent occupant for screen \(host.screenContextStore.loggingIndex(for: screenId)): " +
-                "window \(windowId), frame \(screenFrame.map(String.init(describing:)) ?? "nil") (reason: \(reason))"
-        )
     }
 
     private func isTemporaryZoneOccupantOccluded(on screenId: CGDirectDisplayID, occupantWindowId: Int) -> Bool {
