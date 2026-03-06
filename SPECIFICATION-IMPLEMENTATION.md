@@ -18,7 +18,7 @@ For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit 
 
 ## Occlusion-Based Temporary Zone Minimization
 
-When a managed window assigned to a tiling zone, or a placeholder window, becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is *occluded* by something. If it is occluded, minimize the temporary window; otherwise leave it unminimized.
+When a managed window assigned to a tiling zone becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is occluded by it. If it is occluded, minimize the temporary window; otherwise leave it unminimized. If a placeholder becomes front-most and it occludes the temporary-zone occupant, promote the temporary window into that placeholder’s tiling zone instead of minimizing it.
 
 Implementation notes:
 

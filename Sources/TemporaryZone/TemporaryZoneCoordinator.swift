@@ -7,7 +7,6 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     var targetingMode: TargetingMode { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenContextStore: ScreenContextStore { get }
-    func placeholderOccluders(on screenId: CGDirectDisplayID) -> [OcclusionWindow]
     var windowPlacementManager: WindowPlacementManager { get }
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
     func queueDeferredMinimization(windowId: Int, reason: String)
@@ -430,7 +429,6 @@ final class TemporaryZoneCoordinator {
     private func isOcclusionBasedTemporaryMinimizationReason(_ reason: String) -> Bool {
         reason.hasPrefix("focus-shift-") ||
             reason == "workspace-activate" ||
-            reason.hasPrefix("placeholder-") ||
             reason.hasPrefix("occlusion-check-")
     }
 
@@ -455,9 +453,6 @@ final class TemporaryZoneCoordinator {
             }
             occluders.append(OcclusionWindow(cgWindowId: managed.backing.cgWindowId, frame: frame))
         }
-
-        // Empty-zone placeholders.
-        occluders.append(contentsOf: host.placeholderOccluders(on: screenId))
 
         // Fast path: if nothing even overlaps geometrically, occlusion is impossible.
         guard occluders.contains(where: { !$0.frame.intersection(occupantFrame).isNull }) else {

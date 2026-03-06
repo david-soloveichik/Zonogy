@@ -230,12 +230,25 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
-        if let occupant = temporaryZoneOccupant(on: screenId) {
-            queueDeferredMinimization(windowId: occupant.windowId, reason: "placeholder-activated")
-        }
         let key = zoneKey(for: screenId, index: zoneIndex)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
         flashTargetFeedback(for: key)
+
+        // Promote the temporary zone occupant into the activated placeholder's zone if they overlap.
+        // Targeting happens first so that placeWindow sees the zone as targeted and triggers
+        // the normal retarget-after-fill logic per spec.
+        if let occupant = temporaryZoneOccupant(on: screenId),
+           let context = screenContexts[screenId],
+           let zone = context.zoneController.zone(at: zoneIndex),
+           isZoneEffectivelyEmpty(zone),
+           let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) {
+            let zoneFrame = context.descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
+            let intersection = occupantFrame.intersection(zoneFrame)
+            if !intersection.isNull && intersection.width > 1 && intersection.height > 1 {
+                Logger.debug("Promoting temp zone occupant \(occupant.windowId) into zone \(zoneIndex) on screen \(screenIndex) (placeholder-activated)")
+                windowPlacementManager.placeWindow(occupant, into: key, reason: "placeholder-activated-promotion")
+            }
+        }
         if isDoubleClick {
             showLauncherIfAllowed(trigger: "placeholder-double-click")
         }

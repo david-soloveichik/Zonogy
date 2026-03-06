@@ -3,21 +3,6 @@ import AppKit
 
 /// AppController extension for temporary zone assignment and management.
 extension AppController {
-    func placeholderOccluders(on screenId: CGDirectDisplayID) -> [OcclusionWindow] {
-        guard let context = screenContexts[screenId] else {
-            return []
-        }
-
-        let descriptor = context.descriptor
-        return placeholderCoordinator.placeholders(on: screenId).compactMap { placeholder in
-            guard let zone = context.zoneController.zone(at: placeholder.zoneIndex) else {
-                return nil
-            }
-            let frame = descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
-            return OcclusionWindow(cgWindowId: placeholder.cgWindowId, frame: frame)
-        }
-    }
-
     func temporaryZoneOccupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
         temporaryZoneCoordinator.occupant(on: screenId)
     }
