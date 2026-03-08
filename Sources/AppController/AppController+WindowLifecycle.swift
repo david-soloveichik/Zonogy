@@ -262,13 +262,10 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder search pill clicked for zone \(zoneIndex) on screen \(screenIndex)")
 
-        if let occupant = temporaryZoneOccupant(on: screenId) {
-            queueDeferredMinimization(windowId: occupant.windowId, reason: "placeholder-search-pill")
-        }
-        let key = zoneKey(for: screenId, index: zoneIndex)
-        targetedZoneManager.setTargetedZone(key, reason: "placeholder-search-pill")
+        // Reuse placeholder activation logic for targeting and temp zone overlap promotion
+        placeholderActivated(screenId: screenId, zoneIndex: zoneIndex, isDoubleClick: false)
 
-        // Clicking the search pill should always show the Launcher, even if the zone was already targeted.
+        // Always show the Launcher when the search pill is clicked
         showLauncherIfAllowed(trigger: "placeholder-search-pill")
     }
 
