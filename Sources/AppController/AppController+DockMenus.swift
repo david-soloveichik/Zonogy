@@ -236,7 +236,6 @@ extension AppController: DockMenusCoordinatorDelegate {
             return
         }
 
-        // Add new zone (without promoting temporary occupant since we're dropping into it)
         guard let newZone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) else {
             Logger.debug("DockMenus: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
             return

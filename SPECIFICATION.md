@@ -169,7 +169,6 @@ When placed into the temporary zone, a window is centered and resized once. Afte
 
 Placing another window into the temporary zone minimizes the previous occupant.
 
-
 #### Automatic minimization of temporary zone occupant
 
 The temporary zone occupant is minimized when it becomes *occluded* by a managed tiling-zone window (on the same screen). Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
@@ -178,7 +177,7 @@ The temporary zone occupant is minimized when it becomes *occluded* by a managed
 
 When a tiling zone on a screen becomes empty and that screen has a temporary-zone occupant, promote the temporary window into the emptied zone **only if the temporary window’s current frame overlaps the emptied zone’s frame**. Exception: If the tiling zone became empty because the user explicitly moved that zone’s window into the temporary zone (e.g., by dragging onto the temporary zone indicator, by Control-Command drag promotion, or by placing it into the temporary zone via the Launcher), do not promote the temporary-zone occupant in response to that same emptying event.
 
-When a new tiling zone is created via an explicit add-zone action (e.g., `Control-Cmd-=`) on a screen that currently has a temporary-zone occupant, immediately move the temporary window into the newly created zone. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the temporary occupant since the dragged window is taking that new zone.)
+When a new tiling zone is created on a screen, promote the temporary-zone occupant into that zone if its current frame overlaps the new zone's frame (ignoring tiny overlaps). If there is no overlap, the temporary-zone occupant stays as is. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the temporary occupant since the dragged window is taking that new zone.)
 
 If an empty-zone placeholder is activated and it overlaps the temporary-zone occupant (on the same screen), promote the temporary window into that tiling zone.
 

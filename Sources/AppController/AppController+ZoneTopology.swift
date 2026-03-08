@@ -6,7 +6,7 @@ import ApplicationServices
 extension AppController {
     func addZone() {
         let screenId = activeScreenId()
-        _ = addZone(on: screenId, announce: true, promoteTemporaryOccupant: true)
+        _ = addZone(on: screenId, announce: true)
     }
 
     @discardableResult
@@ -45,7 +45,7 @@ extension AppController {
         windowController.cancelAllAccessibilityFrameRetries()
         targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
         if promoteTemporaryOccupant {
-            promoteTemporaryZoneOccupantIfNeeded(on: screenId, newZone: newZone)
+            promoteTemporaryOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
         }
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
@@ -56,16 +56,20 @@ extension AppController {
         return newZone
     }
 
-    private func promoteTemporaryZoneOccupantIfNeeded(on screenId: CGDirectDisplayID, newZone: Zone) {
-        guard newZone.isEmpty,
+    private func promoteTemporaryOccupantIfOverlapping(on screenId: CGDirectDisplayID, zone: Zone, context: ScreenContext) {
+        guard zone.isEmpty,
               let occupant = temporaryZoneOccupant(on: screenId),
-              occupant.zoneIndex == nil else {
+              let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
             return
         }
-
+        let zoneFrame = context.descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
+        let intersection = occupantFrame.intersection(zoneFrame)
+        guard !intersection.isNull, intersection.width > 1, intersection.height > 1 else {
+            return
+        }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Promoting temporary zone window \(occupant.windowId) into new zone \(newZone.index) on screen \(screenIndex)")
-        windowPlacementManager.placeWindow(occupant, into: ZoneKey(screenId: screenId, index: newZone.index), reason: "add-zone-promote-temporary")
+        Logger.debug("Promoting temporary zone occupant \(occupant.windowId) into new zone \(zone.index) on screen \(screenIndex): overlaps zone frame")
+        windowPlacementManager.placeWindow(occupant, into: ZoneKey(screenId: screenId, index: zone.index), reason: "add-zone-promote-overlap")
     }
 
     func removeZone(at index: Int) {
