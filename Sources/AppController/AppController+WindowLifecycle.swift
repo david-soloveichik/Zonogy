@@ -684,11 +684,17 @@ extension AppController {
             originContext.zoneController.removeWindow(windowId: windowId)
         }
         clearManagedWindowZone(managed)
+        // `clearManagedWindowZone` drops ActiveFit suppression. Restore it so
+        // releasing Control-Command mid-drag cannot trigger a reveal/rest move
+        // while we are still dragging the window.
+        activeFitSuspendForDrag(windowId: windowId)
 
         assignWindowToTemporaryZone(
             managed,
             on: destinationScreenId,
-            centerWindow: true,
+            // Mid-drag conversion should preserve the live dragged frame; recentering
+            // here causes the window to visibly jump under the cursor.
+            centerWindow: false,
             reason: "control-command-drag-to-temporary"
         )
         handleZoneEmptiedByTemporaryDrag(
