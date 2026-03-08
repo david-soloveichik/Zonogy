@@ -29,7 +29,7 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String)
 }
 
-/// Centralizes temporary-zone occupant bookkeeping, placement, and targeting.
+/// Centralizes temporary-zone occupant bookkeeping, placement, targeting, and occlusion checks.
 final class TemporaryZoneCoordinator {
     private struct TiledFocusContext {
         let window: ManagedWindow
@@ -443,19 +443,25 @@ final class TemporaryZoneCoordinator {
         var occluders: [OcclusionWindow] = []
         occluders.reserveCapacity(context.zoneController.allZones.count + 4)
 
-        // Occupied tiling-zone managed windows.
+        // Occupied tiling zones occlude based on their zone frames, not the window's
+        // live frame. This keeps ActiveFit reveal spillover from enlarging the occlusion area.
         for zone in context.zoneController.allZones {
             guard let windowId = zone.occupantWindowId,
                   windowId != occupantWindowId,
-                  let managed = host.windowController.window(withId: windowId),
-                  let frame = host.windowController.actualFrameInAccessibilityCoordinates(for: managed) else {
+                  let managed = host.windowController.window(withId: windowId) else {
                 continue
             }
-            occluders.append(OcclusionWindow(cgWindowId: managed.backing.cgWindowId, frame: frame))
+            let zoneFrame = context.descriptor.screenToAccessibility(zone.frame)
+            occluders.append(OcclusionWindow(cgWindowId: managed.backing.cgWindowId, frame: zoneFrame))
         }
 
         // Fast path: if nothing even overlaps geometrically, occlusion is impossible.
-        guard occluders.contains(where: { !$0.frame.intersection(occupantFrame).isNull }) else {
+        guard occluders.contains(where: {
+            TemporaryZoneOverlapPolicy.overlapsZoneFrame(
+                temporaryFrame: occupantFrame,
+                zoneFrame: $0.frame
+            )
+        }) else {
             return false
         }
 

@@ -69,8 +69,7 @@ extension AppController {
                 continue
             }
 
-            // Only promote if the temp window overlaps the emptied zone's content frame
-            // (frameWithMargin = zone frame with margin insets, ie the actual window area).
+            // Only promote if the temp window overlaps the emptied zone's frame.
             guard let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
                 continue
             }
@@ -80,9 +79,11 @@ extension AppController {
                 .filter { $0.screenId == screenId }
                 .filter { key in
                     guard let zone = context.zoneController.zone(at: key.index) else { return false }
-                    let zoneFrame = descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
-                    let intersection = occupantFrame.intersection(zoneFrame)
-                    return !intersection.isNull && intersection.width > 1 && intersection.height > 1
+                    let zoneFrame = descriptor.screenToAccessibility(zone.frame)
+                    return TemporaryZoneOverlapPolicy.overlapsZoneFrame(
+                        temporaryFrame: occupantFrame,
+                        zoneFrame: zoneFrame
+                    )
                 }
                 .sorted(by: { $0.index < $1.index })
 

@@ -171,7 +171,7 @@ Placing another window into the temporary zone minimizes the previous occupant.
 
 #### Automatic minimization of temporary zone occupant
 
-The temporary zone occupant is minimized when it becomes *occluded* by a managed tiling-zone window (on the same screen). Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
+The temporary zone occupant is minimized when it becomes *occluded* by an occupied tiling zone (on the same screen). For this rule, test overlap against the tiling zone's frame, not the tiling window's current frame. This means temporary tiling-window geometry changes outside the zone frame (for example, ActiveFit reveal mode) do not increase the temp window's measured occlusion. Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
 
 #### Promotion to tiling zone
 
@@ -179,7 +179,7 @@ When a tiling zone on a screen becomes empty and that screen has a temporary-zon
 
 When a new tiling zone is created on a screen, promote the temporary-zone occupant into that zone if its current frame overlaps the new zone's frame (ignoring tiny overlaps). If there is no overlap, the temporary-zone occupant stays as is. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the temporary occupant since the dragged window is taking that new zone.)
 
-If an empty-zone placeholder is activated and it overlaps the temporary-zone occupant (on the same screen), promote the temporary window into that tiling zone.
+If an empty-zone placeholder is activated and that tiling zone's frame overlaps the temporary-zone occupant (on the same screen), promote the temporary window into that tiling zone.
 
 ### Resizing Zones
 

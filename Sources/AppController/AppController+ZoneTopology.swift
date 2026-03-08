@@ -62,9 +62,11 @@ extension AppController {
               let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
             return
         }
-        let zoneFrame = context.descriptor.screenToAccessibility(frameWithMargin(for: zone, in: context.zoneController))
-        let intersection = occupantFrame.intersection(zoneFrame)
-        guard !intersection.isNull, intersection.width > 1, intersection.height > 1 else {
+        let zoneFrame = context.descriptor.screenToAccessibility(zone.frame)
+        guard TemporaryZoneOverlapPolicy.overlapsZoneFrame(
+            temporaryFrame: occupantFrame,
+            zoneFrame: zoneFrame
+        ) else {
             return
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)

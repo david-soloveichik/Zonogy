@@ -18,13 +18,13 @@ For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit 
 
 ## Occlusion-Based Temporary Zone Minimization
 
-When a managed window assigned to a tiling zone becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is occluded by it. If it is occluded, minimize the temporary window; otherwise leave it unminimized. If a placeholder becomes front-most and it occludes the temporary-zone occupant, promote the temporary window into that placeholder’s tiling zone instead of minimizing it.
+When a managed window assigned to a tiling zone becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is occluded by that occupied tiling zone. If it is occluded, minimize the temporary window; otherwise leave it unminimized. If a placeholder becomes front-most and its tiling zone's frame overlaps the temporary-zone occupant, promote the temporary window into that placeholder’s tiling zone instead of minimizing it.
 
 Implementation notes:
 
 - Determine which windows are “in front” via `CGWindowListCopyWindowInfo` ordering (on-screen windows), using `CGWindowID` for stable identity.
 - Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
-- Define occlusion as: at least one in-front tiling-zone window’s bounds intersect the temporary window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives.
+- Define occlusion as: at least one in-front occupied tiling zone's frame intersects the temporary window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
 
 ## Debounced Temporary Zone Minimization
 

@@ -101,10 +101,23 @@ enum WindowOcclusionPolicyTests {
             assertEqual(occluded, true, label: "any-occluder-in-front")
         }
 
+        // Guardrail: occlusion is based on the supplied zone frame, not a wider revealed window frame.
+        do {
+            let target = OcclusionWindow(cgWindowId: 20, frame: CGRect(x: 120, y: 0, width: 80, height: 100))
+            let zoneFrame = OcclusionWindow(cgWindowId: 21, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+            let occluded = WindowOcclusionPolicy.isOccluded(
+                target: target,
+                occluders: [zoneFrame],
+                zOrderFrontToBack: [21, 20],
+                avoidanceInset: 0,
+                minIntersectionDimension: 1
+            )
+            assertEqual(occluded, false, label: "zone-frame-controls-occlusion-region")
+        }
+
         if allPassed {
             print("WindowOcclusionPolicyTests: all tests passed")
         }
         return allPassed
     }
 }
-

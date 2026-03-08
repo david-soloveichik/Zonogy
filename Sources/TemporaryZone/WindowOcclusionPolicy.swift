@@ -1,18 +1,18 @@
 import CoreGraphics
 
 /// Pure, deterministic occlusion policy for deciding whether a target window is visually covered by
-/// any in-front occluder windows (given z-order and frames).
+/// any in-front occluder regions (given z-order and frames).
 ///
 /// This logic is intentionally isolated so it can be guardrail-tested without relying on the
 /// window server, Accessibility, or timing.
 struct OcclusionWindow: Equatable {
     let cgWindowId: Int
-    /// Frame in the same coordinate system for all windows (typically global accessibility coords).
+    /// Occlusion region in the same coordinate system for all entries (typically global accessibility coords).
     let frame: CGRect
 }
 
 enum WindowOcclusionPolicy {
-    /// Returns true when any occluder window that is in front of `target` in the provided z-order
+    /// Returns true when any occluder region that is in front of `target` in the provided z-order
     /// intersects `target` by more than a tiny threshold (after applying an inset to ignore shadows).
     static func isOccluded(
         target: OcclusionWindow,
