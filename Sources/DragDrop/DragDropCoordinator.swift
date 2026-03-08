@@ -37,6 +37,14 @@ struct DropResult {
     }
 }
 
+struct EndDragSessionResult {
+    let displacedWindow: ManagedWindow?
+    let preferredScreenId: CGDirectDisplayID?
+    let displacedDisposition: DisplacedWindowDisposition
+    let originatedFromTemporary: Bool
+    let didResolveDrop: Bool
+}
+
 protocol DragDropCoordinatorDelegate: AnyObject {
     // Window and zone management
     var windowController: WindowController { get }
@@ -231,15 +239,17 @@ class DragDropCoordinator {
         recordDragUpdate(windowId: windowId, frame: frame)
     }
 
-    func endDragSession(windowId: Int, finalFrame: CGRect) -> (
-        displacedWindow: ManagedWindow?,
-        preferredScreenId: CGDirectDisplayID?,
-        displacedDisposition: DisplacedWindowDisposition
-    ) {
+    func endDragSession(windowId: Int, finalFrame: CGRect) -> EndDragSessionResult {
         cursorPointOverrideAX = nil
         guard let delegate = delegate else {
             tearDownDragSession()
-            return (nil, nil, .reassign)
+            return EndDragSessionResult(
+                displacedWindow: nil,
+                preferredScreenId: nil,
+                displacedDisposition: .reassign,
+                originatedFromTemporary: false,
+                didResolveDrop: false
+            )
         }
 
         recordDragUpdate(windowId: windowId, frame: finalFrame)
@@ -247,7 +257,13 @@ class DragDropCoordinator {
         guard let session = dragSession, session.windowId == windowId else {
             tearDownDragSession()
             delegate.syncWindowsToZones(recentlyPlacedInTempZone: nil)
-            return (nil, nil, .reassign)
+            return EndDragSessionResult(
+                displacedWindow: nil,
+                preferredScreenId: nil,
+                displacedDisposition: .reassign,
+                originatedFromTemporary: false,
+                didResolveDrop: false
+            )
         }
 
         dragOverlayManager.tearDown()
@@ -255,13 +271,20 @@ class DragDropCoordinator {
         var displacedWindow: ManagedWindow?
         var displacedPreferredScreen: CGDirectDisplayID?
         var displacedDisposition: DisplacedWindowDisposition = .reassign
+        var didResolveDrop = false
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
             Logger.debug("Drag drop aborted: unable to resolve cursor position")
             handleDropCancellation(session: session)
             dragSession = nil
             delegate.updateAddZoneIndicatorHighlight(screenId: nil)
             delegate.updateTemporaryIndicatorHighlight(screenId: nil)
-            return (nil, session.originScreenId, .reassign)
+            return EndDragSessionResult(
+                displacedWindow: nil,
+                preferredScreenId: session.originScreenId,
+                displacedDisposition: .reassign,
+                originatedFromTemporary: session.originatedFromTemporary,
+                didResolveDrop: false
+            )
         }
 
         if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
@@ -269,6 +292,7 @@ class DragDropCoordinator {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
+                didResolveDrop = true
             } else {
                 handleDropCancellation(session: session)
             }
@@ -277,14 +301,22 @@ class DragDropCoordinator {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
+                didResolveDrop = true
             } else {
                 handleDropCancellation(session: session)
             }
         } else if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint) {
-            if let result = performDrop(session: session, targetKey: targetKey) {
+            // Control-Command temp drags skip empty zones as drop targets
+            if session.originatedFromTemporary,
+               let context = delegate.screenContexts[targetKey.screenId],
+               let zone = context.zoneController.zone(at: targetKey.index),
+               zone.isEmpty {
+                handleDropCancellation(session: session)
+            } else if let result = performDrop(session: session, targetKey: targetKey) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
+                didResolveDrop = true
             }
         } else {
             handleDropCancellation(session: session)
@@ -296,7 +328,13 @@ class DragDropCoordinator {
         delegate.updateTemporaryIndicatorHighlight(screenId: nil)
 
         let preferredScreen = displacedPreferredScreen ?? session.originScreenId
-        return (displacedWindow, preferredScreen, displacedDisposition)
+        return EndDragSessionResult(
+            displacedWindow: displacedWindow,
+            preferredScreenId: preferredScreen,
+            displacedDisposition: displacedDisposition,
+            originatedFromTemporary: session.originatedFromTemporary,
+            didResolveDrop: didResolveDrop
+        )
     }
 
     func tearDownDragSession() {
@@ -407,11 +445,17 @@ class DragDropCoordinator {
         session.latestFrame = frame
         let cursorPoint = currentCursorAccessibilityPoint()
         let addZoneScreenId = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
-        let targetKey: ZoneKey?
+        var targetKey: ZoneKey?
         if addZoneScreenId == nil {
             targetKey = resolveDropTarget(for: frame, cursorPoint: cursorPoint)
-        } else {
-            targetKey = nil
+        }
+        // Control-Command temp drags skip empty zones as drop targets
+        if session.originatedFromTemporary, let key = targetKey {
+            if let context = delegate?.screenContexts[key.screenId],
+               let zone = context.zoneController.zone(at: key.index),
+               zone.isEmpty {
+                targetKey = nil
+            }
         }
         var temporaryScreenId: CGDirectDisplayID?
         if addZoneScreenId == nil {

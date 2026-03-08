@@ -85,6 +85,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         displacedWindowCoordinator: displacedWindowCoordinator
     )
     internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
+    internal let tempDragOverlayManager = DragOverlayManager()
     /// Tracks screens where the single-zone placeholder has been temporarily hidden (UnderCovers mode).
     internal var underCoversScreens: Set<CGDirectDisplayID> = []
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.

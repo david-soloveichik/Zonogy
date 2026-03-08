@@ -21,6 +21,13 @@ protocol TemporaryDragHandlerHost: AnyObject {
         hoveredAddZoneScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     )
+
+    // Empty-zone auto-promotion for normal temp drags
+    func resolveEmptyTilingZoneUnderCursor(cursorPoint: CGPoint?) -> ZoneKey?
+    func presentTemporaryDragOverlays()
+    func tearDownTemporaryDragOverlays()
+    func updateTemporaryDragOverlayHighlight(zoneKey: ZoneKey?)
+    func finalizeTemporaryDropIntoEmptyZone(windowId: Int, zoneKey: ZoneKey)
 }
 
 /// Encapsulates floating temporary-zone drag behaviour so AppController stays lean.
@@ -32,6 +39,8 @@ final class TemporaryDragHandler {
         let requiresControlCommand: Bool
         var hoveredAddZoneScreenId: CGDirectDisplayID?
         var hoveredTemporaryScreenId: CGDirectDisplayID?
+        var hoveredEmptyZoneKey: ZoneKey?
+        var isOverlayShowing: Bool = false
         var lastCursorPoint: CGPoint?
     }
 
@@ -66,6 +75,7 @@ final class TemporaryDragHandler {
 
         if current.requiresControlCommand {
             if !host.isControlCommandDragActive() {
+                tearDownOverlaysIfNeeded(&current)
                 state = nil
                 host.revertTemporaryDragToTiled(
                     windowId: current.windowId,
@@ -76,6 +86,7 @@ final class TemporaryDragHandler {
                 return
             }
         } else if host.isControlCommandDragActive() {
+            tearDownOverlaysIfNeeded(&current)
             host.promoteFloatingDragToZone(windowId: current.windowId, frame: frame, originScreenId: current.originScreenId)
             state = nil
             return
@@ -83,6 +94,23 @@ final class TemporaryDragHandler {
 
         let cursorPoint = host.currentCursorAccessibilityPoint()
         current.lastCursorPoint = cursorPoint
+
+        // Auto-promote to zone overlay when cursor is over an empty tiling zone
+        if !current.requiresControlCommand {
+            let emptyZone = host.resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint)
+            if current.hoveredEmptyZoneKey != emptyZone {
+                current.hoveredEmptyZoneKey = emptyZone
+                if emptyZone != nil && !current.isOverlayShowing {
+                    host.presentTemporaryDragOverlays()
+                    current.isOverlayShowing = true
+                } else if emptyZone == nil && current.isOverlayShowing {
+                    host.tearDownTemporaryDragOverlays()
+                    current.isOverlayShowing = false
+                }
+                host.updateTemporaryDragOverlayHighlight(zoneKey: emptyZone)
+            }
+        }
+
         let addZoneTarget = host.resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         if current.hoveredAddZoneScreenId != addZoneTarget {
             current.hoveredAddZoneScreenId = addZoneTarget
@@ -99,10 +127,27 @@ final class TemporaryDragHandler {
     }
 
     func endDrag(finalFrame: CGRect) {
-        guard let current = state, let host else {
+        guard var current = state, let host else {
             return
         }
         state = nil
+
+        // Recheck modifier state: if Control-Command was pressed after the last
+        // drag update, suppress the auto-promoted empty-zone drop.
+        if current.hoveredEmptyZoneKey != nil && host.isControlCommandDragActive() {
+            current.hoveredEmptyZoneKey = nil
+        }
+
+        tearDownOverlaysIfNeeded(&current)
+
+        // Drop onto empty tiling zone (auto-promoted)
+        if let emptyZoneKey = current.hoveredEmptyZoneKey {
+            host.finalizeTemporaryDropIntoEmptyZone(windowId: current.windowId, zoneKey: emptyZoneKey)
+            host.updateAddZoneIndicatorHighlight(screenId: nil)
+            host.updateTemporaryIndicatorHighlight(screenId: nil)
+            return
+        }
+
         let finalCursorPoint = current.lastCursorPoint ?? host.currentCursorAccessibilityPoint()
         host.finalizeFloatingTemporaryDrop(
             windowId: current.windowId,
@@ -115,6 +160,9 @@ final class TemporaryDragHandler {
     }
 
     func abortDrag() {
+        if var current = state {
+            tearDownOverlaysIfNeeded(&current)
+        }
         state = nil
         host?.updateAddZoneIndicatorHighlight(screenId: nil)
         host?.updateTemporaryIndicatorHighlight(screenId: nil)
@@ -122,5 +170,12 @@ final class TemporaryDragHandler {
 
     var isActive: Bool {
         state != nil
+    }
+
+    private func tearDownOverlaysIfNeeded(_ current: inout State) {
+        if current.isOverlayShowing {
+            host?.tearDownTemporaryDragOverlays()
+            current.isOverlayShowing = false
+        }
     }
 }

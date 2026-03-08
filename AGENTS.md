@@ -10,7 +10,7 @@
 - For changes touching behavior covered in `TEST-REGRESSIONS.md`, Agent should read those entries before editing and update/add an entry when fixing a new regression.
 - Agent should prefer each code file to have a single responsibility ensuring that code files don't get too large. Each code file should have a concise description header of its responsibility that is maintained up to date
 - Agent should NOT worry about preserving backward compatibility
-- The code should be as elegant and clean as possible. So when implementing a new feature, think deeply about possibly restructuring the code if this would help more cleanly implement the feature and similar features.
+- The code should be as elegant and clean as possible. So when implementing a new feature, think deeply about possibly restructuring the code if this would help more cleanly implement the feature and similar features. Code reuse and simplicity are VERY important.
 
 ## Rules for Codex ONLY (Claude ignores this whole section)
 
