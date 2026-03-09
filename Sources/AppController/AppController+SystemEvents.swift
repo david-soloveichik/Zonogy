@@ -112,10 +112,12 @@ extension AppController {
             return
         }
 
-        // Dismiss Launcher when any application launches (eligible for management or not)
-        if launcherController.isActive {
+        // Dismiss Launcher only when a manageable application launches
+        if launcherController.isActive,
+           let application,
+           shouldManage(application: application) {
             launcherController.hide()
-            Logger.debug("Launcher: Hidden because application launched")
+            Logger.debug("Launcher: Hidden because managed application launched")
         }
 
         handleApplicationEvent(application)
