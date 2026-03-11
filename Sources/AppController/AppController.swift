@@ -82,6 +82,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let placeholderExternalDragOverlayManager = DragOverlayManager()
     internal var placeholderExternalDragOverlayKey: ZoneKey?
     internal var placeholderExternalDragOverlayTeardownWorkItem: DispatchWorkItem?
+    /// True once AppKit has confirmed a real external drag entered a placeholder during the current mouse gesture.
+    /// This avoids treating stale `.drag` pasteboard contents as a live drag.
+    internal var hasObservedRealPlaceholderExternalDragThisGesture = false
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
     internal lazy var floatingZoneCoordinator = FloatingZoneCoordinator(

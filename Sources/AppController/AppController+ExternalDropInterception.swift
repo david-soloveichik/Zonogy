@@ -15,7 +15,11 @@ extension AppController {
         }
 
         guard let emptyZoneKey = resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
-              placeholderCoordinator.hasPlaceholder(for: emptyZoneKey) else {
+              placeholderCoordinator.hasPlaceholder(for: emptyZoneKey),
+              PlaceholderExternalDragPolicy.shouldPromotePlaceholderToInterceptedOverlay(
+                isControlCommandHeld: NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control),
+                hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
+              ) else {
             return false
         }
 

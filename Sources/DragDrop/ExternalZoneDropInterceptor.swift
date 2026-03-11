@@ -9,6 +9,7 @@ protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDele
     func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
     func suspendPlaceholderExternalDragOverlay(reason: String)
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?)
+    func resetObservedPlaceholderExternalDrag(reason: String)
 }
 
 final class ExternalZoneDropInterceptor {
@@ -55,6 +56,8 @@ final class ExternalZoneDropInterceptor {
         pendingMouseUpTearDownWorkItem?.cancel()
         pendingMouseUpTearDownWorkItem = nil
         tearDownOverlays()
+        host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-interceptor-stop")
+        host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-interceptor-stop")
     }
 
     private func handle(event: NSEvent) {
@@ -107,6 +110,8 @@ final class ExternalZoneDropInterceptor {
         let workItem = DispatchWorkItem { [weak self] in
             self?.pendingMouseUpTearDownWorkItem = nil
             self?.tearDownOverlays()
+            self?.host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-mouse-up")
+            self?.host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-mouse-up")
         }
         pendingMouseUpTearDownWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)

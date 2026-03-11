@@ -40,10 +40,12 @@ extension AppController {
     }
 
     func placeholderExternalDragEntered(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        hasObservedRealPlaceholderExternalDragThisGesture = true
         showPlaceholderExternalDragOverlay(for: ZoneKey(screenId: screenId, index: zoneIndex), trigger: "entered")
     }
 
     func placeholderExternalDragUpdated(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        hasObservedRealPlaceholderExternalDragThisGesture = true
         showPlaceholderExternalDragOverlay(for: ZoneKey(screenId: screenId, index: zoneIndex), trigger: "updated")
     }
 
@@ -52,6 +54,14 @@ extension AppController {
             from: ZoneKey(screenId: screenId, index: zoneIndex),
             reason: "placeholder-drag-exited"
         )
+    }
+
+    func resetObservedPlaceholderExternalDrag(reason: String) {
+        guard hasObservedRealPlaceholderExternalDragThisGesture else {
+            return
+        }
+        hasObservedRealPlaceholderExternalDragThisGesture = false
+        Logger.debug("Reset placeholder external drag observation (reason: \(reason))")
     }
 
     func suspendPlaceholderExternalDragOverlay(reason: String) {
@@ -63,8 +73,12 @@ extension AppController {
     }
 
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?) {
-        guard !(NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control)),
-              MouseButtons.isLeftMouseButtonDown(),
+        let isControlCommandHeld = NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control)
+        guard PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
+            isControlCommandHeld: isControlCommandHeld,
+            isLeftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
+            hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
+        ),
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint,
               let key = resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
