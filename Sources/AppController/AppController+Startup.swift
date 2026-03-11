@@ -421,6 +421,8 @@ extension AppController {
                 self.navigateLeft()
             case .navigateRight:
                 self.navigateRight()
+            case .focusTargetedWindow:
+                self.focusTargetedWindow()
             case .minimizeActiveWindow:
                 // If Launcher is open and targeting a tiled zone, remove that zone instead.
                 // If only 1 zone on screen, just hide Launcher (don't enter UnderCovers).

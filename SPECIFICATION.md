@@ -160,6 +160,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - Control-Cmd-UpArrow: switch from the targeted floating zone to a tiling zone on the same screen (prefer empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a floating zone is not targeted.
 - Control-Cmd-LeftArrow: navigate left. If floating zone is targeted, target the floating zone on the screen to the left. If tiling zone is targeted, target the zone with lower index on same screen, or wrap to the last zone on the previous screen.
 - Control-Cmd-RightArrow: navigate right. If floating zone is targeted, target the floating zone on the screen to the right. If tiling zone is targeted, target the zone with higher index on same screen, or wrap to the first zone on the next screen.
+- Control-Cmd-Return: if the currently targeted zone (tiling or floating) contains a managed window, make that window frontmost.
 
 ### Floating Zone Behavior
 

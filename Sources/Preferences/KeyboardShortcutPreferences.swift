@@ -24,6 +24,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case navigateRight
         case targetFloatingZone
         case targetTilingZone
+        case focusTargetedWindow
 
         // Window Switchers
         case showLauncher
@@ -53,6 +54,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .navigateRight: return "Navigate Right"
             case .targetFloatingZone: return "Target Floating Zone"
             case .targetTilingZone: return "Target Tiling Zone"
+            case .focusTargetedWindow: return "Focus Targeted Window"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
             case .showCmdTab: return "CmdTab Window Switcher"
@@ -96,6 +98,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
             case .targetTilingZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
+            case .focusTargetedWindow:
+                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)

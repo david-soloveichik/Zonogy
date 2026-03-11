@@ -48,6 +48,8 @@ extension AppController {
             Logger.debug("Hotkey show WinShot chooser triggered")
         case .showLauncher:
             Logger.debug("Hotkey show launcher triggered")
+        case .focusTargetedWindow:
+            Logger.debug("Hotkey focus targeted window triggered")
         }
         triggerShortcut(action)
     }
