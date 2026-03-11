@@ -41,11 +41,13 @@ final class LauncherController {
     private var model: LauncherModel?
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
+    private var mouseMonitor: Any?
     private var clickMonitor: ClickOutsideMonitor?
     private var appTerminationObserver: Any?
     private var lastAnchor: Anchor?
     private var autoShowGraceUntil: Date?
     private var pendingAutoShowGraceOnOpen = false
+    private var clickSuppressionGate = LauncherClickSuppressionGate()
 
     private(set) var isActive = false
 
@@ -71,6 +73,11 @@ final class LauncherController {
     var isInAutoShowGracePeriod: Bool {
         guard let graceUntil = autoShowGraceUntil else { return false }
         return Date() < graceUntil
+    }
+
+    func armInheritedClickSuppression(at screenPoint: CGPoint = NSEvent.mouseLocation) {
+        clickSuppressionGate.arm(at: screenPoint)
+        Logger.debug("Launcher: Armed inherited click suppression at \(screenPoint)")
     }
 
     func show() {
@@ -144,6 +151,7 @@ final class LauncherController {
         }
 
         startKeyMonitor()
+        startMouseMonitor()
         startClickMonitor()
         startAppTerminationObserver()
 
@@ -153,6 +161,7 @@ final class LauncherController {
 
     func hide() {
         stopKeyMonitor()
+        stopMouseMonitor()
         stopClickMonitor()
         stopAppTerminationObserver()
 
@@ -162,6 +171,7 @@ final class LauncherController {
         lastAnchor = nil
         pendingAutoShowGraceOnOpen = false
         autoShowGraceUntil = nil
+        clickSuppressionGate.clear()
 
         isActive = false
         Logger.debug("Launcher: Closed")
@@ -293,6 +303,57 @@ final class LauncherController {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
         }
+    }
+
+    private func startMouseMonitor() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseUp, .mouseMoved, .leftMouseDragged]
+        ) { [weak self] event in
+            guard let self = self else { return event }
+            return self.handleMouseEvent(event) ? nil : event
+        }
+    }
+
+    private func stopMouseMonitor() {
+        if let monitor = mouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseMonitor = nil
+        }
+    }
+
+    private func handleMouseEvent(_ event: NSEvent) -> Bool {
+        guard clickSuppressionGate.isArmed else {
+            return false
+        }
+
+        let screenPoint = screenPoint(for: event)
+        switch event.type {
+        case .mouseMoved, .leftMouseDragged:
+            clickSuppressionGate.notePointerLocation(screenPoint)
+            return false
+        case .leftMouseDown, .leftMouseUp:
+            let targetsLauncher = event.window === window || window?.frame.contains(screenPoint) == true
+            if clickSuppressionGate.shouldSuppressLauncherPointerEvent(
+                at: screenPoint,
+                targetsLauncher: targetsLauncher
+            ) {
+                Logger.debug(
+                    "Launcher: Suppressed inherited click-through type=\(event.type.rawValue) clickCount=\(event.clickCount)"
+                )
+                return true
+            }
+            return false
+        default:
+            return false
+        }
+    }
+
+    private func screenPoint(for event: NSEvent) -> CGPoint {
+        if let eventWindow = event.window {
+            return eventWindow.convertPoint(toScreen: event.locationInWindow)
+        }
+        return NSEvent.mouseLocation
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {

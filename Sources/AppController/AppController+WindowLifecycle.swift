@@ -4,6 +4,21 @@ import ApplicationServices
 
 /// Validation retry callbacks and WindowController delegate bridge (manual moves, resizes, closes).
 extension AppController {
+    private func armLauncherClickSuppressionIfNeeded(
+        for destination: TargetedZoneManager.TargetedDestination,
+        willOpenLauncher: Bool
+    ) {
+        let willRetargetVisibleLauncher = launcherController.isActive &&
+            targetedZoneManager.targetedDestination != destination
+        let willOpenHiddenLauncher = willOpenLauncher && !launcherController.isActive
+
+        guard willRetargetVisibleLauncher || willOpenHiddenLauncher else {
+            return
+        }
+
+        launcherController.armInheritedClickSuppression()
+    }
+
     func hasManagedWindows(for pid: pid_t) -> Bool {
         return windowController.allWindows.contains { $0.backing.pid == pid }
     }
@@ -231,6 +246,7 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
         let key = zoneKey(for: screenId, index: zoneIndex)
+        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: isDoubleClick)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
         flashTargetFeedback(for: key)
 
@@ -268,6 +284,7 @@ extension AppController {
         placeholderActivated(screenId: screenId, zoneIndex: zoneIndex, isDoubleClick: false)
 
         // Always show the Launcher when the search pill is clicked
+        armLauncherClickSuppressionIfNeeded(for: .tiled(zoneKey(for: screenId, index: zoneIndex)), willOpenLauncher: true)
         showLauncherIfAllowed(trigger: "placeholder-search-pill")
     }
 
@@ -278,6 +295,7 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
+        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: isDoubleClick || wasAlreadyTargeted)
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
 
         if isDoubleClick || wasAlreadyTargeted {
@@ -292,6 +310,7 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Temporary zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
+        armLauncherClickSuppressionIfNeeded(for: .temporary(screenId: screenId), willOpenLauncher: isDoubleClick || wasAlreadyTargeted)
         targetedZoneManager.setTemporaryTarget(on: screenId, reason: "temporary-indicator-clicked")
 
         if isDoubleClick || wasAlreadyTargeted {
