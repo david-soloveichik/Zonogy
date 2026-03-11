@@ -156,8 +156,8 @@ extension AppController {
         // background writes cannot overwrite the corrected final frames.
         windowController.drainLiveResizeQueue()
         syncWindowsToZones()
-        // Tiling windows may now occlude the temporary-zone window after the resize.
-        queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on: screenId, reason: "zone-resize-end")
+        // Tiling windows may now occlude the floating-zone window after the resize.
+        queueOcclusionBasedFloatingZoneMinimizationIfNeeded(on: screenId, reason: "zone-resize-end")
     }
 
     // MARK: - Event suppression helpers
@@ -257,7 +257,7 @@ extension AppController {
         emptiedZoneKey: ZoneKey?,
         reason: String
     ) {
-        // Note: emptiedZoneKey is no longer used - temporary zone promotion is now
+        // Note: emptiedZoneKey is no longer used - floating zone promotion is now
         // handled centrally by syncWindowsToZones. Keeping parameter for API stability.
         _ = emptiedZoneKey
 

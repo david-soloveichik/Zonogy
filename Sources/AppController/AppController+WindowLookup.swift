@@ -92,7 +92,7 @@ extension AppController {
         let focusedWindow = unsafeBitCast(windowObject, to: AXUIElement.self)
 
         if let tracked = windowController.managedWindow(matching: focusedWindow),
-           tracked.zoneIndex != nil || isWindowInTemporaryZone(tracked.windowId) {
+           tracked.zoneIndex != nil || isWindowInFloatingZone(tracked.windowId) {
             return .managed(window: tracked, pid: pid, focusedElement: focusedWindow)
         }
 

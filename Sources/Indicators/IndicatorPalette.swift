@@ -1,6 +1,6 @@
 import AppKit
 
-/// Shared visual constants for targeted pill indicators so normal and temporary pills stay consistent.
+/// Shared visual constants for targeted pill indicators so normal and floating pills stay consistent.
 enum IndicatorPalette {
     static let targetedFillColor = NSColor.systemBlue.withAlphaComponent(0.55)
     static let targetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.75)

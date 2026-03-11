@@ -49,7 +49,7 @@ extension AppController {
             autoShowLauncherIfEmptyTargetedTiledZone()
         }
 
-        clearTemporaryZone(for: windowId, minimize: false, reason: reason)
+        clearFloatingZone(for: windowId, minimize: false, reason: reason)
 
         if !removed, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
@@ -92,7 +92,7 @@ extension AppController {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
         if zoneIndex != nil {
-            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
+            clearFloatingZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }
@@ -100,7 +100,7 @@ extension AppController {
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
-        managed.isInTemporaryZone = false
+        managed.isInFloatingZone = false
         clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: false, reason: "assignment-cleared")
         activeFitClearSuppressionForWindow(managed.windowId)
     }
@@ -209,11 +209,11 @@ extension AppController {
             }
         }
 
-        // Ctrl+Cmd-click on the Temporary Zone indicator should behave like a regular left-click.
-        for (screenId, hitArea) in temporaryIndicatorTracker.hitAreas {
+        // Ctrl+Cmd-click on the Floating Zone indicator should behave like a regular left-click.
+        for (screenId, hitArea) in floatingIndicatorTracker.hitAreas {
             if hitArea.contains(location) {
-                let wasAlreadyTargeted = targetedTemporaryScreenId == screenId
-                temporaryZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: wasAlreadyTargeted, isDoubleClick: false)
+                let wasAlreadyTargeted = targetedFloatingScreenId == screenId
+                floatingZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: wasAlreadyTargeted, isDoubleClick: false)
                 return true
             }
         }

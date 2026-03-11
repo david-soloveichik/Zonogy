@@ -16,7 +16,7 @@ struct DisplacedWindowPlan<Window: WindowIdProviding> {
     let finalize: () -> Void
 }
 
-/// Shared displacement planning used by both tiled-zone and temporary-zone placement.
+/// Shared displacement planning used by both tiled-zone and floating-zone placement.
 enum DisplacedWindowPlanner {
     /// If `existingWindowId` refers to an occupant different from `incomingWindowId`, evict it from the destination,
     /// clear its assignment bookkeeping, and return a plan the caller can `finalize()` at the appropriate time.

@@ -10,7 +10,7 @@ extension AppController {
             return nil
         }
 
-        // UnderCovers is only available for the single empty non-temporary zone 1 on a screen.
+        // UnderCovers is only available for the single empty non-floating zone 1 on a screen.
         let zones = context.zoneController.allZones
         guard zones.count == 1,
               let zone = zones.first,

@@ -162,7 +162,7 @@ extension AppController {
         cancelAllPendingRecaptureWorkItems()
         cancelPendingScreenTopologyRefreshWork()
         cancelPendingFullScreenAsyncChecks()
-        cancelTemporaryZoneProtectionAsyncWork()
+        cancelFloatingZoneProtectionAsyncWork()
         cancelPendingWindowActivityRecord()
 
         // Clear suppression windows since they are no longer meaningful across sleep transitions.
@@ -201,12 +201,12 @@ extension AppController {
         pendingFullScreenSpaceChangeWorkItem = nil
     }
 
-    private func cancelTemporaryZoneProtectionAsyncWork() {
-        for workItem in temporaryZoneProtectionExpirationWorkItems.values {
+    private func cancelFloatingZoneProtectionAsyncWork() {
+        for workItem in floatingZoneProtectionExpirationWorkItems.values {
             workItem.cancel()
         }
-        temporaryZoneProtectionExpirationWorkItems.removeAll()
-        temporaryZoneProtectionDeadlines.removeAll()
+        floatingZoneProtectionExpirationWorkItems.removeAll()
+        floatingZoneProtectionDeadlines.removeAll()
     }
 
     // MARK: - Event gating helper

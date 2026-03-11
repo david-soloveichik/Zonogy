@@ -8,27 +8,27 @@ Beyond the self-evident paths (app termination removes all windows for that PID;
 
 - **Zone sync pruning:** Every full `syncWindowsToZones()` checks all managed windows. Full syncs run frequently — after zone add/remove, window placement, miniaturize/deminiaturize, drag-drop, screen-topology changes, WinShot/Launcher operations, and other layout-affecting events.
 
-## Temporary Zone Protection Windows
+## Floating Zone Protection Windows
 
-When a window is placed in the temporary zone, it receives a 0.7-second protection window during which focus/front-most changes will not trigger occlusion-based temporary-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the temporary-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
+When a window is placed in the floating zone, it receives a 0.7-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
 
 The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
 For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles.
 
-## Occlusion-Based Temporary Zone Minimization
+## Occlusion-Based Floating Zone Minimization
 
-When a managed window assigned to a tiling zone becomes front-most on a screen, Zonogy checks whether that screen’s temporary-zone occupant is occluded by that occupied tiling zone. If it is occluded, minimize the temporary window; otherwise leave it unminimized. If a placeholder becomes front-most and its tiling zone's frame overlaps the temporary-zone occupant, promote the temporary window into that placeholder’s tiling zone instead of minimizing it.
+When a managed window assigned to a tiling zone becomes front-most on a screen, Zonogy checks whether that screen’s floating-zone occupant is occluded by that occupied tiling zone. If it is occluded, minimize the floating window; otherwise leave it unminimized. If a placeholder becomes front-most and its tiling zone's frame overlaps the floating-zone occupant, promote the floating window into that placeholder’s tiling zone instead of minimizing it.
 
 Implementation notes:
 
 - Determine which windows are “in front” via `CGWindowListCopyWindowInfo` ordering (on-screen windows), using `CGWindowID` for stable identity.
 - Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
-- Define occlusion as: at least one in-front occupied tiling zone's frame intersects the temporary window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
+- Define occlusion as: at least one in-front occupied tiling zone's frame intersects the floating window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
 
-## Debounced Temporary Zone Minimization
+## Debounced Floating Zone Minimization
 
-When a window is replaced in the temporary zone, the displaced window is queued for deferred minimization rather than minimized immediately. The queue flushes after a 150ms pause with no new additions. This batches rapid replacements together (e.g., when launching an app that opens multiple windows in quick succession), leading to faster behavior and fixing some apparent bugs. If a queued window is reassigned to any zone before the timer fires, it is removed from the queue.
+When a window is replaced in the floating zone, the displaced window is queued for deferred minimization rather than minimized immediately. The queue flushes after a 150ms pause with no new additions. This batches rapid replacements together (e.g., when launching an app that opens multiple windows in quick succession), leading to faster behavior and fixing some apparent bugs. If a queued window is reassigned to any zone before the timer fires, it is removed from the queue.
 
 ## Additional Notes
 
@@ -87,9 +87,9 @@ Some applications report the subrole for their minimized windows as AXDialogSubr
 
 When unminimizing a window that needs to appear at a specific position (e.g., restoring a WinShot snapshot or selecting a minimized window from Launcher), we first set the window's position and size while the window is still minimized. However, if we unminimize synchronously right after setting position/size, the window sometimes visually appears at its old location before snapping to the correct position. To address this, we default to async mode for unminimization.
 
-### Temporary zone activation workaround
+### Floating zone activation workaround
 
-When placing a window into the temporary zone, the window may fail to receive focus and appear behind tiled windows. Since the temporary zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateTemporaryZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before calling `app.activate()` and `kAXRaiseAction`.
+When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before calling `app.activate()` and `kAXRaiseAction`.
 
 ### Full-screen window detection
 

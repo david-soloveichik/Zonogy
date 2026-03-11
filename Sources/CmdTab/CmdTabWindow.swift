@@ -84,7 +84,7 @@ final class CmdTabWindow: NSPanel {
     }
 
     /// Position the window centered on the specified screen
-    func centerOnScreen(_ screenId: CGDirectDisplayID, forTemporaryZone: Bool = false) {
+    func centerOnScreen(_ screenId: CGDirectDisplayID, forFloatingZone: Bool = false) {
         guard let screen = NSScreen.screens.first(where: { screen in
             guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
                 return false
@@ -92,21 +92,21 @@ final class CmdTabWindow: NSPanel {
             return CGDirectDisplayID(screenNumber.uint32Value) == screenId
         }) else {
             if let mainScreen = NSScreen.main {
-                center(on: mainScreen, forTemporaryZone: forTemporaryZone)
+                center(on: mainScreen, forFloatingZone: forFloatingZone)
             }
             return
         }
 
-        center(on: screen, forTemporaryZone: forTemporaryZone)
+        center(on: screen, forFloatingZone: forFloatingZone)
     }
 
-    private func center(on screen: NSScreen, forTemporaryZone: Bool = false) {
+    private func center(on screen: NSScreen, forFloatingZone: Bool = false) {
         let screenFrame = screen.visibleFrame
         let windowSize = frame.size
         let x = (screenFrame.midX - windowSize.width / 2).rounded()
 
         let y: CGFloat
-        if forTemporaryZone {
+        if forFloatingZone {
             y = (screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2).rounded()
         } else {
             y = (screenFrame.midY - windowSize.height / 2).rounded()

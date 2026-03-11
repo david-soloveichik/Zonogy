@@ -12,8 +12,8 @@ struct ZoneResizeHandleAvoidanceContext {
     }
 }
 
-/// Avoidance frame for a temporary-zone floating window (zone-index-agnostic).
-struct ZoneResizeHandleTemporaryZoneContext {
+/// Avoidance frame for a floating-zone floating window (zone-index-agnostic).
+struct ZoneResizeHandleFloatingZoneContext {
     let avoidFrame: CGRect
 
     init(avoidFrame: CGRect) {
@@ -22,7 +22,7 @@ struct ZoneResizeHandleTemporaryZoneContext {
 }
 
 /// Applies overlap rules from the specification for ActiveFit reveal windows, frontmost managed windows,
-/// and temporary-zone floating windows.
+/// and floating-zone floating windows.
 enum ZoneResizeHandleVisibilityPolicy {
     private static func clipSeparatorFrame(
         _ frame: CGRect,
@@ -108,13 +108,13 @@ enum ZoneResizeHandleVisibilityPolicy {
         _ separator: ZoneLayout.Separator,
         activeFitContext: ZoneResizeHandleAvoidanceContext?,
         frontmostManagedContext: ZoneResizeHandleAvoidanceContext?,
-        temporaryZoneContext: ZoneResizeHandleTemporaryZoneContext? = nil
+        floatingZoneContext: ZoneResizeHandleFloatingZoneContext? = nil
     ) -> CGRect? {
         var frame = separator.frame.standardized
 
-        // Temporary-zone floating window: hide the separator if it overlaps.
-        if let temporaryZoneContext,
-           frame.intersects(temporaryZoneContext.avoidFrame) {
+        // Floating-zone floating window: hide the separator if it overlaps.
+        if let floatingZoneContext,
+           frame.intersects(floatingZoneContext.avoidFrame) {
             return nil
         }
 

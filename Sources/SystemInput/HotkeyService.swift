@@ -9,7 +9,7 @@ final class HotkeyService {
         case captureTimeTravelLogs = 3
         case flipKeyWindow = 4
         case clearOrResetZones = 5
-        case targetTemporaryZone = 6
+        case targetFloatingZone = 6
         case targetTilingZone = 7
         case navigateLeft = 8
         case navigateRight = 9
@@ -28,7 +28,7 @@ final class HotkeyService {
             case .captureTimeTravelLogs: return .captureTimeTravelLogs
             case .flipKeyWindow: return .flipKeyWindow
             case .clearOrResetZones: return .clearOrResetZones
-            case .targetTemporaryZone: return .targetTemporaryZone
+            case .targetFloatingZone: return .targetFloatingZone
             case .targetTilingZone: return .targetTilingZone
             case .navigateLeft: return .navigateLeft
             case .navigateRight: return .navigateRight

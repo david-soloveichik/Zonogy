@@ -136,14 +136,14 @@ extension AppController: DockMenusCoordinatorDelegate {
         // Determine origin zone
         let originZoneKey = zoneKey(forManagedWindow: managed)
         let originScreenId = detectScreenId(for: managed)
-        let originatedFromTemporary = isWindowInTemporaryZone(managed.windowId)
+        let originatedFromFloating = isWindowInFloatingZone(managed.windowId)
 
         // Start cursor-driven drag session via DragDropCoordinator
         dragDropCoordinator.beginCursorDrivenDragSession(
             windowId: managedWindowId,
             originZoneKey: originZoneKey,
             originScreenId: originScreenId,
-            originatedFromTemporary: originatedFromTemporary
+            originatedFromFloating: originatedFromFloating
         )
     }
 
@@ -167,8 +167,8 @@ extension AppController: DockMenusCoordinatorDelegate {
         case .tilingZone(let zoneKey):
             placeDockMenuWindowIntoZone(window, zoneKey: zoneKey)
 
-        case .temporaryZone(let screenId):
-            placeDockMenuWindowIntoTemporary(window, screenId: screenId)
+        case .floatingZone(let screenId):
+            placeDockMenuWindowIntoFloatingZone(window, screenId: screenId)
 
         case .addZone(let screenId):
             placeDockMenuWindowIntoNewZone(window, screenId: screenId)
@@ -206,10 +206,10 @@ extension AppController: DockMenusCoordinatorDelegate {
         placeWindowIntoZone(managed, zoneKey: zoneKey)
     }
 
-    private func placeDockMenuWindowIntoTemporary(_ window: LauncherWindowItem, screenId: CGDirectDisplayID) {
+    private func placeDockMenuWindowIntoFloatingZone(_ window: LauncherWindowItem, screenId: CGDirectDisplayID) {
         guard let managedWindowId = window.managedWindowId,
               let managed = windowController.window(withId: managedWindowId) else {
-            Logger.debug("DockMenus: cannot place into temporary - window not managed")
+            Logger.debug("DockMenus: cannot place into floating zone - window not managed")
             return
         }
 
@@ -222,11 +222,11 @@ extension AppController: DockMenusCoordinatorDelegate {
         // Remove from current zone first
         removeWindowFromAllZones(windowId: managed.windowId, reason: "dockmenu-drag", retarget: false)
 
-        // Place in temporary zone
-        assignWindowToTemporaryZone(managed, on: screenId, centerWindow: true, reason: "dockmenu-drag")
-        Logger.debug("DockMenus: placed window \(managed.windowId) into temporary zone on screen \(screenContextStore.loggingIndex(for: screenId))")
+        // Place in floating zone
+        assignWindowToFloatingZone(managed, on: screenId, centerWindow: true, reason: "dockmenu-drag")
+        Logger.debug("DockMenus: placed window \(managed.windowId) into floating zone on screen \(screenContextStore.loggingIndex(for: screenId))")
 
-        syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
+        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
         refreshIndicators()
     }
 
@@ -236,7 +236,7 @@ extension AppController: DockMenusCoordinatorDelegate {
             return
         }
 
-        guard let newZone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) else {
+        guard let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
             Logger.debug("DockMenus: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
             return
         }
@@ -286,12 +286,12 @@ extension AppController: DockMenusCoordinatorDelegate {
             targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
             launchApp(at: appURL)
 
-        case .temporaryZone(let screenId):
-            targetedZoneManager.setTemporaryTarget(on: screenId, reason: "dock-nonrunning-drag")
+        case .floatingZone(let screenId):
+            targetedZoneManager.setFloatingTarget(on: screenId, reason: "dock-nonrunning-drag")
             launchApp(at: appURL)
 
         case .addZone(let screenId):
-            if let newZone = addZone(on: screenId, announce: false, promoteTemporaryOccupant: false) {
+            if let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) {
                 let zoneKey = ZoneKey(screenId: screenId, index: newZone.index)
                 targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
             }

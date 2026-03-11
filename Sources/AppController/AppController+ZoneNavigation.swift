@@ -37,18 +37,18 @@ extension AppController {
         // WinShot: capture the pre-clear state before applying bulk clear/reset changes.
         autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
 
-        // Clear the temporary zone occupant (bookkeeping only, minimize batched below).
-        let tempOccupant = temporaryZoneCoordinator.occupant(on: screenId)
-        if let tempOccupant {
-            temporaryZoneCoordinator.clear(windowId: tempOccupant.windowId, minimize: false, reason: "clear-zones-shortcut")
+        // Clear the floating zone occupant (bookkeeping only, minimize batched below).
+        let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId)
+        if let floatingOccupant {
+            floatingZoneCoordinator.clear(windowId: floatingOccupant.windowId, minimize: false, reason: "clear-zones-shortcut")
         }
 
         if allEmpty {
-            // Minimize temp zone occupant if any
-            if let tempOccupant {
-                minimizeWindowProgrammatically(tempOccupant, reason: "clear-zones-shortcut")
+            // Minimize floating zone occupant if any
+            if let floatingOccupant {
+                minimizeWindowProgrammatically(floatingOccupant, reason: "clear-zones-shortcut")
                 scheduleMinimizeVerification(
-                    windowId: tempOccupant.windowId,
+                    windowId: floatingOccupant.windowId,
                     emptiedZoneKey: nil,
                     minimizeReason: "clear-zones-shortcut",
                     cleanupReason: "clear-zones-shortcut",
@@ -72,10 +72,10 @@ extension AppController {
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
 
-            // Collect all windows to minimize (temp zone + tiled zones)
+            // Collect all windows to minimize (floating zone + tiled zones)
             var windowsToMinimize: [ManagedWindow] = []
-            if let tempOccupant {
-                windowsToMinimize.append(tempOccupant)
+            if let floatingOccupant {
+                windowsToMinimize.append(floatingOccupant)
             }
             for zone in zones {
                 if let windowId = zone.occupantWindowId,
@@ -214,11 +214,11 @@ extension AppController {
             return nil
         }
 
-        // Temporary zone floats above all tiled zones; return immediately if cursor is within it.
-        if let tempOccupant = temporaryZoneOccupant(on: screenId),
-           let frame = windowController.actualFrameInAccessibilityCoordinates(for: tempOccupant),
+        // Floating zone floats above all tiled zones; return immediately if cursor is within it.
+        if let floatingOccupant = floatingZoneOccupant(on: screenId),
+           let frame = windowController.actualFrameInAccessibilityCoordinates(for: floatingOccupant),
            frame.contains(cursorPoint) {
-            return (tempOccupant, tempOccupant.backing.pid)
+            return (floatingOccupant, floatingOccupant.backing.pid)
         }
 
         // Collect tiled zone candidates under cursor: (ManagedWindow, pid, cgWindowId).
@@ -273,10 +273,10 @@ extension AppController {
         return nil
     }
 
-    /// Target the temporary zone, preferring the screen of the currently targeted normal zone
-    internal func targetTemporaryZone() {
+    /// Target the floating zone, preferring the screen of the currently targeted normal zone
+    internal func targetFloatingZone() {
         guard let targetedZone = targetedZoneManager.targetedZoneKey else {
-            Logger.debug("Target temporary zone: normal zone not targeted; shortcut ignored")
+            Logger.debug("Target floating zone: normal zone not targeted; shortcut ignored")
             return
         }
 
@@ -293,19 +293,19 @@ extension AppController {
         }
 
         let screenIndex = screenContextStore.loggingIndex(for: preferredScreenId)
-        Logger.debug("Target temporary zone: setting temporary zone on screen \(screenIndex) as target")
-        targetedZoneManager.setTemporaryTarget(on: preferredScreenId, reason: "shortcut-target-temporary")
+        Logger.debug("Target floating zone: setting floating zone on screen \(screenIndex) as target")
+        targetedZoneManager.setFloatingTarget(on: preferredScreenId, reason: "shortcut-target-floating")
     }
 
-    /// Target tiling zone: from temporary zone to normal zone on same screen
+    /// Target tiling zone: from floating zone to normal zone on same screen
     internal func targetTilingZone() {
-        guard let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId else {
-            Logger.debug("Target tiling zone: temporary zone not targeted, doing nothing")
+        guard let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId else {
+            Logger.debug("Target tiling zone: floating zone not targeted, doing nothing")
             return
         }
 
-        guard let context = screenContexts[targetedTemporaryScreenId] else {
-            Logger.debug("Target tiling zone: no context for temporary zone screen")
+        guard let context = screenContexts[targetedFloatingScreenId] else {
+            Logger.debug("Target tiling zone: no context for floating zone screen")
             return
         }
 
@@ -314,8 +314,8 @@ extension AppController {
         // Prefer empty tiling zone with lowest index
         let emptyZones = zones.filter { $0.isEmpty }.sorted { $0.index < $1.index }
         if let firstEmptyZone = emptyZones.first {
-            let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstEmptyZone.index)
-            Logger.debug("Target tiling zone: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstEmptyZone.index)
+            Logger.debug("Target tiling zone: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
             targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
             return
         }
@@ -323,8 +323,8 @@ extension AppController {
         // If no empty zone, target filled zone with highest index
         let filledZones = zones.filter { !$0.isEmpty }.sorted { $0.index > $1.index }
         if let firstFilledZone = filledZones.first {
-            let zoneKey = ZoneKey(screenId: targetedTemporaryScreenId, index: firstFilledZone.index)
-            Logger.debug("Target tiling zone: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedTemporaryScreenId))")
+            let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstFilledZone.index)
+            Logger.debug("Target tiling zone: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
             targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
             return
         }
@@ -334,9 +334,9 @@ extension AppController {
 
     /// Navigate left: between zones or screens
     internal func navigateLeft() {
-        // If temporary zone is targeted, go to temporary zone on screen to the left
-        if let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId {
-            navigateTemporaryZoneLeft(from: targetedTemporaryScreenId)
+        // If floating zone is targeted, go to floating zone on screen to the left
+        if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
+            navigateFloatingZoneLeft(from: targetedFloatingScreenId)
             return
         }
 
@@ -351,9 +351,9 @@ extension AppController {
 
     /// Navigate right: between zones or screens
     internal func navigateRight() {
-        // If temporary zone is targeted, go to temporary zone on screen to the right
-        if let targetedTemporaryScreenId = targetedZoneManager.targetedTemporaryScreenId {
-            navigateTemporaryZoneRight(from: targetedTemporaryScreenId)
+        // If floating zone is targeted, go to floating zone on screen to the right
+        if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
+            navigateFloatingZoneRight(from: targetedFloatingScreenId)
             return
         }
 
@@ -366,28 +366,28 @@ extension AppController {
         Logger.debug("Navigate right: no zone targeted")
     }
 
-    private func navigateTemporaryZoneLeft(from currentScreenId: CGDirectDisplayID) {
+    private func navigateFloatingZoneLeft(from currentScreenId: CGDirectDisplayID) {
         let screens = screenOrderLeftToRight
         guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex > 0 else {
-            Logger.debug("Navigate left (temp): already at leftmost screen")
+            Logger.debug("Navigate left (floating): already at leftmost screen")
             return
         }
 
         let leftScreenId = screens[currentIndex - 1]
-        Logger.debug("Navigate left (temp): targeting temporary zone on screen \(screenContextStore.loggingIndex(for: leftScreenId))")
-        targetedZoneManager.setTemporaryTarget(on: leftScreenId, reason: "shortcut-navigate-left-temp")
+        Logger.debug("Navigate left (floating): targeting floating zone on screen \(screenContextStore.loggingIndex(for: leftScreenId))")
+        targetedZoneManager.setFloatingTarget(on: leftScreenId, reason: "shortcut-navigate-left-floating")
     }
 
-    private func navigateTemporaryZoneRight(from currentScreenId: CGDirectDisplayID) {
+    private func navigateFloatingZoneRight(from currentScreenId: CGDirectDisplayID) {
         let screens = screenOrderLeftToRight
         guard let currentIndex = screens.firstIndex(of: currentScreenId), currentIndex < screens.count - 1 else {
-            Logger.debug("Navigate right (temp): already at rightmost screen")
+            Logger.debug("Navigate right (floating): already at rightmost screen")
             return
         }
 
         let rightScreenId = screens[currentIndex + 1]
-        Logger.debug("Navigate right (temp): targeting temporary zone on screen \(screenContextStore.loggingIndex(for: rightScreenId))")
-        targetedZoneManager.setTemporaryTarget(on: rightScreenId, reason: "shortcut-navigate-right-temp")
+        Logger.debug("Navigate right (floating): targeting floating zone on screen \(screenContextStore.loggingIndex(for: rightScreenId))")
+        targetedZoneManager.setFloatingTarget(on: rightScreenId, reason: "shortcut-navigate-right-floating")
     }
 
     private func navigateNormalZoneLeft(from currentKey: ZoneKey) {

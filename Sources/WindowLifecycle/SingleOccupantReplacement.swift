@@ -1,6 +1,6 @@
 import Foundation
 
-/// Shared replacement pipeline for destinations that can hold at most one window (tiled zone or temporary zone).
+/// Shared replacement pipeline for destinations that can hold at most one window (tiled zone or floating zone).
 ///
 /// This standardizes the ordering so both pathways behave consistently:
 /// 1) Evict and clear the displaced occupant (if any)

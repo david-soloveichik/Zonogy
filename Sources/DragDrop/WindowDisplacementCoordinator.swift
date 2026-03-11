@@ -4,12 +4,12 @@ import AppKit
 protocol DisplacedWindowCoordinatorHost: AnyObject {
     var windowPlacementManager: WindowPlacementManager { get }
     var windowController: WindowController { get }
-    var targetedTemporaryScreenId: CGDirectDisplayID? { get }
+    var targetedFloatingScreenId: CGDirectDisplayID? { get }
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
 
     func hasAvailableTiledZone() -> Bool
     func activeScreenId() -> CGDirectDisplayID
-    func assignWindowToTemporaryZone(
+    func assignWindowToFloatingZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool,
@@ -28,7 +28,7 @@ final class DisplacedWindowCoordinator {
         _ displacedWindow: ManagedWindow?,
         preferredScreenId: CGDirectDisplayID?,
         disposition: DisplacedWindowDisposition,
-        fallbackTemporaryReason: String = "displaced-no-empty-zones"
+        fallbackFloatingReason: String = "displaced-no-empty-zones"
     ) {
         guard let host, let displacedWindow else { return }
 
@@ -46,15 +46,15 @@ final class DisplacedWindowCoordinator {
             return
         }
 
-        let screenId = host.targetedTemporaryScreenId
+        let screenId = host.targetedFloatingScreenId
             ?? preferredScreenId
             ?? host.activeScreenId()
 
-        host.assignWindowToTemporaryZone(
+        host.assignWindowToFloatingZone(
             displacedWindow,
             on: screenId,
             centerWindow: true,
-            reason: fallbackTemporaryReason
+            reason: fallbackFloatingReason
         )
     }
 }

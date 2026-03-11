@@ -17,7 +17,7 @@ protocol TargetedZoneManagerDelegate: AnyObject {
 class TargetedZoneManager {
     enum TargetedDestination: Equatable {
         case tiled(ZoneKey)
-        case temporary(screenId: CGDirectDisplayID)
+        case floating(screenId: CGDirectDisplayID)
     }
 
     weak var delegate: TargetedZoneManagerDelegate?
@@ -30,8 +30,8 @@ class TargetedZoneManager {
         return nil
     }
 
-    var targetedTemporaryScreenId: CGDirectDisplayID? {
-        if case .temporary(let screenId) = targetedDestination {
+    var targetedFloatingScreenId: CGDirectDisplayID? {
+        if case .floating(let screenId) = targetedDestination {
             return screenId
         }
         return nil
@@ -48,7 +48,7 @@ class TargetedZoneManager {
             switch destination {
             case .tiled(let current) where zoneExists(current) && isScreenTargetable(current.screenId):
                 return
-            case .temporary(let screenId) where screenExists(screenId) && isScreenTargetable(screenId):
+            case .floating(let screenId) where screenExists(screenId) && isScreenTargetable(screenId):
                 return
             default:
                 break
@@ -59,7 +59,7 @@ class TargetedZoneManager {
             switch targetedDestination {
             case .tiled(let key):
                 return key.screenId
-            case .temporary(let screenId):
+            case .floating(let screenId):
                 return screenId
             case nil:
                 return delegate?.primaryScreenId
@@ -114,7 +114,7 @@ class TargetedZoneManager {
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
 
-    func setTemporaryTarget(on screenId: CGDirectDisplayID, reason: String) {
+    func setFloatingTarget(on screenId: CGDirectDisplayID, reason: String) {
         guard screenExists(screenId) else {
             delegate?.refreshIndicators()
             return
@@ -129,7 +129,7 @@ class TargetedZoneManager {
             return
         }
 
-        let newDestination = TargetedDestination.temporary(screenId: screenId)
+        let newDestination = TargetedDestination.floating(screenId: screenId)
         if targetedDestination == newDestination {
             delegate?.refreshIndicators()
             return
@@ -138,7 +138,7 @@ class TargetedZoneManager {
         let oldDestination = targetedDestination
         targetedDestination = newDestination
         let screenIndex = delegate?.screenOrder.firstIndex(of: screenId) ?? Int(screenId)
-        Logger.debug("Targeted temporary zone set on screen \(screenIndex) due to \(reason)")
+        Logger.debug("Targeted floating zone set on screen \(screenIndex) due to \(reason)")
         delegate?.refreshIndicators()
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
@@ -155,7 +155,7 @@ class TargetedZoneManager {
     /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
     /// on the same screen, retarget to such zone with the lowest index; if none exist,
     /// retarget to the lowest-index empty tiling zone on another screen; if none exist,
-    /// target the temporary zone (same screen preferred)."
+    /// target the floating zone (same screen preferred)."
     func retargetAfterFillingZone(_ filledKey: ZoneKey, reason: String) {
         guard let destination = preferredRetargetDestination(
             preferredSameScreenId: filledKey.screenId,
@@ -170,8 +170,8 @@ class TargetedZoneManager {
     /// Shared retarget preference order for when a targeted tiling zone is filled or removed:
     /// 1) Lowest-index empty tiling zone on the same screen
     /// 2) Lowest-index empty tiling zone on a different screen (tie-break by screen index)
-    /// 3) Temporary zone on the same screen
-    /// 4) Temporary zone on a different screen (tie-break by screen index)
+    /// 3) Floating zone on the same screen
+    /// 4) Floating zone on a different screen (tie-break by screen index)
     func preferredRetargetDestination(
         preferredSameScreenId: CGDirectDisplayID?,
         excluding excluded: ZoneKey? = nil
@@ -193,7 +193,7 @@ class TargetedZoneManager {
 
         if let preferredSameScreenId,
            isScreenTargetable(preferredSameScreenId) {
-            return .temporary(screenId: preferredSameScreenId)
+            return .floating(screenId: preferredSameScreenId)
         }
 
         guard let delegate else { return nil }
@@ -202,7 +202,7 @@ class TargetedZoneManager {
                 continue
             }
             if isScreenTargetable(screenId) {
-                return .temporary(screenId: screenId)
+                return .floating(screenId: screenId)
             }
         }
         return nil
@@ -400,8 +400,8 @@ class TargetedZoneManager {
         switch destination {
         case .tiled(let key):
             setTargetedZone(key, reason: reason)
-        case .temporary(let screenId):
-            setTemporaryTarget(on: screenId, reason: reason)
+        case .floating(let screenId):
+            setFloatingTarget(on: screenId, reason: reason)
         }
     }
 }

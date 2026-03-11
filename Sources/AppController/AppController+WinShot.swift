@@ -61,7 +61,7 @@ extension AppController {
 
         let hasManagedWindows =
             context.zoneController.allZones.contains(where: { !$0.isEmpty }) ||
-            temporaryZoneCoordinator.occupant(on: screenId) != nil
+            floatingZoneCoordinator.occupant(on: screenId) != nil
         guard hasManagedWindows else {
             return
         }
@@ -77,20 +77,20 @@ extension AppController {
             return nil
         }
 
-        // Get temporary zone occupant for this screen
-        let tempOccupant = temporaryZoneCoordinator.occupant(on: screenId)
+        // Get floating zone occupant for this screen
+        let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId)
 
         // Determine active window ID.
-        // When a temporary zone occupant exists, always mark it as the active window so that
-        // restoration brings it to the front (temp zone floats above the tiled layout).
-        let activeWindowId = tempOccupant?.windowId ?? resolveActiveWindowId(on: screenId)
+        // When a floating zone occupant exists, always mark it as the active window so that
+        // restoration brings it to the front (floating zone floats above the tiled layout).
+        let activeWindowId = floatingOccupant?.windowId ?? resolveActiveWindowId(on: screenId)
 
         let snapshot = winShotManager.createSnapshot(
             screenId: screenId,
             zoneController: context.zoneController,
             windowController: windowController,
             screenDescriptor: context.descriptor,
-            temporaryZoneOccupant: tempOccupant,
+            floatingZoneOccupant: floatingOccupant,
             activeWindowId: activeWindowId,
             reason: reason
         )
@@ -167,8 +167,8 @@ extension AppController {
         let wasMinimized: Bool
     }
 
-    /// Work item for restoring a window to the temporary zone
-    private struct TemporaryRestoreWorkItem {
+    /// Work item for restoring a window to the floating zone
+    private struct FloatingRestoreWorkItem {
         let managed: ManagedWindow
         let wasMinimized: Bool
         let targetFrame: CGRect?
@@ -221,7 +221,7 @@ extension AppController {
 
         // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
         var zoneWorkItems: [ZoneRestoreWorkItem] = []
-        var temporaryWorkItem: TemporaryRestoreWorkItem?
+        var floatingWorkItem: FloatingRestoreWorkItem?
 
         // Prepare zone restoration work items
         for (zoneIndex, identity) in snapshot.zoneAssignments {
@@ -236,11 +236,11 @@ extension AppController {
             }
         }
 
-        // Prepare temporary zone work item
-        if let tempIdentity = snapshot.temporaryZoneOccupant {
-            temporaryWorkItem = prepareTemporaryZoneRestore(
-                identity: tempIdentity,
-                targetFrame: snapshot.temporaryZoneFrame,
+        // Prepare floating zone work item
+        if let floatingIdentity = snapshot.floatingZoneOccupant {
+            floatingWorkItem = prepareFloatingZoneRestore(
+                identity: floatingIdentity,
+                targetFrame: snapshot.floatingZoneFrame,
                 on: screenId,
                 descriptor: descriptor
             )
@@ -249,13 +249,13 @@ extension AppController {
         let restoredActiveWindowId = snapshot.activeWindowId
         let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
-        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize ALL windows (tiled + temporary)
+        // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize ALL windows (tiled + floating)
         // in parallel. Unminimizing first makes the UI feel faster since users see new windows
         // immediately. Suppress deminiaturize notifications to prevent re-placement loops.
         let minimizedZoneWindowIds = zoneWorkItems.filter { $0.wasMinimized }.map { $0.managed.windowId }
         var allMinimizedWindowIds = minimizedZoneWindowIds
-        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
-            allMinimizedWindowIds.append(tempItem.managed.windowId)
+        if let floatingItem = floatingWorkItem, floatingItem.wasMinimized {
+            allMinimizedWindowIds.append(floatingItem.managed.windowId)
         }
         if !allMinimizedWindowIds.isEmpty {
             suppressNextEvents(for: allMinimizedWindowIds, events: [.deminiaturized], reason: "winshot-restore")
@@ -280,13 +280,13 @@ extension AppController {
             windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
         }
 
-        // Unminimize temporary zone window in parallel with tiled windows
-        if let tempItem = temporaryWorkItem, tempItem.wasMinimized {
-            if let targetFrame = tempItem.targetFrame {
-                prePositionMinimizedWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+        // Unminimize floating zone window in parallel with tiled windows
+        if let floatingItem = floatingWorkItem, floatingItem.wasMinimized {
+            if let targetFrame = floatingItem.targetFrame {
+                prePositionMinimizedWindow(floatingItem.managed, to: targetFrame, on: floatingItem.descriptor)
             }
-            let shouldRaise = !suppressRaiseDuringUnminimize || tempItem.managed.windowId == restoredActiveWindowId
-            windowController.unminimizeWindow(tempItem.managed, raise: shouldRaise)
+            let shouldRaise = !suppressRaiseDuringUnminimize || floatingItem.managed.windowId == restoredActiveWindowId
+            windowController.unminimizeWindow(floatingItem.managed, raise: shouldRaise)
         }
 
         // Step 6b: ActiveFit coordination.
@@ -319,7 +319,7 @@ extension AppController {
         // We must remove these windows before sync so placeholder creation sees the final empty zones.
         for window in windowsToMinimize {
             minimizeWindowProgrammatically(window, reason: "winshot-restore")
-            // Explicitly remove the window from all zones (and any temporary zone)
+            // Explicitly remove the window from all zones (and any floating zone)
             // so that zones which are empty in the snapshot end up truly empty,
             // allowing placeholders to be restored correctly.
             removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
@@ -341,31 +341,31 @@ extension AppController {
         syncWindowsToZones()
         refreshIndicators()
 
-        // Step 11: TEMPORARY ZONE ASSIGNMENT - Assign and position the temp zone window.
+        // Step 11: FLOATING ZONE ASSIGNMENT - Assign and position the floating zone window.
         // Unminimization already happened in Step 6 (parallel with tiled windows).
-        if let tempItem = temporaryWorkItem {
-            let hasStoredFrame = tempItem.targetFrame != nil
-            assignWindowToTemporaryZone(
-                tempItem.managed,
+        if let floatingItem = floatingWorkItem {
+            let hasStoredFrame = floatingItem.targetFrame != nil
+            assignWindowToFloatingZone(
+                floatingItem.managed,
                 on: screenId,
                 centerWindow: !hasStoredFrame,
                 reason: "winshot-restore"
             )
 
-            if let targetFrame = tempItem.targetFrame {
-                windowController.moveWindow(tempItem.managed, to: targetFrame, on: tempItem.descriptor)
+            if let targetFrame = floatingItem.targetFrame {
+                windowController.moveWindow(floatingItem.managed, to: targetFrame, on: floatingItem.descriptor)
             }
 
-            scheduleTemporaryZoneProtection(windowId: tempItem.managed.windowId)
+            scheduleFloatingZoneProtection(windowId: floatingItem.managed.windowId)
         }
 
         // Step 12: Activate the previously active window
-        // Use the temporary zone activation workaround if the active window is in the temporary zone.
+        // Use the floating zone activation workaround if the active window is in the floating zone.
         snapshot.logDebugDetails(context: "restoring")
         if let activeWindowId = snapshot.activeWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
-            if temporaryWorkItem?.managed.windowId == activeWindowId {
-                activateTemporaryZoneWindow(activeWindow, reason: "winshot-restore")
+            if floatingWorkItem?.managed.windowId == activeWindowId {
+                activateFloatingZoneWindow(activeWindow, reason: "winshot-restore")
             } else {
                 activateWindow(activeWindow)
             }
@@ -378,18 +378,18 @@ extension AppController {
             let targetOnRestoredScreen: Bool
             if let tiledKey = targetedZoneKey {
                 targetOnRestoredScreen = tiledKey.screenId == screenId
-            } else if let tempScreenId = targetedTemporaryScreenId {
-                targetOnRestoredScreen = tempScreenId == screenId
+            } else if let floatingScreenId = targetedFloatingScreenId {
+                targetOnRestoredScreen = floatingScreenId == screenId
             } else {
                 targetOnRestoredScreen = false
             }
 
             if targetOnRestoredScreen {
-                // Apply standard targeting preference: lowest-index empty zone, or temporary zone if all filled
+                // Apply standard targeting preference: lowest-index empty zone, or floating zone if all filled
                 if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
                     targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
                 } else {
-                    targetedZoneManager.setTemporaryTarget(on: screenId, reason: "winshot-restore")
+                    targetedZoneManager.setFloatingTarget(on: screenId, reason: "winshot-restore")
                 }
             }
         }
@@ -423,9 +423,9 @@ extension AppController {
             }
         }
 
-        // Clear from any temporary zone
-        if isWindowInTemporaryZone(managed.windowId) {
-            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+        // Clear from any floating zone
+        if isWindowInFloatingZone(managed.windowId) {
+            clearFloatingZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
         }
 
         let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
@@ -440,32 +440,32 @@ extension AppController {
         )
     }
 
-    /// Prepare a temporary zone restoration work item
-    private func prepareTemporaryZoneRestore(
+    /// Prepare a floating zone restoration work item
+    private func prepareFloatingZoneRestore(
         identity: WindowIdentity,
         targetFrame: CGRect?,
         on screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor
-    ) -> TemporaryRestoreWorkItem? {
+    ) -> FloatingRestoreWorkItem? {
         guard let managed = findWindowMatching(identity: identity) else {
-            Logger.debug("WinShot: Cannot find window for temporary zone identity \(identity.windowId)")
+            Logger.debug("WinShot: Cannot find window for floating zone identity \(identity.windowId)")
             return nil
         }
 
         // Remove from any zone it's currently in
         for (otherScreenId, otherContext) in screenContexts {
             if otherContext.zoneController.zoneForWindow(windowId: managed.windowId) != nil {
-                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on \(screenContextStore.logDescription(for: otherScreenId)) before restore to temporary")
+                Logger.debug("WinShot: Removing window \(managed.windowId) from zone on \(screenContextStore.logDescription(for: otherScreenId)) before restore to floating zone")
                 otherContext.zoneController.removeWindow(windowId: managed.windowId)
             }
         }
 
-        // Clear from any temporary zone
-        if isWindowInTemporaryZone(managed.windowId) {
-            clearTemporaryZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+        // Clear from any floating zone
+        if isWindowInFloatingZone(managed.windowId) {
+            clearFloatingZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
         }
 
-        return TemporaryRestoreWorkItem(
+        return FloatingRestoreWorkItem(
             managed: managed,
             wasMinimized: managed.isMinimizedPerAccessibility,
             targetFrame: targetFrame,
@@ -553,9 +553,9 @@ extension AppController {
             }
         }
 
-        // Collect temporary zone occupant
-        if let tempOccupant = temporaryZoneCoordinator.occupant(on: screenId) {
-            windows.append(tempOccupant)
+        // Collect floating zone occupant
+        if let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId) {
+            windows.append(floatingOccupant)
         }
 
         return windows
@@ -580,7 +580,7 @@ extension AppController {
         return WinShotSnapshotOccupancySignature(
             presentZoneIndices: zones.map(\.index),
             tiledWindowIdsByZoneIndex: tiledWindowIdsByZoneIndex,
-            temporaryZoneWindowId: temporaryZoneCoordinator.occupant(on: screenId)?.windowId
+            floatingZoneWindowId: floatingZoneCoordinator.occupant(on: screenId)?.windowId
         )
     }
 

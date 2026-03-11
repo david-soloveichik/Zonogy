@@ -124,7 +124,7 @@ final class CmdTabController {
         if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
             window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
         } else if let screenId = delegate.targetedScreenId() {
-            window?.centerOnScreen(screenId, forTemporaryZone: true)
+            window?.centerOnScreen(screenId, forFloatingZone: true)
         } else {
             window?.center()
         }

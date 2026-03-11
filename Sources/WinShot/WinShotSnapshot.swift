@@ -17,11 +17,11 @@ struct WinShotSnapshot {
     /// Window assignments (zoneIndex -> identity)
     let zoneAssignments: [Int: WindowIdentity]
 
-    /// Temporary zone occupant, if any
-    let temporaryZoneOccupant: WindowIdentity?
+    /// Floating zone occupant, if any
+    let floatingZoneOccupant: WindowIdentity?
 
-    /// Frame of temporary zone window at snapshot time (in screen coordinates)
-    let temporaryZoneFrame: CGRect?
+    /// Frame of floating zone window at snapshot time (in screen coordinates)
+    let floatingZoneFrame: CGRect?
 
     /// Which window was active when snapshot was created
     let activeWindowId: Int?
@@ -29,11 +29,11 @@ struct WinShotSnapshot {
     /// Low-resolution screenshot
     let thumbnail: NSImage?
 
-    /// Returns all window IDs in this snapshot (zones + temporary zone)
+    /// Returns all window IDs in this snapshot (zones + floating zone)
     var allWindowIds: Set<Int> {
         var ids = Set(zoneAssignments.values.map { $0.windowId })
-        if let tempId = temporaryZoneOccupant?.windowId {
-            ids.insert(tempId)
+        if let floatingId = floatingZoneOccupant?.windowId {
+            ids.insert(floatingId)
         }
         return ids
     }
@@ -43,7 +43,7 @@ struct WinShotSnapshot {
         if zoneAssignments.values.contains(where: { $0.windowId == windowId }) {
             return true
         }
-        if temporaryZoneOccupant?.windowId == windowId {
+        if floatingZoneOccupant?.windowId == windowId {
             return true
         }
         return false
@@ -54,14 +54,14 @@ struct WinShotSnapshot {
         if zoneAssignments.values.contains(where: { $0.windowId == identity.windowId }) {
             return true
         }
-        if temporaryZoneOccupant?.windowId == identity.windowId {
+        if floatingZoneOccupant?.windowId == identity.windowId {
             return true
         }
         return false
     }
 
     /// Emit detailed debug logging describing the snapshot's contents, including
-    /// zone configuration, window identities, temporary-zone occupant, and
+    /// zone configuration, window identities, floating-zone occupant, and
     /// which window (if any) was active when the snapshot was captured.
     func logDebugDetails(context: String) {
         let prefix = "WinShot snapshot \(id)"
@@ -85,15 +85,15 @@ struct WinShotSnapshot {
             }
         }
 
-        if let temp = temporaryZoneOccupant {
-            let bundle = temp.bundleIdentifier ?? "unknown"
-            let title = temp.windowTitle ?? "untitled"
-            let frameStr = temporaryZoneFrame.map { "\($0)" } ?? "nil"
+        if let floatingOccupant = floatingZoneOccupant {
+            let bundle = floatingOccupant.bundleIdentifier ?? "unknown"
+            let title = floatingOccupant.windowTitle ?? "untitled"
+            let frameStr = floatingZoneFrame.map { "\($0)" } ?? "nil"
             Logger.debug(
-                "\(prefix) temporary-zone: windowId=\(temp.windowId), bundle=\(bundle), title=\(title), frame=\(frameStr)"
+                "\(prefix) floating-zone: windowId=\(floatingOccupant.windowId), bundle=\(bundle), title=\(title), frame=\(frameStr)"
             )
         } else {
-            Logger.debug("\(prefix) temporary-zone: empty")
+            Logger.debug("\(prefix) floating-zone: empty")
         }
 
         guard let activeId = activeWindowId else {
@@ -110,11 +110,11 @@ struct WinShotSnapshot {
             return
         }
 
-        if let temp = temporaryZoneOccupant, temp.windowId == activeId {
-            let bundle = temp.bundleIdentifier ?? "unknown"
-            let title = temp.windowTitle ?? "untitled"
+        if let floatingOccupant = floatingZoneOccupant, floatingOccupant.windowId == activeId {
+            let bundle = floatingOccupant.bundleIdentifier ?? "unknown"
+            let title = floatingOccupant.windowTitle ?? "untitled"
             Logger.debug(
-                "\(prefix) activeWindowId=\(activeId) (temporary-zone, bundle=\(bundle), title=\(title))"
+                "\(prefix) activeWindowId=\(activeId) (floating-zone, bundle=\(bundle), title=\(title))"
             )
             return
         }

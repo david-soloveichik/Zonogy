@@ -22,7 +22,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         // Target Navigation
         case navigateLeft
         case navigateRight
-        case targetTemporaryZone
+        case targetFloatingZone
         case targetTilingZone
 
         // Window Switchers
@@ -51,7 +51,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             // Target Navigation
             case .navigateLeft: return "Navigate Left"
             case .navigateRight: return "Navigate Right"
-            case .targetTemporaryZone: return "Target Temporary Zone"
+            case .targetFloatingZone: return "Target Floating Zone"
             case .targetTilingZone: return "Target Tiling Zone"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
@@ -92,7 +92,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
             case .navigateRight:
                 return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
-            case .targetTemporaryZone:
+            case .targetFloatingZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
             case .targetTilingZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)

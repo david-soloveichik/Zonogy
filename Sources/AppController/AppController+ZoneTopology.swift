@@ -13,7 +13,7 @@ extension AppController {
     internal func addZone(
         on screenId: CGDirectDisplayID,
         announce: Bool = true,
-        promoteTemporaryOccupant: Bool = true
+        promoteFloatingOccupant: Bool = true
     ) -> Zone? {
         // Special-case: if this screen is in UnderCovers and has a single empty zone 1,
         // treat the first "add zone" invocation as exiting UnderCovers without changing zone count.
@@ -44,8 +44,8 @@ extension AppController {
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
         targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
-        if promoteTemporaryOccupant {
-            promoteTemporaryOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
+        if promoteFloatingOccupant {
+            promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
         }
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
@@ -56,21 +56,21 @@ extension AppController {
         return newZone
     }
 
-    private func promoteTemporaryOccupantIfOverlapping(on screenId: CGDirectDisplayID, zone: Zone, context: ScreenContext) {
+    private func promoteFloatingOccupantIfOverlapping(on screenId: CGDirectDisplayID, zone: Zone, context: ScreenContext) {
         guard zone.isEmpty,
-              let occupant = temporaryZoneOccupant(on: screenId),
+              let occupant = floatingZoneOccupant(on: screenId),
               let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
             return
         }
         let zoneFrame = context.descriptor.screenToAccessibility(zone.frame)
-        guard TemporaryZoneOverlapPolicy.overlapsZoneFrame(
-            temporaryFrame: occupantFrame,
+        guard FloatingZoneOverlapPolicy.overlapsZoneFrame(
+            floatingFrame: occupantFrame,
             zoneFrame: zoneFrame
         ) else {
             return
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Promoting temporary zone occupant \(occupant.windowId) into new zone \(zone.index) on screen \(screenIndex): overlaps zone frame")
+        Logger.debug("Promoting floating zone occupant \(occupant.windowId) into new zone \(zone.index) on screen \(screenIndex): overlaps zone frame")
         windowPlacementManager.placeWindow(occupant, into: ZoneKey(screenId: screenId, index: zone.index), reason: "add-zone-promote-overlap")
     }
 
@@ -154,8 +154,8 @@ extension AppController {
             switch pendingDestination {
             case .tiled(let key):
                 targetedZoneManager.setTargetedZone(key, reason: "zone-removed")
-            case .temporary(let tempScreenId):
-                targetedZoneManager.setTemporaryTarget(on: tempScreenId, reason: "zone-removed")
+            case .floating(let floatingScreenId):
+                targetedZoneManager.setFloatingTarget(on: floatingScreenId, reason: "zone-removed")
             }
         }
 

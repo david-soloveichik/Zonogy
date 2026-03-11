@@ -34,14 +34,14 @@ class ManagedWindow {
     /// Identifier for the display this window is currently associated with.
     var screenDisplayId: CGDirectDisplayID?
 
-    /// Whether this window is currently in the temporary zone (floating).
-    /// Maintained by TemporaryZoneCoordinator.
-    var isInTemporaryZone: Bool = false
+    /// Whether this window is currently in the floating zone (floating).
+    /// Maintained by FloatingZoneCoordinator.
+    var isInFloatingZone: Bool = false
 
-    /// Whether this window is placed in any zone (tiled or temporary).
+    /// Whether this window is placed in any zone (tiled or floating).
     /// A window not placed in any zone is considered minimized from Zonogy's perspective.
     var isPlacedInZone: Bool {
-        zoneIndex != nil || isInTemporaryZone
+        zoneIndex != nil || isInFloatingZone
     }
 
     init(windowId: Int, backing: ManagedWindowBacking) {

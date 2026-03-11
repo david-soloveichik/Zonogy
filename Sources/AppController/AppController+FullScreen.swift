@@ -417,7 +417,7 @@ extension AppController {
 
     /// Full-screen pause: when a screen exits full-screen mode, place any managed windows that
     /// were deferred on that screen. Spec: prefer lowest-index empty tiling zone on that screen;
-    /// if none exists, place into that screen's temporary zone.
+    /// if none exists, place into that screen's floating zone.
     @discardableResult
     private func placeTrackedButUnzonedWindowsAfterFullScreenExit(on screenId: CGDirectDisplayID) -> Int {
         guard !isScreenPausedForFullScreen(screenId) else {
@@ -435,7 +435,7 @@ extension AppController {
             let destination: TargetedZoneManager.TargetedDestination = {
                 guard let controller = zoneController(for: screenId),
                       let emptyZone = controller.findEmptyZone() else {
-                    return .temporary(screenId: screenId)
+                    return .floating(screenId: screenId)
                 }
                 return .tiled(ZoneKey(screenId: screenId, index: emptyZone.index))
             }()
@@ -443,7 +443,7 @@ extension AppController {
             windowPlacementManager.placeWindow(
                 window,
                 into: destination,
-                centerTemporaryWindow: true,
+                centerFloatingWindow: true,
                 reason: "\(baseReason)-deferred-placement",
                 retargetOnRemoval: true,
                 forceRetargetAfterFill: false,

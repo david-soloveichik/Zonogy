@@ -60,7 +60,7 @@ enum TargetedZoneManagerTests {
             controller.assignWindow(windowId: 7001, toZoneIndex: 1)
 
             manager.setTargetedZone(ZoneKey(screenId: screen1, index: 99), reason: "test")
-            assert(manager.targetedTemporaryScreenId == screen1, "setTargetedZone should repair invalid zone to temporary when no empty zones exist (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen1, "setTargetedZone should repair invalid zone to floating when no empty zones exist (got \(String(describing: manager.targetedDestination)))")
         }
 
         do {
@@ -72,7 +72,7 @@ enum TargetedZoneManagerTests {
             let controller = delegate.zoneController(for: screen1)!
             controller.assignWindow(windowId: 7002, toZoneIndex: 1)
 
-            manager.setTemporaryTarget(on: screen1, reason: "test")
+            manager.setFloatingTarget(on: screen1, reason: "test")
             manager.targetAfterCreatingZone(on: screen1, reason: "zone-added")
             let expected = ZoneKey(screenId: screen1, index: 2)
             assert(manager.targetedZoneKey == expected, "targetAfterCreatingZone should target the lowest-index empty tiling zone on the same screen (got \(String(describing: manager.targetedDestination)))")
@@ -106,7 +106,7 @@ enum TargetedZoneManagerTests {
             _ = controller.removeZone(at: 2)
             manager.ensureTargetedZone(reason: "repair")
 
-            assert(manager.targetedTemporaryScreenId == screen1, "ensureTargetedZone should repair to temporary when no empty tiling zones exist (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen1, "ensureTargetedZone should repair to floating when no empty tiling zones exist (got \(String(describing: manager.targetedDestination)))")
         }
 
         do {
@@ -121,7 +121,7 @@ enum TargetedZoneManagerTests {
             manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
             manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 2), reason: "filled")
 
-            assert(manager.targetedTemporaryScreenId == screen1, "retargetAfterFillingZone should target temporary zone when no empty zones remain")
+            assert(manager.targetedFloatingScreenId == screen1, "retargetAfterFillingZone should target floating zone when no empty zones remain")
         }
 
         do {
@@ -140,7 +140,7 @@ enum TargetedZoneManagerTests {
             manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 2), reason: "filled")
 
             let expected = ZoneKey(screenId: screen2, index: 1)
-            assert(manager.targetedZoneKey == expected, "retargetAfterFillingZone should prefer empty tiling zone on another screen before temporary zone (got \(String(describing: manager.targetedZoneKey)))")
+            assert(manager.targetedZoneKey == expected, "retargetAfterFillingZone should prefer empty tiling zone on another screen before floating zone (got \(String(describing: manager.targetedZoneKey)))")
         }
 
         do {
@@ -196,7 +196,7 @@ enum TargetedZoneManagerTests {
             delegate.fullScreenDisplayIds = [screen1, screen2]
 
             manager.setTargetedZone(ZoneKey(screenId: screen2, index: 1), reason: "test")
-            assert(manager.targetedTemporaryScreenId == screen1, "when all screens are full-screen and no empty zones remain, target temporary zone on screen 0 (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen1, "when all screens are full-screen and no empty zones remain, target floating zone on screen 0 (got \(String(describing: manager.targetedDestination)))")
         }
 
         if allPassed {

@@ -3,15 +3,15 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, TemporaryZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, TemporaryZoneCoordinatorHost, TemporaryDragHandlerHost, DisplacedWindowCoordinatorHost, DeferredMinimizationCoordinatorHost, FullScreenTrackerDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, FloatingZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, FloatingZoneCoordinatorHost, FloatingDragHandlerHost, DisplacedWindowCoordinatorHost, DeferredMinimizationCoordinatorHost, FullScreenTrackerDelegate {
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
     }
-    struct FloatingTemporaryDragState {
+    struct FloatingFloatingDragState {
         let windowId: Int
         var hoveredAddZoneScreenId: CGDirectDisplayID?
-        var hoveredTemporaryScreenId: CGDirectDisplayID?
+        var hoveredFloatingScreenId: CGDirectDisplayID?
     }
     struct ZoneEdgeMargins {
         var top: CGFloat
@@ -19,10 +19,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var bottom: CGFloat
         var right: CGFloat
     }
-    struct TiledToTemporaryDragContext {
+    struct TiledToFloatingDragContext {
         let originZoneKey: ZoneKey?
         let originScreenId: CGDirectDisplayID?
-        let temporaryScreenId: CGDirectDisplayID
+        let floatingScreenId: CGDirectDisplayID
         let displacedWindowId: Int?
         let displacedWindowFrame: CGRect?
     }
@@ -53,7 +53,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let edgeAlignmentTolerance: CGFloat = 0.5
     internal var isSyncingWindows = false
     internal var pendingSync = false
-    internal var pendingSyncRecentlyPlacedInTempZone: Int?
+    internal var pendingSyncRecentlyPlacedInFloatingZone: Int?
     /// Window IDs whose geometry reapply should be skipped for an immediate full sync pass.
     internal var pendingSyncSkipGeometryWindowIds: Set<Int> = []
     /// Next-runloop cleanup for unconsumed sync geometry-skip marks.
@@ -75,17 +75,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let placeholderCoordinator: PlaceholderCoordinator
     internal let zoneFlashOverlay = ZoneFlashOverlay()
     internal let indicatorManager = ZoneIndicatorManager()
-    internal let temporaryIndicatorManager = TemporaryZoneIndicatorManager()
+    internal let floatingIndicatorManager = FloatingZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
     internal let resizeHandleManager = ZoneResizeHandleManager()
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
-    internal lazy var temporaryZoneCoordinator = TemporaryZoneCoordinator(
+    internal lazy var floatingZoneCoordinator = FloatingZoneCoordinator(
         host: self,
         displacedWindowCoordinator: displacedWindowCoordinator
     )
-    internal lazy var temporaryDragHandler = TemporaryDragHandler(host: self)
-    internal let tempDragOverlayManager = DragOverlayManager()
+    internal lazy var floatingDragHandler = FloatingDragHandler(host: self)
+    internal let floatingDragOverlayManager = DragOverlayManager()
     /// Tracks screens where the single-zone placeholder has been temporarily hidden (UnderCovers mode).
     internal var underCoversScreens: Set<CGDirectDisplayID> = []
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
@@ -98,9 +98,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by CmdTab to determine initial selection without an AX call.
     internal var currentFrontmostManagedWindowId: Int?
-    internal var tiledToTemporaryDragContexts: [Int: TiledToTemporaryDragContext] = [:]
+    internal var tiledToFloatingDragContexts: [Int: TiledToFloatingDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
-    internal let temporaryIndicatorTracker = EdgeIndicatorTracker()
+    internal let floatingIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
@@ -175,12 +175,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var activeFitSuppressedWindowIds: Set<Int> = []
     /// Windows for which we've already logged zone-resize suppression (prevents log spam).
     internal var activeFitZoneResizeLoggedWindowIds: Set<Int> = []
-    internal var temporaryZoneProtectionDeadlines: [Int: Date] = [:]
-    internal let temporaryZoneProtectionDuration: TimeInterval = 0.5
-    /// Work items scheduled to reactivate temporary zone windows when protection expires.
-    internal var temporaryZoneProtectionExpirationWorkItems: [Int: DispatchWorkItem] = [:]
+    internal var floatingZoneProtectionDeadlines: [Int: Date] = [:]
+    internal let floatingZoneProtectionDuration: TimeInterval = 0.5
+    /// Work items scheduled to reactivate floating zone windows when protection expires.
+    internal var floatingZoneProtectionExpirationWorkItems: [Int: DispatchWorkItem] = [:]
     /// Deadline until which notification-driven window activity recording is suppressed
-    /// to prevent "twitchy" recordings during temporary zone/WinShot operations.
+    /// to prevent "twitchy" recordings during floating zone/WinShot operations.
     internal var activityRecordingSuppressedUntil: Date?
     /// Minimum time a window must remain focused before it is recorded for CmdTab/Launcher recency ordering.
     internal let windowActivityRecordingStabilityDelay: TimeInterval = 0.25
@@ -211,8 +211,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         targetedZoneManager.targetedZoneKey
     }
 
-    internal var targetedTemporaryScreenId: CGDirectDisplayID? {
-        targetedZoneManager.targetedTemporaryScreenId
+    internal var targetedFloatingScreenId: CGDirectDisplayID? {
+        targetedZoneManager.targetedFloatingScreenId
     }
 
     internal var screenContexts: [CGDirectDisplayID: ScreenContext] {
@@ -307,7 +307,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.placeholderManager.delegate = self
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
-        self.temporaryIndicatorManager.delegate = self
+        self.floatingIndicatorManager.delegate = self
         self.addZoneIndicatorManager.delegate = self
         self.resizeHandleManager.delegate = self
         self.validationRetryManager.delegate = self
@@ -334,7 +334,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         syncWindowsToZones()
         targetedZoneManager.ensureTargetedZone(reason: "startup")
         if !hasAvailableTiledZone() {
-            targetedZoneManager.setTemporaryTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
+            targetedZoneManager.setFloatingTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
         }
         refreshIndicators()
 
@@ -378,7 +378,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         launcherInstallWatchService.stop()
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
-        temporaryIndicatorManager.tearDown()
+        floatingIndicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
         menuBarManager.tearDown()
     }
@@ -410,9 +410,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
                screenContexts[tiled] != nil {
                 return tiled
             }
-            if let temporary = targetedZoneManager.targetedTemporaryScreenId,
-               screenContexts[temporary] != nil {
-                return temporary
+            if let floating = targetedZoneManager.targetedFloatingScreenId,
+               screenContexts[floating] != nil {
+                return floating
             }
             return nil
         }()

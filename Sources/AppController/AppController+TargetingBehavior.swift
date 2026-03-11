@@ -28,10 +28,10 @@ extension AppController {
             return .tiled(key)
         }
 
-        if isWindowInTemporaryZone(focused.windowId) {
+        if isWindowInFloatingZone(focused.windowId) {
             let screenIndex = screenContextStore.loggingIndex(for: focusedScreenId)
-            Logger.debug("Zone removal: targeting temporary zone on screen \(screenIndex) in follows-focus mode")
-            return .temporary(screenId: focusedScreenId)
+            Logger.debug("Zone removal: targeting floating zone on screen \(screenIndex) in follows-focus mode")
+            return .floating(screenId: focusedScreenId)
         }
 
         return nil
@@ -85,17 +85,17 @@ extension AppController {
             return
         }
 
-        guard isWindowInTemporaryZone(windowId) else {
+        guard isWindowInFloatingZone(windowId) else {
             return
         }
 
         guard let screenId = managed.screenDisplayId
-            ?? temporaryZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
+            ?? floatingZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
             ?? detectScreenId(for: managed) else {
             return
         }
 
-        targetedZoneManager.setTemporaryTarget(
+        targetedZoneManager.setFloatingTarget(
             on: screenId,
             reason: "focus-follow-\(reason)"
         )

@@ -6,11 +6,11 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 - With WinShot auto-save snapshots enabled in Preferences, Clear/Reset Zones (Control-Cmd-Escape or variant) captures the pre-clear arrangement when that screen has managed windows.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
-- Each snapshot stores: zone configuration (count and frames), windows in zones (including temporary zone), active window info, and a low-resolution screenshot. When a temporary zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
+- Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, and a low-resolution screenshot. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
 - Snapshots are screen-specific (cannot restore across screens).
 - Max snapshots per screen is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
-- If creating a snapshot with the same zone occupancy signature as an existing one, the old snapshot is replaced. The signature includes each window's zone assignment, the temporary-zone occupant, and which tiling zones are present even when empty.
+- If creating a snapshot with the same zone occupancy signature as an existing one, the old snapshot is replaced. The signature includes each window's zone assignment, the floating-zone occupant, and which tiling zones are present even when empty.
 
 ## Chooser Window
 
@@ -27,13 +27,13 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 - With auto-save snapshots enabled, switching to a prior snapshot first saves the current arrangement. (This should be logically equivalent to first Clear/Reset Zones, and then restore.)
 - Restores zone configuration to the saved count and frames.
-- Unminimizes all windows (tiled and temporary) in parallel first, so users see new windows appear immediately.
+- Unminimizes all windows (tiled and floating) in parallel first, so users see new windows appear immediately.
 - Current windows not in the snapshot are minimized afterward.
 - Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Activates the previously active window.
 - **Targeting after restore:**
   - In "Targeting follows focus" mode: the zone containing the activated window becomes targeted.
-  - In "Targeting independent of focus" mode: if the current target is on the restored screen, apply standard targeting rules (prefer lowest-index empty tiling zone, or temporary zone if all tiling zones are filled). If the current target is on another screen, leave targeting unchanged.
+  - In "Targeting independent of focus" mode: if the current target is on the restored screen, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled). If the current target is on another screen, leave targeting unchanged.
 
-For temporary zone protection and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
+For floating zone protection and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).

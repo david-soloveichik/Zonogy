@@ -16,12 +16,12 @@ enum WinShotChooserInitialSelectionPolicyTests {
         func signature(
             presentZoneIndices: [Int],
             tiledWindowIdsByZoneIndex: [Int: Int],
-            temporaryZoneWindowId: Int? = nil
+            floatingZoneWindowId: Int? = nil
         ) -> WinShotSnapshotOccupancySignature {
             WinShotSnapshotOccupancySignature(
                 presentZoneIndices: presentZoneIndices,
                 tiledWindowIdsByZoneIndex: tiledWindowIdsByZoneIndex,
-                temporaryZoneWindowId: temporaryZoneWindowId
+                floatingZoneWindowId: floatingZoneWindowId
             )
         }
 
@@ -33,7 +33,7 @@ enum WinShotChooserInitialSelectionPolicyTests {
             let signatures: [WinShotSnapshotOccupancySignature] = [
                 signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2]),
                 signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 3]),
-                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [2: 4], temporaryZoneWindowId: 5)
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [2: 4], floatingZoneWindowId: 5)
             ]
             let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
                 snapshotOccupancySignatures: signatures,

@@ -1,7 +1,7 @@
 import AppKit
 
-/// Renders bottom-edge pills for per-screen temporary zone targeting.
-struct TemporaryZoneIndicatorDescriptor {
+/// Renders bottom-edge pills for per-screen floating zone targeting.
+struct FloatingZoneIndicatorDescriptor {
     let screenId: CGDirectDisplayID
     let cocoaFrame: CGRect
     let isTargeted: Bool
@@ -9,12 +9,12 @@ struct TemporaryZoneIndicatorDescriptor {
     let isDragHighlighted: Bool
 }
 
-protocol TemporaryZoneIndicatorManagerDelegate: AnyObject {
-    func temporaryZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool)
-    func temporaryZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem])
+protocol FloatingZoneIndicatorManagerDelegate: AnyObject {
+    func floatingZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool)
+    func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem])
 }
 
-final class TemporaryZoneIndicatorManager {
+final class FloatingZoneIndicatorManager {
     private final class IndicatorWindow: NSPanel {
         init(frame: NSRect) {
             super.init(
@@ -43,8 +43,8 @@ final class TemporaryZoneIndicatorManager {
     }
 
     private final class IndicatorView: NSView {
-        weak var delegate: TemporaryZoneIndicatorManagerDelegate?
-        weak var manager: TemporaryZoneIndicatorManager?
+        weak var delegate: FloatingZoneIndicatorManagerDelegate?
+        weak var manager: FloatingZoneIndicatorManager?
         let screenId: CGDirectDisplayID
         var isTargeted: Bool { didSet { applyStyle() } }
         var isOccupied: Bool { didSet { applyStyle() } }
@@ -238,7 +238,7 @@ final class TemporaryZoneIndicatorManager {
 
         override func mouseDown(with event: NSEvent) {
             let isDoubleClick = event.clickCount >= 2
-            delegate?.temporaryZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: isTargeted, isDoubleClick: isDoubleClick)
+            delegate?.floatingZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: isTargeted, isDoubleClick: isDoubleClick)
         }
 
         // MARK: - NSDraggingDestination
@@ -285,11 +285,11 @@ final class TemporaryZoneIndicatorManager {
         }
     }
 
-    weak var delegate: TemporaryZoneIndicatorManagerDelegate?
+    weak var delegate: FloatingZoneIndicatorManagerDelegate?
     private var handles: [CGDirectDisplayID: IndicatorHandle] = [:]
     private var dragHighlightedScreenId: CGDirectDisplayID?
 
-    func present(over descriptors: [TemporaryZoneIndicatorDescriptor]) {
+    func present(over descriptors: [FloatingZoneIndicatorDescriptor]) {
         var pendingRemoval = Set(handles.keys)
 
         for descriptor in descriptors {
@@ -400,7 +400,7 @@ final class TemporaryZoneIndicatorManager {
         guard let payload = ExternalDropParser.payload(from: draggingInfo) else {
             return false
         }
-        delegate?.temporaryZoneIndicatorReceivedExternalDrop(screenId: screenId, items: payload.items)
+        delegate?.floatingZoneIndicatorReceivedExternalDrop(screenId: screenId, items: payload.items)
         return true
     }
 }

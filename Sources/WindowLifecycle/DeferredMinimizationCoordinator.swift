@@ -1,6 +1,6 @@
 /// Debounced minimization queue used to batch rapid window displacements.
 ///
-/// This is intentionally shared between tiled-zone and temporary-zone displacement so the
+/// This is intentionally shared between tiled-zone and floating-zone displacement so the
 /// replacement pipelines can be uniform and avoid redundant AX churn.
 import Foundation
 protocol DeferredMinimizationCoordinatorHost: AnyObject {

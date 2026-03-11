@@ -130,8 +130,8 @@ final class LauncherController {
                 window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
                 self.lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
             } else if let screenId = delegate.targetedScreenId() {
-                // No zone frame means temporary zone is targeted - position lower on screen
-                window?.centerOnScreen(screenId, forTemporaryZone: true)
+                // No zone frame means floating zone is targeted - position lower on screen
+                window?.centerOnScreen(screenId, forFloatingZone: true)
                 self.lastAnchor = .screen(screenId: screenId)
             } else {
                 // Fall back to main screen
@@ -190,8 +190,8 @@ final class LauncherController {
             window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
             lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
         } else if let screenId = delegate.targetedScreenId() {
-            // No zone frame means temporary zone is targeted - position lower on screen
-            window.centerOnScreen(screenId, forTemporaryZone: true)
+            // No zone frame means floating zone is targeted - position lower on screen
+            window.centerOnScreen(screenId, forFloatingZone: true)
             lastAnchor = .screen(screenId: screenId)
         } else {
             if NSScreen.main != nil {
@@ -248,8 +248,8 @@ final class LauncherController {
         if let (zoneFrame, descriptor) = zoneInfo {
             window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
         } else if let screenId {
-            // No zone frame means temporary zone is targeted - position lower on screen
-            window.centerOnScreen(screenId, forTemporaryZone: true)
+            // No zone frame means floating zone is targeted - position lower on screen
+            window.centerOnScreen(screenId, forFloatingZone: true)
         } else {
             if NSScreen.main != nil {
                 window.center()

@@ -89,8 +89,8 @@ final class LauncherWindow: NSPanel {
     /// Position the window centered on the specified screen
     /// - Parameters:
     ///   - screenId: The display ID of the screen
-    ///   - forTemporaryZone: If true, position lower on the screen (closer to the temporary zone indicator)
-    func centerOnScreen(_ screenId: CGDirectDisplayID, forTemporaryZone: Bool = false) {
+    ///   - forFloatingZone: If true, position lower on the screen (closer to the floating zone indicator)
+    func centerOnScreen(_ screenId: CGDirectDisplayID, forFloatingZone: Bool = false) {
         guard let screen = NSScreen.screens.first(where: { screen in
             guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
                 return false
@@ -99,23 +99,23 @@ final class LauncherWindow: NSPanel {
         }) else {
             // Fall back to main screen
             if let mainScreen = NSScreen.main {
-                center(on: mainScreen, forTemporaryZone: forTemporaryZone)
+                center(on: mainScreen, forFloatingZone: forFloatingZone)
             }
             return
         }
 
-        center(on: screen, forTemporaryZone: forTemporaryZone)
+        center(on: screen, forFloatingZone: forFloatingZone)
     }
 
-    private func center(on screen: NSScreen, forTemporaryZone: Bool = false) {
+    private func center(on screen: NSScreen, forFloatingZone: Bool = false) {
         let screenFrame = screen.visibleFrame
         let windowSize = frame.size
         let x = (screenFrame.midX - windowSize.width / 2).rounded()
 
-        // For temporary zone, position lower on screen (closer to the bottom indicator)
+        // For floating zone, position lower on screen (closer to the bottom indicator)
         // Use about 1/3 from bottom instead of centered
         let y: CGFloat
-        if forTemporaryZone {
+        if forFloatingZone {
             y = (screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2).rounded()
         } else {
             y = (screenFrame.midY - windowSize.height / 2).rounded()

@@ -4,7 +4,7 @@ Use this file as a pre-change checklist for tricky behaviors that have previousl
 Each entry is a brief bug report plus something an LLM should be sure to think about to avoid regressing when editing related code.
 Keep entries short and concrete as the LLM should be able to figure the rest out when guided in this way.
 
-- Bug report: Sometimes if window A is in a tiling zone and window B is in temporary zone, then minimizing A also minimizes B.
+- Bug report: Sometimes if window A is in a tiling zone and window B is in floating zone, then minimizing A also minimizes B.
   - Think about: Focus/activation and sync can race.
 
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
@@ -16,7 +16,7 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 - Bug report: A newly created window (eg Chrome) routed into zone 2/3 can enter ActiveFit reveal mode before it resizes to the zone size, leaving it not filling the zone.
   - Think about: Entering reveal mode calls moveWindow which cancels the pending frame retry chain. ActiveFit must skip reveal evaluation when a frame retry is pending and re-evaluate when the retry settles.
 
-- Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the temporary zone.
+- Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the floating zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 
 - Bug report: Restoring a WinShot snapshot with an empty tiling zone can leave that zone without its placeholder because restore sync ran before removing windows that should be absent.

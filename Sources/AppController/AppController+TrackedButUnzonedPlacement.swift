@@ -3,7 +3,7 @@ import AppKit
 
 /// Shared placement helpers for tracked windows that are unminimized but not currently in any zone.
 extension AppController {
-    /// Iterates tracked windows that are unminimized but not assigned to any zone (tiled or temporary), and applies
+    /// Iterates tracked windows that are unminimized but not assigned to any zone (tiled or floating), and applies
     /// the provided handler to each validated candidate.
     ///
     /// This helper centralizes the candidate-gathering + revalidation pattern used by recapture and other flows
@@ -22,7 +22,7 @@ extension AppController {
         let candidateWindowIds: [Int] = windowController.allWindows.compactMap { (window: ManagedWindow) -> Int? in
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInTemporaryZone(window.windowId) else {
+                  !isWindowInFloatingZone(window.windowId) else {
                 return nil
             }
 
@@ -51,7 +51,7 @@ extension AppController {
 
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInTemporaryZone(windowId) else {
+                  !isWindowInFloatingZone(windowId) else {
                 continue
             }
 
@@ -74,7 +74,7 @@ extension AppController {
 
             handler(window)
 
-            if window.zoneIndex != nil || isWindowInTemporaryZone(window.windowId) {
+            if window.zoneIndex != nil || isWindowInFloatingZone(window.windowId) {
                 placedCount += 1
             }
         }

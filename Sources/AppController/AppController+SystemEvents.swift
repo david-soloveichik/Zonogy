@@ -30,8 +30,8 @@ extension AppController {
             Logger.debug("Hotkey clear or reset zones triggered")
         case .clearOrResetZonesAtCursor:
             Logger.debug("Hotkey clear or reset zones at cursor triggered")
-        case .targetTemporaryZone:
-            Logger.debug("Hotkey target temporary zone triggered")
+        case .targetFloatingZone:
+            Logger.debug("Hotkey target floating zone triggered")
         case .targetTilingZone:
             Logger.debug("Hotkey target tiling zone triggered")
         case .navigateLeft:
@@ -73,7 +73,7 @@ extension AppController {
         }
         handleApplicationEvent(application)
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
-        handleTemporaryZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
+        handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
         updateUnmanagedFocusState()
 
         // Sync the frontmost managed window and refresh resize handles on app activation.
@@ -89,7 +89,7 @@ extension AppController {
         refreshResizeHandles()
 
         // Record window activity for CmdTab recency tracking.
-        // Skip during activity suppression to avoid twitchy recordings during temp zone/WinShot operations.
+        // Skip during activity suppression to avoid twitchy recordings during floating zone/WinShot operations.
         if let applicationPid = application?.processIdentifier,
            let focusedManagedWindow,
            !isActivityRecordingSuppressed() {

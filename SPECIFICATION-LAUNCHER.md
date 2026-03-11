@@ -20,7 +20,7 @@ The Launcher opens via:
   - After a zone is added.
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the temporary target; otherwise it dismisses. (Exception: zone removal applies its own rule above, which takes precedence.)
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. (Exception: zone removal applies its own rule above, which takes precedence.)
 
 ## Dismissal
 
@@ -34,7 +34,7 @@ So the launcher automatically dismisses when:
 
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
-- Focus shifts to a managed window in a tiling or temporary zone (so the user can interact with it)
+- Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it)
 - An unmanaged window gains focus on the Launcher's screen (to avoid overlapping it)
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
@@ -44,7 +44,7 @@ So the launcher automatically dismisses when:
 The launcher window should appear:
 
 1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown, but it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
-2. If the targeted zone is the temporary zone (which has no visible placeholder), center on the screen containing the temporary zone
+2. If the targeted zone is the floating zone (which has no visible placeholder), center on the screen containing the floating zone
 
 ## User Interface
 

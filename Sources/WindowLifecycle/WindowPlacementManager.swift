@@ -28,8 +28,8 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // Placement deferral
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
 
-    // Temporary zone management
-    func assignWindowToTemporaryZone(
+    // Floating zone management
+    func assignWindowToFloatingZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool,
@@ -37,7 +37,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     )
     func cancelPendingMinimization(windowId: Int)
     func queueDeferredMinimization(windowId: Int, reason: String)
-    func queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(
+    func queueOcclusionBasedFloatingZoneMinimizationIfNeeded(
         on screenId: CGDirectDisplayID,
         excluding windowId: Int?,
         reason: String
@@ -105,7 +105,7 @@ class WindowPlacementManager {
             )
             managed.zoneIndex = nil
             placeWindow(managed, on: preferredScreenId, reason: baseReason)
-            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             if requestSync {
                 delegate.requestSync()
             }
@@ -146,7 +146,7 @@ class WindowPlacementManager {
             )
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen, reason: baseReason)
-            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             if requestSync {
                 delegate.requestSync()
             }
@@ -156,7 +156,7 @@ class WindowPlacementManager {
         placeWindow(
             managed,
             into: targetedDestination,
-            centerTemporaryWindow: true,
+            centerFloatingWindow: true,
             reason: baseReason,
             retargetOnRemoval: true,
             forceRetargetAfterFill: false,
@@ -303,19 +303,19 @@ class WindowPlacementManager {
         placeWindow(
             managed,
             into: .tiled(zoneKey),
-            centerTemporaryWindow: true,
+            centerFloatingWindow: true,
             reason: reason,
             retargetOnRemoval: true,
             forceRetargetAfterFill: false
         )
     }
 
-    /// Places a window into a specific destination (tiled zone or temporary zone), with optional retarget behavior.
+    /// Places a window into a specific destination (tiled zone or floating zone), with optional retarget behavior.
     ///
     /// - Parameters:
     ///   - managed: The window being placed.
-    ///   - destination: The destination zone to place into (can be tiled or temporary).
-    ///   - centerTemporaryWindow: If placing into a temporary zone, whether to apply the initial centering/resizing.
+    ///   - destination: The destination zone to place into (can be tiled or floating).
+    ///   - centerFloatingWindow: If placing into a floating zone, whether to apply the initial centering/resizing.
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
     ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old
@@ -330,7 +330,7 @@ class WindowPlacementManager {
     func placeWindow(
         _ managed: ManagedWindow,
         into destination: TargetedZoneManager.TargetedDestination,
-        centerTemporaryWindow: Bool = true,
+        centerFloatingWindow: Bool = true,
         reason: String,
         retargetOnRemoval: Bool = true,
         forceRetargetAfterFill: Bool = false,
@@ -367,11 +367,11 @@ class WindowPlacementManager {
         managed.zoneIndex = nil
 
         switch destination {
-        case .temporary(let screenId):
-            delegate.assignWindowToTemporaryZone(
+        case .floating(let screenId):
+            delegate.assignWindowToFloatingZone(
                 managed,
                 on: screenId,
-                centerWindow: centerTemporaryWindow,
+                centerWindow: centerFloatingWindow,
                 reason: reason
             )
         case .tiled(let zoneKey):
@@ -384,9 +384,9 @@ class WindowPlacementManager {
             )
         }
 
-        // If placed into a tiled zone, ensure any temporary occupant on that screen is minimized per policy.
+        // If placed into a tiled zone, ensure any floating occupant on that screen is minimized per policy.
         if managed.zoneIndex != nil {
-            queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(managed, reason: reason)
+            queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: reason)
         }
     }
 
@@ -404,7 +404,7 @@ class WindowPlacementManager {
             return
         }
 
-        // Match the temporary-zone pathway: ensure the incoming window can't get minimized
+        // Match the floating-zone pathway: ensure the incoming window can't get minimized
         // by a previously-queued displacement while we're actively placing it.
         delegate.cancelPendingMinimization(windowId: managed.windowId)
 
@@ -565,12 +565,12 @@ class WindowPlacementManager {
         )
     }
 
-    private func queueOcclusionBasedTemporaryZoneMinimizationAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {
+    private func queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {
         guard let delegate = delegate,
               managed.zoneIndex != nil,
               let screenId = managed.screenDisplayId else {
             return
         }
-        delegate.queueOcclusionBasedTemporaryZoneMinimizationIfNeeded(on: screenId, excluding: managed.windowId, reason: reason)
+        delegate.queueOcclusionBasedFloatingZoneMinimizationIfNeeded(on: screenId, excluding: managed.windowId, reason: reason)
     }
 }

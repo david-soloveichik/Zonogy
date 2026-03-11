@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Zone indicator refresh: visual UI for zone targeting, add-zone, temporary zone, and resize handles.
+/// Zone indicator refresh: visual UI for zone targeting, add-zone, floating zone, and resize handles.
 extension AppController {
 
     private func zoneIndicatorDescriptors(forScreens screenIds: Set<CGDirectDisplayID>? = nil) -> [ZoneIndicatorDescriptor] {
@@ -132,33 +132,33 @@ extension AppController {
             addZoneIndicatorManager.present(for: addZoneDescriptors)
         }
 
-        var temporaryDescriptors: [TemporaryZoneIndicatorDescriptor] = []
-        var newTemporaryHitAreas: [CGDirectDisplayID: CGRect] = [:]
+        var floatingDescriptors: [FloatingZoneIndicatorDescriptor] = []
+        var newFloatingHitAreas: [CGDirectDisplayID: CGRect] = [:]
         for (screenId, context) in screenContexts {
             guard !isScreenPausedForFullScreen(screenId) else {
                 continue
             }
-            guard let frames = temporaryIndicatorFrames(for: context.descriptor) else {
+            guard let frames = floatingIndicatorFrames(for: context.descriptor) else {
                 continue
             }
-            let descriptor = TemporaryZoneIndicatorDescriptor(
+            let descriptor = FloatingZoneIndicatorDescriptor(
                 screenId: screenId,
                 cocoaFrame: frames.cocoa,
-                isTargeted: targetedTemporaryScreenId == screenId,
-                isOccupied: temporaryZoneOccupant(on: screenId) != nil,
-                isDragHighlighted: temporaryIndicatorTracker.highlightedScreenId == screenId
+                isTargeted: targetedFloatingScreenId == screenId,
+                isOccupied: floatingZoneOccupant(on: screenId) != nil,
+                isDragHighlighted: floatingIndicatorTracker.highlightedScreenId == screenId
             )
-            temporaryDescriptors.append(descriptor)
-            newTemporaryHitAreas[screenId] = frames.accessibility
+            floatingDescriptors.append(descriptor)
+            newFloatingHitAreas[screenId] = frames.accessibility
         }
 
-        temporaryIndicatorTracker.updateHitAreas(newTemporaryHitAreas)
+        floatingIndicatorTracker.updateHitAreas(newFloatingHitAreas)
 
-        if temporaryDescriptors.isEmpty {
-            temporaryIndicatorTracker.setHighlightedScreen(nil)
-            temporaryIndicatorManager.tearDown()
+        if floatingDescriptors.isEmpty {
+            floatingIndicatorTracker.setHighlightedScreen(nil)
+            floatingIndicatorManager.tearDown()
         } else {
-            temporaryIndicatorManager.present(over: temporaryDescriptors)
+            floatingIndicatorManager.present(over: floatingDescriptors)
         }
     }
 
@@ -184,7 +184,7 @@ extension AppController {
         return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
     }
 
-    private func temporaryIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
+    private func floatingIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.visibleScreenBounds.standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil
@@ -211,13 +211,13 @@ extension AppController {
         }
     }
 
-    func temporaryIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
-        temporaryIndicatorTracker.hitAreas
+    func floatingIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
+        floatingIndicatorTracker.hitAreas
     }
 
-    func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?) {
-        if temporaryIndicatorTracker.setHighlightedScreen(screenId) {
-            temporaryIndicatorManager.updateDragHighlight(screenId: screenId)
+    func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?) {
+        if floatingIndicatorTracker.setHighlightedScreen(screenId) {
+            floatingIndicatorManager.updateDragHighlight(screenId: screenId)
         }
     }
 
@@ -262,12 +262,12 @@ extension AppController {
                 continue
             }
 
-            // When the temporary zone is occupied, hide only the bars that
+            // When the floating zone is occupied, hide only the bars that
             // the floating window actually overlaps (not all bars on the screen).
             // During a resize drag the dragged bar stays visible.
-            let temporaryZoneContext: ZoneResizeHandleTemporaryZoneContext? = {
+            let floatingZoneContext: ZoneResizeHandleFloatingZoneContext? = {
                 guard !zoneResizeDragInProgress,
-                      let occupant = temporaryZoneOccupant(on: screenId) else {
+                      let occupant = floatingZoneOccupant(on: screenId) else {
                     return nil
                 }
                 let frame = windowController.actualFrameInScreenCoordinates(for: occupant, on: context.descriptor)
@@ -275,7 +275,7 @@ extension AppController {
                     frame,
                     by: windowOverlapAllowance
                 )
-                return ZoneResizeHandleTemporaryZoneContext(avoidFrame: avoidFrame)
+                return ZoneResizeHandleFloatingZoneContext(avoidFrame: avoidFrame)
             }()
 
             let frontmostManagedWindowOnScreen = frontmostManagedWindow?.zoneKey.screenId == screenId ? frontmostManagedWindow : nil
@@ -312,7 +312,7 @@ extension AppController {
                     sep,
                     activeFitContext: activeFitContext,
                     frontmostManagedContext: frontmostManagedContext,
-                    temporaryZoneContext: temporaryZoneContext
+                    floatingZoneContext: floatingZoneContext
                 ) else {
                     continue
                 }

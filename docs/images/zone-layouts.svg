@@ -67,9 +67,9 @@
 
   </g>
 
-  <!-- 3-Zone + Temporary Zone Layout -->
+  <!-- 3-Zone + Floating Zone Layout -->
   <g transform="translate(790, 30)">
-    <text x="130" y="-8" text-anchor="middle" fill="#888" font-size="13" font-weight="500">3 zones + temporary</text>
+    <text x="130" y="-8" text-anchor="middle" fill="#888" font-size="13" font-weight="500">3 zones + floating zone</text>
     <rect x="10" y="0" width="240" height="150" rx="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
     <!-- Zone 1 (left) - occupied -->
     <rect x="18" y="8" width="112" height="134" rx="5" fill="#252530" stroke="#555" stroke-width="1"/>
@@ -92,11 +92,11 @@
     <circle cx="144" cy="84" r="3" fill="#ff5f57"/>
     <circle cx="153" cy="84" r="3" fill="#febc2e"/>
     <circle cx="162" cy="84" r="3" fill="#28c840"/>
-    <!-- Target indicators (all dim — temporary zone is targeted) -->
+    <!-- Target indicators (all dim — floating zone is targeted) -->
     <rect x="40" y="3" width="70" height="4" rx="2" fill="#4a9eff" opacity="0.2"/>
     <rect x="155" y="3" width="70" height="4" rx="2" fill="#4a9eff" opacity="0.2"/>
 
-    <!-- Temporary zone window (floating, centered, with slight shadow) -->
+    <!-- Floating zone window (floating, centered, with slight shadow) -->
     <rect x="58" y="32" width="144" height="100" rx="6" fill="#1a1a1a" stroke="#4a9eff" stroke-width="1.5" opacity="0.15"/>
     <rect x="55" y="30" width="144" height="100" rx="6" fill="#2a2a35" stroke="#4a9eff" stroke-width="1.5"/>
     <rect x="55" y="30" width="144" height="18" rx="6" fill="#383840"/>
@@ -106,10 +106,10 @@
     <circle cx="83" cy="39" r="3" fill="#28c840"/>
     <text x="127" y="78" text-anchor="middle" fill="#888" font-size="9">floating window</text>
 
-    <!-- Arrow: "temporary zone" pointing to the floating window -->
+    <!-- Arrow: "floating zone" pointing to the floating window -->
     <line x1="253" y1="78" x2="202" y2="78" stroke="#999" stroke-width="1"/>
     <polygon points="202,75 198,78 202,81" fill="#999"/>
-    <text x="256" y="75" fill="#999" font-size="10" text-anchor="start">temporary</text>
+    <text x="256" y="75" fill="#999" font-size="10" text-anchor="start">floating zone</text>
     <text x="256" y="86" fill="#999" font-size="10" text-anchor="start">zone</text>
   </g>
 </svg>

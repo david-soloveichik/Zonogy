@@ -6,7 +6,7 @@ import AppKit
 /// After display topology changes or wake-from-sleep, this pipeline:
 /// 1. Captures any previously unseen windows from running applications
 /// 2. Identifies tracked windows that are unminimized but not in any zone
-///    (tiled or temporary) and places them via the normal placement flow
+///    (tiled or floating) and places them via the normal placement flow
 extension AppController {
     /// Schedule a window recapture pass after the specified delay.
     /// Called from screen topology refresh (display changes) and wake-from-sleep.

@@ -165,46 +165,46 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             )
         }
 
-        // Temporary-zone floating window hides separator on overlap.
+        // Floating-zone floating window hides separator on overlap.
         do {
-            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+            let floatingCtx = ZoneResizeHandleFloatingZoneContext(
                 avoidFrame: CGRect(x: 40, y: 0, width: 30, height: 200)
             )
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
                 frontmostManagedContext: nil,
-                temporaryZoneContext: tempCtx
+                floatingZoneContext: floatingCtx
             )
-            assertEqual(adjusted, nil, label: "temp zone hides overlapping vertical separator")
+            assertEqual(adjusted, nil, label: "floating zone hides overlapping vertical separator")
         }
 
-        // Temporary-zone floating window does not hide non-overlapping separator.
+        // Floating-zone floating window does not hide non-overlapping separator.
         do {
-            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+            let floatingCtx = ZoneResizeHandleFloatingZoneContext(
                 avoidFrame: CGRect(x: 70, y: 0, width: 30, height: 200)
             )
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
                 frontmostManagedContext: nil,
-                temporaryZoneContext: tempCtx
+                floatingZoneContext: floatingCtx
             )
-            assertEqual(adjusted, vertical.frame, label: "temp zone leaves non-overlapping separator")
+            assertEqual(adjusted, vertical.frame, label: "floating zone leaves non-overlapping separator")
         }
 
-        // Temporary-zone hides horizontal separator on overlap.
+        // Floating-zone hides horizontal separator on overlap.
         do {
-            let tempCtx = ZoneResizeHandleTemporaryZoneContext(
+            let floatingCtx = ZoneResizeHandleFloatingZoneContext(
                 avoidFrame: CGRect(x: 0, y: 40, width: 200, height: 30)
             )
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 horizontal,
                 activeFitContext: nil,
                 frontmostManagedContext: nil,
-                temporaryZoneContext: tempCtx
+                floatingZoneContext: floatingCtx
             )
-            assertEqual(adjusted, nil, label: "temp zone hides overlapping horizontal separator")
+            assertEqual(adjusted, nil, label: "floating zone hides overlapping horizontal separator")
         }
 
         if allPassed {

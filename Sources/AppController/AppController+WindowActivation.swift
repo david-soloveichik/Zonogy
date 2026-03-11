@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-/// Window activation helpers shared across tiled and temporary zone workflows.
+/// Window activation helpers shared across tiled and floating zone workflows.
 extension AppController {
     /// Activates the owning app (best-effort) and raises the window.
     ///

@@ -45,15 +45,15 @@ extension AppController {
     ///    empty zones (except those that are suppressed or excluded), reusing
     ///    or creating placeholder windows as needed and hiding obsolete ones.
     /// 6. Clear stale zone assignments for any non‑placeholder window that was
-    ///    not assigned this pass and is not in the temporary floating zone.
-    /// 7. Promote temporary-zone occupants into newly emptied tiling zones
+    ///    not assigned this pass and is not in the floating zone.
+    /// 7. Promote floating-zone occupants into newly emptied tiling zones
     ///    when policy conditions are met.
-    /// 8. Refresh targeted zone state, temporary‑zone targeting, and visual
+    /// 8. Refresh targeted zone state, floating-zone targeting, and visual
     ///    indicators so the UI matches the new layout.
-    internal func syncWindowsToZones(recentlyPlacedInTempZone: Int? = nil) {
+    internal func syncWindowsToZones(recentlyPlacedInFloatingZone: Int? = nil) {
         runZoneSync(
             mode: .full,
-            recentlyPlacedInTempZone: recentlyPlacedInTempZone,
+            recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone,
         )
     }
 
@@ -62,12 +62,12 @@ extension AppController {
     internal func syncWindowsToZonesForLiveResize(screenId: CGDirectDisplayID) {
         runZoneSync(
             mode: .liveResize(screenId: screenId),
-            recentlyPlacedInTempZone: nil,
+            recentlyPlacedInFloatingZone: nil,
         )
     }
 
-    private func nextCoalescedZoneSyncMode(pendingTempZoneExclusion: Int?) -> ZoneSyncMode {
-        if pendingTempZoneExclusion != nil {
+    private func nextCoalescedZoneSyncMode(pendingFloatingZoneExclusion: Int?) -> ZoneSyncMode {
+        if pendingFloatingZoneExclusion != nil {
             return .full
         }
         if zoneResizeDragInProgress, let dragScreenId = zoneResizeDragScreenId {
@@ -76,8 +76,8 @@ extension AppController {
         return .full
     }
 
-    private func runZoneSync(mode: ZoneSyncMode, recentlyPlacedInTempZone: Int?) {
-        let tempZoneExclusion = recentlyPlacedInTempZone
+    private func runZoneSync(mode: ZoneSyncMode, recentlyPlacedInFloatingZone: Int?) {
+        let floatingZoneExclusion = recentlyPlacedInFloatingZone
         let isLiveResizeSync = mode.isLiveResize
 
         // Ensure only one sync runs at a time. If a sync is already underway,
@@ -85,8 +85,8 @@ extension AppController {
         // will run a follow‑up sync when safe.
         if isSyncingWindows {
             pendingSync = true
-            if let recentlyPlacedInTempZone {
-                pendingSyncRecentlyPlacedInTempZone = recentlyPlacedInTempZone
+            if let recentlyPlacedInFloatingZone {
+                pendingSyncRecentlyPlacedInFloatingZone = recentlyPlacedInFloatingZone
             }
             return
         }
@@ -106,10 +106,10 @@ extension AppController {
             isSyncingWindows = false
             if pendingSync {
                 pendingSync = false
-                let pendingTempZoneExclusion = pendingSyncRecentlyPlacedInTempZone
-                pendingSyncRecentlyPlacedInTempZone = nil
-                let nextMode = nextCoalescedZoneSyncMode(pendingTempZoneExclusion: pendingTempZoneExclusion)
-                runZoneSync(mode: nextMode, recentlyPlacedInTempZone: pendingTempZoneExclusion)
+                let pendingFloatingZoneExclusion = pendingSyncRecentlyPlacedInFloatingZone
+                pendingSyncRecentlyPlacedInFloatingZone = nil
+                let nextMode = nextCoalescedZoneSyncMode(pendingFloatingZoneExclusion: pendingFloatingZoneExclusion)
+                runZoneSync(mode: nextMode, recentlyPlacedInFloatingZone: pendingFloatingZoneExclusion)
             }
         }
 
@@ -178,7 +178,7 @@ extension AppController {
 
         // Tracks all non‑placeholder windows that end up with a valid zone
         // assignment in this pass. Anything not in this set (and not in the
-        // temporary zone) will be detached from the tiling model at the end.
+        // floating zone) will be detached from the tiling model at the end.
         var assignedWindowIds = Set<Int>()
 
         // Phase 3: walk every screen and zone, and for each zone that already
@@ -320,22 +320,22 @@ extension AppController {
 
         // Phase 5: clean up stale assignments. Any window that was *not*
         // assigned to a tiled zone in this pass and is *not* parked in the
-        // temporary floating zone should no longer be treated as zoned.
+        // floating zone should no longer be treated as zoned.
         if !isLiveResizeSync {
             for window in windowController.allWindows {
                 if assignedWindowIds.contains(window.windowId) {
                     continue
                 }
-                if isWindowInTemporaryZone(window.windowId) {
+                if isWindowInFloatingZone(window.windowId) {
                     continue
                 }
                 clearManagedWindowZone(window)
             }
         }
 
-        // Phase 6: promote temporary zone occupants into newly-emptied tiling zones.
+        // Phase 6: promote floating zone occupants into newly-emptied tiling zones.
         // Spec: "When a tiling zone on a screen becomes empty and that screen has
-        // a temporary-zone occupant, promote the temporary window into the emptied zone."
+        // a floating-zone occupant, promote the floating window into the emptied zone."
         if !isLiveResizeSync {
             func snapshotZoneKeys() -> (known: Set<ZoneKey>, empty: Set<ZoneKey>) {
                 var known = Set<ZoneKey>()
@@ -362,9 +362,9 @@ extension AppController {
                 .intersection(lastSyncKnownZoneKeys)
                 .subtracting(lastSyncEmptyZoneKeys)
 
-            promoteTemporaryZoneOccupantsIfNeeded(
+            promoteFloatingZoneOccupantsIfNeeded(
                 newlyEmptiedZones: newlyEmptiedZones,
-                excluding: tempZoneExclusion,
+                excluding: floatingZoneExclusion,
                 reason: "sync"
             )
 

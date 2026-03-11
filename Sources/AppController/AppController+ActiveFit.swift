@@ -33,9 +33,9 @@ extension AppController {
         }
 
         // If the newly focused window is not part of our managed layout (neither tiled nor in the
-        // temporary zone), we deliberately keep the current window in reveal mode.
+        // floating zone), we deliberately keep the current window in reveal mode.
         guard isLayoutManagedWindow(managed) else {
-            Logger.debug("ActiveFit focus change ignored for window \(managed.windowId); not in tiled or temporary zones")
+            Logger.debug("ActiveFit focus change ignored for window \(managed.windowId); not in tiled or floating zones")
             return
         }
 
@@ -388,12 +388,12 @@ extension AppController {
     }
 
     /// Returns true when the window is participating in the managed layout — either as a tiled
-    /// zone occupant (including placeholders) or as the occupant of a temporary zone.
+    /// zone occupant (including placeholders) or as the occupant of a floating zone.
     private func isLayoutManagedWindow(_ managed: ManagedWindow) -> Bool {
         if managed.zoneIndex != nil {
             return true
         }
-        if isWindowInTemporaryZone(managed.windowId) {
+        if isWindowInFloatingZone(managed.windowId) {
             return true
         }
         return false

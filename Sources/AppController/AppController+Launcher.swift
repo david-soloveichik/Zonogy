@@ -18,7 +18,7 @@ extension AppController {
 
         // Invariant: the Launcher must never remain visible while pointing at a non-targeted destination.
         // If the target changes while the Launcher is open, either reposition it to the new target
-        // (empty tiled / temporary) or hide it (occupied tiled / cleared target).
+        // (empty tiled / floating) or hide it (occupied tiled / cleared target).
         if launcherController.isActive {
             guard let newDestination else {
                 launcherController.hide()
@@ -34,9 +34,9 @@ extension AppController {
             }
 
             switch newDestination {
-            case .temporary:
+            case .floating:
                 launcherController.repositionToCurrentTarget()
-                Logger.debug("Launcher: Repositioned for temporary target")
+                Logger.debug("Launcher: Repositioned for floating target")
             case .tiled(let key):
                 if targetedZoneManager.isZoneEmpty(key) {
                     launcherController.repositionToCurrentTarget()
@@ -134,7 +134,7 @@ extension AppController: LauncherControllerDelegate {
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
 
-            // If activateInPlace: if window is already in a zone (tiling or temp), just activate it
+            // If activateInPlace: if window is already in a zone (tiling or floating), just activate it
             if activateInPlace && managed.isPlacedInZone {
                 Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
                 activateWindow(managed)
@@ -362,7 +362,7 @@ extension AppController: LauncherControllerDelegate {
     }
 
     func targetedScreenId() -> CGDirectDisplayID? {
-        // Return the targeted screen (temporary zone screen or tiled zone screen)
+        // Return the targeted screen (floating zone screen or tiled zone screen)
         if let destination = targetedZoneManager.targetedDestination,
            let screenId = screenId(for: destination) {
             return screenId
@@ -372,7 +372,7 @@ extension AppController: LauncherControllerDelegate {
 
     private func screenId(for destination: TargetedZoneManager.TargetedDestination) -> CGDirectDisplayID? {
         switch destination {
-        case .temporary(let screenId):
+        case .floating(let screenId):
             return screenId
         case .tiled(let key):
             return key.screenId
@@ -408,7 +408,7 @@ extension AppController: LauncherControllerDelegate {
         var didActivateInPlacement = false
         let afterPlacementAction: (() -> Void)?
         switch destination {
-        case .temporary:
+        case .floating:
             afterPlacementAction = nil
         case .tiled:
             afterPlacementAction = {
@@ -420,7 +420,7 @@ extension AppController: LauncherControllerDelegate {
         windowPlacementManager.placeWindow(
             managed,
             into: destination,
-            centerTemporaryWindow: true,
+            centerFloatingWindow: true,
             reason: "launcher-selection",
             retargetOnRemoval: false,
             forceRetargetAfterFill: false,
@@ -428,9 +428,9 @@ extension AppController: LauncherControllerDelegate {
         )
 
         switch destination {
-        case .temporary:
+        case .floating:
             // Sync to create placeholder for the now-empty source zone.
-            syncWindowsToZones(recentlyPlacedInTempZone: managed.windowId)
+            syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
             return
         case .tiled:
             break
@@ -451,7 +451,7 @@ extension AppController: LauncherControllerDelegate {
         windowPlacementManager.placeWindow(
             managed,
             into: .tiled(zoneKey),
-            centerTemporaryWindow: true,
+            centerFloatingWindow: true,
             reason: "dockmenu-drag-placement",
             retargetOnRemoval: false,
             forceRetargetAfterFill: true,
@@ -475,9 +475,9 @@ extension AppController: LauncherControllerDelegate {
         }
 
         switch destination {
-        case .temporary(let screenId):
+        case .floating(let screenId):
             guard let descriptor = descriptor(for: screenId),
-                  let frame = temporaryZoneCoordinator.computePlacementFrame(for: managed, on: screenId) else {
+                  let frame = floatingZoneCoordinator.computePlacementFrame(for: managed, on: screenId) else {
                 return nil
             }
             return (frame, descriptor)

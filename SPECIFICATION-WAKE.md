@@ -4,7 +4,7 @@ Our big picture goal is to minimize the windows on screens that were possibly di
 
 IMPORTANT: This specification does not mention logging. It is expected that the implementation will decide on which information needs to be logged and when.
 
-IMPORTANT TERMINOLOGY: When we say "window" this refers to managed windows of other applications. To refer to placeholder windows, we explicitly say "placeholder [window]". When we say "zone" without a qualifier, we mean either a tiling zone or a temporary zone. An empty zone contains a placeholder window.
+IMPORTANT TERMINOLOGY: When we say "window" this refers to managed windows of other applications. To refer to placeholder windows, we explicitly say "placeholder [window]". When we say "zone" without a qualifier, we mean either a tiling zone or a floating zone. An empty zone contains a placeholder window.
 
 Based on testing, it is safe to assume that `CGWindowID` is preserved between sleep/wake cycles. We do all our matching based on this.
 

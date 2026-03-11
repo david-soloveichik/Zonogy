@@ -6,7 +6,7 @@ import Foundation
 struct LauncherWindowItem: Identifiable, Equatable {
     let id: UUID
     let title: String
-    /// Whether this window is currently placed in a zone (tiled or temporary).
+    /// Whether this window is currently placed in a zone (tiled or floating).
     /// Windows not placed in any zone are considered minimized.
     let isPlacedInZone: Bool
     let axElement: AXUIElement

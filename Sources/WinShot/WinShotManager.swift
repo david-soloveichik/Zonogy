@@ -38,7 +38,7 @@ final class WinShotManager {
         zoneController: ZoneController,
         windowController: WindowController,
         screenDescriptor: ScreenDescriptor,
-        temporaryZoneOccupant: ManagedWindow?,
+        floatingZoneOccupant: ManagedWindow?,
         activeWindowId: Int?,
         reason: String
     ) -> WinShotSnapshot? {
@@ -62,21 +62,21 @@ final class WinShotManager {
             }
         }
 
-        // Get temporary zone occupant identity and frame
-        let tempIdentity: WindowIdentity?
-        let tempFrame: CGRect?
-        if let tempOccupant = temporaryZoneOccupant {
-            tempIdentity = WindowIdentity.make(from: tempOccupant)
+        // Get floating zone occupant identity and frame
+        let floatingIdentity: WindowIdentity?
+        let floatingFrame: CGRect?
+        if let floatingOccupant = floatingZoneOccupant {
+            floatingIdentity = WindowIdentity.make(from: floatingOccupant)
             // actualFrameInScreenCoordinates can return .zero on AX read failure; treat as no frame.
-            let frame = windowController.actualFrameInScreenCoordinates(for: tempOccupant, on: screenDescriptor)
-            tempFrame = frame == .zero ? nil : frame
+            let frame = windowController.actualFrameInScreenCoordinates(for: floatingOccupant, on: screenDescriptor)
+            floatingFrame = frame == .zero ? nil : frame
         } else {
-            tempIdentity = nil
-            tempFrame = nil
+            floatingIdentity = nil
+            floatingFrame = nil
         }
 
         // Check eligibility: must have at least one non-placeholder window
-        let hasWindows = !zoneAssignments.isEmpty || tempIdentity != nil
+        let hasWindows = !zoneAssignments.isEmpty || floatingIdentity != nil
         guard hasWindows else {
             Logger.debug("WinShot: Skipping snapshot - no windows on \(ScreenContextStore.logDescription(for: screenId))")
             return nil
@@ -86,7 +86,7 @@ final class WinShotManager {
         let occupancySignature = WinShotSnapshotOccupancySignature(
             presentZoneIndices: zoneFrames.keys,
             tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
-            temporaryZoneWindowId: tempIdentity?.windowId
+            floatingZoneWindowId: floatingIdentity?.windowId
         )
         if let existingId = findSnapshotWithSameOccupancySignature(occupancySignature, on: screenId) {
             Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same occupancy signature")
@@ -105,8 +105,8 @@ final class WinShotManager {
             zoneFrames: zoneFrames,
             windowFrames: windowFrames,
             zoneAssignments: zoneAssignments,
-            temporaryZoneOccupant: tempIdentity,
-            temporaryZoneFrame: tempFrame,
+            floatingZoneOccupant: floatingIdentity,
+            floatingZoneFrame: floatingFrame,
             activeWindowId: activeWindowId,
             thumbnail: thumbnail
         )
@@ -115,7 +115,7 @@ final class WinShotManager {
         addSnapshot(snapshot, for: screenId)
 
         Logger.debug(
-            "WinShot: Created snapshot \(snapshot.id) on \(ScreenContextStore.logDescription(for: screenId)) with \(zoneAssignments.count) zone windows + \(tempIdentity != nil ? 1 : 0) temp (reason: \(reason))"
+            "WinShot: Created snapshot \(snapshot.id) on \(ScreenContextStore.logDescription(for: screenId)) with \(zoneAssignments.count) zone windows + \(floatingIdentity != nil ? 1 : 0) floating (reason: \(reason))"
         )
         snapshot.logDebugDetails(context: "created (reason: \(reason))")
 

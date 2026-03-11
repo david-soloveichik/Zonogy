@@ -1,7 +1,7 @@
 import AppKit
 
-/// Defines the operations the temporary-zone coordinator can call back into.
-protocol TemporaryZoneCoordinatorHost: AnyObject {
+/// Defines the operations the floating-zone coordinator can call back into.
+protocol FloatingZoneCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
     var targetedZoneManager: TargetedZoneManager { get }
     var targetingMode: TargetingMode { get }
@@ -16,32 +16,32 @@ protocol TemporaryZoneCoordinatorHost: AnyObject {
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
-    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteTemporaryOccupant: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
     func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func refreshIndicators()
-    func updateTemporaryIndicatorHighlight(screenId: CGDirectDisplayID?)
+    func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     func activeScreenId() -> CGDirectDisplayID
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
     func screenIdForAccessibilityFrame(_ frame: CGRect) -> CGDirectDisplayID?
-    func shouldProtectTemporaryZoneOccupant(windowId: Int) -> Bool
-    func scheduleTemporaryZoneProtection(windowId: Int)
-    func clearTemporaryZoneProtection(windowId: Int)
-    func activateTemporaryZoneWindow(_ managed: ManagedWindow, reason: String)
+    func shouldProtectFloatingZoneOccupant(windowId: Int) -> Bool
+    func scheduleFloatingZoneProtection(windowId: Int)
+    func clearFloatingZoneProtection(windowId: Int)
+    func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String)
 }
 
-/// Centralizes temporary-zone occupant bookkeeping, placement, targeting, and occlusion checks.
-final class TemporaryZoneCoordinator {
+/// Centralizes floating-zone occupant bookkeeping, placement, targeting, and occlusion checks.
+final class FloatingZoneCoordinator {
     private struct TiledFocusContext {
         let window: ManagedWindow
         let pid: pid_t
         let screenId: CGDirectDisplayID?
     }
 
-    weak var host: TemporaryZoneCoordinatorHost?
+    weak var host: FloatingZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
 
-    init(host: TemporaryZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
+    init(host: FloatingZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
         self.displacedWindowCoordinator = displacedWindowCoordinator
     }
@@ -53,7 +53,7 @@ final class TemporaryZoneCoordinator {
         return host.windowController.window(withId: windowId)
     }
 
-    func isWindowInTemporaryZone(_ windowId: Int) -> Bool {
+    func isWindowInFloatingZone(_ windowId: Int) -> Bool {
         return occupants.values.contains(windowId)
     }
 
@@ -67,11 +67,11 @@ final class TemporaryZoneCoordinator {
 
         host.cancelPendingMinimization(windowId: managed.windowId)
 
-        if isWindowInTemporaryZone(managed.windowId),
+        if isWindowInFloatingZone(managed.windowId),
            let existingScreenId = occupants.first(where: { $0.value == managed.windowId })?.key {
-            // Reassigning a window that's already in a temporary zone (e.g. screen migration).
+            // Reassigning a window that's already in a floating zone (e.g. screen migration).
             // Avoid a full clear cycle so we don't accidentally change targeting state.
-            host.clearTemporaryZoneProtection(windowId: managed.windowId)
+            host.clearFloatingZoneProtection(windowId: managed.windowId)
             occupants.removeValue(forKey: existingScreenId)
         }
 
@@ -82,19 +82,19 @@ final class TemporaryZoneCoordinator {
             incomingWindowId: managed.windowId,
             lookupWindow: { host.windowController.window(withId: $0) },
             evictExistingWindowId: { occupantId in
-                host.clearTemporaryZoneProtection(windowId: occupantId)
+                host.clearFloatingZoneProtection(windowId: occupantId)
                 occupants.removeValue(forKey: screenId)
             },
             clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
             finalizeDisplaced: { displaced in
                 host.queueDeferredMinimization(windowId: displaced.windowId, reason: displacedMinimizeReason)
                 Logger.debug(
-                    "Temporary zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
+                    "Floating zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
                 )
             },
             assignIncoming: {
                 occupants[screenId] = managed.windowId
-                managed.isInTemporaryZone = true
+                managed.isInFloatingZone = true
                 host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
 
                 if centerWindow,
@@ -104,12 +104,12 @@ final class TemporaryZoneCoordinator {
                 }
             },
             afterAssignIncoming: {
-                host.activateTemporaryZoneWindow(managed, reason: reason)
-                host.scheduleTemporaryZoneProtection(windowId: managed.windowId)
+                host.activateFloatingZoneWindow(managed, reason: reason)
+                host.scheduleFloatingZoneProtection(windowId: managed.windowId)
             }
         )
 
-        Logger.debug("Assigned window \(managed.windowId) to temporary zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
+        Logger.debug("Assigned window \(managed.windowId) to floating zone on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
         host.refreshIndicators()
         host.refreshResizeHandles()
     }
@@ -119,13 +119,13 @@ final class TemporaryZoneCoordinator {
               let occupant = occupant(on: screenId) else {
             return
         }
-        host.clearTemporaryZoneProtection(windowId: occupant.windowId)
-        occupant.isInTemporaryZone = false
+        host.clearFloatingZoneProtection(windowId: occupant.windowId)
+        occupant.isInFloatingZone = false
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
         host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
         Logger.debug(
-            "Temporary zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
+            "Floating zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
         )
         host.refreshIndicators()
         host.refreshResizeHandles()
@@ -136,12 +136,12 @@ final class TemporaryZoneCoordinator {
               let entry = occupants.first(where: { $0.value == windowId }) else {
             return
         }
-        host.clearTemporaryZoneProtection(windowId: windowId)
+        host.clearFloatingZoneProtection(windowId: windowId)
         if let window = host.windowController.window(withId: windowId) {
-            window.isInTemporaryZone = false
+            window.isInFloatingZone = false
         }
         occupants.removeValue(forKey: entry.key)
-        Logger.debug("Cleared temporary zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
+        Logger.debug("Cleared floating zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {
             host.clearManagedWindowZone(window)
             host.minimizeWindowProgrammatically(window, reason: reason)
@@ -168,8 +168,8 @@ final class TemporaryZoneCoordinator {
             }
             let occupantPid = window.backing.pid
 
-            if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
-                host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
+            if host.shouldProtectFloatingZoneOccupant(windowId: occupantId) {
+                host.activateFloatingZoneWindow(window, reason: "protection-reactivate")
                 continue
             }
 
@@ -203,8 +203,8 @@ final class TemporaryZoneCoordinator {
             }
             let occupantPid = window.backing.pid
 
-            if host.shouldProtectTemporaryZoneOccupant(windowId: occupantId) {
-                host.activateTemporaryZoneWindow(window, reason: "protection-reactivate")
+            if host.shouldProtectFloatingZoneOccupant(windowId: occupantId) {
+                host.activateFloatingZoneWindow(window, reason: "protection-reactivate")
                 continue
             }
 
@@ -218,34 +218,34 @@ final class TemporaryZoneCoordinator {
     }
 
     /// Prepare host/delegate state right before deferred minimization executes.
-    /// For focus-driven temporary-zone minimization, we only proceed if the window is
-    /// still the temporary occupant at flush time.
+    /// For focus-driven floating-zone minimization, we only proceed if the window is
+    /// still the floating occupant at flush time.
     func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
         guard let host else { return false }
 
-        guard isOcclusionBasedTemporaryMinimizationReason(reason) else {
+        guard isOcclusionBasedFloatingMinimizationReason(reason) else {
             return true
         }
 
         guard let screenId = occupants.first(where: { $0.value == windowId })?.key else {
             Logger.debug(
-                "Temporary zone deferred minimization skipped for window \(windowId): no longer temporary occupant (reason: \(reason))"
+                "Floating zone deferred minimization skipped for window \(windowId): no longer floating occupant (reason: \(reason))"
             )
             return false
         }
 
-        guard isTemporaryZoneOccupantOccluded(on: screenId, occupantWindowId: windowId) else {
+        guard isFloatingZoneOccupantOccluded(on: screenId, occupantWindowId: windowId) else {
             Logger.debug(
-                "Temporary zone deferred minimization skipped for window \(windowId): not occluded (reason: \(reason))"
+                "Floating zone deferred minimization skipped for window \(windowId): not occluded (reason: \(reason))"
             )
             return false
         }
 
-        host.clearTemporaryZoneProtection(windowId: windowId)
+        host.clearFloatingZoneProtection(windowId: windowId)
         occupants.removeValue(forKey: screenId)
 
         if let occupant = host.windowController.window(withId: windowId) {
-            occupant.isInTemporaryZone = false
+            occupant.isInFloatingZone = false
             host.clearManagedWindowZone(occupant)
         }
 
@@ -269,7 +269,7 @@ final class TemporaryZoneCoordinator {
             addZoneDropTarget(for: finalCursorPoint)
 
         if let addZoneScreenId,
-           let newZone = host.addZone(on: addZoneScreenId, announce: false, promoteTemporaryOccupant: false) {
+           let newZone = host.addZone(on: addZoneScreenId, announce: false, promoteFloatingOccupant: false) {
             clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
             if let result = host.windowPlacementManager.assignWindowFromDrag(
                 managed,
@@ -288,7 +288,7 @@ final class TemporaryZoneCoordinator {
             return
         }
 
-        // Otherwise, leaving the temporary zone simply keeps the window floating.
+        // Otherwise, leaving the floating zone simply keeps the window floating.
     }
 
     private func handleCrossScreenFloatingDrop(managed: ManagedWindow, finalFrame: CGRect) -> Bool {
@@ -303,12 +303,12 @@ final class TemporaryZoneCoordinator {
         let originIndex = host.screenContextStore.loggingIndex(for: originScreenId)
         let destinationIndex = host.screenContextStore.loggingIndex(for: destinationScreenId)
 
-        // Bookkeeping: move the dragged window to the destination screen's temporary zone.
+        // Bookkeeping: move the dragged window to the destination screen's floating zone.
         occupants.removeValue(forKey: originScreenId)
         occupants[destinationScreenId] = managed.windowId
         host.setManagedWindow(managed, screenId: destinationScreenId, zoneIndex: nil)
 
-        // If the destination already had a temporary occupant, swap it back to the origin screen.
+        // If the destination already had a floating occupant, swap it back to the origin screen.
         if let displacedWindow {
             occupants[originScreenId] = displacedWindow.windowId
             host.setManagedWindow(displacedWindow, screenId: originScreenId, zoneIndex: nil)
@@ -319,11 +319,11 @@ final class TemporaryZoneCoordinator {
             }
 
             Logger.debug(
-                "Swapped temporary zone occupants: window \(managed.windowId) -> screen \(destinationIndex), " +
+                "Swapped floating zone occupants: window \(managed.windowId) -> screen \(destinationIndex), " +
                     "window \(displacedWindow.windowId) -> screen \(originIndex)"
             )
         } else {
-            Logger.debug("Moved temporary zone window \(managed.windowId) from screen \(originIndex) to screen \(destinationIndex)")
+            Logger.debug("Moved floating zone window \(managed.windowId) from screen \(originIndex) to screen \(destinationIndex)")
         }
 
         host.refreshIndicators()
@@ -365,7 +365,7 @@ final class TemporaryZoneCoordinator {
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
 
-    /// Compute the placement frame for a window in the temporary zone without actually placing it.
+    /// Compute the placement frame for a window in the floating zone without actually placing it.
     /// Used for pre-positioning minimized windows before unminimizing.
     func computePlacementFrame(for managed: ManagedWindow, on screenId: CGDirectDisplayID) -> CGRect? {
         guard let descriptor = host?.descriptor(for: screenId) else { return nil }
@@ -400,7 +400,7 @@ final class TemporaryZoneCoordinator {
     }
 
     private func resolvedFocusedWindow(
-        host: TemporaryZoneCoordinatorHost,
+        host: FloatingZoneCoordinatorHost,
         pid: pid_t,
         focusedWindowId: Int?
     ) -> ManagedWindow? {
@@ -422,17 +422,17 @@ final class TemporaryZoneCoordinator {
         }
         host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
         Logger.debug(
-            "Temporary zone queued conditional minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
+            "Floating zone queued conditional minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
         )
     }
 
-    private func isOcclusionBasedTemporaryMinimizationReason(_ reason: String) -> Bool {
+    private func isOcclusionBasedFloatingMinimizationReason(_ reason: String) -> Bool {
         reason.hasPrefix("focus-shift-") ||
             reason == "workspace-activate" ||
             reason.hasPrefix("occlusion-check-")
     }
 
-    private func isTemporaryZoneOccupantOccluded(on screenId: CGDirectDisplayID, occupantWindowId: Int) -> Bool {
+    private func isFloatingZoneOccupantOccluded(on screenId: CGDirectDisplayID, occupantWindowId: Int) -> Bool {
         guard let host,
               let occupant = host.windowController.window(withId: occupantWindowId),
               let occupantFrame = host.windowController.actualFrameInAccessibilityCoordinates(for: occupant),
@@ -457,8 +457,8 @@ final class TemporaryZoneCoordinator {
 
         // Fast path: if nothing even overlaps geometrically, occlusion is impossible.
         guard occluders.contains(where: {
-            TemporaryZoneOverlapPolicy.overlapsZoneFrame(
-                temporaryFrame: occupantFrame,
+            FloatingZoneOverlapPolicy.overlapsZoneFrame(
+                floatingFrame: occupantFrame,
                 zoneFrame: $0.frame
             )
         }) else {

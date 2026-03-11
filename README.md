@@ -10,7 +10,7 @@ Zonogy divides each screen into persistent tiling zones — one is always target
 
 ## Why Zonogy?
 
-Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach: you define zones that persist even when empty, so your layout stays stable. A temporary zone on each screen lets you float a window above the tiles when you need quick access to a window without disrupting the grid.
+Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach: you define zones that persist even when empty, so your layout stays stable. A floating zone on each screen lets you float a window above the tiles when you need quick access to a window without disrupting the grid.
 
 Virtual desktops like macOS's built-in Spaces have another limitation: a window can only belong to one space. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows. After all, the same window — your email, a reference doc — often belongs to more than one task and your tools shouldn't force you to choose.
 
@@ -22,13 +22,13 @@ Drag and drop is woven throughout: drag windows between zones to swap them, drag
 
 ### Zones
 
-Each screen has 1–3 **tiling zones** that form the main layout, plus a **temporary zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them.
+Each screen has 1–3 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them.
 
 Exactly one zone is **targeted** at any moment, indicated by a glowing indicator above the zone. New or unminimized windows are always placed into the targeted zone.
 
-Filling the targeted tiling zone advances to the next empty tiling zone (or the temporary zone if none are empty), emptying a tiling zone makes it targeted, and you can retarget any tiling zone with a `Control-Command` click. (Alternative mode: **target follows focus**, where activating a window retargets to that window's zone.)
+Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty), emptying a tiling zone makes it targeted, and you can retarget any tiling zone with a `Control-Command` click. (Alternative mode: **target follows focus**, where activating a window retargets to that window's zone.)
 
-![Zone layouts: 1-zone (full screen), 2-zone (left/right split), 3-zone (left column + right top/bottom), and 3-zone + temp zone. Target indicators glow above the targeted zone.](docs/images/zone-layouts.svg)
+![Zone layouts: 1-zone (full screen), 2-zone (left/right split), 3-zone (left column + right top/bottom), and 3-zone + floating zone. Target indicators glow above the targeted zone.](docs/images/zone-layouts.svg)
 
 ## Features
 
@@ -60,8 +60,8 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
 | Drag window → tiling zone | Move it there, swapping if occupied |
 | Drag window → new zone pill | Add a zone and place the window in it |
-| Drag window → temporary zone indicator | Float the window above the tiles |
-| Hold `Control-Cmd` during drag | Promote between tiled and temporary zone |
+| Drag window → floating zone indicator | Float the window above the tiles |
+| Hold `Control-Cmd` during drag | Promote between tiled and floating zone |
 | Drag file or URL → empty zone or new zone pill | Open it there with the default app |
 | Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |
 
@@ -94,7 +94,7 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 
 ## History
 
-My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a temporary floater), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
 
 ## Additional suggestions
 
