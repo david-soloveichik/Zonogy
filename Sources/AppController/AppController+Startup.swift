@@ -5,8 +5,9 @@ import ApplicationServices
 /// Startup capture routines, shortcut helpers, and bundle filtering utilities.
 extension AppController {
     /// Restarts the app after accessibility permissions are granted.
-    /// This ensures all CGEventTap-based interceptors (DockMenus, ZoneClickInterceptor,
-    /// CmdTabKeyInterceptor) initialize correctly with the new permissions.
+    /// This ensures all global input interceptors (DockMenus, ZoneClickInterceptor,
+    /// external zone-drop interception, CmdTabKeyInterceptor) initialize correctly
+    /// with the new permissions.
     func restartAfterAccessibilityGranted() {
         Logger.debug("Accessibility permission granted - restarting app")
 

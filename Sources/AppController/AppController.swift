@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, FloatingZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, FloatingZoneCoordinatorHost, FloatingDragHandlerHost, DisplacedWindowCoordinatorHost, DeferredMinimizationCoordinatorHost, FullScreenTrackerDelegate {
+class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, FloatingZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, FloatingZoneCoordinatorHost, FloatingDragHandlerHost, DisplacedWindowCoordinatorHost, DeferredMinimizationCoordinatorHost, FullScreenTrackerDelegate, ExternalZoneDropInterceptorHost {
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
@@ -47,6 +47,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
+    internal lazy var externalZoneDropInterceptor = ExternalZoneDropInterceptor(host: self)
     let primaryScreenId: CGDirectDisplayID  // Internal tracking uses stable CGDirectDisplayID
     internal let primaryScreenBounds: CGRect
     internal let zoneMargin: CGFloat = 8
@@ -78,6 +79,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let floatingIndicatorManager = FloatingZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
     internal let resizeHandleManager = ZoneResizeHandleManager()
+    internal let placeholderExternalDragOverlayManager = DragOverlayManager()
+    internal var placeholderExternalDragOverlayKey: ZoneKey?
+    internal var placeholderExternalDragOverlayTeardownWorkItem: DispatchWorkItem?
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
     internal lazy var floatingZoneCoordinator = FloatingZoneCoordinator(
@@ -325,6 +329,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)
         zoneClickInterceptor.start(delegate: self)
+        externalZoneDropInterceptor.start()
         cmdTabKeyInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
 
@@ -374,12 +379,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         systemEventMonitor.stop()
         displayMonitor.stop()
         zoneClickInterceptor.stop()
+        externalZoneDropInterceptor.stop()
         stopDockMenus()
         launcherInstallWatchService.stop()
         pendingScreenChangeWorkItem?.cancel()
         indicatorManager.tearDown()
         floatingIndicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
+        placeholderExternalDragOverlayManager.tearDown()
         menuBarManager.tearDown()
     }
 

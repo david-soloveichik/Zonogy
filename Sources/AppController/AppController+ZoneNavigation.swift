@@ -207,18 +207,11 @@ extension AppController {
         Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
     }
 
-    /// Find the topmost managed (non-placeholder) window under the cursor on the cursor's screen.
-    private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
+    /// Find the topmost tiled managed (non-placeholder) window under the cursor on the cursor's screen.
+    internal func tiledManagedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
         guard let screenId = resolveCursorScreenId(),
               let context = screenContexts[screenId] else {
             return nil
-        }
-
-        // Floating zone floats above all tiled zones; return immediately if cursor is within it.
-        if let floatingOccupant = floatingZoneOccupant(on: screenId),
-           let frame = windowController.actualFrameInAccessibilityCoordinates(for: floatingOccupant),
-           frame.contains(cursorPoint) {
-            return (floatingOccupant, floatingOccupant.backing.pid)
         }
 
         // Collect tiled zone candidates under cursor: (ManagedWindow, pid, cgWindowId).
@@ -257,6 +250,22 @@ extension AppController {
 
         let (managed, pid, _) = candidates[0]
         return (managed, pid)
+    }
+
+    /// Find the topmost managed (non-placeholder) window under the cursor on the cursor's screen.
+    private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
+        guard let screenId = resolveCursorScreenId() else {
+            return nil
+        }
+
+        // Floating zone floats above all tiled zones; return immediately if cursor is within it.
+        if let floatingOccupant = floatingZoneOccupant(on: screenId),
+           let frame = windowController.actualFrameInAccessibilityCoordinates(for: floatingOccupant),
+           frame.contains(cursorPoint) {
+            return (floatingOccupant, floatingOccupant.backing.pid)
+        }
+
+        return tiledManagedWindowUnderCursor(cursorPoint: cursorPoint)
     }
 
     /// Find the empty zone (placeholder frame) under the cursor, if any.

@@ -1,0 +1,125 @@
+import AppKit
+
+/// Tracks Control-Command external drags over managed tiling zones and presents zone overlays.
+protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDelegate {
+    var isManagedWindowDragInProgress: Bool { get }
+    func currentCursorAccessibilityPoint() -> CGPoint?
+    func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool
+    func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey?
+    func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
+    func suspendPlaceholderExternalDragOverlay(reason: String)
+    func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?)
+}
+
+final class ExternalZoneDropInterceptor {
+    private enum Constants {
+        static let monitoredEvents: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp, .flagsChanged]
+    }
+
+    weak var host: ExternalZoneDropInterceptorHost?
+
+    private let overlayManager: DragOverlayManager
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
+    private var isInterceptionActive = false
+    private var pendingMouseUpTearDownWorkItem: DispatchWorkItem?
+
+    init(host: ExternalZoneDropInterceptorHost) {
+        self.host = host
+        self.overlayManager = DragOverlayManager(externalDropDelegate: host, windowLevel: .statusBar)
+    }
+
+    func start() {
+        guard globalMonitor == nil, localMonitor == nil else {
+            return
+        }
+
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: Constants.monitoredEvents) { [weak self] event in
+            self?.handle(event: event)
+        }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: Constants.monitoredEvents) { [weak self] event in
+            self?.handle(event: event)
+            return event
+        }
+    }
+
+    func stop() {
+        if let globalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
+            self.globalMonitor = nil
+        }
+        if let localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            self.localMonitor = nil
+        }
+        pendingMouseUpTearDownWorkItem?.cancel()
+        pendingMouseUpTearDownWorkItem = nil
+        tearDownOverlays()
+    }
+
+    private func handle(event: NSEvent) {
+        switch event.type {
+        case .leftMouseDragged, .flagsChanged:
+            refreshInterceptionState()
+        case .leftMouseUp:
+            scheduleMouseUpTearDown()
+        default:
+            break
+        }
+    }
+
+    private func refreshInterceptionState() {
+        pendingMouseUpTearDownWorkItem?.cancel()
+        pendingMouseUpTearDownWorkItem = nil
+
+        let cursorPoint = host?.currentCursorAccessibilityPoint()
+
+        guard let host,
+              !host.isManagedWindowDragInProgress,
+              MouseButtons.isLeftMouseButtonDown(),
+              NSEvent.modifierFlags.contains(.command),
+              NSEvent.modifierFlags.contains(.control),
+              ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
+              let cursorPoint else {
+            tearDownOverlays()
+            host?.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
+            return
+        }
+
+        host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
+
+        if !isInterceptionActive {
+            guard host.shouldBeginExternalZoneDropInterception(cursorPoint: cursorPoint) else {
+                return
+            }
+
+            overlayManager.present(over: host.externalDropOverlayDescriptors())
+            isInterceptionActive = true
+            Logger.debug("External zone drop interception began")
+        }
+
+        overlayManager.updateHighlight(to: host.resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint))
+    }
+
+    private func scheduleMouseUpTearDown() {
+        pendingMouseUpTearDownWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.pendingMouseUpTearDownWorkItem = nil
+            self?.tearDownOverlays()
+        }
+        pendingMouseUpTearDownWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+    }
+
+    private func tearDownOverlays() {
+        guard isInterceptionActive else {
+            return
+        }
+        pendingMouseUpTearDownWorkItem?.cancel()
+        pendingMouseUpTearDownWorkItem = nil
+        overlayManager.tearDown()
+        isInterceptionActive = false
+        Logger.debug("External zone drop interception ended")
+    }
+}

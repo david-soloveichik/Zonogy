@@ -7,9 +7,14 @@ struct ZoneOverlayDescriptor {
     let isEmpty: Bool
 }
 
+protocol DragOverlayExternalDropDelegate: AnyObject {
+    func dragOverlayManager(_ manager: DragOverlayManager, shouldAcceptExternalDropFor key: ZoneKey) -> Bool
+    func dragOverlayManager(_ manager: DragOverlayManager, didReceiveExternalDrop items: [ExternalDropItem], for key: ZoneKey)
+}
+
 final class DragOverlayManager {
-    private final class OverlayWindow: NSWindow {
-        init(frame: NSRect) {
+    private final class PassiveOverlayWindow: NSWindow {
+        init(frame: NSRect, windowLevel: NSWindow.Level) {
             super.init(
                 contentRect: frame,
                 styleMask: [.borderless],
@@ -21,7 +26,7 @@ final class DragOverlayManager {
             isOpaque = false
             backgroundColor = .clear
             hasShadow = false
-            level = .floating
+            level = windowLevel
             collectionBehavior = [
                 .canJoinAllSpaces,
                 .transient,
@@ -30,10 +35,53 @@ final class DragOverlayManager {
         }
     }
 
+    private final class InteractiveOverlayWindow: NSPanel {
+        init(frame: NSRect, windowLevel: NSWindow.Level) {
+            super.init(
+                contentRect: frame,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            isReleasedWhenClosed = false
+            isFloatingPanel = false
+            becomesKeyOnlyIfNeeded = false
+            ignoresMouseEvents = false
+            isOpaque = false
+            backgroundColor = .clear
+            hasShadow = false
+            level = windowLevel
+            collectionBehavior = [
+                .canJoinAllSpaces,
+                .transient,
+                .fullScreenAuxiliary
+            ]
+        }
+
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
+
+        override func makeKeyAndOrderFront(_ sender: Any?) {
+            orderFront(sender)
+        }
+    }
+
     private final class OverlayView: NSView {
-        override init(frame frameRect: NSRect) {
+        let key: ZoneKey
+        weak var manager: DragOverlayManager?
+
+        override var isFlipped: Bool {
+            true
+        }
+
+        init(frame frameRect: NSRect, key: ZoneKey, manager: DragOverlayManager) {
+            self.key = key
+            self.manager = manager
             super.init(frame: frameRect)
             ForceClickSuppression.apply(to: self)
+            if manager.interactiveExternalDrop {
+                registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+            }
         }
 
         required init?(coder: NSCoder) {
@@ -52,10 +100,6 @@ final class DragOverlayManager {
             }
         }
 
-        override var isFlipped: Bool {
-            true
-        }
-
         override func draw(_ dirtyRect: NSRect) {
             super.draw(dirtyRect)
             guard bounds.width > 0, bounds.height > 0 else {
@@ -71,26 +115,61 @@ final class DragOverlayManager {
             borderColor.setStroke()
             path.stroke()
         }
+
+        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+            guard manager?.canAcceptExternalDrop(from: sender, for: key) == true else {
+                return []
+            }
+            return .copy
+        }
+
+        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+            guard manager?.canAcceptExternalDrop(from: sender, for: key) == true else {
+                return []
+            }
+            return .copy
+        }
+
+        override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+            manager?.canAcceptExternalDrop(from: sender, for: key) == true
+        }
+
+        override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+            manager?.handleExternalDrop(from: sender, for: key) ?? false
+        }
     }
 
     private final class OverlayHandle {
-        let window: OverlayWindow
+        let window: NSWindow
         let view: OverlayView
         var isEmpty: Bool
 
-        init(window: OverlayWindow, view: OverlayView, isEmpty: Bool) {
+        init(window: NSWindow, view: OverlayView, isEmpty: Bool) {
             self.window = window
             self.view = view
             self.isEmpty = isEmpty
         }
     }
 
+    weak var externalDropDelegate: DragOverlayExternalDropDelegate?
+
+    private let interactiveExternalDrop: Bool
+    private let windowLevel: NSWindow.Level
     private var overlays: [ZoneKey: OverlayHandle] = [:]
     private let occupiedBaseColor = NSColor.systemBlue.withAlphaComponent(0.14)
     private let emptyBaseColor = NSColor.systemBlue.withAlphaComponent(0.08)
     private let highlightColor = NSColor.systemBlue.withAlphaComponent(0.32)
     private let baseBorderColor = NSColor.systemBlue.withAlphaComponent(0.28)
     private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.55)
+
+    init(
+        externalDropDelegate: DragOverlayExternalDropDelegate? = nil,
+        windowLevel: NSWindow.Level = .floating
+    ) {
+        self.externalDropDelegate = externalDropDelegate
+        self.interactiveExternalDrop = (externalDropDelegate != nil)
+        self.windowLevel = windowLevel
+    }
 
     func present(over descriptors: [ZoneOverlayDescriptor]) {
         var pendingRemoval = Set(overlays.keys)
@@ -108,8 +187,13 @@ final class DragOverlayManager {
                 continue
             }
 
-            let window = OverlayWindow(frame: frame)
-            let view = OverlayView(frame: NSRect(origin: .zero, size: frame.size))
+            let window: NSWindow
+            if interactiveExternalDrop {
+                window = InteractiveOverlayWindow(frame: frame, windowLevel: windowLevel)
+            } else {
+                window = PassiveOverlayWindow(frame: frame, windowLevel: windowLevel)
+            }
+            let view = OverlayView(frame: NSRect(origin: .zero, size: frame.size), key: descriptor.key, manager: self)
             view.autoresizingMask = [.width, .height]
             window.contentView = view
             window.orderFrontRegardless()
@@ -143,5 +227,24 @@ final class DragOverlayManager {
         let baseColor = handle.isEmpty ? emptyBaseColor : occupiedBaseColor
         handle.view.fillColor = highlighted ? highlightColor : baseColor
         handle.view.borderColor = highlighted ? highlightBorderColor : baseBorderColor
+    }
+
+    fileprivate func canAcceptExternalDrop(from draggingInfo: NSDraggingInfo, for key: ZoneKey) -> Bool {
+        guard interactiveExternalDrop,
+              ExternalDropParser.canAccept(draggingInfo),
+              externalDropDelegate?.dragOverlayManager(self, shouldAcceptExternalDropFor: key) == true else {
+            return false
+        }
+        return true
+    }
+
+    fileprivate func handleExternalDrop(from draggingInfo: NSDraggingInfo, for key: ZoneKey) -> Bool {
+        guard interactiveExternalDrop,
+              externalDropDelegate?.dragOverlayManager(self, shouldAcceptExternalDropFor: key) == true,
+              let payload = ExternalDropParser.payload(from: draggingInfo) else {
+            return false
+        }
+        externalDropDelegate?.dragOverlayManager(self, didReceiveExternalDrop: payload.items, for: key)
+        return true
     }
 }

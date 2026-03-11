@@ -229,6 +229,10 @@ If a window is dragged and dropped over a screen's add-zone indicator ("new zone
 
 Placeholder windows and the add-zone indicator accept external drops so the user can route content directly into a zone.
 
+Dragging external content over an empty-zone placeholder shows the same full-screen blue zone-overlay UI used for tiled-window drags, with that placeholder's zone highlighted.
+
+Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-screen zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window.
+
 **Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone, targets the lowest-index empty tiling zone on that screen, and then opens the file the same way.
 
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.

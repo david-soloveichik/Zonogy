@@ -18,8 +18,8 @@ enum ExternalDropParser {
         .string
     ]
 
-    static func canAccept(_ draggingInfo: NSDraggingInfo) -> Bool {
-        guard let types = draggingInfo.draggingPasteboard.types else {
+    static func canAccept(_ pasteboard: NSPasteboard) -> Bool {
+        guard let types = pasteboard.types else {
             return false
         }
 
@@ -28,7 +28,7 @@ enum ExternalDropParser {
         }
 
         if types.contains(.string),
-           let stringValue = draggingInfo.draggingPasteboard.string(forType: .string),
+           let stringValue = pasteboard.string(forType: .string),
            parseLaunchableURL(from: stringValue) != nil {
             return true
         }
@@ -36,8 +36,11 @@ enum ExternalDropParser {
         return false
     }
 
-    static func payload(from draggingInfo: NSDraggingInfo) -> ExternalDropPayload? {
-        let pasteboard = draggingInfo.draggingPasteboard
+    static func canAccept(_ draggingInfo: NSDraggingInfo) -> Bool {
+        canAccept(draggingInfo.draggingPasteboard)
+    }
+
+    static func payload(from pasteboard: NSPasteboard) -> ExternalDropPayload? {
         var discovered: [URL] = []
 
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
@@ -58,6 +61,10 @@ enum ExternalDropParser {
 
         let items = unique.map { ExternalDropItem(url: $0) }
         return ExternalDropPayload(items: items)
+    }
+
+    static func payload(from draggingInfo: NSDraggingInfo) -> ExternalDropPayload? {
+        payload(from: draggingInfo.draggingPasteboard)
     }
 
     private static func parseURL(from rawValue: String) -> URL? {

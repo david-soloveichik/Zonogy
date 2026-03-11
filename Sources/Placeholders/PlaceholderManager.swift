@@ -31,6 +31,15 @@ protocol PlaceholderManagerDelegate: AnyObject {
         items: [ExternalDropItem]
     )
 
+    /// Called when an external drag enters a placeholder.
+    func placeholderExternalDragEntered(screenId: CGDirectDisplayID, zoneIndex: Int)
+
+    /// Called when an external drag moves within a placeholder.
+    func placeholderExternalDragUpdated(screenId: CGDirectDisplayID, zoneIndex: Int)
+
+    /// Called when an external drag leaves a placeholder or completes.
+    func placeholderExternalDragExited(screenId: CGDirectDisplayID, zoneIndex: Int)
+
     /// Returns the button mode (remove zone vs UnderCovers) for a placeholder.
     func placeholderButtonMode(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode
 }
@@ -341,6 +350,18 @@ final class PlaceholderManager {
         return true
     }
 
+    func handlePlaceholderExternalDragEntered(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        delegate?.placeholderExternalDragEntered(screenId: screenId, zoneIndex: zoneIndex)
+    }
+
+    func handlePlaceholderExternalDragUpdated(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        delegate?.placeholderExternalDragUpdated(screenId: screenId, zoneIndex: zoneIndex)
+    }
+
+    func handlePlaceholderExternalDragExited(screenId: CGDirectDisplayID, zoneIndex: Int) {
+        delegate?.placeholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
+    }
+
     func buttonMode(for screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode {
         delegate?.placeholderButtonMode(screenId: screenId, zoneIndex: zoneIndex) ?? .removeZone
     }
@@ -425,19 +446,25 @@ final class PlaceholderContentView: NSView {
             return []
         }
         isDropHighlighted = true
+        manager?.handlePlaceholderExternalDragEntered(screenId: screenId, zoneIndex: zoneIndex)
         return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if isDropHighlighted {
+            manager?.handlePlaceholderExternalDragUpdated(screenId: screenId, zoneIndex: zoneIndex)
+        }
         return isDropHighlighted ? .copy : []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         isDropHighlighted = false
+        manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
         isDropHighlighted = false
+        manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
@@ -446,6 +473,7 @@ final class PlaceholderContentView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         isDropHighlighted = false
+        manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
         return manager?.handlePlaceholderExternalDrop(
             screenId: screenId,
             zoneIndex: zoneIndex,

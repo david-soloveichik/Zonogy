@@ -8,10 +8,15 @@ extension AppController {
         zoneIndex: Int,
         items: [ExternalDropItem]
     ) {
-        guard !items.isEmpty else { return }
-        let zoneKey = zoneKey(for: screenId, index: zoneIndex)
-        targetedZoneManager.setTargetedZone(zoneKey, reason: "placeholder-drop")
-        openExternalDropItems(items)
+        handleExternalDrop(into: zoneKey(for: screenId, index: zoneIndex), items: items, clearExistingOccupant: false, reason: "placeholder-drop")
+    }
+
+    func occupiedZoneReceivedExternalDrop(
+        screenId: CGDirectDisplayID,
+        zoneIndex: Int,
+        items: [ExternalDropItem]
+    ) {
+        handleExternalDrop(into: zoneKey(for: screenId, index: zoneIndex), items: items, clearExistingOccupant: true, reason: "occupied-zone-drop")
     }
 
     func addZoneIndicatorManager(
@@ -32,6 +37,47 @@ extension AppController {
     func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem]) {
         guard !items.isEmpty else { return }
         targetedZoneManager.setFloatingTarget(on: screenId, reason: "floating-zone-drop")
+        openExternalDropItems(items)
+    }
+
+    private func handleExternalDrop(
+        into zoneKey: ZoneKey,
+        items: [ExternalDropItem],
+        clearExistingOccupant: Bool,
+        reason: String
+    ) {
+        guard !items.isEmpty else { return }
+        let screenIndex = screenContextStore.loggingIndex(for: zoneKey.screenId)
+        Logger.debug(
+            "Handling external drop into zone \(zoneKey.index) on screen \(screenIndex) " +
+            "(clearExistingOccupant: \(clearExistingOccupant), items: \(items.count), reason: \(reason))"
+        )
+
+        if clearExistingOccupant,
+           let context = screenContexts[zoneKey.screenId],
+           let zone = context.zoneController.zone(at: zoneKey.index),
+           let windowId = zone.occupantWindowId,
+           let managed = windowController.window(withId: windowId) {
+            Logger.debug(
+                "External drop clearing occupant window \(managed.windowId) from zone \(zoneKey.index) on screen \(screenIndex)"
+            )
+            let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+                managed,
+                minimizeReason: reason,
+                cleanupReason: reason,
+                retarget: false
+            )
+            syncWindowsToZones()
+            scheduleMinimizeVerification(
+                windowId: managed.windowId,
+                emptiedZoneKey: zoneKey,
+                minimizeReason: reason,
+                cleanupReason: reason,
+                wasManualResizeDetached: wasManualResizeDetached
+            )
+        }
+
+        targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
         openExternalDropItems(items)
     }
 
