@@ -38,7 +38,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: nil
+                managedContexts: []
             )
             assertEqual(adjusted, vertical.frame, label: "no-context unchanged")
         }
@@ -52,7 +52,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: active,
-                frontmostManagedContext: nil
+                managedContexts: []
             )
             assertEqual(
                 adjusted,
@@ -70,7 +70,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 horizontal,
                 activeFitContext: active,
-                frontmostManagedContext: nil
+                managedContexts: []
             )
             assertEqual(adjusted, nil, label: "activefit hides horizontal separator")
         }
@@ -84,7 +84,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: frontmost
+                managedContexts: [frontmost]
             )
             assertEqual(
                 adjusted,
@@ -102,7 +102,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: frontmost
+                managedContexts: [frontmost]
             )
             assertEqual(
                 adjusted,
@@ -120,7 +120,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: frontmost
+                managedContexts: [frontmost]
             )
             assertEqual(adjusted, nil, label: "frontmost hides fully-covered vertical separator")
         }
@@ -134,7 +134,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 horizontal,
                 activeFitContext: nil,
-                frontmostManagedContext: frontmost
+                managedContexts: [frontmost]
             )
             assertEqual(
                 adjusted,
@@ -156,7 +156,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: active,
-                frontmostManagedContext: frontmost
+                managedContexts: [frontmost]
             )
             assertEqual(
                 adjusted,
@@ -173,7 +173,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: nil,
+                managedContexts: [],
                 floatingZoneContext: floatingCtx
             )
             assertEqual(adjusted, nil, label: "floating zone hides overlapping vertical separator")
@@ -187,7 +187,7 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 vertical,
                 activeFitContext: nil,
-                frontmostManagedContext: nil,
+                managedContexts: [],
                 floatingZoneContext: floatingCtx
             )
             assertEqual(adjusted, vertical.frame, label: "floating zone leaves non-overlapping separator")
@@ -201,10 +201,106 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                 horizontal,
                 activeFitContext: nil,
-                frontmostManagedContext: nil,
+                managedContexts: [],
                 floatingZoneContext: floatingCtx
             )
             assertEqual(adjusted, nil, label: "floating zone hides overlapping horizontal separator")
+        }
+
+        // Placeholder-aligned pinned context projects placeholder height onto the vertical bar.
+        do {
+            let pinned = ZoneResizeHandlePinnedContext(
+                separator: vertical,
+                adjacentPlaceholderFrames: [
+                    CGRect(x: 60, y: 4, width: 40, height: 42)
+                ]
+            )
+            assertEqual(
+                pinned?.minimumVisibleFrame,
+                CGRect(x: 50, y: 4, width: 8, height: 42),
+                label: "pinned context projects placeholder extent onto vertical separator"
+            )
+        }
+
+        // Pinned mode keeps the placeholder-aligned side of the separator visible.
+        do {
+            let frontmost = ZoneResizeHandleAvoidanceContext(
+                zoneIndex: 1,
+                avoidFrame: CGRect(x: 48, y: 40, width: 20, height: 20)
+            )
+            let pinned = ZoneResizeHandlePinnedContext(
+                separator: vertical,
+                adjacentPlaceholderFrames: [
+                    CGRect(x: 60, y: 80, width: 40, height: 20)
+                ]
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                managedContexts: [frontmost],
+                pinnedContext: pinned
+            )
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 60, width: 8, height: 40),
+                label: "pinned mode clips toward placeholder-aligned side"
+            )
+        }
+
+        // Pinned mode can survive multiple managed-window clips by preserving the minimum segment.
+        do {
+            let managedContexts = [
+                ZoneResizeHandleAvoidanceContext(
+                    zoneIndex: 1,
+                    avoidFrame: CGRect(x: 48, y: 0, width: 20, height: 40)
+                ),
+                ZoneResizeHandleAvoidanceContext(
+                    zoneIndex: 3,
+                    avoidFrame: CGRect(x: 48, y: 60, width: 20, height: 20)
+                )
+            ]
+            let pinned = ZoneResizeHandlePinnedContext(
+                separator: vertical,
+                adjacentPlaceholderFrames: [
+                    CGRect(x: 60, y: 80, width: 40, height: 20)
+                ]
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                managedContexts: managedContexts,
+                pinnedContext: pinned
+            )
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 80, width: 8, height: 20),
+                label: "pinned mode preserves minimum through multiple managed clips"
+            )
+        }
+
+        // Pinned mode clips floating-zone overlap instead of hiding the bar outright.
+        do {
+            let floatingCtx = ZoneResizeHandleFloatingZoneContext(
+                avoidFrame: CGRect(x: 40, y: 0, width: 30, height: 100)
+            )
+            let pinned = ZoneResizeHandlePinnedContext(
+                separator: vertical,
+                adjacentPlaceholderFrames: [
+                    CGRect(x: 60, y: 70, width: 40, height: 20)
+                ]
+            )
+            let adjusted = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                vertical,
+                activeFitContext: nil,
+                managedContexts: [],
+                floatingZoneContext: floatingCtx,
+                pinnedContext: pinned
+            )
+            assertEqual(
+                adjusted,
+                CGRect(x: 50, y: 70, width: 8, height: 20),
+                label: "pinned floating overlap keeps placeholder minimum"
+            )
         }
 
         if allPassed {

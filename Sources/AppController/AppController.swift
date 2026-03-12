@@ -79,6 +79,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let floatingIndicatorManager = FloatingZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
     internal let resizeHandleManager = ZoneResizeHandleManager()
+    /// Screens whose resize bars are temporarily pinned visible after placeholder activation.
+    internal var pinnedResizeBarScreenIds: Set<CGDirectDisplayID> = []
+    internal var pinnedResizeBarClickMonitor: ClickOutsideMonitor?
     internal let placeholderExternalDragOverlayManager = DragOverlayManager()
     internal var placeholderExternalDragOverlayKey: ZoneKey?
     internal var placeholderExternalDragOverlayTeardownWorkItem: DispatchWorkItem?

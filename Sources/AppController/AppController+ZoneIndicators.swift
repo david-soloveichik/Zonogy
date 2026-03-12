@@ -228,6 +228,72 @@ extension AppController {
         let frame: CGRect
     }
 
+    private func tiledManagedWindowContexts(
+        context: ScreenContext,
+        excluding excludedWindowIds: Set<Int>,
+        windowOverlapAllowance: CGFloat
+    ) -> [ZoneResizeHandleAvoidanceContext] {
+        context.zoneController.allZones.compactMap { zone in
+            guard let windowId = zone.occupantWindowId,
+                  !excludedWindowIds.contains(windowId),
+                  let managed = windowController.window(withId: windowId) else {
+                return nil
+            }
+            let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: context.descriptor)
+            let avoidFrame = ZoneResizeHandleGeometry.insetAvoidanceFrame(
+                frame,
+                by: windowOverlapAllowance
+            )
+            return ZoneResizeHandleAvoidanceContext(zoneIndex: zone.index, avoidFrame: avoidFrame)
+        }
+    }
+
+    private func adjacentPlaceholderFrames(
+        for separator: ZoneLayout.Separator,
+        on screenId: CGDirectDisplayID,
+        context: ScreenContext
+    ) -> [CGRect] {
+        let zoneIndices: [Int]
+
+        switch (context.zoneController.allZones.count, separator.orientation, separator.index) {
+        case (2, .vertical, 0):
+            zoneIndices = [1, 2]
+        case (3, .vertical, 0):
+            zoneIndices = [1, 2, 3]
+        case (3, .horizontal, 1):
+            zoneIndices = [2, 3]
+        default:
+            zoneIndices = []
+        }
+
+        return zoneIndices.compactMap { zoneIndex in
+            let key = zoneKey(for: screenId, index: zoneIndex)
+            guard placeholderCoordinator.hasPlaceholder(for: key),
+                  let zone = context.zoneController.zone(at: zoneIndex) else {
+                return nil
+            }
+            return frameWithMargin(for: zone, in: context.zoneController)
+        }
+    }
+
+    private func pinnedResizeHandleContext(
+        for separator: ZoneLayout.Separator,
+        on screenId: CGDirectDisplayID,
+        context: ScreenContext
+    ) -> ZoneResizeHandlePinnedContext? {
+        guard isResizeHandlePinnedModeActive(on: screenId) else {
+            return nil
+        }
+        return ZoneResizeHandlePinnedContext(
+            separator: separator,
+            adjacentPlaceholderFrames: adjacentPlaceholderFrames(
+                for: separator,
+                on: screenId,
+                context: context
+            )
+        )
+    }
+
     private func frontmostManagedWindowContext(windowIdOverride: Int? = nil) -> FrontmostManagedWindowContext? {
         let windowId = windowIdOverride ?? currentFrontmostManagedWindowId
         guard !zoneResizeDragInProgress,
@@ -247,6 +313,7 @@ extension AppController {
     }
 
     internal func refreshResizeHandles(frontmostWindowIdOverride: Int?) {
+        prunePinnedResizeBarScreens(reason: "refresh")
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
         let frontmostManagedWindow = frontmostManagedWindowContext(windowIdOverride: frontmostWindowIdOverride)
@@ -256,11 +323,12 @@ extension AppController {
             if isScreenPausedForFullScreen(screenId) {
                 continue
             }
-            // When an unmanaged window has focus on this screen,
-            // hide all resize handles on that screen to avoid overlapping it.
+            // Unmanaged focus always suppresses resize bars on that screen to avoid overlapping
+            // windows we do not control; pinned mode remains armed but does not override this.
             if unmanagedFocusedWindowScreenId == screenId {
                 continue
             }
+            let pinnedModeActive = isResizeHandlePinnedModeActive(on: screenId)
 
             // When the floating zone is occupied, hide only the bars that
             // the floating window actually overlaps (not all bars on the screen).
@@ -291,28 +359,48 @@ extension AppController {
                 return ZoneResizeHandleAvoidanceContext(zoneIndex: state.zoneKey.index, avoidFrame: avoidFrame)
             }()
 
-            let frontmostManagedContext: ZoneResizeHandleAvoidanceContext? = {
+            let managedContexts: [ZoneResizeHandleAvoidanceContext] = {
+                if pinnedModeActive {
+                    var excludedWindowIds: Set<Int> = []
+                    if let activeState, activeState.zoneKey.screenId == screenId {
+                        excludedWindowIds.insert(activeState.windowId)
+                    }
+                    return tiledManagedWindowContexts(
+                        context: context,
+                        excluding: excludedWindowIds,
+                        windowOverlapAllowance: windowOverlapAllowance
+                    )
+                }
+
                 guard let frontmostManagedWindowOnScreen else {
-                    return nil
+                    return []
                 }
                 let avoidFrame = ZoneResizeHandleGeometry.insetAvoidanceFrame(
                     frontmostManagedWindowOnScreen.frame,
                     by: windowOverlapAllowance
                 )
-                return ZoneResizeHandleAvoidanceContext(
-                    zoneIndex: frontmostManagedWindowOnScreen.zoneKey.index,
-                    avoidFrame: avoidFrame
-                )
+                return [
+                    ZoneResizeHandleAvoidanceContext(
+                        zoneIndex: frontmostManagedWindowOnScreen.zoneKey.index,
+                        avoidFrame: avoidFrame
+                    )
+                ]
             }()
 
             let separators = context.zoneController.separators()
 
             for sep in separators {
+                let pinnedContext = pinnedResizeHandleContext(
+                    for: sep,
+                    on: screenId,
+                    context: context
+                )
                 guard let frame = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                     sep,
                     activeFitContext: activeFitContext,
-                    frontmostManagedContext: frontmostManagedContext,
-                    floatingZoneContext: floatingZoneContext
+                    managedContexts: managedContexts,
+                    floatingZoneContext: floatingZoneContext,
+                    pinnedContext: pinnedContext
                 ) else {
                     continue
                 }

@@ -64,6 +64,35 @@ enum ZoneResizeHandleGeometryTests {
             assertEqual(clipped, nil, label: "horizontal full cover returns nil")
         }
 
+        // Minimum visible region steers clipping toward the placeholder-aligned side.
+        do {
+            let separator = CGRect(x: 50, y: 0, width: 8, height: 100)
+            let avoid = CGRect(x: 0, y: 40, width: 200, height: 20)
+            let minimum = CGRect(x: 50, y: 80, width: 8, height: 20)
+            let expected = CGRect(x: 50, y: 60, width: 8, height: 40)
+            let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(
+                separator,
+                avoiding: avoid,
+                orientation: .vertical,
+                minimumVisibleFrame: minimum
+            )
+            assertEqual(clipped, expected, label: "minimum visible region chooses matching side")
+        }
+
+        // If the required pinned segment itself overlaps, keep that minimum instead of hiding.
+        do {
+            let separator = CGRect(x: 50, y: 0, width: 8, height: 100)
+            let avoid = CGRect(x: 0, y: 40, width: 200, height: 20)
+            let minimum = CGRect(x: 50, y: 20, width: 8, height: 30)
+            let clipped = ZoneResizeHandleGeometry.clippedSeparatorFrame(
+                separator,
+                avoiding: avoid,
+                orientation: .vertical,
+                minimumVisibleFrame: minimum
+            )
+            assertEqual(clipped, minimum, label: "minimum visible region survives overlapping clip")
+        }
+
         // Inset helper keeps expected margins for normal-sized frames.
         do {
             let frame = CGRect(x: 10, y: 20, width: 200, height: 100)

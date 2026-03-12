@@ -21,25 +21,81 @@ struct ZoneResizeHandleFloatingZoneContext {
     }
 }
 
+/// Minimum visible frame enforced while resize bars are pinned by an activated placeholder.
+struct ZoneResizeHandlePinnedContext {
+    let minimumVisibleFrame: CGRect
+
+    init?(separator: ZoneLayout.Separator, adjacentPlaceholderFrames: [CGRect]) {
+        let frames = adjacentPlaceholderFrames
+            .map { $0.standardized }
+            .filter { !$0.isNull && $0.width > 0 && $0.height > 0 }
+        guard !frames.isEmpty else {
+            return nil
+        }
+
+        let separatorFrame = separator.frame.standardized
+        let frame: CGRect
+
+        switch separator.orientation {
+        case .vertical:
+            guard let minY = frames.map(\.minY).min(),
+                  let maxY = frames.map(\.maxY).max(),
+                  maxY > minY else {
+                return nil
+            }
+            frame = CGRect(
+                x: separatorFrame.minX,
+                y: minY,
+                width: separatorFrame.width,
+                height: maxY - minY
+            )
+
+        case .horizontal:
+            guard let minX = frames.map(\.minX).min(),
+                  let maxX = frames.map(\.maxX).max(),
+                  maxX > minX else {
+                return nil
+            }
+            frame = CGRect(
+                x: minX,
+                y: separatorFrame.minY,
+                width: maxX - minX,
+                height: separatorFrame.height
+            )
+        }
+
+        let clampedFrame = frame.intersection(separatorFrame).standardized
+        guard !clampedFrame.isNull,
+              clampedFrame.width > 0,
+              clampedFrame.height > 0 else {
+            return nil
+        }
+        self.minimumVisibleFrame = clampedFrame
+    }
+}
+
 /// Applies overlap rules from the specification for ActiveFit reveal windows, frontmost managed windows,
-/// and floating-zone floating windows.
+/// pinned placeholder minimums, and floating-zone floating windows.
 enum ZoneResizeHandleVisibilityPolicy {
     private static func clipSeparatorFrame(
         _ frame: CGRect,
         avoiding avoidFrame: CGRect,
-        orientation: ZoneLayout.SeparatorOrientation
+        orientation: ZoneLayout.SeparatorOrientation,
+        minimumVisibleFrame: CGRect?
     ) -> CGRect? {
         ZoneResizeHandleGeometry.clippedSeparatorFrame(
             frame,
             avoiding: avoidFrame,
-            orientation: orientation
+            orientation: orientation,
+            minimumVisibleFrame: minimumVisibleFrame
         )
     }
 
     private static func adjustedFrameForActiveFitContext(
         _ separator: ZoneLayout.Separator,
         frame: CGRect,
-        context: ZoneResizeHandleAvoidanceContext
+        context: ZoneResizeHandleAvoidanceContext,
+        minimumVisibleFrame: CGRect?
     ) -> CGRect? {
         var adjusted = frame
         switch separator.orientation {
@@ -49,7 +105,8 @@ enum ZoneResizeHandleVisibilityPolicy {
                 guard let clipped = clipSeparatorFrame(
                     adjusted,
                     avoiding: context.avoidFrame,
-                    orientation: .vertical
+                    orientation: .vertical,
+                    minimumVisibleFrame: minimumVisibleFrame
                 ) else {
                     return nil
                 }
@@ -57,31 +114,45 @@ enum ZoneResizeHandleVisibilityPolicy {
             }
 
         case .horizontal:
-            // Separator between zones 2 and 3: hide if it intersects reveal windows in zones 2/3.
+            // Separator between zones 2 and 3: hide if it intersects reveal windows in zones 2/3,
+            // unless pinned mode requires a minimum visible segment.
             if separator.index == 1,
                context.zoneIndex >= 2,
                adjusted.intersects(context.avoidFrame) {
-                return nil
+                guard let minimumVisibleFrame else {
+                    return nil
+                }
+                guard let clipped = clipSeparatorFrame(
+                    adjusted,
+                    avoiding: context.avoidFrame,
+                    orientation: .horizontal,
+                    minimumVisibleFrame: minimumVisibleFrame
+                ) else {
+                    return nil
+                }
+                adjusted = clipped
             }
         }
 
         return adjusted
     }
 
-    private static func adjustedFrameForFrontmostContext(
+    private static func adjustedFrameForManagedContext(
         _ separator: ZoneLayout.Separator,
         frame: CGRect,
-        context: ZoneResizeHandleAvoidanceContext
+        context: ZoneResizeHandleAvoidanceContext,
+        minimumVisibleFrame: CGRect?
     ) -> CGRect? {
         var adjusted = frame
 
-        // Frontmost managed windows in any tiling zone should avoid both separators.
+        // Managed windows in any tiling zone should avoid both separators.
         if separator.orientation == .vertical,
            separator.index == 0 {
             guard let clipped = clipSeparatorFrame(
                 adjusted,
                 avoiding: context.avoidFrame,
-                orientation: .vertical
+                orientation: .vertical,
+                minimumVisibleFrame: minimumVisibleFrame
             ) else {
                 return nil
             }
@@ -93,7 +164,8 @@ enum ZoneResizeHandleVisibilityPolicy {
             guard let clipped = clipSeparatorFrame(
                 adjusted,
                 avoiding: context.avoidFrame,
-                orientation: .horizontal
+                orientation: .horizontal,
+                minimumVisibleFrame: minimumVisibleFrame
             ) else {
                 return nil
             }
@@ -107,33 +179,49 @@ enum ZoneResizeHandleVisibilityPolicy {
     static func adjustedSeparatorFrame(
         _ separator: ZoneLayout.Separator,
         activeFitContext: ZoneResizeHandleAvoidanceContext?,
-        frontmostManagedContext: ZoneResizeHandleAvoidanceContext?,
-        floatingZoneContext: ZoneResizeHandleFloatingZoneContext? = nil
+        managedContexts: [ZoneResizeHandleAvoidanceContext] = [],
+        floatingZoneContext: ZoneResizeHandleFloatingZoneContext? = nil,
+        pinnedContext: ZoneResizeHandlePinnedContext? = nil
     ) -> CGRect? {
         var frame = separator.frame.standardized
+        let minimumVisibleFrame = pinnedContext?.minimumVisibleFrame
 
-        // Floating-zone floating window: hide the separator if it overlaps.
+        // Floating-zone floating window: hide overlapping bars in normal mode;
+        // when pinned, shrink them while preserving the placeholder minimum.
         if let floatingZoneContext,
            frame.intersects(floatingZoneContext.avoidFrame) {
-            return nil
-        }
-
-        if let activeFitContext {
-            guard let adjusted = adjustedFrameForActiveFitContext(
-                separator,
-                frame: frame,
-                context: activeFitContext
+            guard let minimumVisibleFrame else {
+                return nil
+            }
+            guard let adjusted = clipSeparatorFrame(
+                frame,
+                avoiding: floatingZoneContext.avoidFrame,
+                orientation: separator.orientation,
+                minimumVisibleFrame: minimumVisibleFrame
             ) else {
                 return nil
             }
             frame = adjusted
         }
 
-        if let frontmostManagedContext {
-            guard let adjusted = adjustedFrameForFrontmostContext(
+        if let activeFitContext {
+            guard let adjusted = adjustedFrameForActiveFitContext(
                 separator,
                 frame: frame,
-                context: frontmostManagedContext
+                context: activeFitContext,
+                minimumVisibleFrame: minimumVisibleFrame
+            ) else {
+                return nil
+            }
+            frame = adjusted
+        }
+
+        for managedContext in managedContexts {
+            guard let adjusted = adjustedFrameForManagedContext(
+                separator,
+                frame: frame,
+                context: managedContext,
+                minimumVisibleFrame: minimumVisibleFrame
             ) else {
                 return nil
             }

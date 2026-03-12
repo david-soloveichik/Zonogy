@@ -87,6 +87,9 @@ extension AppController {
             }
             return windowController.focusedWindowIfTracked(pid: pid)
         }()
+        if focusedManagedWindow != nil {
+            exitPinnedResizeBarMode(reason: "managed-window-activation")
+        }
         currentFrontmostManagedWindowId = focusedManagedWindow?.windowId
         refreshResizeHandles()
 

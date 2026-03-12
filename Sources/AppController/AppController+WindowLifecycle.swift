@@ -187,6 +187,7 @@ extension AppController {
            let managed = windowController.window(withId: windowId),
            (managed.zoneIndex != nil || isWindowInFloatingZone(windowId)) {
             dismissLauncherIfActiveRespectingAutoShowGrace()
+            exitPinnedResizeBarMode(reason: "managed-window-focus")
         }
 
         // When focus changes in an application, validate its windows
@@ -245,6 +246,7 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
+        enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
         let key = zoneKey(for: screenId, index: zoneIndex)
         armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: isDoubleClick)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")

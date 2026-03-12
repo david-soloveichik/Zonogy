@@ -197,6 +197,8 @@ When the floating zone is occupied on a screen, hide the zone resize bars that t
 When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.
 For this rule, and Launcher auto-show suppression, unmanaged focus must be confirmed (with retries) as described in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
 
+**Pinned resize bar mode:** When a placeholder is activated (e.g. clicked), zone resize bars on that screen enter pinned mode (per-screen). We still avoid having resize bars that (substantially) overlap any managed window by resizing them, but a bar cannot shrink below the extent of its adjacent placeholder windows or be hidden entirely—placeholder boundaries serve as the minimum visible region for each bar. Pinned mode exits when (1) a managed window becomes active, or (2) the user clicks outside any visible Zonogy-owned window.
+
 #### Resizing Managed Windows
 
 If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
