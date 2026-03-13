@@ -15,6 +15,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var ignoreHeightCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
+    private var disableControlCommandMouseGesturesCheckbox: NSButton!
     private var treatAXUnknownFullWidthAsFullScreenCheckbox: NSButton!
     private var excludedTitlesField: NSTextField!
 
@@ -28,7 +29,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 420))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 455))
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         setupUI(in: containerView)
@@ -122,6 +123,19 @@ final class ExceptionRuleEditViewController: NSViewController {
             snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = snapToZoneCheckbox.bottomAnchor
+
+        disableControlCommandMouseGesturesCheckbox = makeCheckbox(
+            title: "Disable Control-Command mouse gestures",
+            tooltip: "Let this app receive Control-Command clicks and drags instead of Zonogy's mouse-gesture overrides"
+        )
+        container.addSubview(disableControlCommandMouseGesturesCheckbox)
+
+        NSLayoutConstraint.activate([
+            disableControlCommandMouseGesturesCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            disableControlCommandMouseGesturesCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            disableControlCommandMouseGesturesCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = disableControlCommandMouseGesturesCheckbox.bottomAnchor
 
         disallowEmptyTitleCheckbox = makeCheckbox(
             title: "Disallow empty title windows",
@@ -255,6 +269,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private func populateFields() {
         hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
         snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
+        disableControlCommandMouseGesturesCheckbox.state = (originalRule.disableControlCommandMouseGestures == true) ? .on : .off
         treatAXUnknownFullWidthAsFullScreenCheckbox.state = (originalRule.treatAXUnknownFullWidthAsFullScreen == true) ? .on : .off
         disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
         ignoreActivationPolicyCheckbox.state = (originalRule.ignoreActivationPolicy == true) ? .on : .off
@@ -286,6 +301,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             disallowEmptyTitleWindows: disallowEmptyTitleCheckbox.state == .on ? true : nil,
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
+            disableControlCommandMouseGestures: disableControlCommandMouseGesturesCheckbox.state == .on ? true : nil,
             treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
             requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,
             excludedWindowTitles: excludedTitles

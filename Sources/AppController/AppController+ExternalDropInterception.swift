@@ -17,7 +17,7 @@ extension AppController {
         guard let emptyZoneKey = resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
               placeholderCoordinator.hasPlaceholder(for: emptyZoneKey),
               PlaceholderExternalDragPolicy.shouldPromotePlaceholderToInterceptedOverlay(
-                isControlCommandHeld: NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control),
+                isControlCommandHeld: shouldApplyControlCommandExternalDragGestures(),
                 hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
               ) else {
             return false
@@ -27,7 +27,7 @@ extension AppController {
     }
 
     func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey? {
-        guard let screenId = resolveCursorScreenId(),
+        guard let screenId = screenId(containingAccessibilityPoint: cursorPoint),
               !isScreenPausedForFullScreen(screenId),
               let context = screenContexts[screenId] else {
             return nil
@@ -72,8 +72,7 @@ extension AppController {
 
 extension AppController {
     func dragOverlayManager(_ manager: DragOverlayManager, shouldAcceptExternalDropFor key: ZoneKey) -> Bool {
-        guard NSEvent.modifierFlags.contains(.command),
-              NSEvent.modifierFlags.contains(.control),
+        guard shouldApplyControlCommandExternalDragGestures(),
               !isManagedWindowDragInProgress,
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint = currentCursorAccessibilityPoint(),

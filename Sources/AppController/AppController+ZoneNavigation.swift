@@ -130,6 +130,10 @@ extension AppController {
             return nil
         }
 
+        return screenId(containingAccessibilityPoint: cursorPoint)
+    }
+
+    internal func screenId(containingAccessibilityPoint point: CGPoint) -> CGDirectDisplayID? {
         for screenId in screenOrder {
             guard let context = screenContexts[screenId] else {
                 continue
@@ -137,7 +141,7 @@ extension AppController {
             let descriptor = context.descriptor
             let screenBounds = descriptor.cocoaToScreen(descriptor.cocoaBounds)
             let accessibilityBounds = descriptor.screenToAccessibility(screenBounds)
-            if accessibilityBounds.contains(cursorPoint) {
+            if accessibilityBounds.contains(point) {
                 return screenId
             }
         }
@@ -153,7 +157,7 @@ extension AppController {
         }
 
         // First priority: minimize a managed (non-placeholder) window under the cursor.
-        if let (managed, pid) = managedWindowUnderCursor(cursorPoint: cursorPoint) {
+        if let (managed, pid) = managedWindowAtAccessibilityPoint(cursorPoint) {
             // Get window title for logging (best-effort).
             var windowTitle = "untitled"
             let element = managed.backing.element
@@ -207,65 +211,19 @@ extension AppController {
         Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
     }
 
-    /// Find the topmost tiled managed (non-placeholder) window under the cursor on the cursor's screen.
-    internal func tiledManagedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
-        guard let screenId = resolveCursorScreenId(),
-              let context = screenContexts[screenId] else {
-            return nil
-        }
-
-        // Collect tiled zone candidates under cursor: (ManagedWindow, pid, cgWindowId).
-        var candidates: [(ManagedWindow, pid_t, Int)] = []
-        for zone in context.zoneController.allZones {
-            guard let windowId = zone.occupantWindowId,
-                  let managed = windowController.window(withId: windowId),
-                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed),
-                  frame.contains(cursorPoint) else {
-                continue
-            }
-            candidates.append((managed, managed.backing.pid, managed.backing.cgWindowId))
-        }
-
-        // Fast paths: 0 or 1 tiled candidate.
-        guard !candidates.isEmpty else { return nil }
-        if candidates.count == 1 {
-            let (managed, pid, _) = candidates[0]
-            return (managed, pid)
-        }
-
-        // Multiple tiled candidates (e.g., ActiveFit overlap): use CG API to find topmost.
-        let candidateCGIds = Set(candidates.map { $0.2 })
-        guard let windowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
-            let (managed, pid, _) = candidates[0]
-            return (managed, pid)
-        }
-
-        for cgWindowId in windowNumbers {
-            guard candidateCGIds.contains(cgWindowId),
-                  let match = candidates.first(where: { $0.2 == cgWindowId }) else {
-                continue
-            }
-            return (match.0, match.1)
-        }
-
-        let (managed, pid, _) = candidates[0]
-        return (managed, pid)
+    /// Find the topmost tiled managed (non-placeholder) window at the given accessibility point.
+    internal func tiledManagedWindowAtAccessibilityPoint(_ point: CGPoint) -> (ManagedWindow, pid_t)? {
+        resolveManagedWindowAtAccessibilityPoint(point, includeFloating: false)
     }
 
-    /// Find the topmost managed (non-placeholder) window under the cursor on the cursor's screen.
-    private func managedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
-        guard let screenId = resolveCursorScreenId() else {
-            return nil
-        }
+    /// Find the topmost managed (non-placeholder) window at the given accessibility point.
+    internal func managedWindowAtAccessibilityPoint(_ point: CGPoint) -> (ManagedWindow, pid_t)? {
+        resolveManagedWindowAtAccessibilityPoint(point, includeFloating: true)
+    }
 
-        // Floating zone floats above all tiled zones; return immediately if cursor is within it.
-        if let floatingOccupant = floatingZoneOccupant(on: screenId),
-           let frame = windowController.actualFrameInAccessibilityCoordinates(for: floatingOccupant),
-           frame.contains(cursorPoint) {
-            return (floatingOccupant, floatingOccupant.backing.pid)
-        }
-
-        return tiledManagedWindowUnderCursor(cursorPoint: cursorPoint)
+    /// Backwards-compatible wrapper for existing cursor-based callers.
+    internal func tiledManagedWindowUnderCursor(cursorPoint: CGPoint) -> (ManagedWindow, pid_t)? {
+        tiledManagedWindowAtAccessibilityPoint(cursorPoint)
     }
 
     /// Find the empty zone (placeholder frame) under the cursor, if any.
@@ -280,6 +238,60 @@ extension AppController {
             }
         }
         return nil
+    }
+
+    private func resolveManagedWindowAtAccessibilityPoint(
+        _ point: CGPoint,
+        includeFloating: Bool
+    ) -> (ManagedWindow, pid_t)? {
+        guard let screenId = screenId(containingAccessibilityPoint: point),
+              let context = screenContexts[screenId] else {
+            return nil
+        }
+
+        var candidates: [(managed: ManagedWindow, pid: pid_t, cgWindowId: Int)] = []
+
+        if includeFloating,
+           let floatingOccupant = floatingZoneOccupant(on: screenId),
+           let frame = windowController.actualFrameInAccessibilityCoordinates(for: floatingOccupant),
+           frame.contains(point) {
+            candidates.append(
+                (floatingOccupant, floatingOccupant.backing.pid, floatingOccupant.backing.cgWindowId)
+            )
+        }
+
+        for zone in context.zoneController.allZones {
+            guard let windowId = zone.occupantWindowId,
+                  let managed = windowController.window(withId: windowId),
+                  let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed),
+                  frame.contains(point) else {
+                continue
+            }
+            candidates.append((managed, managed.backing.pid, managed.backing.cgWindowId))
+        }
+
+        guard !candidates.isEmpty else {
+            return nil
+        }
+        if candidates.count == 1 {
+            let candidate = candidates[0]
+            return (candidate.managed, candidate.pid)
+        }
+
+        let candidateCGIds = Set(candidates.map(\.cgWindowId))
+        guard let windowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
+            let candidate = candidates[0]
+            return (candidate.managed, candidate.pid)
+        }
+
+        for cgWindowId in windowNumbers where candidateCGIds.contains(cgWindowId) {
+            if let match = candidates.first(where: { $0.cgWindowId == cgWindowId }) {
+                return (match.managed, match.pid)
+            }
+        }
+
+        let candidate = candidates[0]
+        return (candidate.managed, candidate.pid)
     }
 
     /// Target the floating zone, preferring the screen of the currently targeted normal zone

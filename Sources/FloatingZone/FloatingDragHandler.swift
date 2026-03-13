@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// Handles drag behavior for windows in the floating zone.
 protocol FloatingDragHandlerHost: AnyObject {
-    func isControlCommandDragActive() -> Bool
+    var isControlCommandModifierHeld: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
     func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
@@ -74,7 +74,7 @@ final class FloatingDragHandler {
         }
 
         if current.requiresControlCommand {
-            if !host.isControlCommandDragActive() {
+            if !host.isControlCommandModifierHeld {
                 tearDownOverlaysIfNeeded(&current)
                 state = nil
                 host.revertFloatingDragToTiled(
@@ -85,7 +85,7 @@ final class FloatingDragHandler {
                 )
                 return
             }
-        } else if host.isControlCommandDragActive() {
+        } else if host.isControlCommandModifierHeld {
             tearDownOverlaysIfNeeded(&current)
             host.promoteFloatingDragToZone(windowId: current.windowId, frame: frame, originScreenId: current.originScreenId)
             state = nil
@@ -134,7 +134,7 @@ final class FloatingDragHandler {
 
         // Recheck modifier state: if Control-Command was pressed after the last
         // drag update, suppress the auto-promoted empty-zone drop.
-        if current.hoveredEmptyZoneKey != nil && host.isControlCommandDragActive() {
+        if current.hoveredEmptyZoneKey != nil && host.isControlCommandModifierHeld {
             current.hoveredEmptyZoneKey = nil
         }
 

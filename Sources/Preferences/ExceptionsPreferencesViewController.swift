@@ -36,7 +36,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let explanationText = """
         Zonogy manages windows that have: a standard window role, a zoom button, \
         height ≥ 250px, and are movable. Use this list to create exceptions for \
-        specific apps that need different behavior.
+        specific apps that need different management or Control-Command mouse behavior.
         """
         explanationLabel = NSTextField(wrappingLabelWithString: explanationText)
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -216,7 +216,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let sheet = NSWindow(contentViewController: editVC)
         sheet.styleMask = [.titled, .closable]
         sheet.title = "Edit Exception: \(rule.bundleIdentifier)"
-        sheet.setContentSize(NSSize(width: 450, height: 420))
+        sheet.setContentSize(NSSize(width: 450, height: 455))
 
         window.beginSheet(sheet) { _ in }
     }
@@ -316,6 +316,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
         if rule.hasMainWindow == true { parts.append("mainWin") }
         if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
+        if rule.disableControlCommandMouseGestures == true { parts.append("noCtrlCmd") }
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }

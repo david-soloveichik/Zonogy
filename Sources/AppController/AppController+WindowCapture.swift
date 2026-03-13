@@ -41,11 +41,13 @@ extension AppController {
 
     func placeholderExternalDragEntered(screenId: CGDirectDisplayID, zoneIndex: Int) {
         hasObservedRealPlaceholderExternalDragThisGesture = true
+        noteExternalDragSourceBundleIdentifierIfNeeded()
         showPlaceholderExternalDragOverlay(for: ZoneKey(screenId: screenId, index: zoneIndex), trigger: "entered")
     }
 
     func placeholderExternalDragUpdated(screenId: CGDirectDisplayID, zoneIndex: Int) {
         hasObservedRealPlaceholderExternalDragThisGesture = true
+        noteExternalDragSourceBundleIdentifierIfNeeded()
         showPlaceholderExternalDragOverlay(for: ZoneKey(screenId: screenId, index: zoneIndex), trigger: "updated")
     }
 
@@ -73,9 +75,8 @@ extension AppController {
     }
 
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?) {
-        let isControlCommandHeld = NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control)
         guard PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
-            isControlCommandHeld: isControlCommandHeld,
+            isControlCommandHeld: shouldApplyControlCommandExternalDragGestures(),
             isLeftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
             hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
         ),
@@ -94,7 +95,7 @@ extension AppController {
         placeholderExternalDragOverlayTeardownWorkItem?.cancel()
         placeholderExternalDragOverlayTeardownWorkItem = nil
 
-        guard !(NSEvent.modifierFlags.contains(.command) && NSEvent.modifierFlags.contains(.control)) else {
+        guard !shouldApplyControlCommandExternalDragGestures() else {
             tearDownPlaceholderExternalDragOverlay()
             return
         }

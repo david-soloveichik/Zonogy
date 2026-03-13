@@ -4,12 +4,15 @@ import AppKit
 protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDelegate {
     var isManagedWindowDragInProgress: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
+    func noteExternalDragSourceBundleIdentifierIfNeeded()
+    func shouldApplyControlCommandExternalDragGestures() -> Bool
     func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool
     func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey?
     func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
     func suspendPlaceholderExternalDragOverlay(reason: String)
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?)
     func resetObservedPlaceholderExternalDrag(reason: String)
+    func resetExternalDragSourceBundleIdentifier(reason: String)
 }
 
 final class ExternalZoneDropInterceptor {
@@ -58,6 +61,7 @@ final class ExternalZoneDropInterceptor {
         tearDownOverlays()
         host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-interceptor-stop")
         host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-interceptor-stop")
+        host?.resetExternalDragSourceBundleIdentifier(reason: "external-zone-drop-interceptor-stop")
     }
 
     private func handle(event: NSEvent) {
@@ -89,6 +93,13 @@ final class ExternalZoneDropInterceptor {
             return
         }
 
+        host.noteExternalDragSourceBundleIdentifierIfNeeded()
+        guard host.shouldApplyControlCommandExternalDragGestures() else {
+            tearDownOverlays()
+            host.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
+            return
+        }
+
         host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
 
         if !isInterceptionActive {
@@ -112,6 +123,7 @@ final class ExternalZoneDropInterceptor {
             self?.tearDownOverlays()
             self?.host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-mouse-up")
             self?.host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-mouse-up")
+            self?.host?.resetExternalDragSourceBundleIdentifier(reason: "external-zone-drop-mouse-up")
         }
         pendingMouseUpTearDownWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)

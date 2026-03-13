@@ -218,6 +218,10 @@ extension AppController {
             }
         }
 
+        if shouldPassThroughControlCommandClick(at: location) {
+            return false
+        }
+
         guard let key = zoneKey(containingScreenPoint: location) else {
             return false
         }

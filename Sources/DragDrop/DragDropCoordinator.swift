@@ -79,7 +79,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
 
     // Floating zone placement
     func dropWindowIntoFloatingZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
-    func isControlCommandDragActive() -> Bool
+    var isControlCommandModifierHeld: Bool { get }
     func resumeFloatingDrag(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
     func promoteTiledDragToFloating(
         windowId: Int,
@@ -435,7 +435,7 @@ class DragDropCoordinator {
         // Floating drag resumption only applies when there's a real window
         if let windowId, session.originatedFromFloating,
            let delegate = delegate,
-           !delegate.isControlCommandDragActive() {
+           !delegate.isControlCommandModifierHeld {
             dragOverlayManager.tearDown()
             dragSession = nil
             cursorPointOverrideAX = nil
@@ -464,7 +464,7 @@ class DragDropCoordinator {
         // Tiled-to-floating promotion only applies when there's a real window
         if let windowId, !session.originatedFromFloating,
            let delegate,
-           delegate.isControlCommandDragActive() {
+           delegate.isControlCommandModifierHeld {
             // Clear drag session BEFORE promotion so any follow-up sync runs without stale drag state.
             let preferredFloatingScreenId = floatingScreenId
                 ?? session.hoveredFloatingScreenId

@@ -524,7 +524,7 @@ extension AppController {
 
         let isFloating = isWindowInFloatingZone(windowId)
 
-        if isFloating && !isControlCommandDragActive() {
+        if isFloating && !isControlCommandModifierHeld {
             let floatingScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
             floatingDragHandler.beginDrag(windowId: windowId, originScreenId: floatingScreenId)
             Logger.debug("Floating floating zone drag began for window \(windowId)")
@@ -890,11 +890,6 @@ extension AppController {
 
     func isZoneResizeDragInProgress() -> Bool {
         return zoneResizeDragInProgress
-    }
-
-    internal func isControlCommandDragActive() -> Bool {
-        let flags = NSEvent.modifierFlags
-        return flags.contains(.command) && flags.contains(.control)
     }
 
     internal func currentCursorAccessibilityPoint() -> CGPoint? {
