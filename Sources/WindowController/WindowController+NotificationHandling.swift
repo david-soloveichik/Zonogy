@@ -78,9 +78,7 @@ extension WindowController {
         case axDestroyedNotification:
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
             delegate?.windowWillClose(windowId: managed.windowId)
-            removeAccessibilityTracking(for: managed)
-            externalWindows.removeValue(forKey: managed.externalIdentifier)
-            windowRegistry.removeWindow(withId: managed.windowId)
+            stagePendingPrunedWindow(managed, reason: "ax-destroyed-notification")
 
         case axMiniaturizedNotification:
             Logger.debug("External window \(managed.windowId) minimized")

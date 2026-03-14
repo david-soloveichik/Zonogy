@@ -45,6 +45,9 @@ enum GuardrailTests {
         if !ZoneOccupancyReconcilerTests.run() {
             allPassed = false
         }
+        if !PendingPrunedWindowStoreTests.run() {
+            allPassed = false
+        }
         if !TargetedZoneManagerTests.run() {
             allPassed = false
         }

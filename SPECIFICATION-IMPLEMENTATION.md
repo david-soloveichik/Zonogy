@@ -2,11 +2,18 @@
 
 ## Destroyed Window Detection
 
-Beyond the self-evident paths (app termination removes all windows for that PID; AX destroy notifications remove individual windows), Zonogy uses two additional mechanisms. This is because not all applications emit `didTerminateApplication` or AX destroy notifications (e.g., Find My) so we need to cast a wider net. Both mechanisms detect a window as destroyed when its `(pid, CGWindowID)` is missing from `CGWindowListCopyWindowInfo`, or its `AXUIElement` returns `.invalidUIElement`/`.cannotComplete`/`.illegalArgument` when probed.
+Beyond the self-evident path of app termination (which removes all windows for that PID immediately), Zonogy uses several mechanisms to detect individual window destruction. Not all applications emit `didTerminateApplication` or AX destroy notifications (e.g., Find My) so we need to cast a wider net. The sync-based mechanisms detect a window as destroyed when its `(pid, CGWindowID)` is missing from `CGWindowListCopyWindowInfo`, or its `AXUIElement` returns `.invalidUIElement`/`.cannotComplete`/`.illegalArgument` when probed.
 
 - **Per-PID validation with retry (`ValidationRetryManager`):** After window focus changes within an app, app switches (validates the previous app), and app deactivation/hide, runs a PID-scoped check. If no destroyed windows are found but the PID still has managed windows (i.e., AX may be temporarily stale), retries with exponential backoff (≈0.2–3.2 s). This tries to catch window closed as soon as possible so that its zone is emptied and UI updates.
 
 - **Zone sync pruning:** Every full `syncWindowsToZones()` checks all managed windows. Full syncs run frequently — after zone add/remove, window placement, miniaturize/deminiaturize, drag-drop, screen-topology changes, WinShot/Launcher operations, and other layout-affecting events.
+
+### Deferred Pruning
+
+All window removal paths **except app termination** use deferred pruning: instead of immediately discarding the window's identity and recency info, the window is staged in a pending-prune store keyed by `(pid, CGWindowID)`. The zone is vacated immediately (placeholder appears), but the bookkeeping is retained. This guards against false positives from transient AX unavailability (e.g., sleep/wake, screen topology changes, or spurious `AXUIElementDestroyed` notifications macOS can emit near sleep).
+
+- **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise.
+- **Clearing:** Pending-prune entries for a PID are discarded when (1) the app terminates, or (2) a *new* managed window (different `CGWindowID`) is discovered for that PID, which signals that the old windows are truly gone.
 
 ## Floating Zone Protection Windows
 

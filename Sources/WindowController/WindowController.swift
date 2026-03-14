@@ -58,6 +58,12 @@ class WindowController {
     internal let primaryScreenBounds: CGRect
     internal var applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
+    internal var pendingPrunedWindows = PendingPrunedWindowStore()
+    /// Window ids whose next activity record should be skipped because they were restored
+    /// from deferred-prune state and should keep their prior recency ordering.
+    internal var restoredPendingPruneActivitySkipWindowIds: Set<Int> = []
+    /// Original placement targets for windows restored from deferred-prune state.
+    internal var restoredPendingPruneDestinationsByWindowId: [Int: PendingPrunedWindowDestination] = [:]
     /// Serial background queue for dispatching AX writes during live zone resize drags.
     /// Keeps the main thread free while window position/size updates proceed in order.
     internal let liveResizeAXQueue = DispatchQueue(
@@ -177,8 +183,14 @@ class WindowController {
     /// - Returns: The window identifiers that were removed.
     func removeAllWindows(forPid pid: pid_t) -> [Int] {
         let windowsForPid = windowRegistry.allWindows.filter { $0.backing.pid == pid }
+        let hadPendingPrunedWindows = pendingPrunedWindows.hasEntries(forPid: pid)
+
+        discardPendingPrunedWindows(forPid: pid, reason: "pid-removal")
 
         guard !windowsForPid.isEmpty else {
+            if hadPendingPrunedWindows {
+                accessibilityWatcher.removeObserver(for: pid)
+            }
             return []
         }
 
@@ -187,22 +199,9 @@ class WindowController {
         for managed in windowsForPid {
             let windowId = managed.windowId
             Logger.debug("Removing external window \(windowId) for terminated pid \(pid)")
-            removeAccessibilityTracking(for: managed)
-            externalWindows.removeValue(forKey: managed.externalIdentifier)
-            windowRegistry.removeWindow(withId: windowId)
             windowLastActiveTime.removeValue(forKey: windowId)
-            programmaticUpdateWindowIds.remove(windowId)
-            programmaticUpdateWorkItems[windowId]?.cancel()
-            programmaticUpdateWorkItems.removeValue(forKey: windowId)
-            if currentDraggingWindowId == windowId {
-                currentDraggingWindowId = nil
-            }
-            if dragCandidate?.windowId == windowId {
-                dragCandidate = nil
-            }
+            removeManagedWindowFromLiveTracking(managed)
         }
-
-        updateMouseUpGlobalMonitorInstallation()
 
         // Once all managed windows for this pid are removed due to process termination,
         // tear down the associated AX observer as well.
@@ -244,13 +243,10 @@ class WindowController {
         var removedWindowIds: [Int] = []
         for (windowId, managed, reason) in stale {
             let pid = managed.backing.pid
-            Logger.debug("Detected destroyed external window \(windowId) pid \(pid) (reason: \(reason)); pruning")
-            removeAccessibilityTracking(for: managed)
-            windowRegistry.removeWindow(withId: windowId)
-            windowLastActiveTime.removeValue(forKey: windowId)
-            externalWindows.removeValue(forKey: managed.externalIdentifier)
+            Logger.debug("Detected destroyed external window \(windowId) pid \(pid) (reason: \(reason)); staging for deferred prune")
+            stagePendingPrunedWindow(managed, reason: reason)
             removedWindowIds.append(windowId)
-            Logger.debug("Pruned destroyed external window \(windowId)")
+            Logger.debug("Deferred-prune staged external window \(windowId)")
         }
 
         return removedWindowIds
@@ -387,6 +383,10 @@ class WindowController {
 
     /// Record that a window was activated (for launcher recency ordering).
     func recordWindowActivity(windowId: Int, at timestamp: Date = Date()) {
+        if restoredPendingPruneActivitySkipWindowIds.remove(windowId) != nil {
+            Logger.debug("Skipping first activity record for restored deferred-prune window \(windowId)")
+            return
+        }
         windowLastActiveTime[windowId] = timestamp
     }
 

@@ -241,6 +241,21 @@ extension WindowController {
         }
 
         let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
+        if let restored = restorePendingPrunedWindowIfNeeded(
+            identifier: identifier,
+            element: element,
+            appElement: appElement,
+            notifyDelegate: notifyDelegate,
+            isMinimized: isMinimized
+        ) {
+            Logger.debug("captureWindowIfNeeded: Restored deferred-prune window \(restored.windowId) for pid \(pid)")
+            return restored
+        }
+
+        if pendingPrunedWindows.hasEntries(forPid: pid) {
+            clearPendingPrunedWindowsForNewManagedWindow(pid: pid, discoveredIdentifier: identifier)
+        }
+
         let elementKey = AccessibilityElementKey(element: element)
         let windowId = windowRegistry.allocateIdentifier()
         let managed = ManagedWindow(

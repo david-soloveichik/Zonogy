@@ -99,10 +99,9 @@ extension WindowController {
 
     /// Close a window
     func closeWindow(_ managedWindow: ManagedWindow) {
-        removeAccessibilityTracking(for: managedWindow)
+        windowLastActiveTime.removeValue(forKey: managedWindow.windowId)
+        removeManagedWindowFromLiveTracking(managedWindow)
         _ = AXUIElementPerformAction(managedWindow.backing.element, axCloseAction)
-        windowRegistry.removeWindow(withId: managedWindow.windowId)
-        externalWindows.removeValue(forKey: managedWindow.externalIdentifier)
         Logger.debug("Closed window \(managedWindow.windowId)")
     }
 

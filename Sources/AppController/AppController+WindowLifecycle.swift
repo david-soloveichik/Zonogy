@@ -788,7 +788,48 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
             return
         }
+        if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
+           placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
+            return
+        }
         windowPlacementManager.placeNewWindow(window)
+    }
+
+    private func placeRestoredDeferredPruneWindowIfPossible(
+        _ window: ManagedWindow,
+        destination: PendingPrunedWindowDestination
+    ) -> Bool {
+        switch destination {
+        case .tiled(let key):
+            guard let context = screenContexts[key.screenId],
+                  let zone = context.zoneController.zone(at: key.index),
+                  zone.occupantWindowId == nil else {
+                return false
+            }
+
+            Logger.debug(
+                "Restoring deferred-prune window \(window.windowId) to original zone \(key.index) on \(screenContextStore.logDescription(for: key.screenId))"
+            )
+            windowPlacementManager.placeWindow(window, into: key, reason: "deferred-prune-restore")
+            return true
+
+        case .floating(let screenId):
+            guard screenContexts[screenId] != nil,
+                  floatingZoneOccupant(on: screenId) == nil else {
+                return false
+            }
+
+            Logger.debug(
+                "Restoring deferred-prune window \(window.windowId) to original floating zone on \(screenContextStore.logDescription(for: screenId))"
+            )
+            windowPlacementManager.placeWindow(
+                window,
+                into: .floating(screenId: screenId),
+                centerFloatingWindow: false,
+                reason: "deferred-prune-restore"
+            )
+            return true
+        }
     }
 
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {
