@@ -212,12 +212,19 @@ class AddZoneIndicatorView: NSView {
             let screenPoint = NSEvent.mouseLocation
             let windowPoint = window.convertPoint(fromScreen: screenPoint)
             let localPoint = self.convert(windowPoint, from: nil)
-            let paddedBounds = self.bounds.insetBy(dx: -self.hoverHysteresisPadding, dy: -self.hoverHysteresisPadding)
-            if paddedBounds.contains(localPoint) {
+            switch EdgeIndicatorHoverExitPolicy.action(
+                localPoint: localPoint,
+                bounds: self.bounds,
+                hysteresisPadding: self.hoverHysteresisPadding
+            ) {
+            case .keepHover:
                 return
+            case .recheckAfterDelay:
+                self.scheduleHoverExitIfNeeded()
+                return
+            case .clearHover:
+                self.isHovered = false
             }
-
-            self.isHovered = false
         }
 
         hoverExitWorkItem = workItem

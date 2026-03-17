@@ -30,6 +30,9 @@ enum GuardrailTests {
         if !ZoneResizeHandleVisibilityPolicyTests.run() {
             allPassed = false
         }
+        if !EdgeIndicatorHoverExitPolicyTests.run() {
+            allPassed = false
+        }
         if !WindowOcclusionPolicyTests.run() {
             allPassed = false
         }
