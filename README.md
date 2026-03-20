@@ -2,7 +2,7 @@
 
 Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source.
 
-Zonogy divides each screen into persistent tiling zones plus a floating zone, with one zone targeted for next window. Snapshot entire arrangements to switch working contexts, and find any window with a keyboard-driven Launcher or hover-over Dock menus.
+Zonogy divides each screen into persistent tiling zones plus a floating zone, with one zone targeted for the next window. Entire arrangements can be snapshotted to switch working contexts, and you can find any window with a keyboard-driven Launcher or hover-over Dock menus.
 
 > Philosophy: An intentional place for every window.
 
@@ -12,7 +12,7 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone, wi
 
 Zonogy rethinks multiple aspects of the operating system UI, including window management, virtual desktops, application/window launching, and interacting with the Dock.
 
-**Window management:** Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach allowing you to define zones that persist even when empty, so your layout stays stable. An additional floating zone on each screen lets you float a window above others when you need quick access to a window without disrupting the tiling zones.
+**Window management:** Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach, allowing you to define zones that persist even when empty, so your layout stays stable. An additional floating zone on each screen lets you float a window above others when you need quick access to a window without disrupting the tiling zones.
 
 **Virtual desktops**: Virtual desktops like macOS's built-in Spaces have a limitation that a window can only belong to one space, yet the same window often belongs to more than one task. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows.
 
@@ -30,9 +30,9 @@ Each screen has 1–3 **tiling zones** that form the main layout, plus a **float
 
 Exactly one zone is **targeted** at any moment, indicated by a glowing indicator above the zone. New or unminimized windows are always placed into the targeted zone.
 
-![Zones core concepts](docs/images/zone-layouts.svg)
+<img src="docs/images/zone-layouts.svg" alt="Zones core concepts" style="zoom: 25%;"/>
 
-Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty). Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Command` click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
+Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty). Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
 
 ## Features
 
@@ -98,11 +98,12 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 
 ## History
 
-My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated**, reflecting how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically *opinionated* and reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
 
 ## Additional suggestions
 
 Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
+
 ```sh
 $ defaults write -g NSZoomButtonShowMenu -bool no
 $ # to bring it back:
