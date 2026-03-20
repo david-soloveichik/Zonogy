@@ -3,112 +3,98 @@
   <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
   <defs>
     <style>
+      .st0 {
+        font-size: 10px;
+      }
+
       .st0, .st1, .st2, .st3, .st4, .st5, .st6, .st7, .st8, .st9 {
         isolation: isolate;
       }
 
-      .st0, .st3 {
-        font-size: 11px;
-        opacity: .6;
-      }
-
-      .st0, .st3, .st8, .st9 {
-        fill: #4a9eff;
-      }
-
-      .st10 {
-        letter-spacing: 0em;
-      }
-
-      .st10, .st1, .st11, .st12, .st3 {
-        font-family: MyriadPro-Regular, 'Myriad Pro';
-      }
-
-      .st13 {
-        font-family: AppleBraille-Outline6Dot, 'Apple Braille';
-      }
-
-      .st1 {
-        fill: #777;
-      }
-
-      .st1, .st7 {
-        font-size: 9px;
-      }
-
-      .st2 {
+      .st0, .st1, .st2, .st3, .st5 {
         font-family: HelveticaNeue-Medium, 'Helvetica Neue';
-        font-size: 13px;
         font-weight: 500;
       }
 
-      .st2, .st7 {
+      .st0, .st10 {
+        fill: #999;
+      }
+
+      .st1 {
+        font-size: 11px;
+      }
+
+      .st1, .st8, .st9 {
+        fill: #4a9eff;
+      }
+
+      .st2 {
+        font-size: 13px;
+      }
+
+      .st2, .st3 {
         fill: #888;
       }
 
-      .st14 {
+      .st11 {
         fill: #2a2a35;
       }
 
-      .st14, .st15, .st5, .st6 {
+      .st11, .st12, .st6, .st7 {
         stroke-width: 1.5px;
       }
 
-      .st14, .st5, .st6 {
+      .st11, .st6, .st7 {
         stroke: #4a9eff;
       }
 
-      .st11 {
-        letter-spacing: 0em;
+      .st3, .st5 {
+        font-size: 9px;
       }
 
-      .st16 {
+      .st13 {
         fill: #febc2e;
       }
 
-      .st17 {
+      .st14 {
         fill: #383840;
       }
 
-      .st18 {
+      .st15 {
         fill: #ff5f57;
       }
 
-      .st19 {
+      .st16 {
         stroke: #999;
       }
 
-      .st19, .st5 {
+      .st16, .st6 {
         fill: none;
       }
 
-      .st15 {
+      .st5 {
+        fill: #777;
+      }
+
+      .st12 {
         stroke: #333;
       }
 
-      .st15, .st6 {
+      .st12, .st7 {
         fill: #1a1a1a;
       }
 
-      .st20 {
+      .st17 {
         fill: #252530;
         stroke: #555;
       }
 
-      .st4 {
-        font-size: 10px;
-      }
-
-      .st4, .st21 {
-        fill: #999;
-      }
-
-      .st5 {
+      .st6 {
         opacity: .5;
         stroke-dasharray: 4 3;
       }
 
-      .st6 {
+      .st7 {
         opacity: .15;
       }
 
@@ -120,62 +106,86 @@
         opacity: .2;
       }
 
-      .st22 {
+      .st18 {
         fill: #333;
       }
 
-      .st23 {
+      .st19 {
         fill: #28c840;
       }
     </style>
   </defs>
   <g>
-    <text class="st2" transform="translate(71.76 30.09)"><tspan x="0" y="0">2 zones, one empty</tspan></text>
-    <rect class="st15" x="10" y="48.09" width="240" height="150" rx="8" ry="8"/>
-    <rect class="st5" x="18" y="56.09" width="112" height="134" rx="5" ry="5"/>
-    <text class="st0" transform="translate(45.2 122.09)"><tspan class="st12" x="0" y="0">empty</tspan><tspan class="st13" x="29.77" y="0"> </tspan><tspan class="st12" x="33.53" y="0">zone</tspan></text>
-    <text class="st3" transform="translate(42.56 136.09)"><tspan x="0" y="0">(placeholder)</tspan></text>
-    <rect class="st20" x="134" y="56.09" width="108" height="134" rx="5" ry="5"/>
-    <rect class="st22" x="134" y="56.09" width="108" height="18" rx="5" ry="5"/>
-    <rect class="st22" x="134" y="68.09" width="108" height="6"/>
-    <circle class="st18" cx="144" cy="65.09" r="3"/>
-    <circle class="st16" cx="153" cy="65.09" r="3"/>
-    <circle class="st23" cx="162" cy="65.09" r="3"/>
-    <text class="st1" transform="translate(173.77 126.09)"><tspan x="0" y="0">window</tspan></text>
+    <g class="st4">
+      <text class="st2" transform="translate(71.76 30.09)"><tspan x="0" y="0">2 zones, one empty</tspan></text>
+    </g>
+    <rect class="st12" x="10" y="48.09" width="240" height="150" rx="8" ry="8"/>
+    <rect class="st6" x="18" y="56.09" width="112" height="134" rx="5" ry="5"/>
+    <g class="st4">
+      <text class="st1" transform="translate(45.2 122.09)"><tspan x="0" y="0">empty</tspan></text>
+      <text class="st1" transform="translate(74.97 122.09)"><tspan x="0" y="0"> </tspan></text>
+      <text class="st1" transform="translate(78.73 122.09)"><tspan x="0" y="0">zone</tspan></text>
+    </g>
+    <g class="st4">
+      <text class="st1" transform="translate(42.56 136.09)"><tspan x="0" y="0">(placeholder)</tspan></text>
+    </g>
+    <rect class="st17" x="134" y="56.09" width="108" height="134" rx="5" ry="5"/>
+    <rect class="st18" x="134" y="56.09" width="108" height="18" rx="5" ry="5"/>
+    <rect class="st18" x="134" y="68.09" width="108" height="6"/>
+    <circle class="st15" cx="144" cy="65.09" r="3"/>
+    <circle class="st13" cx="153" cy="65.09" r="3"/>
+    <circle class="st19" cx="162" cy="65.09" r="3"/>
+    <g class="st4">
+      <text class="st5" transform="translate(172.77 126.09)"><tspan x="0" y="0">window</tspan></text>
+    </g>
     <path class="st8" d="M42,51.09h66c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2H42c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
     <path class="st9" d="M157,51.09h66c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2h-66c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
   </g>
   <g>
-    <text class="st2" transform="translate(330.59 30.09)"><tspan x="0" y="0">3 zones + floating zone</tspan></text>
-    <rect class="st15" x="280" y="48.09" width="240" height="150" rx="8" ry="8"/>
-    <rect class="st20" x="288" y="56.09" width="112" height="134" rx="5" ry="5"/>
-    <rect class="st22" x="288" y="56.09" width="112" height="18" rx="5" ry="5"/>
-    <rect class="st22" x="288" y="68.09" width="112" height="6"/>
-    <circle class="st18" cx="298" cy="65.09" r="3"/>
-    <circle class="st16" cx="307" cy="65.09" r="3"/>
-    <circle class="st23" cx="316" cy="65.09" r="3"/>
-    <rect class="st20" x="404" y="56.09" width="108" height="63" rx="5" ry="5"/>
-    <rect class="st22" x="404" y="56.09" width="108" height="18" rx="5" ry="5"/>
-    <rect class="st22" x="404" y="68.09" width="108" height="6"/>
-    <circle class="st18" cx="414" cy="65.09" r="3"/>
-    <circle class="st16" cx="423" cy="65.09" r="3"/>
-    <circle class="st23" cx="432" cy="65.09" r="3"/>
-    <rect class="st20" x="404" y="123.09" width="108" height="67" rx="5" ry="5"/>
-    <rect class="st22" x="404" y="123.09" width="108" height="18" rx="5" ry="5"/>
-    <rect class="st22" x="404" y="135.09" width="108" height="6"/>
-    <circle class="st18" cx="414" cy="132.09" r="3"/>
-    <circle class="st16" cx="423" cy="132.09" r="3"/>
-    <circle class="st23" cx="432" cy="132.09" r="3"/>
-    <rect class="st6" x="328" y="80.09" width="144" height="100" rx="6" ry="6"/>
-    <rect class="st14" x="325" y="78.09" width="144" height="100" rx="6" ry="6"/>
-    <rect class="st17" x="325" y="78.09" width="144" height="18" rx="6" ry="6"/>
-    <rect class="st17" x="325" y="90.09" width="144" height="6"/>
-    <circle class="st18" cx="335" cy="87.09" r="3"/>
-    <circle class="st16" cx="344" cy="87.09" r="3"/>
-    <circle class="st23" cx="353" cy="87.09" r="3"/>
-    <text class="st7" transform="translate(356.93 131.09)"><tspan class="st12" x="0" y="0">floating</tspan><tspan class="st13" x="29.1" y="0"> </tspan><tspan class="st12" x="32.17" y="0">zone</tspan><tspan class="st13" x="50.47" y="0"> </tspan><tspan class="st11" x="53.55" y="0">window</tspan></text>
+    <g class="st4">
+      <text class="st2" transform="translate(330.59 30.09)"><tspan x="0" y="0">3 zones + floating zone</tspan></text>
+    </g>
+    <rect class="st12" x="280" y="48.09" width="240" height="150" rx="8" ry="8"/>
+    <rect class="st17" x="288" y="56.09" width="112" height="134" rx="5" ry="5"/>
+    <rect class="st18" x="288" y="56.09" width="112" height="18" rx="5" ry="5"/>
+    <rect class="st18" x="288" y="68.09" width="112" height="6"/>
+    <circle class="st15" cx="298" cy="65.09" r="3"/>
+    <circle class="st13" cx="307" cy="65.09" r="3"/>
+    <circle class="st19" cx="316" cy="65.09" r="3"/>
+    <rect class="st17" x="404" y="56.09" width="108" height="63" rx="5" ry="5"/>
+    <rect class="st18" x="404" y="56.09" width="108" height="18" rx="5" ry="5"/>
+    <rect class="st18" x="404" y="68.09" width="108" height="6"/>
+    <circle class="st15" cx="414" cy="65.09" r="3"/>
+    <circle class="st13" cx="423" cy="65.09" r="3"/>
+    <circle class="st19" cx="432" cy="65.09" r="3"/>
+    <rect class="st17" x="404" y="123.09" width="108" height="67" rx="5" ry="5"/>
+    <rect class="st18" x="404" y="123.09" width="108" height="18" rx="5" ry="5"/>
+    <rect class="st18" x="404" y="135.09" width="108" height="6"/>
+    <circle class="st15" cx="414" cy="132.09" r="3"/>
+    <circle class="st13" cx="423" cy="132.09" r="3"/>
+    <circle class="st19" cx="432" cy="132.09" r="3"/>
+    <rect class="st7" x="328" y="80.09" width="144" height="100" rx="6" ry="6"/>
+    <rect class="st11" x="325" y="78.09" width="144" height="100" rx="6" ry="6"/>
+    <rect class="st14" x="325" y="78.09" width="144" height="18" rx="6" ry="6"/>
+    <rect class="st14" x="325" y="90.09" width="144" height="6"/>
+    <circle class="st15" cx="335" cy="87.09" r="3"/>
+    <circle class="st13" cx="344" cy="87.09" r="3"/>
+    <circle class="st19" cx="353" cy="87.09" r="3"/>
+    <g class="st4">
+      <text class="st3" transform="translate(353.93 131.09)"><tspan x="0" y="0">floating</tspan></text>
+      <text class="st3" transform="translate(386.03 131.09)"><tspan x="0" y="0"> </tspan></text>
+      <text class="st3" transform="translate(389.1 131.09)"><tspan x="0" y="0">zone</tspan></text>
+      <text class="st3" transform="translate(407.4 131.09)"><tspan x="0" y="0"> </tspan></text>
+      <text class="st3" transform="translate(412.48 131.09)"><tspan x="0" y="0">window</tspan></text>
+    </g>
   </g>
-  <line class="st19" x1="49.38" y1="40.88" x2="54.69" y2="46.2"/>
-  <polygon class="st21" points="52.57 48.32 57.52 49.03 56.81 44.08 52.57 48.32"/>
-  <text class="st4" transform="translate(13.8 17.96)"><tspan class="st12"><tspan x="0" y="0">targeted</tspan></tspan><tspan class="st12" x="1.18" y="10">for</tspan><tspan class="st13" x="12.86" y="10"> </tspan><tspan class="st10" x="16.28" y="10">next</tspan><tspan class="st12"><tspan x="1.11" y="20">window</tspan></tspan></text>
+  <line class="st16" x1="49.38" y1="40.88" x2="54.69" y2="46.2"/>
+  <polygon class="st10" points="52.57 48.32 57.52 49.03 56.81 44.08 52.57 48.32"/>
+  <g class="st4">
+    <text class="st0" transform="translate(13.8 17.96)"><tspan x="0" y="0">targeted</tspan></text>
+    <text class="st0" transform="translate(14.98 27.96)"><tspan x="0" y="0">for</tspan></text>
+    <text class="st0" transform="translate(26.66 27.96)"><tspan x="0" y="0"> </tspan></text>
+    <text class="st0" transform="translate(30.08 27.96)"><tspan x="0" y="0">next</tspan></text>
+    <text class="st0" transform="translate(14.91 37.96)"><tspan x="0" y="0">window</tspan></text>
+  </g>
 </svg>

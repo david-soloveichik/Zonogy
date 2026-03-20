@@ -1,22 +1,26 @@
 # Zonogy
 
-Zonogy is a zone-based window manager for macOS. (Name means "the origin or formation of zones.")
+Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source.
 
-Zonogy divides each screen into persistent tiling zones — one is always targeted, and that's where the next window lands. Snapshot entire arrangements to switch working contexts, and find any window with a keyboard-driven Launcher or hover-over Dock menus.
+Zonogy divides each screen into persistent tiling zones plus a floating zone, with one zone targeted for next window. Snapshot entire arrangements to switch working contexts, and find any window with a keyboard-driven Launcher or hover-over Dock menus.
 
-> Philosophy: A place for every window, before it opens.
+> Philosophy: An intentional place for every window.
 
 <img src="docs/images/hero-screenshot.png" alt="Hero screenshot, showing various features of Zonogy" style="zoom: 35%;" />
 
-## Why Zonogy?
+## Overview
 
-Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach: you define zones that persist even when empty, so your layout stays stable. A floating zone on each screen lets you float a window above the tiles when you need quick access to a window without disrupting the grid.
+Zonogy rethinks multiple aspects of the operating system UI, including window management, virtual desktops, application/window launching, and interacting with the Dock.
 
-Virtual desktops like macOS's built-in Spaces have another limitation: a window can only belong to one space. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows. After all, the same window — your email, a reference doc — often belongs to more than one task and your tools shouldn't force you to choose.
+**Window management:** Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach allowing you to define zones that persist even when empty, so your layout stays stable. An additional floating zone on each screen lets you float a window above others when you need quick access to a window without disrupting the tiling zones.
 
-Zonogy also tackles a gap in fast window switching: most launchers and Spotlight let you switch to an *application*, but not a specific *window* within it. Zonogy offers two complementary paths here. **DockMenus** let you hover over any Dock icon to see that app's windows and pick one — or just click the icon to open the app's "main" or most recently used window. The **Launcher** takes a keyboard-first approach: drill down into an app and search its windows by title, all within an overlay that appears directly in the zone you're about to fill, making the choice feel concrete and intentional.
+**Virtual desktops**: Virtual desktops like macOS's built-in Spaces have a limitation that a window can only belong to one space, yet the same window often belongs to more than one task. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows.
 
-Drag and drop is woven throughout: drag windows between zones to swap them, drag an app from the Dock onto a zone, or drop a document onto a placeholder to open it right where you want it. Drag something to the "new zone indicator" and it opens in a new zone. Multi-screen setups are first-class and each screen gets its own independent set of zones.
+**Application/window launching and switching:** Most launchers and Spotlight let you switch to an *application*, or a specific *document*, but not a specific *window.* Zonogy's **CmdTab** replacement allows fast switching between open windows. Zonogy's **DockMenus** lets you hover over any Dock icon to see that app's windows and pick one, or just click the Dock icon to open the app's "main" or most recently used window. The **Launcher** takes a fast-search approach: Drill down into an app and search its windows by title within an overlay that appears directly in the zone you're about to fill. The Launcher also allows general shortcuts to files and folders with optional aliases (search keywords), and learns over time.
+
+Drag and drop is woven throughout. For example, windows can be swapped between zones. An app can be dragged from the Dock to a zone to open it there, and similarly for documents or URLs. Items can be dragged onto visual indicators (along screen edge) to place them in a new tiling zone or the floating zone.
+
+Multi-screen setups are first-class and each screen gets its own independent set of zones.
 
 ## Core Concepts
 
@@ -28,7 +32,7 @@ Exactly one zone is **targeted** at any moment, indicated by a glowing indicator
 
 ![Zones core concepts](docs/images/zone-layouts.svg)
 
-Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty). Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Command` click. (Alternative mode: **target follows focus**, where activating a window retargets to that window's zone.)
+Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty). Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Command` click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
 
 ## Features
 
@@ -53,16 +57,16 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 
 | Gesture | Action |
 | --- | --- |
-| Click new zone pill (right edge of each screen) | Add a tiling zone |
-| Click targeting indicator (above zones or bottom edge of each screen) | Target that zone |
-| Click empty zone placeholder | Target that zone |
+| Click new zone pill (on right edge of each screen) | Add a tiling zone |
+| Click floating zone targeting indicator (on bottom edge of each screen) | Target the floating zone |
 | `Control-Cmd`-click anywhere in a zone (even if zone is occupied) | Target that zone |
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
 | Drag window → tiling zone | Move it there, swapping if occupied |
 | Drag window → new zone pill | Add a zone and place the window in it |
 | Drag window → floating zone indicator | Float the window above the tiles |
-| Hold `Control-Cmd` during drag | Promote between tiled and floating zone |
-| Drag file or URL → empty zone or new zone pill | Open it there with the default app |
+| Hold `Control-Cmd` during window drag | Promote between tiled and floating zone |
+| Drag file or URL → empty zone or new zone pill | Open it there in the default app |
+| Hold `Control-Cmd` during file or URL drag | Replace zone occupant with the dragged item opened in default app |
 | Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |
 
 ## Default Keyboard Shortcuts (configurable)
@@ -72,21 +76,21 @@ Filling the targeted tiling zone advances to the next empty tiling zone (or the 
 | Shortcut | Action |
 | --- | --- |
 | `Control-Cmd-=` | Add a zone |
-| `Control-Cmd--` | Remove zone (following preference order) |
+| `Control-Cmd--` | Remove zone (following preference order, keeping current window open) |
 | `Cmd-M` | Minimize active window; with Launcher open, removes the zone (so `Cmd-M` twice = minimize + remove zone) |
 | `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Control-Cmd-Arrows` | Change target zone with arrow keys |
-| `Control-Cmd-Space` | Open Launcher |
+| `Control-Cmd-Space` | Open Launcher in targeted zone |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
 
 ## Requirements
 
 - **macOS** — tested on Sequoia 15.7.3 and Tahoe 26.3
-- **Accessibility** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (CmdTab's Cmd-Tab override, shortcuts, and zone click targeting)
-- **Screen Recording** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
-- **Automation** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.
+- **Accessibility Permissions** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (CmdTab's Cmd-Tab override, shortcuts, and zone click targeting)
+- **Screen Recording Permissions** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
+- **Automation Permissions** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.
 
 ## Development
 
@@ -94,7 +98,7 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 
 ## History
 
-My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated** — it reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically **opinionated**, reflecting how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
 
 ## Additional suggestions
 
