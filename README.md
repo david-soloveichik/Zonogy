@@ -16,31 +16,33 @@ Zonogy rethinks multiple aspects of the operating system UI, including window ma
 
 **Virtual desktops**: Virtual desktops like macOS's built-in Spaces have a limitation that a window can only belong to one space, yet the same window often belongs to more than one task. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows.
 
-**Application/window launching and switching:** Most launchers and Spotlight let you switch to an *application*, or a specific *document*, but not a specific *window.* Zonogy's **CmdTab** replacement allows fast switching between open windows. Zonogy's **DockMenus** lets you hover over any Dock icon to see that app's windows and pick one, or just click the Dock icon to open the app's "main" or most recently used window. The **Launcher** takes a fast-search approach: Drill down into an app and search its windows by title within an overlay that appears directly in the zone you're about to fill. The Launcher also allows general shortcuts to files and folders with optional aliases (search keywords), and learns over time.
+**Application/window launching and switching:** Most launchers and Spotlight let you switch to an *application*, or a specific *document*, but not a specific *window.* Zonogy's **CmdTab** replacement allows fast switching between recent windows across all applications. **DockMenus** lets you hover over any Dock icon to pick a specific window of that app, or just click the Dock icon to open the app's "main" or most recently used window. The **Launcher** lets you switch to any app in a few keystrokes, or drill down into an app and search its windows by title. The Launcher also allows general shortcuts to files and folders with optional aliases (search keywords), and learns over time.
 
 Drag and drop is woven throughout. For example, windows can be swapped between zones. An app can be dragged from the Dock to a zone to open it there, and similarly for documents or URLs. Items can be dragged onto visual indicators (along screen edge) to place them in a new tiling zone or the floating zone.
 
-Multi-screen setups are first-class and each screen gets its own independent set of zones.
+Multi-screen setups are first-class and each screen gets its own independent set of zones and snapshots.
 
 ## Core Concepts
 
 ### Zones
 
-Each screen has 1–3 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them.
+Each screen has 1–3 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically.
 
 Exactly one zone is **targeted** at any moment, indicated by a glowing indicator above the zone. New or unminimized windows are always placed into the targeted zone.
 
 <img src="docs/images/zone-layouts.svg" alt="Zones core concepts" style="zoom: 25%;"/>
 
-Filling the targeted tiling zone advances to the next empty tiling zone (or the floating zone if none are empty). Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
+Filling the targeted tiling zone advances to the next empty tiling zone, or the floating zone if no zone is empty. Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
 
 ## Features
 
-- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. Appears directly in the targeted zone and auto-shows when a zone becomes empty.
+- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. Appears directly in the targeted zone and (optionally) auto-shows when a zone becomes empty.
 
 <img src="docs/images/launcher.png" alt="Launcher" style="zoom: 35%;" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" style="zoom: 35%;" />
 
 - **CmdTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency.
+
+<img src="docs/images/cmdtab.png" alt="CmdTab" style="zoom: 35%;" />
 
 - **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements. A visual timeline chooser lets you scrub through past snapshots.
 
