@@ -36,15 +36,15 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 ## Features
 
-- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. Appears directly in the targeted zone and (optionally) auto-shows when a zone becomes empty.
+- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the targeted zone where the window will appear.
 
 <img src="docs/images/launcher.png" alt="Launcher" style="zoom: 35%;" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" style="zoom: 35%;" />
 
-- **CmdTab** (`Cmd-Tab`) — a fast window switcher replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency.
+- **CmdTab** (`Cmd-Tab`) — a fast window chooser replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. The chooser appears directly in the targeted zone where the window will appear.
 
 <img src="docs/images/cmdtab.png" alt="CmdTab" style="zoom: 35%;" />
 
-- **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements. A visual timeline chooser lets you scrub through past snapshots.
+- **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements and zone layouts. A visual timeline chooser lets you scrub through past snapshots.
 
 <img src="docs/images/winshot-chooser.png" alt="WinShot Chooser" style="zoom: 35%;" />
 
