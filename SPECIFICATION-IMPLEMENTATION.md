@@ -17,7 +17,7 @@ All window removal paths **except app termination** use deferred pruning: instea
 
 ## Floating Zone Protection Windows
 
-When a window is placed in the floating zone, it receives a 0.7-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
+When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
 
 The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
@@ -111,3 +111,9 @@ We also re-scan full-screen state after active Space changes, since some apps (e
 In addition, `AXFullScreen` can remain true for full-screen windows on inactive Spaces. To avoid a stale per-screen "full-screen pause", after space/focus updates we verify the currently focused window: if its display is paused but that focused window does not claim full-screen, we clear the tracked full-screen state for that display.
 
 As fallback when `AXFullScreen` is absent or unreliable: for managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their accessibility frame width matches the screen width exactly.
+
+---
+
+## Timers
+
+For a complete inventory of all timers and delay mechanisms (AX retries, debounce, protection windows, etc.), see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md).

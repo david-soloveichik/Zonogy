@@ -1,0 +1,117 @@
+# Timers Used by Zonogy
+
+Most timers in Zonogy exist to work around limitations and timing quirks of the macOS Accessibility (AX) API. Others debounce rapid events or provide UX polish. This document catalogs operational timers and delay mechanisms — AX retries, debounce, protection windows, polling, and interaction timing. Purely cosmetic animations (fade durations, scroll animations, etc.) are not included.
+
+---
+
+## Regular Operation
+
+These timers fire during normal window management — the core of Zonogy's runtime.
+
+### AX Retry Mechanisms (Exponential Backoff)
+
+AX operations can fail transiently — windows may not be queryable yet, frames may not apply on the first attempt, or destruction signals may be unreliable.
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **AX frame application retries** | 0.25, 0.5, 1.0, 3.0s | `asyncAfter` (backoff) | `WindowController+FrameManagement.swift` | AX move/resize can silently fail. Retries until the window origin matches the target (size mismatches are tolerated, e.g. min-width windows). On settle, triggers ActiveFit reveal mode evaluation for zone 2/3 windows. |
+| **Destroyed-window validation retries** | 0.2, 0.4, 0.8, 1.6, 3.2s | `asyncAfter` (backoff) | `ValidationRetryManager.swift` | AX destruction detection is unreliable (some apps never emit destroy notifications). After lifecycle events, retries PID-scoped validation to catch closed windows. |
+| **Window capture retries** | 1.0, 2.0, 4.0, 8.0s | `asyncAfter` (backoff) | `WindowCapturePipeline.swift` | `AXWindowCreated` sometimes fires before the window is queryable. Retries capture with exponential backoff until a manageable window is found. |
+| **Unmanaged-focus resolution retries** | 0.2, 0.4, 0.8, 1.6, 3.2s | `asyncAfter` (backoff) | `AppController+SystemEvents.swift` | `_AXUIElementGetWindow` can transiently fail, making it unclear if a focused window is managed. Retries to resolve managed/unmanaged classification for UI suppression decisions (resize bars, Launcher auto-show). |
+
+### AX Verification & Protection
+
+These compensate for AX operations that report success but may not actually take effect, or for macOS firing spurious events in response to Zonogy's own actions.
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Programmatic minimize verification** | 0.12s first, 0.2s retry | `asyncAfter` | `AppController+ZoneLifecycle.swift` | AX minimize requests can silently fail (e.g., Word activates a sibling window during a minimize burst, undoing the minimize). Verifies the window actually minimized and retries once if not. |
+| **Notification suppression timeout** | 3.0s | deadline-based (lazily checked) | `AppController+ZoneLifecycle.swift` | When Zonogy programmatically minimizes/unminimizes windows, it suppresses the next AX notification for that window to avoid reacting to its own actions. The 3s deadline is a safety net so suppression doesn't persist indefinitely if the notification never arrives. Not a scheduled timer — checked lazily when events arrive. |
+| **Programmatic-update suppression** | 0.5s | `asyncAfter` | `WindowController+FrameManagement.swift` | After Zonogy moves/resizes a window via AX, tags it as "programmatic" for 0.5s. AX move/resize notifications arriving during this window are ignored, preventing feedback loops where Zonogy reacts to its own operations. |
+| **Floating zone protection** | 0.5s | `asyncAfter` + deadline | `AppController+FloatingZoneIdentity.swift` | After placing a window in the floating zone, macOS may fire spurious focus events (e.g., activating a sibling window after the displaced occupant is minimized). During the protection window, occlusion-based minimization is suppressed and the floating window is reactivated if focus drifts. |
+| **Activity recording suppression** | 0.5s | deadline-based | `AppController+FloatingZoneIdentity.swift` | Suppresses CmdTab/Launcher recency recording during floating zone placement and WinShot restore. Prevents transient focus events from these operations from polluting the recency order. |
+| **Manual move suppression** | 1.5s | deadline-based | `AppController+SystemEvents.swift` | After Zonogy programmatically moves windows (e.g., screen topology change), AX move notifications arrive but are not user-initiated. Suppresses manual-move/drag handling for 1.5s so Zonogy doesn't misinterpret its own moves as user drags. |
+| **ActiveFit restore suppression** | 1.0s | `asyncAfter` | `AppController+ActiveFit.swift` | During WinShot snapshot restore, internal operations rapidly move windows around. ActiveFit reveal mode evaluation is suppressed for 1s so decisions are made only after the layout settles. |
+
+### Debounce
+
+These batch rapid events to avoid redundant work or UI flicker.
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Deferred minimization debounce** | 0.15s | `DispatchSourceTimer` | `DeferredMinimizationCoordinator.swift` | Shared minimization queue for all displacement paths (tiled-zone displacement, floating-zone replacement, occlusion/focus-driven floating minimization). Displaced windows are queued rather than minimized immediately; flushes after 150ms of quiet, batching rapid displacements (e.g., app opening multiple windows). |
+| **Screen topology change debounce** | 0.25s | `asyncAfter` | `AppController+SystemEvents.swift` | macOS fires multiple rapid display-change notifications when monitors are connected/disconnected. Waits 250ms for them to settle before recapturing topology. |
+| **Full-screen check debounce (resize)** | 0.25s | `asyncAfter` | `AppController+FullScreen.swift` | Windows emit resize notifications in bursts during full-screen transitions. Waits 250ms after the last resize before querying `AXFullScreen`. |
+| **Full-screen check debounce (Space change)** | 0.25s | `asyncAfter` | `AppController+FullScreen.swift` | Some apps don't emit resize events for full-screen windows on Space change. Debounces the rescan to 250ms after the Space change. |
+| **Self-resize snap debounce** | 0.25s | stateful timestamp cache | `WindowSelfResizeSnapSupport.swift` | For apps with `snapToZoneOnSelfResize`, prevents repeated snap-to-zone attempts for the same window and target frame within 250ms. Avoids infinite loops when an app's internal resize triggers a snap which triggers another resize notification. |
+| **Launcher install-watch debounce** | 2.0s | `asyncAfter` | `LauncherInstallWatchService.swift` | App installations/removals trigger many filesystem events. Waits 2s after the last event before reloading the Launcher's app cache. |
+| **Launcher install-watch stream latency** | 1.0s | `FSEventStream` | `LauncherInstallWatchService.swift` | FSEvents stream coalescing latency — the OS batches filesystem events for up to 1s before delivering them. |
+| **Launcher usage persistence debounce** | 0.5s | `Task.sleep` | `LaunchItemUsageStore.swift` | Batches rapid Launcher item usage updates before persisting to disk. |
+
+### UX / Interaction
+
+These provide smooth user experience during interactions.
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Zone resize drag throttle** | 0.025s (40 Hz) | `Timer` + `RunLoop.main` | `ZoneResizeHandleManager.swift` | Mouse drag events can arrive faster than layout can update. Batches drag deltas and dispatches resize at ~40 Hz to keep the main thread responsive. Runs in `.common` RunLoop mode so it fires during mouse tracking. |
+| **DockMenu show delay** | 0.12s | `asyncAfter` | `DockHoverTracker.swift` | Prevents DockMenu from flickering during fast Dock scrubbing. Only shows if cursor remains on the same Dock icon for 120ms. |
+| **DockMenu dismissal polling** | 0.05s repeating, 0.2s grace | `Timer` + `RunLoop.main` | `DockMenuDismissalPoller.swift` | No reliable event for "cursor left both the Dock icon and DockMenu panel". Polls cursor position at 50ms; dismisses after cursor stays outside the safe region for 200ms. |
+| **Floating zone indicator hover-exit** | 0.06s | `asyncAfter` | `FloatingZoneIndicatorManager.swift` | Hysteresis for hover detection on the floating zone indicator. Delays the exit check by 60ms to avoid flicker during fast edge swiping. |
+| **Add-zone indicator hover-exit** | 0.06s | `asyncAfter` | `AddZoneIndicatorManager.swift` | Same hysteresis for the add-zone indicator pill on the screen edge. |
+| **External drag overlay teardown** | 0.05s | `asyncAfter` | `ExternalZoneDropInterceptor.swift` | Brief pause before cleaning up drag overlay UI after an external drop, allowing the drop animation to complete. |
+| **Placeholder external drag overlay teardown** | 0.05s | `asyncAfter` | `AppController+WindowCapture.swift` | Same brief teardown delay for the placeholder-specific external drag overlay path. |
+| **Async unminimize settle delay** | 0.01s | `asyncAfter` | `WindowController+WindowOps.swift` | When unminimizing a pre-positioned window, yields to the run loop for 10ms before issuing the AX unminimize call. Without this, the window can visually flash at its old position before snapping to the target. |
+| **Launcher auto-show grace period** | 0.5s | deadline-based | `LauncherController.swift` | After auto-showing the Launcher, suppresses immediate dismissal for 0.5s. macOS may auto-focus a window behind the Launcher panel, which would otherwise trigger an unwanted dismiss. |
+| **Window activity recording stability** | 0.25s | `asyncAfter` | `AppController+TargetingBehavior.swift` | Only records a window focus event for CmdTab/Launcher recency if the window remains focused for 250ms. Prevents twitchy recency updates during rapid app switching. |
+| **User resize mouse-up grace** | 0.35s | deadline-based | `AppController.swift` | After mouse-up, there's a brief window where a border-adjacent resize is still classified as user-driven. Bridges the gap between the mouse release and the final AX resize notification. |
+
+### Recapture (Display Topology Changes)
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Deferred recapture** | 0.5s + 1.5s | `asyncAfter` | `AppController+Recapture.swift` | After display topology changes, schedules two deferred passes (at 0.5s and 1.5s) to capture new windows and place tracked-but-unzoned windows that may have appeared or moved during the transition. |
+
+---
+
+## Sleep/Wake
+
+These timers handle the sleep/wake transition, where AX APIs become temporarily unavailable.
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Wake readiness polling** | 0.5s repeating | `DispatchSourceTimer` | `AppController+SleepWake.swift` | After `screensDidWakeNotification`, AX APIs may not be ready yet. Polls every 0.5s until the display is awake, the session is unlocked, and `NSWorkspace.shared.frontmostApplication` returns non-nil. (Uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery.) |
+| **Deferred recapture (wake)** | 0.5s + 1.5s | `asyncAfter` | `AppController+Recapture.swift` | After wake-from-sleep, schedules the same two deferred recapture/placement passes as display topology changes. |
+
+### Sleep Cancellation
+
+When screens go to sleep (`screensDidSleepNotification`), Zonogy prevents AX operations from firing during sleep using two strategies:
+
+**Explicitly cancelled:** Validation retries, wake readiness timer, frame retries, capture retries, screen-change recapture timers, and screen-change debounce timer are actively cancelled in `handleScreensDidSleep`.
+
+**Guard-and-bail:** Some delayed work items are not explicitly cancelled but instead check `screensAsleep` when they fire and return early if true. This includes: minimize verification (`AppController+ZoneLifecycle.swift`) and startup capture (`AppController+Startup.swift`).
+
+See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
+
+---
+
+## Startup & Application Events
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Application window capture** | 0.0s + 0.4s | `asyncAfter` | `AppController+Startup.swift` | Schedules two capture attempts per application — one immediate (0.0s) and one at 0.4s. Used at startup for all running applications, and at runtime for app activation, launch, and unhide events. The second attempt catches windows that aren't AX-queryable right away. (Separate from `WindowCapturePipeline` backoff retries, which handle per-PID capture failures after `AXWindowCreated`.) |
+
+---
+
+## Preferences UI
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Accessibility permission polling** | 1.0s repeating | `Timer.scheduledTimer` | `GeneralPreferencesViewController.swift` | No notification exists for accessibility/screen-recording permission changes. Polls every 1s while the Preferences General tab is open to update the UI. |
+
+---
+
+## Notes
+
+- **No global polling loops:** Every timer is tied to a concrete event (window creation, focus change, display reconfiguration, etc.). Scheduled timers (`asyncAfter`, `DispatchSourceTimer`, `Timer`) are cancelled when no longer needed. Deadline-based mechanisms (notification suppression, activity recording suppression) are not actively cancelled — they expire passively when checked.
+- **Why so many AX workarounds?** The Accessibility API provides no guarantees on timing, ordering, or completeness of notifications. Windows may not be queryable when created, moves may silently fail, destroy notifications may never arrive, and the API may be entirely unavailable during sleep/wake transitions. Each retry mechanism targets a specific failure mode.

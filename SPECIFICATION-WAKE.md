@@ -40,7 +40,7 @@ Triggered by: `NSWorkspace.screensDidWakeNotification`.
 When we receive this notifications, it's still possible that the screen is not ready and things like `_AXUIElementGetWindow` will err. We will wait for the following checks to pass:
     - Is the Display Asleep? (CGDisplayIsAsleep) => must not be
     - Is the Screen Locked? (CGSSessionScreenIsLocked) => must not be
-    - Is there an active application returned by AX API? => must be yes
+    - Does `NSWorkspace.shared.frontmostApplication` return non-nil? => must be yes (uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery)
 We poll at 0.5 increments until this passes. At this point we assume that AX API is ready.
 
 set screensAsleep = false and undim the menubar icon
