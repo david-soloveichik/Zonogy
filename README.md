@@ -6,7 +6,7 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone, wi
 
 > Philosophy: An intentional place for every window.
 
-<img src="docs/images/hero-screenshot.png" alt="Hero screenshot, showing various features of Zonogy" style="zoom: 35%;" />
+<img src="docs/images/hero-screenshot.png" alt="Hero screenshot, showing various features of Zonogy" width="1512" />
 
 ## Overview
 
@@ -30,7 +30,7 @@ Each screen has 1–3 **tiling zones** that form the main layout, plus a **float
 
 Exactly one zone is **targeted** at any moment, indicated by a glowing indicator above the zone. New or unminimized windows are always placed into the targeted zone.
 
-<img src="docs/images/zone-layouts.svg" alt="Zones core concepts" style="zoom: 25%;"/>
+<img src="docs/images/zone-layouts.svg" alt="Zones core concepts" width="800" />
 
 Filling the targeted tiling zone advances to the next empty tiling zone, or the floating zone if no zone is empty. Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
 
@@ -38,19 +38,19 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 - **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the targeted zone where the window will appear.
 
-<img src="docs/images/launcher.png" alt="Launcher" style="zoom: 35%;" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" style="zoom: 35%;" />
+<img src="docs/images/launcher.png" alt="Launcher" width="499" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" width="608" />
 
 - **CmdTab** (`Cmd-Tab`) — a fast window chooser replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. The chooser appears directly in the targeted zone where the window will appear.
 
-<img src="docs/images/cmdtab.png" alt="CmdTab" style="zoom: 35%;" />
+<img src="docs/images/cmdtab.png" alt="CmdTab" width="425" />
 
 - **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements and zone layouts. A visual timeline chooser lets you scrub through past snapshots.
 
-<img src="docs/images/winshot-chooser.png" alt="WinShot Chooser" style="zoom: 35%;" />
+<img src="docs/images/winshot-chooser.png" alt="WinShot Chooser" width="1174" />
 
 - **DockMenus** — hover over any Dock icon to see a compact panel of that app's windows. Click to activate, or drag the icon or a window entry onto a zone to place it there. Shift-click bypasses Zonogy for normal Dock behavior.
 
-<img src="docs/images/dockmenus.png" alt="DockMenus" style="zoom: 35%;" />
+<img src="docs/images/dockmenus.png" alt="DockMenus" width="356" />
 
 - **ActiveFit** — windows in the right column that can't shrink to fit are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
