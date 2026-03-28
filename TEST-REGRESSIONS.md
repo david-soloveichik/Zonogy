@@ -25,6 +25,9 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 - Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
   - Think about: Preserve a real post-open grace window and/or require unmanaged-focus state to stabilize (short debounce or repeated confirmation) before dismissing.
 
+- Bug report: Holding Control-Command after an external drag stops moving can show the intercepted zone overlay, but releasing without another mouse move drops nothing.
+  - Think about: `flagsChanged` alone must not arm the intercepted overlay. Only a subsequent drag move should promote to Control-Command interception; otherwise keep the stationary UI truthful (including leaving empty-zone placeholder behavior unchanged).
+
 - Bug report: Sleep/wake can leave delayed retries or timers running into AX-not-ready periods, causing false window pruning or other incorrect lifecycle actions.
   - Think about: Route sleep-sensitive timer/work-item cancellation through `cancelSleepSensitiveAsyncWork(reason:)` (in `AppController+SleepWake.swift`), only resume AX-dependent work after wake readiness gates are satisfied, and keep sync-pruned windows in deferred-prune bookkeeping long enough to restore the same `windowId` if the same pid/CGWindowID reappears.
 

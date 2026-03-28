@@ -66,8 +66,10 @@ final class ExternalZoneDropInterceptor {
 
     private func handle(event: NSEvent) {
         switch event.type {
-        case .leftMouseDragged, .flagsChanged:
-            refreshInterceptionState()
+        case .leftMouseDragged:
+            refreshInterceptionState(allowBeginInterception: true)
+        case .flagsChanged:
+            refreshInterceptionState(allowBeginInterception: false)
         case .leftMouseUp:
             scheduleMouseUpTearDown()
         default:
@@ -75,7 +77,7 @@ final class ExternalZoneDropInterceptor {
         }
     }
 
-    private func refreshInterceptionState() {
+    private func refreshInterceptionState(allowBeginInterception: Bool) {
         pendingMouseUpTearDownWorkItem?.cancel()
         pendingMouseUpTearDownWorkItem = nil
 
@@ -100,9 +102,10 @@ final class ExternalZoneDropInterceptor {
             return
         }
 
-        host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
-
         if !isInterceptionActive {
+            guard allowBeginInterception else {
+                return
+            }
             guard host.shouldBeginExternalZoneDropInterception(cursorPoint: cursorPoint) else {
                 return
             }
@@ -112,6 +115,7 @@ final class ExternalZoneDropInterceptor {
             Logger.debug("External zone drop interception began")
         }
 
+        host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
         overlayManager.updateHighlight(to: host.resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint))
     }
 
