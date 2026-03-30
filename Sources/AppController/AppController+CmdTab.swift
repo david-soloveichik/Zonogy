@@ -26,8 +26,8 @@ extension AppController: CmdTabControllerDelegate {
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem] {
         var items: [LauncherWindowItem] = []
 
-        // Collect all managed windows across all applications
-        for window in windowController.allWindows {
+        // Collect all managed windows across all applications in shared recency order.
+        for window in windowController.allWindowsOrderedByRecency() {
             let element = window.backing.element
             let pid = window.backing.pid
 
@@ -62,23 +62,6 @@ extension AppController: CmdTabControllerDelegate {
                 managedWindowId: window.windowId
             )
             items.append(item)
-        }
-
-        // Sort by lastActiveTime (most recent first), then by Zonogy ID
-        items.sort { lhs, rhs in
-            switch (lhs.lastActiveTime, rhs.lastActiveTime) {
-            case (let lhsTime?, let rhsTime?):
-                return lhsTime > rhsTime
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                // Fall back to Zonogy ID (discovery order)
-                let lhsId = lhs.managedWindowId ?? Int.max
-                let rhsId = rhs.managedWindowId ?? Int.max
-                return lhsId < rhsId
-            }
         }
 
         return items

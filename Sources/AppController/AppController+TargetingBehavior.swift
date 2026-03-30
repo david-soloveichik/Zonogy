@@ -43,12 +43,19 @@ extension AppController {
         updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
     }
 
-    /// Update targeting immediately, but only record window activity if the window remains focused for
+    /// Update targeting immediately when this activation would change shared managed-window recency,
+    /// but only record window activity if the window remains focused for
     /// `windowActivityRecordingStabilityDelay`.
     /// CmdTab/Launcher recency should ignore brief intermediate activations that can occur during
     /// app/window switching flows (e.g., the app's previously-frontmost window becomes key briefly).
     internal func recordActiveWindowForHistoryDebounced(windowId: Int, pid: pid_t, reason: String) {
-        updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
+        // In follows-focus mode, only retarget if this window is not already the most recently
+        // active managed window. This avoids spurious retargeting from OS re-activation
+        // notifications for the already-active window, which could override the user's manual
+        // targeting choice.
+        if !windowController.isMostRecentlyActive(windowId: windowId) {
+            updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
+        }
         scheduleStableWindowActivityRecording(windowId: windowId, pid: pid)
     }
 

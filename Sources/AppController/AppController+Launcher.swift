@@ -529,8 +529,8 @@ extension AppController: LauncherWindowProvider {
         let pid = runningApp.processIdentifier
         var items: [LauncherWindowItem] = []
 
-        // Use Zonogy's tracked windows as the source of truth
-        for window in windowController.allWindows {
+        // Use Zonogy's tracked windows as the source of truth, already ordered by shared recency semantics.
+        for window in windowController.allWindowsOrderedByRecency() {
             guard window.backing.pid == pid else {
                 continue
             }
@@ -564,28 +564,6 @@ extension AppController: LauncherWindowProvider {
                 managedWindowId: window.windowId
             )
             items.append(item)
-        }
-
-        // Sort by lastActiveTime (most recent first), then by Zonogy ID (discovery order)
-        items.sort { lhs, rhs in
-            switch (lhs.lastActiveTime, rhs.lastActiveTime) {
-            case (let lhsTime?, let rhsTime?):
-                if lhsTime != rhsTime {
-                    return lhsTime > rhsTime
-                }
-                let lhsId = lhs.managedWindowId ?? Int.max
-                let rhsId = rhs.managedWindowId ?? Int.max
-                return lhsId < rhsId
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                // Fall back to Zonogy ID (discovery order), which prioritizes main windows
-                let lhsId = lhs.managedWindowId ?? Int.max
-                let rhsId = rhs.managedWindowId ?? Int.max
-                return lhsId < rhsId
-            }
         }
 
         return items

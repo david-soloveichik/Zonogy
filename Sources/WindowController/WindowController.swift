@@ -82,7 +82,7 @@ class WindowController {
     // before turning an AXMoved burst into a real drag begin event.
     internal let dragActivationDistance: CGFloat = 6
 
-    /// Tracks the last time each window was activated (for launcher recency ordering)
+    /// Tracks the last time each window was activated for shared managed-window recency ordering.
     internal var windowLastActiveTime: [Int: Date] = [:]
 
     struct CaptureResult {
@@ -379,9 +379,9 @@ class WindowController {
         return windowRegistry.allWindows
     }
 
-    // MARK: - Window Activity Tracking (for Launcher recency)
+    // MARK: - Window Activity Tracking (shared recency ordering)
 
-    /// Record that a window was activated (for launcher recency ordering).
+    /// Record that a window was activated for shared managed-window recency ordering.
     func recordWindowActivity(windowId: Int, at timestamp: Date = Date()) {
         if restoredPendingPruneActivitySkipWindowIds.remove(windowId) != nil {
             Logger.debug("Skipping first activity record for restored deferred-prune window \(windowId)")
@@ -390,9 +390,43 @@ class WindowController {
         windowLastActiveTime[windowId] = timestamp
     }
 
-    /// Get the last active time for a window (for launcher recency ordering)
+    /// Get the last active time for a window in shared managed-window recency ordering.
     func lastActiveTime(for windowId: Int) -> Date? {
         windowLastActiveTime[windowId]
+    }
+
+    /// Returns true if the left window should sort ahead of the right window in shared recency order.
+    func isWindowMoreRecent(windowId lhsId: Int, than rhsId: Int) -> Bool {
+        ManagedWindowRecencyOrder.isMoreRecent(
+            windowId: lhsId,
+            lastActiveTime: lastActiveTime(for: lhsId),
+            than: rhsId,
+            otherLastActiveTime: lastActiveTime(for: rhsId)
+        )
+    }
+
+    /// Returns all managed windows ordered by shared CmdTab/Launcher recency semantics.
+    func allWindowsOrderedByRecency() -> [ManagedWindow] {
+        allWindows.sorted { lhs, rhs in
+            isWindowMoreRecent(windowId: lhs.windowId, than: rhs.windowId)
+        }
+    }
+
+    /// Returns the managed window currently first in shared CmdTab/Launcher recency order.
+    func mostRecentManagedWindowId() -> Int? {
+        allWindows.reduce(nil) { currentBest, window in
+            guard let currentBest else {
+                return window.windowId
+            }
+            return isWindowMoreRecent(windowId: window.windowId, than: currentBest)
+                ? window.windowId
+                : currentBest
+        }
+    }
+
+    /// Returns true if the given window currently leads shared CmdTab/Launcher recency order.
+    func isMostRecentlyActive(windowId: Int) -> Bool {
+        mostRecentManagedWindowId() == windowId
     }
 }
 

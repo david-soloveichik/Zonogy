@@ -51,6 +51,9 @@ enum GuardrailTests {
         if !PendingPrunedWindowStoreTests.run() {
             allPassed = false
         }
+        if !ManagedWindowRecencyOrderTests.run() {
+            allPassed = false
+        }
         if !TargetedZoneManagerTests.run() {
             allPassed = false
         }
