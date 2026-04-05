@@ -41,16 +41,16 @@ rm -rf "$ICONSET_DIR"
 mkdir -p "$ICONSET_DIR"
 
 # Generate icon sizes
-sips -z 16 16     "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_16x16.png" > /dev/null
-sips -z 32 32     "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_16x16@2x.png" > /dev/null
-sips -z 32 32     "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_32x32.png" > /dev/null
-sips -z 64 64     "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_32x32@2x.png" > /dev/null
-sips -z 128 128   "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_128x128.png" > /dev/null
-sips -z 256 256   "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_128x128@2x.png" > /dev/null
-sips -z 256 256   "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_256x256.png" > /dev/null
-sips -z 512 512   "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_256x256@2x.png" > /dev/null
-sips -z 512 512   "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_512x512.png" > /dev/null
-sips -z 1024 1024 "$PROJECT_DIR/Resources/icon1.png" --out "$ICONSET_DIR/icon_512x512@2x.png" > /dev/null
+sips -z 16 16     "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_16x16.png" > /dev/null
+sips -z 32 32     "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_16x16@2x.png" > /dev/null
+sips -z 32 32     "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_32x32.png" > /dev/null
+sips -z 64 64     "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_32x32@2x.png" > /dev/null
+sips -z 128 128   "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_128x128.png" > /dev/null
+sips -z 256 256   "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_128x128@2x.png" > /dev/null
+sips -z 256 256   "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_256x256.png" > /dev/null
+sips -z 512 512   "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_256x256@2x.png" > /dev/null
+sips -z 512 512   "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_512x512.png" > /dev/null
+sips -z 1024 1024 "$PROJECT_DIR/Resources/icon5.png" --out "$ICONSET_DIR/icon_512x512@2x.png" > /dev/null
 
 # Convert to icns
 iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
