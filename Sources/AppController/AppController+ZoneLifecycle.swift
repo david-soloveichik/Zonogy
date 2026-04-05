@@ -24,45 +24,6 @@ extension AppController {
         print("Closed window \(windowId)")
     }
 
-    func minimizeWindow(withId windowId: Int) {
-        guard let managed = windowController.window(withId: windowId) else {
-            print("Window \(windowId) not found")
-            return
-        }
-
-        let emptiedZoneKey = zoneKey(forManagedWindow: managed)
-
-        let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
-            managed,
-            minimizeReason: "minimize-command",
-            cleanupReason: "minimize-command",
-            retarget: true
-        )
-        syncWindowsToZones()
-        scheduleMinimizeVerification(
-            windowId: managed.windowId,
-            emptiedZoneKey: emptiedZoneKey,
-            minimizeReason: "minimize-command",
-            cleanupReason: "minimize-command",
-            wasManualResizeDetached: wasManualResizeDetached
-        )
-
-        print("Minimized window \(windowId)")
-    }
-
-    func unminimizeWindow(withId windowId: Int) {
-        guard let managed = windowController.window(withId: windowId) else {
-            print("Window \(windowId) not found")
-            return
-        }
-
-        windowController.unminimizeWindow(managed)
-
-        // Place the window using normal placement logic
-        windowPlacementManager.placeNewWindow(managed)
-
-        print("Unminimized window \(windowId)")
-    }
 
     func captureFrontmostWindow() {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
@@ -363,9 +324,12 @@ extension AppController {
         minimizeWindowProgrammatically(managed, reason: reason, suppressTimeout: 3.0)
     }
 
-    /// Minimizes the currently active/key window using Cmd-M shortcut override
+    /// Minimizes the currently active/key window using Cmd-M shortcut override.
+    /// We issue only the AX minimize call and let the AXWindowMiniaturized notification
+    /// handler (windowDidMiniaturize) handle zone removal, retargeting, and layout sync.
+    /// This matches the event ordering of native minimize-button clicks, where macOS
+    /// shifts focus before delivering the miniaturize notification.
     internal func minimizeActiveWindow() {
-        // Try to get the frontmost managed window
         guard let (managed, pid) = managedWindowForFrontmostApplication(
             logPrefix: "minimizeActiveWindow"
         ) else {
@@ -373,38 +337,11 @@ extension AppController {
             return
         }
 
-        let emptiedZoneKey = zoneKey(forManagedWindow: managed)
-
-        // Get window title for logging
-        var windowTitle = "untitled"
-        let element = managed.backing.element
-        var value: AnyObject?
-        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-           let title = value as? String,
-           !title.isEmpty {
-            windowTitle = title
-        }
-
         Logger.debug(
-            "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid) " +
-            "(\(windowTitle))"
+            "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid)"
         )
 
-        let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
-            managed,
-            minimizeReason: "cmd-m-override",
-            cleanupReason: "cmd-m-minimize",
-            retarget: true
-        )
-        syncWindowsToZones()
-
-        scheduleMinimizeVerification(
-            windowId: managed.windowId,
-            emptiedZoneKey: emptiedZoneKey,
-            minimizeReason: "cmd-m-override",
-            cleanupReason: "cmd-m-minimize",
-            wasManualResizeDetached: wasManualResizeDetached
-        )
+        windowController.minimizeWindow(managed)
     }
 
 }

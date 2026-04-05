@@ -129,6 +129,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - **Targeting follows focus:** Same as “Targeting independent of focus” except:
   - When a managed window becomes active in a zone (tiling or floating), that zone becomes targeted — but only if the window is not already the most recently active managed window per the recency tracking used by Launcher / CmdTab. (This prevents spurious OS re-activation notifications from overriding the user's manual targeting choice.)
   - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the floating zone).
+  - When a window is minimized (by any means), the resulting empty-zone retarget takes priority over any follows-focus retarget caused by the same action.
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone.
 

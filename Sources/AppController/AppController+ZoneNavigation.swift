@@ -172,28 +172,13 @@ extension AppController {
                 "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(windowTitle))"
             )
 
-            let emptiedZoneKey = zoneKey(forManagedWindow: managed)
-
             // Exit UnderCovers on the screen where this window lives, if applicable.
             if let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) {
                 endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
             }
 
-            let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
-                managed,
-                minimizeReason: "cursor-shortcut-minimize",
-                cleanupReason: "cursor-shortcut-minimize",
-                retarget: true
-            )
-            syncWindowsToZones()
-
-            scheduleMinimizeVerification(
-                windowId: managed.windowId,
-                emptiedZoneKey: emptiedZoneKey,
-                minimizeReason: "cursor-shortcut-minimize",
-                cleanupReason: "cursor-shortcut-minimize",
-                wasManualResizeDetached: wasManualResizeDetached
-            )
+            // Issue AX minimize and let the notification handler do zone cleanup/retarget.
+            windowController.minimizeWindow(managed)
             return
         }
 
