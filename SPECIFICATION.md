@@ -151,7 +151,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
   3. Floating zone on the same screen
   4. Floating zone on a different screen (tie-break by screen index; lower is preferred)
 - If a floating zone is filled or emptied: keep the current target.
-- If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, if there is an active window in a zone, target that zone instead (any screen).
+- If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, try these in order: (1) the currently active window's zone, (2) the most recent window's zone (per recency tracking), (3) zone 1 on the same screen.
 - If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 
 **Target navigation shortcuts:**

@@ -4,37 +4,47 @@ import AppKit
 import Foundation
 
 extension AppController {
-    /// Returns the target destination for the focused window when a zone is removed (follows-focus mode only).
-    /// Returns nil if not in follows-focus mode or no suitable target found.
+    /// Returns the target destination when a zone is removed in follows-focus mode.
+    /// Delegates to FollowsFocusZoneRemovalPolicy for the pure selection logic.
     internal func followsFocusTargetOnZoneRemoval(
         removedIndex: Int,
         removedScreenId: CGDirectDisplayID
     ) -> TargetedZoneManager.TargetedDestination? {
-        guard targetingMode == .followsFocus,
-              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              let focused = windowController.focusedWindowIfTracked(pid: pid),
-              let focusedScreenId = focused.screenDisplayId ?? detectScreenId(for: focused) else {
-            return nil
+        guard targetingMode == .followsFocus else { return nil }
+
+        let activeCandidate: FollowsFocusZoneRemovalPolicy.Candidate? = {
+            guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                  let focused = windowController.focusedWindowIfTracked(pid: pid),
+                  let screenId = focused.screenDisplayId ?? detectScreenId(for: focused) else {
+                return nil
+            }
+            return FollowsFocusZoneRemovalPolicy.Candidate(
+                windowId: focused.windowId,
+                zoneIndex: focused.zoneIndex,
+                screenId: screenId,
+                isInFloatingZone: isWindowInFloatingZone(focused.windowId)
+            )
+        }()
+
+        let recencyCandidates: [FollowsFocusZoneRemovalPolicy.Candidate] = windowController.allWindowsOrderedByRecency().compactMap { window in
+            guard let screenId = window.screenDisplayId ?? detectScreenId(for: window) else { return nil }
+            return FollowsFocusZoneRemovalPolicy.Candidate(
+                windowId: window.windowId,
+                zoneIndex: window.zoneIndex,
+                screenId: screenId,
+                isInFloatingZone: isWindowInFloatingZone(window.windowId)
+            )
         }
 
-        if let focusedZoneIndex = focused.zoneIndex {
-            // Adjust index only if removing a zone on the same screen with lower index
-            let adjustedIndex = (focusedScreenId == removedScreenId && focusedZoneIndex > removedIndex)
-                ? focusedZoneIndex - 1
-                : focusedZoneIndex
-            let key = ZoneKey(screenId: focusedScreenId, index: adjustedIndex)
-            let screenIndex = screenContextStore.loggingIndex(for: focusedScreenId)
-            Logger.debug("Zone removal: targeting active window's zone \(adjustedIndex) on screen \(screenIndex) in follows-focus mode")
-            return .tiled(key)
-        }
+        let destination = FollowsFocusZoneRemovalPolicy.selectDestination(
+            activeCandidate: activeCandidate,
+            recencyCandidates: recencyCandidates,
+            removedIndex: removedIndex,
+            removedScreenId: removedScreenId
+        )
 
-        if isWindowInFloatingZone(focused.windowId) {
-            let screenIndex = screenContextStore.loggingIndex(for: focusedScreenId)
-            Logger.debug("Zone removal: targeting floating zone on screen \(screenIndex) in follows-focus mode")
-            return .floating(screenId: focusedScreenId)
-        }
-
-        return nil
+        Logger.debug("Zone removal: follows-focus retarget → \(destination) (active=\(activeCandidate != nil))")
+        return destination
     }
 
     internal func recordActiveWindowForHistory(windowId: Int, reason: String) {
