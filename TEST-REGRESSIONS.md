@@ -39,3 +39,7 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: WinShot restore can leave the active window behind other restored windows.
   - Think about: Async unminimize animations complete after the active window's AXRaise; re-raise the active window when each suppressed deminiaturize notification arrives.
+
+- Bug report: When in follows-focus mode, dropping external content (URL, file, etc.) onto a zone opens the resulting window in the wrong zone if the handler app already has a window in another zone.
+  - Think about: Any action that sets a target and then asynchronously launches or activates an app (external drops, Launcher launches, Dock launches) creates a gap where the handler app may activate with a pre-existing window before the new window is created. In follows-focus mode, that intermediate activation can retarget away from the intended zone.
+  

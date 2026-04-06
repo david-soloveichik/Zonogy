@@ -28,6 +28,7 @@ extension AppController {
         if let zone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) {
             let newZoneKey = zoneKey(for: screenId, index: zone.index)
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "add-zone-drop")
+            scheduleActivityRecordingSuppression(reason: "add-zone-drop")
         } else {
             Logger.debug("Add-zone drop requested a new zone on screen \(screenContextStore.loggingIndex(for: screenId)) but creation failed (likely at max zones)")
         }
@@ -37,6 +38,7 @@ extension AppController {
     func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem]) {
         guard !items.isEmpty else { return }
         targetedZoneManager.setFloatingTarget(on: screenId, reason: "floating-zone-drop")
+        scheduleActivityRecordingSuppression(reason: "floating-zone-drop")
         openExternalDropItems(items)
     }
 
@@ -78,6 +80,7 @@ extension AppController {
         }
 
         targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
+        scheduleActivityRecordingSuppression(reason: reason)
         openExternalDropItems(items)
     }
 
