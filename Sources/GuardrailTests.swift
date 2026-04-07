@@ -60,6 +60,9 @@ enum GuardrailTests {
         if !FollowsFocusZoneRemovalPolicyTests.run() {
             allPassed = false
         }
+        if !FocusFollowActivationSettlementPolicyTests.run() {
+            allPassed = false
+        }
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }

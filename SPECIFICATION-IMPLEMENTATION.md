@@ -50,6 +50,12 @@ When a window is replaced in the floating zone, the displaced window is queued f
 
 ## Accessibility API Workarounds
 
+### Follows-focus activation settlement
+
+In follows-focus mode, treat `NSWorkspace.didActivateApplication` as provisional. If the app's currently focused managed window is in a different destination than the current target, preserve the current target for a short settlement window instead of retargeting immediately.
+
+If a new managed window for that app is captured during that settlement window, place it into the preserved target. If no new managed window appears and the target has not changed for some other reason, retarget to the app's settled focused window when the settlement window ends.
+
 ### Retry Mechanisms Tied to Accessibility
 
 Zonogy uses five narrowly scoped retry/verification mechanisms to cope with AX timing and consistency issues: three are PID/application-scoped and two are per window. All of them are tied to concrete events (no global polling loops) and are explicitly cancelled when they are no longer needed or when the system goes to sleep.

@@ -128,6 +128,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - **Targeting independent of focus** (default): Targeting is controlled by the rules and shortcuts below and does not automatically change when focus changes.
 - **Targeting follows focus:** Same as “Targeting independent of focus” except:
   - When a managed window becomes active in a zone (tiling or floating), that zone becomes targeted — but only if the window is not already the most recently active managed window per the recency tracking used by Launcher / CmdTab. (This prevents spurious OS re-activation notifications from overriding the user's manual targeting choice.)
+  - When an app activates, do not immediately retarget to that app's already-focused window if that would steal a different current target. This avoids routing a newly opened window or document to the wrong zone just because the app briefly activated an older window first. Briefly preserve the current target while the activation settles. If the app creates a new managed window during that time, place it into the preserved target; otherwise retarget to the app's settled focused window.
   - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the floating zone).
   - When a window is minimized (by any means), the resulting empty-zone retarget takes priority over any follows-focus retarget caused by the same action.
 
@@ -242,6 +243,8 @@ Holding Control-Command during an external drag over an **occupied** tiling zone
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
 
 **Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
+
+In follows-focus mode, the destination chosen by an external drop stays authoritative while the handler app activates and creates the real window. A pre-existing focused window in that app must not steal the target first.
 
 ### Minimize Active Window
 

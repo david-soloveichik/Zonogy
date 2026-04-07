@@ -66,7 +66,11 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
             return
         }
+        let activatedPid = application?.processIdentifier
         if let previousPid = lastActiveApplicationPid {
+            if previousPid != activatedPid {
+                cancelFocusFollowActivationSettlement(pid: previousPid, reason: "other-app-activated")
+            }
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, trigger: .workspaceActivationPreviousApp)
             handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
         }
@@ -92,6 +96,15 @@ extension AppController {
         }
         currentFrontmostManagedWindowId = focusedManagedWindow?.windowId
         refreshResizeHandles()
+
+        if let applicationPid = application?.processIdentifier,
+           let focusedManagedWindow {
+            beginFocusFollowActivationSettlementIfNeeded(
+                pid: applicationPid,
+                bundleIdentifier: application?.bundleIdentifier,
+                focusedWindowId: focusedManagedWindow.windowId
+            )
+        }
 
         // Record window activity for CmdTab recency tracking.
         // Skip during activity suppression to avoid twitchy recordings during floating zone/WinShot operations.

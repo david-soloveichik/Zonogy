@@ -59,6 +59,10 @@ extension AppController {
     /// CmdTab/Launcher recency should ignore brief intermediate activations that can occur during
     /// app/window switching flows (e.g., the app's previously-frontmost window becomes key briefly).
     internal func recordActiveWindowForHistoryDebounced(windowId: Int, pid: pid_t, reason: String) {
+        if shouldSuppressFollowsFocusRetargetDuringActivation(pid: pid, reason: reason) {
+            return
+        }
+
         // In follows-focus mode, only retarget if this window is not already the most recently
         // active managed window. This avoids spurious retargeting from OS re-activation
         // notifications for the already-active window, which could override the user's manual

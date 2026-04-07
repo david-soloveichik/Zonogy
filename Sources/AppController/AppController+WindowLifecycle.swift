@@ -788,6 +788,7 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
             return
         }
+        cancelFocusFollowActivationSettlementForCapturedWindowIfNeeded(window)
         if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
            placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
             return

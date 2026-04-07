@@ -200,6 +200,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingWindowActivityRecordWorkItem: DispatchWorkItem?
     /// Monotonic token used to invalidate previously scheduled recordings.
     internal var pendingWindowActivityRecordToken: Int = 0
+    struct FocusFollowActivationSettlement {
+        let bundleIdentifier: String?
+        let initialTarget: TargetedZoneManager.TargetedDestination?
+        let initialFocusedWindowId: Int
+        var hasLoggedSuppression: Bool
+    }
+    /// Delay before follows-focus app-activation retargeting is allowed to settle onto an
+    /// already-focused window when that retarget would steal the current target.
+    internal let focusFollowActivationSettlementDuration: TimeInterval = 0.6
+    /// Per-app follows-focus activation settlements that are waiting to see whether a new
+    /// managed window appears before retargeting to the app's pre-existing focused window.
+    internal var focusFollowActivationSettlements: [pid_t: FocusFollowActivationSettlement] = [:]
+    /// Timeout work items that complete follows-focus activation settlements.
+    internal var focusFollowActivationSettlementWorkItems: [pid_t: DispatchWorkItem] = [:]
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {
