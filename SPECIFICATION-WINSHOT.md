@@ -6,7 +6,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 - With WinShot auto-save snapshots enabled in Preferences, Clear/Reset Zones (Control-Cmd-Escape or variant) captures the pre-clear arrangement when that screen has managed windows.
 - Explicitly created with Control-Cmd-/ shortcut on the active screen.
-- Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, and a low-resolution screenshot. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
+- Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, Sticky Resize remembered sizes (if any), and a low-resolution screenshot. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
 - Snapshots are screen-specific (cannot restore across screens).
 - Max snapshots per screen is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
@@ -31,6 +31,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Current windows not in the snapshot are minimized afterward.
 - Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
+- Restores any saved Sticky Resize remembered sizes for the snapshot's windows, so manually resized windows return to their custom sizes when reactivated.
 - Activates the previously active window.
 - **Targeting after restore:**
   - In "Targeting follows focus" mode: the zone containing the activated window becomes targeted.

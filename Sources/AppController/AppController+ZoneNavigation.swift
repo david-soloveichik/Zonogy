@@ -52,11 +52,12 @@ extension AppController {
                     emptiedZoneKey: nil,
                     minimizeReason: "clear-zones-shortcut",
                     cleanupReason: "clear-zones-shortcut",
-                    wasManualResizeDetached: false
+                    manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
                 )
             }
 
             Logger.debug("Clear/reset zones (\(reason)): all zones empty on screen \(screenIndex), resetting to 1 zone")
+            clearRememberedManualResizeSizes(on: screenId, reason: "reset-to-one-zone")
             let removedWindowIds = context.zoneController.setZoneCount(to: 1)
 
             for windowId in removedWindowIds {
@@ -109,7 +110,7 @@ extension AppController {
                     emptiedZoneKey: nil,
                     minimizeReason: "clear-zones-shortcut",
                     cleanupReason: "clear-zones-shortcut",
-                    wasManualResizeDetached: false
+                    manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
                 )
             }
         }

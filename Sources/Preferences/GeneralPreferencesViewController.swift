@@ -18,11 +18,13 @@ final class GeneralPreferencesViewController: NSViewController {
     private var dockMenusHintLabel: NSTextField?
     private var autoShowLauncherCheckbox: NSButton?
     private var autoShowLauncherHintLabel: NSTextField?
+    private var stickyResizeCheckbox: NSButton?
+    private var stickyResizeHintLabel: NSTextField?
     private var targetingModePopUpButton: NSPopUpButton?
     private var targetingModeHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 630))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 700))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -144,6 +146,24 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(autoShowLauncherHintLabel)
         self.autoShowLauncherHintLabel = autoShowLauncherHintLabel
 
+        let stickyResizeCheckbox = NSButton(
+            checkboxWithTitle: "Sticky Resize for tiled windows",
+            target: self,
+            action: #selector(stickyResizeToggled(_:))
+        )
+        stickyResizeCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(stickyResizeCheckbox)
+        self.stickyResizeCheckbox = stickyResizeCheckbox
+
+        let stickyResizeHintLabel = NSTextField(
+            wrappingLabelWithString: "When enabled, manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that screen's tiling geometry changes."
+        )
+        stickyResizeHintLabel.font = NSFont.systemFont(ofSize: 12)
+        stickyResizeHintLabel.textColor = .secondaryLabelColor
+        stickyResizeHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(stickyResizeHintLabel)
+        self.stickyResizeHintLabel = stickyResizeHintLabel
+
         let targetingModeLabel = NSTextField(labelWithString: "Targeting mode:")
         targetingModeLabel.font = NSFont.systemFont(ofSize: 13)
         targetingModeLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -206,7 +226,14 @@ final class GeneralPreferencesViewController: NSViewController {
             dockMenusHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            targetingModeLabel.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
+            stickyResizeCheckbox.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
+            stickyResizeCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            stickyResizeHintLabel.topAnchor.constraint(equalTo: stickyResizeCheckbox.bottomAnchor, constant: 6),
+            stickyResizeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            stickyResizeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            targetingModeLabel.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 18),
             targetingModeLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             targetingModePopUpButton.centerYAnchor.constraint(equalTo: targetingModeLabel.centerYAnchor),
@@ -222,13 +249,14 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 525)
+        self.preferredContentSize = NSSize(width: 580, height: 590)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
         syncLaunchAtLoginCheckbox()
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
+        syncStickyResizeCheckbox()
         syncTargetingModeControl()
     }
 
@@ -286,6 +314,17 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncAutoShowLauncherCheckbox() {
         let enabled = AppController.shared.isAutoShowLauncherForEmptyTilingZonesEnabledInSettings
         autoShowLauncherCheckbox?.state = enabled ? .on : .off
+    }
+
+    @objc private func stickyResizeToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setStickyResizeEnabledFromSettings(enabled)
+        syncStickyResizeCheckbox()
+    }
+
+    private func syncStickyResizeCheckbox() {
+        let enabled = AppController.shared.isStickyResizeEnabledInSettings
+        stickyResizeCheckbox?.state = enabled ? .on : .off
     }
 
     @objc private func targetingModeChanged(_ sender: NSPopUpButton) {

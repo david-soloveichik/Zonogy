@@ -14,6 +14,9 @@ struct WinShotSnapshot {
     /// Only populated for zones that had a non-placeholder window.
     let windowFrames: [Int: CGRect]
 
+    /// Sticky Resize remembered tiled-window sizes captured at snapshot time (zoneIndex -> size).
+    let rememberedTiledWindowSizesByZoneIndex: [Int: CGSize]
+
     /// Window assignments (zoneIndex -> identity)
     let zoneAssignments: [Int: WindowIdentity]
 
@@ -77,8 +80,11 @@ struct WinShotSnapshot {
             if let identity = zoneAssignments[index] {
                 let bundle = identity.bundleIdentifier ?? "unknown"
                 let title = identity.windowTitle ?? "untitled"
+                let rememberedSizeDescription = rememberedTiledWindowSizesByZoneIndex[index].map {
+                    ", rememberedSize=\($0)"
+                } ?? ""
                 Logger.debug(
-                    "\(prefix) zone \(index): windowId=\(identity.windowId), bundle=\(bundle), title=\(title), frame=\(frame)"
+                    "\(prefix) zone \(index): windowId=\(identity.windowId), bundle=\(bundle), title=\(title), frame=\(frame)\(rememberedSizeDescription)"
                 )
             } else {
                 Logger.debug("\(prefix) zone \(index): empty, frame=\(frame)")

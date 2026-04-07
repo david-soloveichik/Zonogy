@@ -225,8 +225,14 @@ extension AppController {
                         continue
                     }
                     // Normal case: compute the zone's content frame (respecting
-                    // the 8px/4px margins) and move the window into it.
-                    let displayFrame = frameWithMargin(for: zone, in: controller)
+                    // the 8px/4px margins), or the remembered Sticky Resize frame
+                    // for the currently active window, and move the window there.
+                    let frameResolution = stickyResizeFrameResolution(
+                        for: managed,
+                        zone: zone,
+                        controller: controller
+                    )
+                    let displayFrame = frameResolution.frame
                     if isLiveResizeSync {
                         // Fast path: dispatch AX writes to a background queue,
                         // skip unchanged attributes based on previous target.
@@ -242,9 +248,13 @@ extension AppController {
                     } else {
                         windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     }
-                    // If the user had manually resized this window, once we
-                    // snap it back to the zone we can clear the detached flag.
-                    manualResizeDetachedWindowIds.remove(windowId)
+                    if frameResolution.usesRememberedSize {
+                        manualResizeDetachedWindowIds.insert(windowId)
+                    } else {
+                        // If the user had manually resized this window, once we
+                        // snap it back to the zone we can clear the detached flag.
+                        manualResizeDetachedWindowIds.remove(windowId)
+                    }
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                     assignedWindowIds.insert(windowId)
                 }

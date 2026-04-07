@@ -39,6 +39,7 @@ final class WinShotManager {
         windowController: WindowController,
         screenDescriptor: ScreenDescriptor,
         floatingZoneOccupant: ManagedWindow?,
+        rememberedStickyResizeSizesByWindowId: [Int: CGSize],
         activeWindowId: Int?,
         reason: String
     ) -> WinShotSnapshot? {
@@ -96,6 +97,11 @@ final class WinShotManager {
         // Capture screenshot
         let thumbnail = captureScreenThumbnail(screenId: screenId)
 
+        let rememberedTiledWindowSizesByZoneIndex = WinShotStickyResizeSnapshotMapping.snapshotSizesByZoneIndex(
+            zoneAssignments: zoneAssignments,
+            rememberedSizesByWindowId: rememberedStickyResizeSizesByWindowId
+        )
+
         // Create snapshot
         let snapshot = WinShotSnapshot(
             id: UUID(),
@@ -104,6 +110,7 @@ final class WinShotManager {
             zoneCount: zoneCount,
             zoneFrames: zoneFrames,
             windowFrames: windowFrames,
+            rememberedTiledWindowSizesByZoneIndex: rememberedTiledWindowSizesByZoneIndex,
             zoneAssignments: zoneAssignments,
             floatingZoneOccupant: floatingIdentity,
             floatingZoneFrame: floatingFrame,

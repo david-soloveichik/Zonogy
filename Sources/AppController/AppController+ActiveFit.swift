@@ -163,7 +163,12 @@ extension AppController {
             return
         }
 
-        let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let frameResolution = stickyResizeFrameResolution(
+            for: managed,
+            zone: zone,
+            controller: context.zoneController
+        )
+        let candidateFrame = frameResolution.frame
 
         // If a frame retry is still pending (e.g., from initial placement), skip — the
         // rest-mode moveWindow below would cancel the retry chain before it resizes the
@@ -179,21 +184,21 @@ extension AppController {
         // Skip this priming move after a frame-retry settle callback to avoid starting a new retry loop.
         if activeFitState == nil {
             if shouldPrimeWithRestMove {
-                windowController.moveWindow(managed, to: zoneFrame, on: descriptor)
+                windowController.moveWindow(managed, to: candidateFrame, on: descriptor)
             } else {
                 Logger.debug("ActiveFit: evaluating settled frame for window \(managed.windowId) without rest-mode priming move")
             }
         }
 
-        let restOrigin = zoneFrame.origin
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
+        let candidateSize = frameResolution.usesRememberedSize ? candidateFrame.size : actualFrame.size
 
         // Check if window would overflow in rest mode and needs reveal mode
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: zoneIndex,
-            zoneOrigin: restOrigin,
-            windowSize: actualFrame.size,
+            zoneOrigin: candidateFrame.origin,
+            windowSize: candidateSize,
             screenBounds: screenBounds,
             tolerance: activeFitOverflowTolerance
         ) else {
@@ -241,7 +246,11 @@ extension AppController {
             return
         }
 
-        let restFrame = frameWithMargin(for: zone, in: context.zoneController)
+        let restFrame = stickyResizeFrameResolution(
+            for: managed,
+            zone: zone,
+            controller: context.zoneController
+        ).frame
         Logger.debug("ActiveFit: returning window \(state.windowId) to rest mode in zone \(state.zoneKey.index) (\(reason))")
 
         // Clear state before moving window to avoid race condition with frame retry checks
@@ -299,7 +308,7 @@ extension AppController {
         )
     }
 
-    private func isWindowActive(_ managed: ManagedWindow) -> Bool {
+    internal func isWindowActive(_ managed: ManagedWindow) -> Bool {
         let pid = managed.backing.pid
         guard let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
               frontmostPid == pid else {
@@ -441,15 +450,19 @@ extension AppController {
             return
         }
 
-        let zoneFrame = frameWithMargin(for: zone, in: context.zoneController)
-        let restOrigin = zoneFrame.origin
+        let frameResolution = stickyResizeFrameResolution(
+            for: managed,
+            zone: zone,
+            controller: context.zoneController
+        )
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
+        let candidateSize = frameResolution.usesRememberedSize ? frameResolution.frame.size : actualFrame.size
 
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneIndex: zoneIndex,
-            zoneOrigin: restOrigin,
-            windowSize: actualFrame.size,
+            zoneOrigin: frameResolution.frame.origin,
+            windowSize: candidateSize,
             screenBounds: screenBounds,
             tolerance: activeFitOverflowTolerance
         ) else {

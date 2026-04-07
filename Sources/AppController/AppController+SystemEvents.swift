@@ -195,7 +195,7 @@ extension AppController {
         } else {
             // Minimize all collected windows with proper cleanup
             for (window, emptiedZoneKey) in windowsToMinimize {
-                let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+                let manualResizeState = performProgrammaticMinimizeCleanup(
                     window,
                     minimizeReason: "hide-to-minimize",
                     cleanupReason: "hide-to-minimize",
@@ -206,7 +206,7 @@ extension AppController {
                     emptiedZoneKey: emptiedZoneKey,
                     minimizeReason: "hide-to-minimize",
                     cleanupReason: "hide-to-minimize",
-                    wasManualResizeDetached: wasManualResizeDetached
+                    manualResizeState: manualResizeState
                 )
             }
 
@@ -488,6 +488,9 @@ extension AppController {
 
         if !rebuildResult.visibleFrameChangedDisplayIds.isEmpty {
             Logger.debug("Active screen area changed: \(rebuildResult.visibleFrameChangedDisplayIds)")
+            for screenId in rebuildResult.visibleFrameChangedDisplayIds {
+                clearRememberedManualResizeSizes(on: screenId, reason: "screen-visible-frame-changed")
+            }
         }
 
         if !rebuildResult.removedContexts.isEmpty {
@@ -497,6 +500,7 @@ extension AppController {
         targetedZoneManager.ensureTargetedZone(reason: "screens-changed")
 
         syncWindowsToZones()
+        activeFitRefreshAfterZoneTopologyChange(reason: "screens-changed")
 
         // Re-scan full-screen state after screen changes
         // Clear first, then scan all windows to re-detect current state

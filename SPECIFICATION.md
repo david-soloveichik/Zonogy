@@ -203,7 +203,11 @@ For this rule, and Launcher auto-show suppression, unmanaged focus must be confi
 
 #### Resizing Managed Windows
 
-If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone. Instead, the window temporarily detaches from the strict zone frame, allowing the user to see content at a custom size. The window will snap back to the zone dimensions upon the next layout sync (e.g., when zones are added/removed/resized), or when the window loses focus.
+If a zone contains a managed window, resizing that window manually (by dragging its edges) does **not** resize the zone.
+
+By default, a manual resize is temporary: the window detaches from the strict zone frame, allowing the user to see content at a custom size, and then snaps back to the zone dimensions when it loses focus or on the next layout sync that changes that screen's tiling geometry (for example, adding/removing a zone or dragging a zone resize bar).
+
+There is an option in Zonogy Preferences called **Sticky Resize** to remember manual tiled-window sizes until that screen's tiling geometry changes. With this option enabled, a manually resized tiled window still returns to its normal zone-aligned inactive frame when another window becomes active, but when that same window becomes active again Zonogy restores its remembered manual size instead of the zone size. If zones are resized on a screen, clear every remembered manual size on that screen. Emptying a zone or moving a window to a different zone also clears the remembered manual size for that window.
 
 While the user is dragging a zone resize bar, the rest of the zones should update live so the overall tiling responds immediately to the in-progress resize. When the drag completes, the resized zone and its neighbors should already reflect the final geometry, requiring no additional snap or jump. After the drag completes, run the standard occlusion check for the floating-zone occupant on that screen (tiling windows may now occlude it).
 
@@ -289,8 +293,8 @@ Some applications refuse to shrink below their minimum width/height, which means
 **Implementation requirements:**
 
 1. ActiveFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
-2. Attempt the normal zone-aligned move/resize first. Then determine whether ActiveFit is needed by anchoring the window's actual *post-resize* size to the zone's content origin (after margins). If the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance), the window qualifies.
-3. When a qualifying window becomes the active/key window, enter **reveal mode**: shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
+2. Determine the candidate active size for the window. Normally this is the window's actual *post-resize* size after the standard zone-aligned move/resize. However, if the Sticky Resize option is enabled, and this zone has a remembered manual size for its current occupant, use that remembered size instead. Anchor the candidate size to the zone's content origin (after margins) and determine whether the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance). If it would, the window qualifies for ActiveFit.
+3. When a qualifying window becomes the active/key window, enter **reveal mode**: first apply the candidate active size (zone size or remembered manual size), then shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
 4. When that window loses key status, leaves its zone, is minimized, or closes, exit reveal mode and return to **rest mode**: move the window back to its normal zone-anchored position so other zones reclaim their space.
 5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is in reveal mode, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until the window deactivates.
 
@@ -439,7 +443,7 @@ Fields:
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
-  - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still detach as usual and only snap back on focus loss or the next layout sync.)
+  - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)
   - `disableControlCommandMouseGestures` – when `true`, Zonogy does not consume that app's Control-Command click targeting or Control-Command external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
 

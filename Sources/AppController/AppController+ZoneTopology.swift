@@ -43,6 +43,7 @@ extension AppController {
         // Zone topology has changed; cancel any in-flight accessibility frame retries
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
+        clearRememberedManualResizeSizes(on: screenId, reason: "zone-added")
         targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
         if promoteFloatingOccupant {
             promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
@@ -107,6 +108,8 @@ extension AppController {
         guard let removalResult = context.zoneController.removeZone(at: index) else {
             return nil
         }
+
+        clearRememberedManualResizeSizes(on: screenId, reason: "zone-removed")
 
         // Clear placeholders for this screen since zones are being reindexed
         placeholderCoordinator.clearPlaceholdersForScreen(screenId)
@@ -199,6 +202,7 @@ extension AppController {
             // Zone geometry changed; clear any pending accessibility frame retries
             // since their targets were based on the previous layout.
             windowController.cancelAllAccessibilityFrameRetries()
+            clearRememberedManualResizeSizes(on: screenId, reason: "zone-resized-command")
             syncWindowsToZones()
             if let updatedZone = context.zoneController.zone(at: index) {
                 print("Resized zone \(index) on \(context.descriptor.localizedName) to \(updatedZone.frame)")

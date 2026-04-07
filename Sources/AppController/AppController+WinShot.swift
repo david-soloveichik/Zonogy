@@ -91,6 +91,7 @@ extension AppController {
             windowController: windowController,
             screenDescriptor: context.descriptor,
             floatingZoneOccupant: floatingOccupant,
+            rememberedStickyResizeSizesByWindowId: rememberedManualResizeSizesByWindowId,
             activeWindowId: activeWindowId,
             reason: reason
         )
@@ -246,6 +247,8 @@ extension AppController {
             )
         }
 
+        restoreStickyResizeRememberedSizes(from: snapshot, zoneWorkItems: zoneWorkItems)
+
         let restoredActiveWindowId = snapshot.activeWindowId
         let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
@@ -333,7 +336,7 @@ extension AppController {
                 emptiedZoneKey: nil,
                 minimizeReason: "winshot-restore",
                 cleanupReason: "winshot-restore",
-                wasManualResizeDetached: false
+                manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
             )
         }
 
@@ -368,6 +371,15 @@ extension AppController {
                 activateFloatingZoneWindow(activeWindow, reason: "winshot-restore")
             } else {
                 activateWindow(activeWindow)
+                if let screenId = activeWindow.screenDisplayId ?? detectScreenId(for: activeWindow),
+                   let zoneIndex = activeWindow.zoneIndex {
+                    _ = applyRememberedStickyResizeFrameIfAvailable(
+                        for: activeWindow,
+                        screenId: screenId,
+                        zoneIndex: zoneIndex,
+                        reason: "winshot-restore-activate"
+                    )
+                }
             }
         }
 
@@ -584,7 +596,39 @@ extension AppController {
         )
     }
 
+    private func restoreStickyResizeRememberedSizes(
+        from snapshot: WinShotSnapshot,
+        zoneWorkItems: [ZoneRestoreWorkItem]
+    ) {
+        guard stickyResizeEnabled,
+              !snapshot.rememberedTiledWindowSizesByZoneIndex.isEmpty else {
+            return
+        }
+
+        let restoredWindowIdsByZoneIndex = Dictionary(
+            uniqueKeysWithValues: zoneWorkItems.map { ($0.zoneIndex, $0.managed.windowId) }
+        )
+        let restoredSizes = WinShotStickyResizeSnapshotMapping.restoredSizesByWindowId(
+            snapshotSizesByZoneIndex: snapshot.rememberedTiledWindowSizesByZoneIndex,
+            restoredWindowIdsByZoneIndex: restoredWindowIdsByZoneIndex
+        )
+        guard !restoredSizes.isEmpty else {
+            return
+        }
+
+        for (windowId, size) in restoredSizes {
+            rememberedManualResizeSizesByWindowId[windowId] = size
+        }
+
+        Logger.debug(
+            "WinShot: restored Sticky Resize remembered sizes for windows \(restoredSizes.keys.sorted()) " +
+            "from snapshot \(snapshot.id)"
+        )
+    }
+
     private func restoreZoneConfiguration(snapshot: WinShotSnapshot, context: ScreenContext) {
+        clearRememberedManualResizeSizes(on: snapshot.screenId, reason: "winshot-restore-zone-config")
+
         let currentZoneCount = context.zoneController.allZones.count
         let targetZoneCount = snapshot.zoneCount
 

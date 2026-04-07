@@ -98,6 +98,7 @@ extension AppController {
     }
 
     internal func clearManagedWindowZone(_ managed: ManagedWindow) {
+        clearRememberedManualResizeSize(for: managed.windowId, reason: "assignment-cleared")
         managed.zoneIndex = nil
         managed.screenDisplayId = nil
         managed.isInFloatingZone = false

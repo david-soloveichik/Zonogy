@@ -99,6 +99,8 @@ extension AppController {
 
         guard abs(scalarDelta) > 0.001 else { return }
 
+        clearRememberedManualResizeSizes(on: screenId, reason: "zone-resize-drag")
+
         // Apply resize
         context.zoneController.resizeBySeparator(index: separatorIndex, delta: scalarDelta)
 
@@ -205,12 +207,14 @@ extension AppController {
         minimizeReason: String,
         cleanupReason: String,
         retarget: Bool = true
-    ) -> Bool {
-        let wasManualResizeDetached = manualResizeDetachedWindowIds.contains(managed.windowId)
+    ) -> ManualResizeCleanupState {
+        let cleanupState = ManualResizeCleanupState(
+            wasDetached: manualResizeDetachedWindowIds.contains(managed.windowId),
+            rememberedSize: rememberedManualResizeSizesByWindowId[managed.windowId]
+        )
         minimizeWindowProgrammatically(managed, reason: minimizeReason)
-        manualResizeDetachedWindowIds.remove(managed.windowId)
         removeWindowFromAllZones(windowId: managed.windowId, reason: cleanupReason, retarget: retarget)
-        return wasManualResizeDetached
+        return cleanupState
     }
 
     internal func finalizeProgrammaticMinimize(
@@ -231,7 +235,7 @@ extension AppController {
         emptiedZoneKey: ZoneKey?,
         minimizeReason: String,
         cleanupReason: String,
-        wasManualResizeDetached: Bool,
+        manualResizeState: ManualResizeCleanupState,
         attempt: Int = 1
     ) {
         let delay: TimeInterval = attempt == 1 ? 0.12 : 0.2
@@ -270,7 +274,7 @@ extension AppController {
                     emptiedZoneKey: emptiedZoneKey,
                     minimizeReason: minimizeReason,
                     cleanupReason: cleanupReason,
-                    wasManualResizeDetached: wasManualResizeDetached,
+                    manualResizeState: manualResizeState,
                     attempt: 2
                 )
                 return
@@ -280,7 +284,7 @@ extension AppController {
                 managed,
                 emptiedZoneKey: emptiedZoneKey,
                 cleanupReason: cleanupReason,
-                wasManualResizeDetached: wasManualResizeDetached
+                manualResizeState: manualResizeState
             )
         }
     }
@@ -289,7 +293,7 @@ extension AppController {
         _ managed: ManagedWindow,
         emptiedZoneKey: ZoneKey?,
         cleanupReason: String,
-        wasManualResizeDetached: Bool
+        manualResizeState: ManualResizeCleanupState
     ) {
         guard !managed.isMinimizedPerAccessibility else {
             finalizeProgrammaticMinimize(
@@ -300,7 +304,11 @@ extension AppController {
             return
         }
 
-        if wasManualResizeDetached {
+        if let rememberedSize = manualResizeState.rememberedSize {
+            rememberedManualResizeSizesByWindowId[managed.windowId] = rememberedSize
+        }
+
+        if manualResizeState.wasDetached {
             manualResizeDetachedWindowIds.insert(managed.windowId)
         }
 

@@ -61,7 +61,7 @@ extension AppController {
             Logger.debug(
                 "External drop clearing occupant window \(managed.windowId) from zone \(zoneKey.index) on screen \(screenIndex)"
             )
-            let wasManualResizeDetached = performProgrammaticMinimizeCleanup(
+            let manualResizeState = performProgrammaticMinimizeCleanup(
                 managed,
                 minimizeReason: reason,
                 cleanupReason: reason,
@@ -73,7 +73,7 @@ extension AppController {
                 emptiedZoneKey: zoneKey,
                 minimizeReason: reason,
                 cleanupReason: reason,
-                wasManualResizeDetached: wasManualResizeDetached
+                manualResizeState: manualResizeState
             )
         }
 

@@ -6,6 +6,9 @@ enum UserDefaultsKeys {
     // MARK: - Dock Menus
     static let dockMenusEnabled = "Zonogy.dockMenus.enabled"
 
+    // MARK: - General
+    static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
+
     // MARK: - Debug
     static let debugLogToFile = "Zonogy.debug.logToFile"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"

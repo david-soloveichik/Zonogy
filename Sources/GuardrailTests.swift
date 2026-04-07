@@ -66,13 +66,22 @@ enum GuardrailTests {
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }
+        if !StickyResizeFramePolicyTests.run() {
+            allPassed = false
+        }
         if !ApplicationExceptionPolicyTests.run() {
+            allPassed = false
+        }
+        if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }
         if !PreferredWindowSelectionTests.run() {
             allPassed = false
         }
         if !WinShotSnapshotOccupancySignatureTests.run() {
+            allPassed = false
+        }
+        if !WinShotStickyResizeSnapshotMappingTests.run() {
             allPassed = false
         }
         if !WinShotChooserViewTests.run() {

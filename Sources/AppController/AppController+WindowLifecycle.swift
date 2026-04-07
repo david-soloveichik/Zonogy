@@ -193,9 +193,9 @@ extension AppController {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .focusChanged)
+        handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
         handleActiveFitFocusChange(pid: pid)
         handleFloatingZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
-        handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
 
         // Record window activity for launcher recency ordering
         // Skip during activity suppression to avoid twitchy recordings during floating zone/WinShot operations
@@ -427,6 +427,7 @@ extension AppController {
         }
 
         manualResizeDetachedWindowIds.insert(windowId)
+        rememberManualResizeSize(for: windowId, size: frame.size, reason: "manual-resize-end")
 
         if let resolvedScreenId {
             let screenIndex = screenContextStore.loggingIndex(for: resolvedScreenId)
@@ -1053,7 +1054,8 @@ extension AppController {
 
 extension AppController {
     internal func handleManualResizeFocusChange(pid: pid_t, focusedWindowId: Int?) {
-        guard !manualResizeDetachedWindowIds.isEmpty else {
+        guard !manualResizeDetachedWindowIds.isEmpty ||
+                (stickyResizeEnabled && focusedWindowId != nil) else {
             return
         }
 
@@ -1076,6 +1078,26 @@ extension AppController {
 
             snapManuallyResizedWindowBackToZoneIfNeeded(windowId: windowId, reason: "focus-change")
         }
+
+        guard stickyResizeEnabled,
+              let focusedWindowId,
+              let managed = windowController.window(withId: focusedWindowId),
+              managed.backing.pid == pid,
+              let zoneIndex = managed.zoneIndex else {
+            return
+        }
+
+        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        guard let screenId else {
+            return
+        }
+
+        _ = restoreStickyResizeFrameIfNeeded(
+            for: managed,
+            screenId: screenId,
+            zoneIndex: zoneIndex,
+            reason: "focus-change"
+        )
     }
 
     private func snapManuallyResizedWindowBackToZoneIfNeeded(windowId: Int, reason: String) {

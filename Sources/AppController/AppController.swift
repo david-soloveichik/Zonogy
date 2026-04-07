@@ -31,6 +31,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var attempt: Int
         var workItem: DispatchWorkItem?
     }
+    struct ManualResizeCleanupState {
+        let wasDetached: Bool
+        let rememberedSize: CGSize?
+    }
 
     static let shared = AppController()
 
@@ -139,6 +143,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingFullScreenSpaceChangeWorkItem: DispatchWorkItem?
     /// True when Launcher should auto-show for empty tiling zones.
     internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
+    /// True when manually resized tiled windows should restore their remembered size on re-activation.
+    internal var stickyResizeEnabled: Bool
     internal var targetingMode: TargetingMode
     internal var dockMenusCoordinator: DockMenusCoordinator?
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
@@ -155,6 +161,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var manualMoveSuppressionDeadline: Date?
     /// Windows that were manually resized while tiled and should snap back to their zone frame on focus loss or the next layout sync.
     internal var manualResizeDetachedWindowIds: Set<Int> = []
+    /// Remembered manual tiled-window sizes used by Sticky Resize when the window becomes active again.
+    internal var rememberedManualResizeSizesByWindowId: [Int: CGSize] = [:]
     /// Debounce state for per-app self-resize snap-to-zone exceptions.
     internal var selfResizeSnapDebouncer = WindowFrameDebouncer(minimumInterval: 0.25)
     /// Edge proximity threshold (in pixels, screen-local) for classifying a resize as a user edge-drag.
@@ -289,6 +297,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let configuration = Configuration.load()
         self.configuration = configuration
         self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()
+        self.stickyResizeEnabled = StickyResizePreferencesStore.loadEnabled()
         self.targetingMode = TargetingPreferencesStore.loadMode()
 
         let screens = NSScreen.screens
