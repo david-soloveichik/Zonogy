@@ -78,9 +78,6 @@ extension AppController {
             lastActiveApplicationPid = application.processIdentifier
         }
         handleApplicationEvent(application)
-        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
-        handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
-        updateUnmanagedFocusState()
 
         // Sync the frontmost managed window and refresh resize handles on app activation.
         // AXFocusedWindowChanged notifications only fire when focus changes *within* an app,
@@ -91,6 +88,14 @@ extension AppController {
             }
             return windowController.focusedWindowIfTracked(pid: pid)
         }()
+        if let applicationPid = application?.processIdentifier,
+           let focusedManagedWindow {
+            handleManualResizeFocusChange(pid: applicationPid, focusedWindowId: focusedManagedWindow.windowId)
+        }
+        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
+        handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
+        updateUnmanagedFocusState()
+
         if focusedManagedWindow != nil {
             exitPinnedResizeBarMode(reason: "managed-window-activation")
         }

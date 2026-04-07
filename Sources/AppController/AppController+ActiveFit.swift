@@ -212,11 +212,24 @@ extension AppController {
             transitionToRestMode(state: existing, reason: "handoff")
         }
 
-        // Skip if already in reveal mode at the same position
+        // Skip only if the cached reveal state still matches both the desired and actual frames.
         if let existing = activeFitState,
-           existing.windowId == managed.windowId,
-           framesClose(existing.revealFrame, revealFrame) {
-            return
+           existing.windowId == managed.windowId {
+            if ActiveFitRevealStatePolicy.shouldReuseExistingRevealFrame(
+                existingRevealFrame: existing.revealFrame,
+                desiredRevealFrame: revealFrame,
+                actualFrame: actualFrame,
+                tolerance: activeFitOverflowTolerance
+            ) {
+                return
+            }
+
+            if framesClose(existing.revealFrame, revealFrame) {
+                Logger.debug(
+                    "ActiveFit: reapplying reveal frame for window \(managed.windowId); " +
+                    "cached reveal state no longer matches actual frame"
+                )
+            }
         }
 
         // Enter reveal mode: shift window to fit on screen

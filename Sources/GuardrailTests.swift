@@ -66,6 +66,9 @@ enum GuardrailTests {
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }
+        if !ActiveFitRevealStatePolicyTests.run() {
+            allPassed = false
+        }
         if !StickyResizeFramePolicyTests.run() {
             allPassed = false
         }

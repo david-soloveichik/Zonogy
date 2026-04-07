@@ -42,4 +42,10 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: In follows-focus mode, async app activation can route a newly opened window/document into the wrong zone if the app already has a focused window elsewhere.
   - Think about: Any action that relies on the current target and then asynchronously activates an app (external drops, Launcher launches, Dock launches, Finder opening a document in an already-running app) creates a gap where the app may activate with a pre-existing focused window before the real new window is captured. Avoid immediate follows-focus retargeting during that activation churn.
+
+- Bug report: When a Sticky Resize window is activated in a right-column zone, one focus-related notification can restore its remembered size at the zone origin and ActiveFit can then shift it into reveal mode, but a second focus/main-window notification can move it back to the rest-position origin while ActiveFit still thinks the window is already revealed. The result is that the window stays at the rest position and hangs off-screen even though ActiveFit state says reveal mode is active.
+  - Fixed by: Reusing cached ActiveFit reveal state only when the window's actual current frame still matches the stored reveal frame; otherwise ActiveFit reapplies the reveal move instead of returning early.
+
+- Bug report: Activating another app can focus a managed window without delivering an AXFocusedWindowChanged event for the arriving app.
+  - Think about: Mirror the Sticky Resize restore path from NSWorkspace activation when a tracked focused managed window is already known.
   
