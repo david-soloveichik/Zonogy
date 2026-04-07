@@ -67,7 +67,7 @@ extension AppController {
             return
         }
 
-        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "focus-change")
+        evaluateRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "focus-change")
     }
 
     internal func handleActiveFitActivationCandidate(pid: pid_t?) {
@@ -117,7 +117,7 @@ extension AppController {
             activeFitState = ActiveFitState(windowId: state.windowId, zoneKey: updatedKey, revealFrame: state.revealFrame)
         }
 
-        enterRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "assignment-change")
+        evaluateRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "assignment-change")
     }
 
     /// Clears reveal mode for a specific window, optionally transitioning it back to rest mode.
@@ -144,7 +144,10 @@ extension AppController {
     }
 
     /// Evaluates whether a window should enter reveal mode and applies the transition if needed.
-    private func enterRevealModeIfNeeded(
+    ///
+    /// This is the shared ActiveFit reveal pipeline used by focus changes, retry-settled
+    /// re-evaluation, and post-restore reveal checks.
+    private func evaluateRevealModeIfNeeded(
         for managed: ManagedWindow,
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
@@ -296,7 +299,7 @@ extension AppController {
             return
         }
 
-        enterRevealModeIfNeeded(
+        evaluateRevealModeIfNeeded(
             for: managed,
             screenId: screenId,
             zoneIndex: zoneIndex,
@@ -450,43 +453,14 @@ extension AppController {
                let zoneIndex = managed.zoneIndex,
                zoneIndex >= 2 {
                 Logger.debug("ActiveFit: evaluating reveal mode for window \(activeWindowId) after restore")
-                self.enterRevealModeAfterRestore(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
+                self.evaluateRevealModeIfNeeded(
+                    for: managed,
+                    screenId: screenId,
+                    zoneIndex: zoneIndex,
+                    reason: "restore-settled",
+                    shouldPrimeWithRestMove: false
+                )
             }
         }
-    }
-
-    /// Enters reveal mode for a window after a restore flow completes.
-    private func enterRevealModeAfterRestore(managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int) {
-        guard let context = screenContexts[screenId],
-              let descriptor = descriptor(for: screenId),
-              let zone = context.zoneController.zone(at: zoneIndex) else {
-            return
-        }
-
-        let frameResolution = stickyResizeFrameResolution(
-            for: managed,
-            zone: zone,
-            controller: context.zoneController
-        )
-        let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
-        let screenBounds = descriptor.visibleScreenBounds
-        let candidateSize = frameResolution.usesRememberedSize ? frameResolution.frame.size : actualFrame.size
-
-        guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
-            zoneIndex: zoneIndex,
-            zoneOrigin: frameResolution.frame.origin,
-            windowSize: candidateSize,
-            screenBounds: screenBounds,
-            tolerance: activeFitOverflowTolerance
-        ) else {
-            // Window fits in rest mode; no reveal needed
-            return
-        }
-
-        let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
-        Logger.debug("ActiveFit: entering reveal mode after restore for window \(managed.windowId) -> \(revealFrame.origin)")
-        windowController.moveWindow(managed, to: revealFrame, on: descriptor)
-        activeFitState = ActiveFitState(windowId: managed.windowId, zoneKey: zoneKey, revealFrame: revealFrame)
-        refreshResizeHandles()
     }
 }

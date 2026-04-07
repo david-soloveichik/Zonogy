@@ -454,18 +454,10 @@ extension AppController {
             return false
         }
 
-        // If the user manually resized this window earlier, preserve that detached
-        // state until focus loss / layout sync clears it (simplest behavior).
-        if manualResizeDetachedWindowIds.contains(managed.windowId) {
-            let screenIndex = screenContextStore.loggingIndex(for: screenId)
-            Logger.debug(
-                "Self-resize snap skipped for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex) (reason: manually-detached)"
-            )
-            return true
-        }
+        let isAlreadyDetached = manualResizeDetachedWindowIds.contains(managed.windowId)
 
         // If the cursor is near the window border and the left button is down (or just went up),
-        // assume this resize came from a user edge drag and keep the existing detach semantics.
+        // assume this resize came from a user edge drag and keep Sticky Resize tracking updated.
         let cursorPoint = currentCursorScreenPoint(on: descriptor)
         let isLikelyUserResize = WindowResizeHeuristics.isLikelyUserEdgeDragResize(
             cursorPoint: cursorPoint,
@@ -475,12 +467,25 @@ extension AppController {
             secondsSinceLeftMouseUp: MouseButtons.secondsSinceLastLeftMouseUp(),
             mouseUpGrace: userResizeMouseUpGraceInterval
         )
-        if isLikelyUserResize {
+        let action = WindowSelfResizePolicy.action(
+            isAlreadyDetached: isAlreadyDetached,
+            isLikelyUserResize: isLikelyUserResize
+        )
+        switch action {
+        case .updateManualResizeTracking:
             let screenIndex = screenContextStore.loggingIndex(for: screenId)
             Logger.debug(
                 "Self-resize snap not applied for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex) (reason: likely-user-edge-drag)"
             )
             return false
+        case .ignoreWhileDetached:
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "Self-resize snap skipped for window \(managed.windowId) in zone \(zone.index) on screen \(screenIndex) (reason: manually-detached)"
+            )
+            return true
+        case .snapToZone:
+            break
         }
 
         let targetFrame = frameWithMargin(for: zone, in: context.zoneController)

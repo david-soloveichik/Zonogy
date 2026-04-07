@@ -72,6 +72,9 @@ enum GuardrailTests {
         if !StickyResizeFramePolicyTests.run() {
             allPassed = false
         }
+        if !WindowSelfResizePolicyTests.run() {
+            allPassed = false
+        }
         if !ApplicationExceptionPolicyTests.run() {
             allPassed = false
         }

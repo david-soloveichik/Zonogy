@@ -59,6 +59,33 @@ struct WindowResizeHeuristics {
     }
 }
 
+/// Pure policy for deciding how a snap-exception window should react to a resize event.
+enum WindowSelfResizePolicy {
+    enum Action: Equatable {
+        /// Treat the resize as a real user edge drag and refresh Sticky Resize tracking.
+        case updateManualResizeTracking
+        /// Ignore the event because the window is already detached and this does not look user-driven.
+        case ignoreWhileDetached
+        /// Snap the window back to its zone because the resize looks app-driven.
+        case snapToZone
+    }
+
+    static func action(
+        isAlreadyDetached: Bool,
+        isLikelyUserResize: Bool
+    ) -> Action {
+        if isLikelyUserResize {
+            return .updateManualResizeTracking
+        }
+
+        if isAlreadyDetached {
+            return .ignoreWhileDetached
+        }
+
+        return .snapToZone
+    }
+}
+
 /// Debounces repeated attempts to snap the same window to the same target frame.
 struct WindowFrameDebouncer {
     private struct Entry {
