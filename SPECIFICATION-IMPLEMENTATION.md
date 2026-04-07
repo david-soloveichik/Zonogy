@@ -56,6 +56,12 @@ In follows-focus mode, treat `NSWorkspace.didActivateApplication` as provisional
 
 If a new managed window for that app is captured during that settlement window, place it into the preserved target. If no new managed window appears and the target has not changed for some other reason, retarget to the app's settled focused window when the settlement window ends.
 
+### Empty-zone retarget protection
+
+In follows-focus mode, minimizing or closing a tiled window can immediately cause the app to focus a sibling window. Treat that sibling focus as provisional when it is just the fallback from the same emptying action: preserve the emptied zone's target rather than letting that fallback focus steal it.
+
+This protection is narrower than the app-activation settlement above. It is tied to the specific fallback sibling window expected to receive the automatic focus after the removed window disappears, and it exists only long enough for the normal recency-based follows-focus rule to take over. If focus later moves to a different window, normal follows-focus retargeting resumes. Manual targeting actions still override immediately.
+
 ### Retry Mechanisms Tied to Accessibility
 
 Zonogy uses five narrowly scoped retry/verification mechanisms to cope with AX timing and consistency issues: three are PID/application-scoped and two are per window. All of them are tied to concrete events (no global polling loops) and are explicitly cancelled when they are no longer needed or when the system goes to sleep.

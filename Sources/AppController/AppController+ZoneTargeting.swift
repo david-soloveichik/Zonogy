@@ -19,6 +19,9 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
         }
 
+        // Capture PID before cleanup may remove the window from tracking.
+        let windowPid = windowController.window(withId: windowId)?.backing.pid
+
         // Clear the window's record of its zone assignment (ManagedWindow -> Zone)
         if let managed = windowController.window(withId: windowId) {
             clearManagedWindowZone(managed)
@@ -44,6 +47,27 @@ extension AppController {
 
         if retarget, let emptyZoneKey = emptyZoneKey {
             targetedZoneManager.setTargetedZone(emptyZoneKey, reason: reason)
+            emptyZoneRetargetProtection = nil
+            // In follows-focus mode, protect this empty-zone retarget from being immediately
+            // overridden by the OS auto-focusing the app's fallback sibling window.
+            if targetingMode == .followsFocus,
+               let windowPid,
+               let fallbackWindowId = expectedEmptyZoneRetargetFallbackWindowId(
+                    excludingWindowId: windowId,
+                    pid: windowPid
+               ) {
+                emptyZoneRetargetProtection = EmptyZoneRetargetProtection(
+                    zone: emptyZoneKey,
+                    pid: windowPid,
+                    fallbackWindowId: fallbackWindowId,
+                    deadline: Date().addingTimeInterval(emptyZoneRetargetProtectionDuration)
+                )
+                Logger.debug(
+                    "Armed empty-zone retarget protection for zone \(emptyZoneKey.index) on screen " +
+                    "\(screenContextStore.loggingIndex(for: emptyZoneKey.screenId)) " +
+                    "(pid \(windowPid), fallbackWindow \(fallbackWindowId), reason: \(reason))"
+                )
+            }
             // Auto-show Launcher if the emptied zone is now the targeted zone.
             // This handles the case where the zone was already targeted (setTargetedZone returns early).
             autoShowLauncherIfEmptyTargetedTiledZone()
@@ -54,6 +78,28 @@ extension AppController {
         if !removed, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
+    }
+
+    /// Resolve the same-app sibling window that is expected to receive the automatic fallback focus
+    /// after the removed window disappears. Prefer the app's currently focused tracked window when it
+    /// has already switched away from the removed window; otherwise fall back to shared recency order.
+    private func expectedEmptyZoneRetargetFallbackWindowId(
+        excludingWindowId removedWindowId: Int,
+        pid: pid_t
+    ) -> Int? {
+        if let focused = windowController.focusedWindowIfTracked(pid: pid),
+           focused.windowId != removedWindowId,
+           (focused.zoneIndex != nil || isWindowInFloatingZone(focused.windowId)) {
+            return focused.windowId
+        }
+
+        return windowController.allWindowsOrderedByRecency().first { window in
+            guard window.backing.pid == pid,
+                  window.windowId != removedWindowId else {
+                return false
+            }
+            return window.zoneIndex != nil || isWindowInFloatingZone(window.windowId)
+        }?.windowId
     }
 
     internal func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {

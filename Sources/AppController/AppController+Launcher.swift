@@ -9,6 +9,12 @@ extension AppController {
     /// Maintains the invariant that the Launcher never remains visible while pointing at a non-targeted destination.
     /// CmdTab is dismissed when the target changes (it doesn't follow the target like the Launcher does).
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
+        // Clear empty-zone retarget protection when the target moves away from the protected zone.
+        if let protection = emptyZoneRetargetProtection,
+           newDestination != .tiled(protection.zone) {
+            emptyZoneRetargetProtection = nil
+        }
+
         // Dismiss CmdTab when target changes - CmdTab is for quick window switching,
         // not zone placement, so it doesn't need to follow the target.
         if cmdTabController.isActive {

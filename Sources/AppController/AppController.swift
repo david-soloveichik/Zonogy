@@ -222,6 +222,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var focusFollowActivationSettlements: [pid_t: FocusFollowActivationSettlement] = [:]
     /// Timeout work items that complete follows-focus activation settlements.
     internal var focusFollowActivationSettlementWorkItems: [pid_t: DispatchWorkItem] = [:]
+    struct EmptyZoneRetargetProtection {
+        let zone: ZoneKey
+        let pid: pid_t
+        let fallbackWindowId: Int
+        let deadline: Date
+    }
+    /// Duration for which an empty-zone retarget is protected from follows-focus override.
+    internal let emptyZoneRetargetProtectionDuration: TimeInterval = 0.5
+    /// Active protection for a recently emptied zone, preventing follows-focus from stealing
+    /// the target when the OS auto-focuses the app's expected sibling fallback window.
+    internal var emptyZoneRetargetProtection: EmptyZoneRetargetProtection?
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {

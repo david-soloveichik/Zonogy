@@ -95,6 +95,31 @@ extension AppController {
             return
         }
 
+        // Check empty-zone retarget protection: when a tiled window was just closed/minimized
+        // and its zone retargeted, suppress the automatic same-app sibling focus fallback.
+        let now = Date()
+        if let protection = emptyZoneRetargetProtection {
+            if now >= protection.deadline {
+                emptyZoneRetargetProtection = nil
+            } else if EmptyZoneRetargetProtectionPolicy.shouldSuppressRetarget(
+                protectedZone: protection.zone,
+                protectedPid: protection.pid,
+                protectedWindowId: protection.fallbackWindowId,
+                currentTarget: targetedZoneManager.targetedDestination,
+                incomingPid: managed.backing.pid,
+                incomingWindowId: managed.windowId,
+                deadline: protection.deadline,
+                now: now
+            ) {
+                Logger.debug(
+                    "Suppressing follows-focus retarget for window \(windowId) — " +
+                    "preserving empty-zone retarget on zone \(protection.zone.index) " +
+                    "(protected fallback window \(protection.fallbackWindowId), reason: \(reason))"
+                )
+                return
+            }
+        }
+
         if let zoneIndex = managed.zoneIndex {
             guard let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) else {
                 return

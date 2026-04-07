@@ -105,6 +105,9 @@ enum GuardrailTests {
         if !WinShotTimelineConnectorRoutingTests.run() {
             allPassed = false
         }
+        if !EmptyZoneRetargetProtectionPolicyTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")
