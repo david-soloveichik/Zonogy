@@ -49,6 +49,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     // Window and zone management
     var windowController: WindowController { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
+    var targetingMode: TargetingMode { get }
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
@@ -588,6 +589,14 @@ class DragDropCoordinator {
            let displaced = displacedWindow {
             sourceContext.zoneController.assignWindow(windowId: displaced.windowId, toZoneIndex: sourceKey.index)
             delegate.setManagedWindow(displaced, screenId: sourceKey.screenId, zoneIndex: sourceKey.index)
+            if let retargetKey = DragSwapFollowsFocusPolicy.targetAfterExchange(
+                targetingMode: delegate.targetingMode,
+                sourceKey: sourceKey,
+                targetKey: targetKey,
+                displacedWindowId: displaced.windowId
+            ) {
+                delegate.targetedZoneManager.setTargetedZone(retargetKey, reason: "drag-window-exchange")
+            }
             Logger.debug("Swapped displaced window \(displaced.windowId) back into original zone \(sourceKey.index)")
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
