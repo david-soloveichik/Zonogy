@@ -60,6 +60,9 @@ enum GuardrailTests {
         if !TargetedZoneManagerTests.run() {
             allPassed = false
         }
+        if !DragSwapFollowsFocusPolicyTests.run() {
+            allPassed = false
+        }
         if !FollowsFocusZoneRemovalPolicyTests.run() {
             allPassed = false
         }
