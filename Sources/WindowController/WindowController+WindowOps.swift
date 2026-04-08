@@ -38,9 +38,14 @@ extension WindowController {
 
     /// Show a window at the specified frame (frame is in screen-local coordinates)
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
+        let effectiveTargetScreenFrame = resolvedTargetScreenFrame(
+            for: managedWindow,
+            requestedFrame: frame,
+            on: screen
+        )
         cancelAccessibilityFrameRetryIfSuperseded(
             windowId: managedWindow.windowId,
-            newTargetScreenFrame: frame,
+            newTargetScreenFrame: effectiveTargetScreenFrame,
             reason: "show-window"
         )
         let element = managedWindow.backing.element
@@ -49,13 +54,13 @@ extension WindowController {
             applyScreenFrameWithBestEffort(
                 windowId: managedWindow.windowId,
                 element: element,
-                targetScreenFrame: frame,
+                targetScreenFrame: effectiveTargetScreenFrame,
                 screen: screen
             )
         }
         _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(frame)")
+        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame)")
     }
 
     /// Minimize a window

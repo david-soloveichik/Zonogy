@@ -23,6 +23,7 @@ enum ApplicationExceptionPolicyTests {
                 hasMainWindow: true,
                 floatSecondaryWindowsWhenMainWindowIsTargeted: true,
                 snapToZoneOnSelfResize: nil,
+                doNotResizeWidth: true,
                 disableControlCommandMouseGestures: true,
                 treatAXUnknownFullWidthAsFullScreen: true,
                 requireActiveZoomButton: true,
@@ -37,6 +38,7 @@ enum ApplicationExceptionPolicyTests {
                 hasMainWindow: nil,
                 floatSecondaryWindowsWhenMainWindowIsTargeted: nil,
                 snapToZoneOnSelfResize: true,
+                doNotResizeWidth: nil,
                 disableControlCommandMouseGestures: nil,
                 treatAXUnknownFullWidthAsFullScreen: false,
                 requireActiveZoomButton: nil,
@@ -52,6 +54,7 @@ enum ApplicationExceptionPolicyTests {
             assert(merged.hasMainWindow == true, "nil override should keep base value")
             assert(merged.floatSecondaryWindowsWhenMainWindowIsTargeted == true, "nil override should keep base main-window floating preference")
             assert(merged.snapToZoneOnSelfResize == true, "non-nil override should replace base value")
+            assert(merged.doNotResizeWidth == true, "nil override should keep base width-resize preference")
             assert(merged.disableControlCommandMouseGestures == true, "nil override should keep base Control-Command gesture value")
             assert(merged.treatAXUnknownFullWidthAsFullScreen == false, "non-nil override should replace base value")
             assert(merged.requireActiveZoomButton == true, "nil override should keep base value")
@@ -67,6 +70,7 @@ enum ApplicationExceptionPolicyTests {
             let bundleE = "com.example.e"
             let bundleF = "com.example.f"
             let bundleG = "com.example.g"
+            let bundleH = "com.example.h"
 
             let rules: [ApplicationExceptionRule] = [
                 ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: true),
@@ -77,6 +81,7 @@ enum ApplicationExceptionPolicyTests {
                 ApplicationExceptionRule(bundleIdentifier: bundleE, disableControlCommandMouseGestures: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleF, floatSecondaryWindowsWhenMainWindowIsTargeted: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleG, hasMainWindow: true, floatSecondaryWindowsWhenMainWindowIsTargeted: true),
+                ApplicationExceptionRule(bundleIdentifier: bundleH, doNotResizeWidth: true),
             ]
 
             let policy = ApplicationExceptionPolicy(rules: rules)
@@ -94,6 +99,8 @@ enum ApplicationExceptionPolicyTests {
             assert(policy.disablesControlCommandMouseGestures(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default Control-Command mouse gesture preference to false")
             assert(policy.floatsSecondaryWindowsWhenMainWindowIsTargeted(forBundleIdentifier: bundleF) == false, "secondary-window floating preference should be ignored unless hasMainWindow is enabled")
             assert(policy.floatsSecondaryWindowsWhenMainWindowIsTargeted(forBundleIdentifier: bundleG) == true, "should honor secondary-window floating preference when hasMainWindow is enabled")
+            assert(policy.doesNotResizeWidth(forBundleIdentifier: bundleH) == true, "should honor per-bundle width-resize exception")
+            assert(policy.doesNotResizeWidth(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default width-resize exception to false")
         }
 
         if allPassed {

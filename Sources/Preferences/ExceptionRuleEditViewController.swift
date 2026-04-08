@@ -16,6 +16,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var ignoreHeightCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
+    private var doNotResizeWidthCheckbox: NSButton!
     private var disableControlCommandMouseGesturesCheckbox: NSButton!
     private var treatAXUnknownFullWidthAsFullScreenCheckbox: NSButton!
     private var excludedTitlesField: NSTextField!
@@ -30,7 +31,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 490))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 520))
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         setupUI(in: containerView)
@@ -139,6 +140,19 @@ final class ExceptionRuleEditViewController: NSViewController {
             snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = snapToZoneCheckbox.bottomAnchor
+
+        doNotResizeWidthCheckbox = makeCheckbox(
+            title: "Don't resize width",
+            tooltip: "Preserve the window's current width when Zonogy moves it into a zone; only the position and height are adjusted"
+        )
+        container.addSubview(doNotResizeWidthCheckbox)
+
+        NSLayoutConstraint.activate([
+            doNotResizeWidthCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            doNotResizeWidthCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            doNotResizeWidthCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = doNotResizeWidthCheckbox.bottomAnchor
 
         disableControlCommandMouseGesturesCheckbox = makeCheckbox(
             title: "Disable Control-Command mouse gestures",
@@ -291,6 +305,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
         floatSecondaryWindowsCheckbox.state = (originalRule.floatSecondaryWindowsWhenMainWindowIsTargeted == true) ? .on : .off
         snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
+        doNotResizeWidthCheckbox.state = (originalRule.doNotResizeWidth == true) ? .on : .off
         disableControlCommandMouseGesturesCheckbox.state = (originalRule.disableControlCommandMouseGestures == true) ? .on : .off
         treatAXUnknownFullWidthAsFullScreenCheckbox.state = (originalRule.treatAXUnknownFullWidthAsFullScreen == true) ? .on : .off
         disallowEmptyTitleCheckbox.state = (originalRule.disallowEmptyTitleWindows == true) ? .on : .off
@@ -334,6 +349,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
             floatSecondaryWindowsWhenMainWindowIsTargeted: hasMainWindowCheckbox.state == .on && floatSecondaryWindowsCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
+            doNotResizeWidth: doNotResizeWidthCheckbox.state == .on ? true : nil,
             disableControlCommandMouseGestures: disableControlCommandMouseGesturesCheckbox.state == .on ? true : nil,
             treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
             requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,

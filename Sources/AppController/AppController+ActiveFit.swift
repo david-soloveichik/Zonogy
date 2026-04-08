@@ -172,6 +172,13 @@ extension AppController {
             controller: context.zoneController
         )
         let candidateFrame = frameResolution.frame
+        let currentFrame = windowController.accessibilityFrameForWindow(element: managed.backing.element, on: descriptor)
+        let effectiveCandidateFrame = windowController.resolvedTargetScreenFrame(
+            for: managed,
+            requestedFrame: candidateFrame,
+            on: descriptor,
+            currentScreenFrame: currentFrame
+        )
 
         // If a frame retry is still pending (e.g., from initial placement), skip — the
         // rest-mode moveWindow below would cancel the retry chain before it resizes the
@@ -195,7 +202,7 @@ extension AppController {
 
         let actualFrame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor)
         let screenBounds = descriptor.visibleScreenBounds
-        let candidateSize = frameResolution.usesRememberedSize ? candidateFrame.size : actualFrame.size
+        let candidateSize = frameResolution.usesRememberedSize ? effectiveCandidateFrame.size : actualFrame.size
 
         // Check if window would overflow in rest mode and needs reveal mode
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(

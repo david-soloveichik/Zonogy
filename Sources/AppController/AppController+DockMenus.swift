@@ -248,8 +248,13 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     private func prePositionMinimizedWindowForDockMenuDrag(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
+        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
+            for: managed,
+            requestedFrame: screenFrame,
+            on: screen
+        )
         let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(screenFrame)
+        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
 
         var position = accessibilityFrame.origin
         if let positionValue = AXValueCreate(.cgPoint, &position) {
@@ -261,7 +266,7 @@ extension AppController: DockMenusCoordinatorDelegate {
             AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
         }
 
-        Logger.debug("DockMenus: pre-positioned minimized window \(managed.windowId) to \(screenFrame) before unminimizing")
+        Logger.debug("DockMenus: pre-positioned minimized window \(managed.windowId) to \(effectiveScreenFrame) before unminimizing")
     }
 
     // MARK: - Non-Running App Drag-and-Drop

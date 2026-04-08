@@ -317,6 +317,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         if rule.hasMainWindow == true { parts.append("preferMain") }
         if rule.hasMainWindow == true && rule.floatSecondaryWindowsWhenMainWindowIsTargeted == true { parts.append("keepMain") }
         if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
+        if rule.doNotResizeWidth == true { parts.append("keepWidth") }
         if rule.disableControlCommandMouseGestures == true { parts.append("noCtrlCmd") }
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }

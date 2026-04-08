@@ -27,17 +27,24 @@ extension WindowController {
 
     /// Resize and reposition a window to match a frame (frame is in screen-local coordinates)
     func moveWindow(_ managedWindow: ManagedWindow, to frame: CGRect, on screen: ScreenDescriptor) {
+        let currentFrame = accessibilityFrameForWindow(element: managedWindow.backing.element, on: screen)
+        let effectiveTargetScreenFrame = resolvedTargetScreenFrame(
+            for: managedWindow,
+            requestedFrame: frame,
+            on: screen,
+            currentScreenFrame: currentFrame
+        )
+
         cancelAccessibilityFrameRetryIfSuperseded(
             windowId: managedWindow.windowId,
-            newTargetScreenFrame: frame,
+            newTargetScreenFrame: effectiveTargetScreenFrame,
             reason: "new-programmatic-move"
         )
 
-        let currentFrame = actualFrameInScreenCoordinates(for: managedWindow, on: screen)
-
-        if framesRoughlyEqual(currentFrame, frame) {
+        let currentFrameForSkip = currentFrame ?? .zero
+        if framesRoughlyEqual(currentFrameForSkip, effectiveTargetScreenFrame) {
             let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-            Logger.debug("Skipping move for window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame) (already at target).")
+            Logger.debug("Skipping move for window \(managedWindow.windowId) on screen \(screenIndex) to frame \(effectiveTargetScreenFrame) (already at target).")
             return
         }
 
@@ -47,12 +54,33 @@ extension WindowController {
             applyScreenFrameWithBestEffort(
                 windowId: managedWindow.windowId,
                 element: element,
-                targetScreenFrame: frame,
+                targetScreenFrame: effectiveTargetScreenFrame,
                 screen: screen
             )
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-        Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(frame)")
+        Logger.debug("Moved window \(managedWindow.windowId) on screen \(screenIndex) to frame \(effectiveTargetScreenFrame)")
+    }
+
+    internal func resolvedTargetScreenFrame(
+        for managedWindow: ManagedWindow,
+        requestedFrame: CGRect,
+        on screen: ScreenDescriptor,
+        currentScreenFrame: CGRect? = nil
+    ) -> CGRect {
+        let preserveWidth: Bool
+        if let bundleIdentifier = NSRunningApplication(processIdentifier: managedWindow.backing.pid)?.bundleIdentifier {
+            preserveWidth = applicationExceptionPolicy.doesNotResizeWidth(forBundleIdentifier: bundleIdentifier)
+        } else {
+            preserveWidth = false
+        }
+
+        let resolvedCurrentFrame = currentScreenFrame ?? accessibilityFrameForWindow(element: managedWindow.backing.element, on: screen)
+        return WidthPreservingFramePolicy.resolvedFrame(
+            requestedFrame: requestedFrame,
+            currentFrame: resolvedCurrentFrame,
+            preserveWidth: preserveWidth
+        )
     }
 
     // MARK: - Frame Application
@@ -618,38 +646,45 @@ extension WindowController {
     ///
     /// Compares the new target to the previous target to skip unchanged AX attributes,
     /// then dispatches only the needed AX writes to a serial background queue.
-    /// No AX reads, readback, retry, or opposite-order pass — the final full sync
-    /// on drag end handles correctness.
+    /// Avoids readback, retry, and the opposite-order pass; width-preserving exceptions
+    /// may still consult the current frame on the first tick to keep the existing width.
+    /// The final full sync on drag end handles correctness.
+    @discardableResult
     func moveWindowForLiveResize(
-        windowId: Int,
-        element: AXUIElement,
+        _ managedWindow: ManagedWindow,
         targetScreenFrame: CGRect,
         previousTargetScreenFrame: CGRect?,
         screen: ScreenDescriptor
-    ) {
+    ) -> CGRect {
+        let effectiveTargetScreenFrame = resolvedTargetScreenFrame(
+            for: managedWindow,
+            requestedFrame: targetScreenFrame,
+            on: screen,
+            currentScreenFrame: previousTargetScreenFrame
+        )
         let positionChanged: Bool
         let sizeChanged: Bool
         let tolerance: CGFloat = 0.5
 
         if let prev = previousTargetScreenFrame {
-            positionChanged = abs(targetScreenFrame.origin.x - prev.origin.x) > tolerance
-                           || abs(targetScreenFrame.origin.y - prev.origin.y) > tolerance
-            sizeChanged = abs(targetScreenFrame.width - prev.width) > tolerance
-                       || abs(targetScreenFrame.height - prev.height) > tolerance
+            positionChanged = abs(effectiveTargetScreenFrame.origin.x - prev.origin.x) > tolerance
+                           || abs(effectiveTargetScreenFrame.origin.y - prev.origin.y) > tolerance
+            sizeChanged = abs(effectiveTargetScreenFrame.width - prev.width) > tolerance
+                       || abs(effectiveTargetScreenFrame.height - prev.height) > tolerance
         } else {
             // First tick of the drag — must set both.
             positionChanged = true
             sizeChanged = true
         }
 
-        guard positionChanged || sizeChanged else { return }
+        guard positionChanged || sizeChanged else { return effectiveTargetScreenFrame }
 
         // Mark as programmatic update on the main thread BEFORE dispatching, so
         // AXMoved/AXResized observation handlers won't trigger spurious reflows.
-        performProgrammaticUpdate(for: windowId) { /* no-op: actual work is async */ }
+        performProgrammaticUpdate(for: managedWindow.windowId) { /* no-op: actual work is async */ }
 
         // Compute accessibility-coordinate frame on the main thread (pure math).
-        let targetAXFrame = screen.screenToAccessibility(targetScreenFrame)
+        let targetAXFrame = screen.screenToAccessibility(effectiveTargetScreenFrame)
 
         // Choose size-vs-position order using the previous target as "current frame"
         // (no AX read needed) so intermediate frames stay on-screen when possible.
@@ -657,7 +692,7 @@ extension WindowController {
         if positionChanged && sizeChanged {
             order = preferredAccessibilityUpdateOrder(
                 currentFrame: previousTargetScreenFrame,
-                targetFrame: targetScreenFrame,
+                targetFrame: effectiveTargetScreenFrame,
                 visibleBounds: screen.visibleScreenBounds
             )
         } else {
@@ -672,11 +707,11 @@ extension WindowController {
             switch order {
             case .sizeThenPosition:
                 if sizeChanged {
-                    _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
+                    _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
                 }
                 if positionChanged {
                     _ = self.setAccessibilityPoint(
-                        element: element,
+                        element: managedWindow.backing.element,
                         attribute: kAXPositionAttribute as CFString,
                         point: targetAXFrame.origin
                     )
@@ -684,16 +719,18 @@ extension WindowController {
             case .positionThenSize:
                 if positionChanged {
                     _ = self.setAccessibilityPoint(
-                        element: element,
+                        element: managedWindow.backing.element,
                         attribute: kAXPositionAttribute as CFString,
                         point: targetAXFrame.origin
                     )
                 }
                 if sizeChanged {
-                    _ = self.setAccessibilitySize(element: element, size: targetAXFrame.size)
+                    _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
                 }
             }
         }
+
+        return effectiveTargetScreenFrame
     }
 
     /// Dispatch all pending live-resize AX writes as a single batch on the

@@ -219,6 +219,8 @@ While the user is dragging a zone resize bar, the rest of the zones should updat
 When our window manager assigns a window to a zone, the window should be moved and resized to match the zone dimensions.
 **Important:** When some windows are resized, they might not actually attain the dimensions requested. For example, a window might have a minimum width, etc. We should *not* keep on trying to resize them in an infinite loop. See below for the relevant ActiveFit feature.
 
+Per-app exception: applications may opt into `doNotResizeWidth`. For those windows, Zonogy still moves them to the zone origin and applies the target height, but preserves the current width instead of attempting to change it. ActiveFit should treat these windows naturally, as though they cannot be resized narrower.
+
 ### Dragging Windows Between Zones
 
 Dragging behavior differs between tiled windows and floating-zone (floating) windows.
@@ -448,6 +450,7 @@ Fields:
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
   - `floatSecondaryWindowsWhenMainWindowIsTargeted` – suboption for `hasMainWindow`. Ignored unless `hasMainWindow` is also `true`. When `true`, we avoid displacing the main window from a tiling zone by a (non-main) window. (See "Targeting" section.)
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)
+  - `doNotResizeWidth` – when `true`, Zonogy preserves the window's current width during zone-aligned moves/resizes instead of attempting to apply the zone width. Height and position still update normally.
   - `disableControlCommandMouseGestures` – when `true`, Zonogy does not consume that app's Control-Command click targeting or Control-Command external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
 

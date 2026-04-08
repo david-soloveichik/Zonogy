@@ -511,8 +511,13 @@ extension AppController: LauncherControllerDelegate {
     /// Pre-position a minimized window to the target zone frame before unminimizing
     /// This ensures the unminimize animation shows the window "restoring" to the correct position
     private func prePositionMinimizedWindowForLauncher(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
+        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
+            for: managed,
+            requestedFrame: screenFrame,
+            on: screen
+        )
         let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(screenFrame)
+        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
 
         var position = accessibilityFrame.origin
         if let positionValue = AXValueCreate(.cgPoint, &position) {
@@ -524,7 +529,7 @@ extension AppController: LauncherControllerDelegate {
             AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
         }
 
-        Logger.debug("Launcher: Pre-positioned minimized window \(managed.windowId) to \(screenFrame) before unminimizing")
+        Logger.debug("Launcher: Pre-positioned minimized window \(managed.windowId) to \(effectiveScreenFrame) before unminimizing")
     }
 
     private func activateWindow(_ managed: ManagedWindow) {

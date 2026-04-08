@@ -668,8 +668,13 @@ extension AppController {
     private func prePositionMinimizedWindow(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
         // Pre-position the window while minimized for smooth animation
         // Convert from screen-local coordinates to accessibility coordinates
+        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
+            for: managed,
+            requestedFrame: screenFrame,
+            on: screen
+        )
         let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(screenFrame)
+        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
 
         // Mark this as a programmatic update so any resulting AX moved/resized notifications
         // are ignored (avoids misclassifying restore pre-positioning as a user drag/resize).

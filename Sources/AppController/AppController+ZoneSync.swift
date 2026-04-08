@@ -237,14 +237,13 @@ extension AppController {
                         // Fast path: dispatch AX writes to a background queue,
                         // skip unchanged attributes based on previous target.
                         let previousFrame = liveResizePreviousFrames[windowId]
-                        windowController.moveWindowForLiveResize(
-                            windowId: windowId,
-                            element: managed.backing.element,
+                        let effectiveFrame = windowController.moveWindowForLiveResize(
+                            managed,
                             targetScreenFrame: displayFrame,
                             previousTargetScreenFrame: previousFrame,
                             screen: descriptor
                         )
-                        liveResizePreviousFrames[windowId] = displayFrame
+                        liveResizePreviousFrames[windowId] = effectiveFrame
                     } else {
                         windowController.moveWindow(managed, to: displayFrame, on: descriptor)
                     }

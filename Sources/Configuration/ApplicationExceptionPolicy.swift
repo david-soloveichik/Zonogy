@@ -12,6 +12,8 @@ struct ApplicationExceptionRule: Codable {
     let hasMainWindow: Bool?
     let floatSecondaryWindowsWhenMainWindowIsTargeted: Bool?
     let snapToZoneOnSelfResize: Bool?
+    /// When enabled, Zonogy preserves the window's current width when applying zone frames.
+    let doNotResizeWidth: Bool?
     /// When enabled, Zonogy does not consume this app's Control-Command mouse gestures.
     let disableControlCommandMouseGestures: Bool?
     /// Some apps (e.g., Keynote presentation windows) don't expose `AXFullScreen` reliably.
@@ -30,6 +32,7 @@ struct ApplicationExceptionRule: Codable {
         hasMainWindow: Bool? = nil,
         floatSecondaryWindowsWhenMainWindowIsTargeted: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil,
+        doNotResizeWidth: Bool? = nil,
         disableControlCommandMouseGestures: Bool? = nil,
         treatAXUnknownFullWidthAsFullScreen: Bool? = nil,
         requireActiveZoomButton: Bool? = nil,
@@ -43,6 +46,7 @@ struct ApplicationExceptionRule: Codable {
         self.hasMainWindow = hasMainWindow
         self.floatSecondaryWindowsWhenMainWindowIsTargeted = floatSecondaryWindowsWhenMainWindowIsTargeted
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
+        self.doNotResizeWidth = doNotResizeWidth
         self.disableControlCommandMouseGestures = disableControlCommandMouseGestures
         self.treatAXUnknownFullWidthAsFullScreen = treatAXUnknownFullWidthAsFullScreen
         self.requireActiveZoomButton = requireActiveZoomButton
@@ -60,6 +64,7 @@ struct ApplicationExceptionRule: Codable {
             hasMainWindow: override.hasMainWindow ?? hasMainWindow,
             floatSecondaryWindowsWhenMainWindowIsTargeted: override.floatSecondaryWindowsWhenMainWindowIsTargeted ?? floatSecondaryWindowsWhenMainWindowIsTargeted,
             snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
+            doNotResizeWidth: override.doNotResizeWidth ?? doNotResizeWidth,
             disableControlCommandMouseGestures: override.disableControlCommandMouseGestures ?? disableControlCommandMouseGestures,
             treatAXUnknownFullWidthAsFullScreen: override.treatAXUnknownFullWidthAsFullScreen ?? treatAXUnknownFullWidthAsFullScreen,
             requireActiveZoomButton: override.requireActiveZoomButton ?? requireActiveZoomButton,
@@ -127,6 +132,12 @@ struct ApplicationExceptionPolicy {
     /// immediately after a self-initiated resize (e.g., internal UI panels opening/closing).
     func snapsToZoneOnSelfResize(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.snapToZoneOnSelfResize ?? false
+    }
+
+    /// Returns true if Zonogy should preserve the window's current width when
+    /// applying zone-aligned frames for this bundle.
+    func doesNotResizeWidth(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.doNotResizeWidth ?? false
     }
 
     /// Returns true if Zonogy should not consume this app's Control-Command click/drag mouse gestures.
