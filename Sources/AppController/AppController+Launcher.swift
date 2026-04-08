@@ -147,8 +147,8 @@ extension AppController: LauncherControllerDelegate {
                 return
             }
 
-            // Calculate target zone frame for pre-positioning
-            let targetInfo = calculateTargetZoneFrame(for: managed)
+            let destination = launcherSelectionDestination(for: managed)
+            let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: managed, destination: $0) }
 
             // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
             if !managed.isPlacedInZone {
@@ -160,7 +160,7 @@ extension AppController: LauncherControllerDelegate {
                 windowController.unminimizeWindow(managed)
             }
             // Place in targeted zone
-            placeSelectedWindow(managed)
+            placeSelectedWindow(managed, destination: destination)
             return
         }
 
@@ -219,8 +219,8 @@ extension AppController: LauncherControllerDelegate {
                 return
             }
 
-            // Calculate target zone frame for pre-positioning
-            let targetInfo = calculateTargetZoneFrame(for: preferredWindow)
+            let destination = launcherSelectionDestination(for: preferredWindow)
+            let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: preferredWindow, destination: $0) }
 
             // Pre-position and unminimize if needed
             if !preferredWindow.isPlacedInZone {
@@ -233,7 +233,7 @@ extension AppController: LauncherControllerDelegate {
             }
 
             // Place in targeted zone
-            placeSelectedWindow(preferredWindow)
+            placeSelectedWindow(preferredWindow, destination: destination)
             return
         }
 
@@ -402,11 +402,11 @@ extension AppController: LauncherControllerDelegate {
 
     // MARK: - Private Helpers
 
-    private func placeSelectedWindow(_ managed: ManagedWindow) {
-        // Capture original destination BEFORE any removal, since retargeting can shift targeting.
-        let originalDestination = targetedZoneManager.targetedDestination
-
-        guard let destination = originalDestination else {
+    private func placeSelectedWindow(
+        _ managed: ManagedWindow,
+        destination: TargetedZoneManager.TargetedDestination?
+    ) {
+        guard let destination else {
             activateWindow(managed)
             return
         }
@@ -450,6 +450,18 @@ extension AppController: LauncherControllerDelegate {
         syncWindowsToZones()
     }
 
+    private func launcherSelectionDestination(for managed: ManagedWindow) -> TargetedZoneManager.TargetedDestination? {
+        targetedZoneManager.ensureTargetedZone(reason: "launcher-selection")
+        guard let requestedDestination = targetedZoneManager.targetedDestination else {
+            return nil
+        }
+        return windowPlacementManager.effectivePlacementDestinationForMainWindowException(
+            managed,
+            requestedDestination: requestedDestination,
+            reason: "launcher-selection"
+        )
+    }
+
     /// Place a window into a specific zone (used by DockMenu drag-and-drop).
     /// Unlike placeSelectedWindow, this takes an explicit zone key rather than using the targeted zone.
     internal func placeWindowIntoZone(_ managed: ManagedWindow, zoneKey: ZoneKey) {
@@ -473,13 +485,11 @@ extension AppController: LauncherControllerDelegate {
         syncWindowsToZones()
     }
 
-    /// Calculate the target zone frame for a window being placed via Launcher
-    private func calculateTargetZoneFrame(for managed: ManagedWindow) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
-        targetedZoneManager.ensureTargetedZone(reason: "launcher-pre-position")
-        guard let destination = targetedZoneManager.targetedDestination else {
-            return nil
-        }
-
+    /// Calculate the placement frame for a window being placed via Launcher.
+    private func calculateTargetZoneFrame(
+        for managed: ManagedWindow,
+        destination: TargetedZoneManager.TargetedDestination
+    ) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
         switch destination {
         case .floating(let screenId):
             guard let descriptor = descriptor(for: screenId),

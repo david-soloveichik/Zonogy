@@ -34,7 +34,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 ## Actions
 
 - **Window activation:** Releasing the modifier key activates the currently selected window
-- **Minimized windows:** Placed into the targeted zone (same behavior as Launcher)
+- **Minimized windows:** Placed using the same placement rules as Launcher. Normally this means the targeted zone, but app-specific placement exceptions may redirect to the floating zone.
 - **Unminimized windows:** Activated in place without being moved to the targeted zone (note: this is different from Launcher)
 - While CmdTab is visible, clicking a window row activates that window immediately and dismisses CmdTab (even if modifiers are still held).
   Note: There is potential conflict with the "Control-Command-Click" gesture that targets zones (it is globally intercepted and consumed). So while CmdTab is visible, we disable the "Control-Command-Click" targeting gesture so:

@@ -153,10 +153,11 @@ class WindowPlacementManager {
             return
         }
 
-        let effectiveDestination = redirectedDestinationForNewWindowIfNeeded(
+        let effectiveDestination = effectivePlacementDestinationForMainWindowException(
             managed,
-            targetedDestination: targetedDestination
-        ) ?? targetedDestination
+            requestedDestination: targetedDestination,
+            reason: baseReason
+        )
 
         placeWindow(
             managed,
@@ -260,17 +261,18 @@ class WindowPlacementManager {
 
     // MARK: - Private Methods
 
-    private func redirectedDestinationForNewWindowIfNeeded(
+    internal func effectivePlacementDestinationForMainWindowException(
         _ managed: ManagedWindow,
-        targetedDestination: TargetedZoneManager.TargetedDestination
-    ) -> TargetedZoneManager.TargetedDestination? {
+        requestedDestination: TargetedZoneManager.TargetedDestination,
+        reason: String
+    ) -> TargetedZoneManager.TargetedDestination {
         guard let delegate = delegate,
-              case .tiled(let zoneKey) = targetedDestination,
+              case .tiled(let zoneKey) = requestedDestination,
               let targetController = delegate.zoneController(for: zoneKey.screenId),
               let targetZone = targetController.zone(at: zoneKey.index),
               let targetOccupantWindowId = targetZone.occupantWindowId,
               let bundleIdentifier = bundleIdentifier(for: managed) else {
-            return nil
+            return requestedDestination
         }
 
         let exceptionPolicy = delegate.windowController.applicationExceptionPolicy
@@ -281,13 +283,14 @@ class WindowPlacementManager {
             targetedZoneOccupantWindowId: targetOccupantWindowId,
             sameAppWindows: sameAppWindows(forBundleIdentifier: bundleIdentifier, ensuringInclusionOf: managed)
         ) else {
-            return nil
+            return requestedDestination
         }
 
         Logger.debug(
             "Redirecting same-app secondary window \(managed.windowId) for bundle \(bundleIdentifier) " +
                 "to floating zone on screen \(ScreenContextStore.loggingIndex(for: zoneKey.screenId)); " +
-                "targeted zone \(zoneKey.index) already contains the app's main window \(targetOccupantWindowId)"
+                "requested tiled zone \(zoneKey.index) already contains the app's main window \(targetOccupantWindowId) " +
+                "(reason: \(reason))"
         )
         return .floating(screenId: zoneKey.screenId)
     }

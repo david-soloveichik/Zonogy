@@ -156,7 +156,7 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, try these in order: (1) the currently active window's zone, (2) the most recent window's zone (per recency tracking), (3) zone 1 on the same screen.
 - If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 
-**Per-app placement exception for main-window apps:** Applications that opt into `hasMainWindow`, may also enable `floatSecondaryWindowsWhenMainWindowIsTargeted`. Then if a tiling zone containing the main window is targeted, opening / unminimizing a (non-main) managed window from the same app places the new window into the floating zone on that same screen instead of displacing the main window from the tiling zone.
+**Per-app placement exception for main-window apps:** Applications that opt into `hasMainWindow`, may also enable `floatSecondaryWindowsWhenMainWindowIsTargeted`. Then if a tiling zone containing the main window is targeted, opening / unminimizing a (non-main) managed window from the same app places the new window into the floating zone on that same screen instead of displacing the main window from the tiling zone. The same exception also applies when the user opens that non-main window via Launcher or CmdTab.
 
 **Target navigation shortcuts:**
 
