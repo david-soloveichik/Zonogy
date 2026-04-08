@@ -115,7 +115,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         topAnchor = hasMainWindowCheckbox.bottomAnchor
 
         floatSecondaryWindowsCheckbox = makeCheckbox(
-            title: "Don't displace main window by app's other windows",
+            title: "Avoid displacing main window",
             tooltip: "If the targeted tiled zone already holds this app's main window, place same-app secondary windows into the same screen's floating zone instead of displacing the main window"
         )
         container.addSubview(floatSecondaryWindowsCheckbox)
