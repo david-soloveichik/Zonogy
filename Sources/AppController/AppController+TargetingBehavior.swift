@@ -4,6 +4,36 @@ import AppKit
 import Foundation
 
 extension AppController {
+    internal func retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
+        emptiedFloatingScreenId: CGDirectDisplayID,
+        excludingWindowId removedWindowId: Int,
+        reason: String
+    ) {
+        guard targetingMode == .followsFocus else {
+            return
+        }
+
+        guard let destination = activeTiledWindowDestinationForFloatingZoneEmptyRetarget(
+            excludingWindowId: removedWindowId
+        ) else {
+            Logger.debug(
+                "Floating zone emptied on screen \(screenContextStore.loggingIndex(for: emptiedFloatingScreenId)); " +
+                "no active tiled window available for follows-focus retarget (reason: \(reason))"
+            )
+            return
+        }
+
+        Logger.debug(
+            "Floating zone emptied on screen \(screenContextStore.loggingIndex(for: emptiedFloatingScreenId)); " +
+            "follows-focus retarget -> zone \(destination.index) on screen " +
+            "\(screenContextStore.loggingIndex(for: destination.screenId)) (reason: \(reason))"
+        )
+        targetedZoneManager.setTargetedZone(
+            destination,
+            reason: "floating-emptied-\(reason)"
+        )
+    }
+
     /// Returns the target destination when a zone is removed in follows-focus mode.
     /// Delegates to FollowsFocusZoneRemovalPolicy for the pure selection logic.
     internal func followsFocusTargetOnZoneRemoval(
@@ -87,6 +117,42 @@ extension AppController {
         }
 
         updateTargetingFromActiveWindowIfNeeded(windowId: focused.windowId, reason: reason)
+    }
+
+    private func activeTiledWindowDestinationForFloatingZoneEmptyRetarget(
+        excludingWindowId removedWindowId: Int
+    ) -> ZoneKey? {
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            return nil
+        }
+
+        let activeManaged: ManagedWindow? = {
+            if let focused = windowController.focusedWindowIfTracked(pid: pid),
+               focused.windowId != removedWindowId {
+                return focused
+            }
+
+            if let currentId = currentFrontmostManagedWindowId,
+               currentId != removedWindowId,
+               let current = windowController.window(withId: currentId),
+               current.backing.pid == pid,
+               (current.zoneIndex != nil || isWindowInFloatingZone(currentId)) {
+                return current
+            }
+
+            return nil
+        }()
+
+        guard let activeManaged,
+              let zoneIndex = activeManaged.zoneIndex,
+              let screenId = activeManaged.screenDisplayId ?? detectScreenId(for: activeManaged) else {
+            return nil
+        }
+
+        return FollowsFocusZoneRemovalPolicy.selectFloatingZoneEmptyDestination(
+            activeScreenId: screenId,
+            activeZoneIndex: zoneIndex
+        )
     }
 
     private func updateTargetingFromActiveWindowIfNeeded(windowId: Int, reason: String) {

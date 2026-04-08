@@ -1,6 +1,6 @@
-/// Pure selection logic for retargeting after zone removal in "targeting follows focus" mode.
+/// Pure selection logic for follows-focus retargeting decisions.
 ///
-/// Priority: (1) active window's zone, (2) most recent in-zone window, (3) zone 1 on removed screen.
+/// Zone removal priority: (1) active window's zone, (2) most recent in-zone window, (3) zone 1 on removed screen.
 
 import CoreGraphics
 
@@ -47,6 +47,20 @@ enum FollowsFocusZoneRemovalPolicy {
 
         // (3) Fallback: zone 1 on the same screen
         return .tiled(ZoneKey(screenId: removedScreenId, index: 1))
+    }
+
+    /// When a floating zone empties because its occupant disappeared, follows-focus retargets
+    /// only if the currently active managed window is in a tiled zone.
+    static func selectFloatingZoneEmptyDestination(
+        activeScreenId: CGDirectDisplayID?,
+        activeZoneIndex: Int?
+    ) -> ZoneKey? {
+        guard let activeScreenId,
+              let activeZoneIndex else {
+            return nil
+        }
+
+        return ZoneKey(screenId: activeScreenId, index: activeZoneIndex)
     }
 
     private static func isInRemovedZone(

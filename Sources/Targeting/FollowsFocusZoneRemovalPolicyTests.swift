@@ -169,6 +169,36 @@ enum FollowsFocusZoneRemovalPolicyTests {
                    "active window in removed zone with no other windows should fallback to zone 1")
         }
 
+        // (13) Floating zone emptied: active tiled window should retarget to its zone
+        do {
+            let result = FollowsFocusZoneRemovalPolicy.selectFloatingZoneEmptyDestination(
+                activeScreenId: screen1,
+                activeZoneIndex: 2
+            )
+            assert(result == ZoneKey(screenId: screen1, index: 2),
+                   "floating-zone empty retarget should pick the active tiled window's zone")
+        }
+
+        // (14) Floating zone emptied: active non-tiled window should not retarget
+        do {
+            let result = FollowsFocusZoneRemovalPolicy.selectFloatingZoneEmptyDestination(
+                activeScreenId: screen1,
+                activeZoneIndex: nil
+            )
+            assert(result == nil,
+                   "floating-zone empty retarget should ignore active non-tiled windows")
+        }
+
+        // (15) Floating zone emptied: missing active screen should not retarget
+        do {
+            let result = FollowsFocusZoneRemovalPolicy.selectFloatingZoneEmptyDestination(
+                activeScreenId: nil,
+                activeZoneIndex: 1
+            )
+            assert(result == nil,
+                   "floating-zone empty retarget should require an active tiled screen")
+        }
+
         if allPassed {
             print("FollowsFocusZoneRemovalPolicyTests: all tests passed")
         }
