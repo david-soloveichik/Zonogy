@@ -18,6 +18,9 @@ enum GuardrailTests {
         if !WindowPlacementManagerNoOpPlacementTests.run() {
             allPassed = false
         }
+        if !MainWindowSecondaryFloatingPlacementPolicyTests.run() {
+            allPassed = false
+        }
         if !CoordinateConversionTests.run() {
             allPassed = false
         }

@@ -314,7 +314,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     private func summarizeExceptions(_ rule: ApplicationExceptionRule) -> String {
         var parts: [String] = []
 
-        if rule.hasMainWindow == true { parts.append("mainWin") }
+        if rule.hasMainWindow == true { parts.append("preferMain") }
+        if rule.hasMainWindow == true && rule.floatSecondaryWindowsWhenMainWindowIsTargeted == true { parts.append("keepMain") }
         if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
         if rule.disableControlCommandMouseGestures == true { parts.append("noCtrlCmd") }
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }

@@ -156,6 +156,8 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, try these in order: (1) the currently active window's zone, (2) the most recent window's zone (per recency tracking), (3) zone 1 on the same screen.
 - If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 
+**Per-app placement exception for main-window apps:** Applications that opt into `hasMainWindow`, may also enable `floatSecondaryWindowsWhenMainWindowIsTargeted`. Then if a tiling zone containing the main window is targeted, opening / unminimizing a (non-main) managed window from the same app places the new window into the floating zone on that same screen instead of displacing the main window from the tiling zone.
+
 **Target navigation shortcuts:**
 
 - Control-Cmd-DownArrow: target the floating zone on the same screen as the currently targeted tiling zone. If a floating zone is already targeted, the shortcut does nothing.
@@ -443,6 +445,7 @@ Fields:
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
+  - `floatSecondaryWindowsWhenMainWindowIsTargeted` – suboption for `hasMainWindow`. Ignored unless `hasMainWindow` is also `true`. When `true`, we avoid displacing the main window from a tiling zone by a (non-main) window. (See "Targeting" section.)
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)
   - `disableControlCommandMouseGestures` – when `true`, Zonogy does not consume that app's Control-Command click targeting or Control-Command external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
