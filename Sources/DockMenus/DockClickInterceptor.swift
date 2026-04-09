@@ -69,6 +69,12 @@ final class DockClickInterceptor {
         case unhandled
     }
 
+    private enum TopmostDockHit {
+        case dockApp(ClickedAppResult)
+        case nonDock
+        case unavailable
+    }
+
     /// State for tracking a potential click that will be intercepted on mouse-up.
     private struct PendingClick {
         let downLocation: CGPoint
@@ -243,11 +249,22 @@ final class DockClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        // Query Dock accessibility to find the clicked element
-        // Only intercept if it's an application Dock icon
-        guard let result = findClickedAppDockItem(at: location) else {
-            // Not an app - let click through
+        // Only intercept if the topmost element at this location is a Dock app item.
+        // This prevents overlapping UI like menus from being hijacked by DockMenus.
+        let topmostHit = findTopmostClickedAppDockItem(at: location)
+        let result: ClickedAppResult
+        switch topmostHit {
+        case .dockApp(let clickedResult):
+            result = clickedResult
+        case .nonDock:
+            // Preserve Dock hidden-state bookkeeping when we click inside a stale Dock frame.
+            _ = findClickedAppDockItem(at: location)
             return Unmanaged.passUnretained(event)
+        case .unavailable:
+            guard let clickedResult = findClickedAppDockItem(at: location) else {
+                return Unmanaged.passUnretained(event)
+            }
+            result = clickedResult
         }
 
         // Record the pending click - we'll intercept on mouse-up if it's not a drag
@@ -271,17 +288,37 @@ final class DockClickInterceptor {
         let element: AXUIElement
     }
 
+    /// Uses the system-wide accessibility hit-test so we only intercept when the Dock app item
+    /// is truly the topmost UI element at the click point.
+    private func findTopmostClickedAppDockItem(at location: CGPoint) -> TopmostDockHit {
+        guard let dockPid = dockProcessId() else {
+            return .unavailable
+        }
+
+        let systemWideElement = AXUIElementCreateSystemWide()
+        var elementAtPosition: AXUIElement?
+        let status = AXUIElementCopyElementAtPosition(
+            systemWideElement,
+            Float(location.x),
+            Float(location.y),
+            &elementAtPosition
+        )
+
+        guard status == .success, let element = elementAtPosition else {
+            return .unavailable
+        }
+
+        if let result = clickedAppDockItemResultInParentChain(startingAt: element, dockPid: dockPid) {
+            return .dockApp(result)
+        }
+
+        return .nonDock
+    }
+
     /// Queries the Dock's accessibility tree to find what's at the click position.
     /// Returns the app URL, frame, and running status if it's an AXApplicationDockItem.
     private func findClickedAppDockItem(at location: CGPoint) -> ClickedAppResult? {
-        // Use cached PID or look it up
-        let pid: pid_t
-        if let cached = dockPid {
-            pid = cached
-        } else if let found = ApplicationIdentity.runningApplication(bundleIdentifier: Constants.dockBundleIdentifier)?.processIdentifier {
-            dockPid = found
-            pid = found
-        } else {
+        guard let pid = dockProcessId() else {
             return nil
         }
 
@@ -300,15 +337,69 @@ final class DockClickInterceptor {
             return nil
         }
 
-        // Check if it's an AXApplicationDockItem (subrole)
-        var subroleRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
-              let subrole = subroleRef as? String,
-              subrole == "AXApplicationDockItem" else {
+        guard isApplicationDockItem(element, ownedBy: pid) else {
             return nil
         }
 
-        // Get the URL
+        return clickedAppResult(fromDockItemElement: element)
+    }
+
+    private func dockProcessId() -> pid_t? {
+        if let cached = dockPid {
+            return cached
+        }
+
+        guard let found = ApplicationIdentity.runningApplication(bundleIdentifier: Constants.dockBundleIdentifier)?.processIdentifier else {
+            return nil
+        }
+
+        dockPid = found
+        return found
+    }
+
+    private func clickedAppDockItemResultInParentChain(startingAt element: AXUIElement, dockPid: pid_t) -> ClickedAppResult? {
+        var currentElement: AXUIElement? = element
+        var visitedHashes: Set<CFHashCode> = []
+        let maxDepth = 16
+
+        for _ in 0..<maxDepth {
+            guard let current = currentElement else {
+                return nil
+            }
+
+            let hash = CFHash(current)
+            guard !visitedHashes.contains(hash) else {
+                return nil
+            }
+            visitedHashes.insert(hash)
+
+            if isApplicationDockItem(current, ownedBy: dockPid) {
+                return clickedAppResult(fromDockItemElement: current)
+            }
+
+            currentElement = axParent(of: current)
+        }
+
+        return nil
+    }
+
+    private func isApplicationDockItem(_ element: AXUIElement, ownedBy pid: pid_t) -> Bool {
+        var elementPid: pid_t = 0
+        guard AXUIElementGetPid(element, &elementPid) == .success,
+              elementPid == pid else {
+            return false
+        }
+
+        var subroleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+              let subrole = subroleRef as? String else {
+            return false
+        }
+
+        return subrole == "AXApplicationDockItem"
+    }
+
+    private func clickedAppResult(fromDockItemElement element: AXUIElement) -> ClickedAppResult? {
         var urlRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &urlRef) == .success,
               let url = urlRef as? URL else {
@@ -326,6 +417,21 @@ final class DockClickInterceptor {
             .map { ApplicationIdentity.isRunning(bundleIdentifier: $0) } ?? false
 
         return ClickedAppResult(url: url, frame: frame, isRunning: isRunning, element: element)
+    }
+
+    private func axParent(of element: AXUIElement) -> AXUIElement? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &value) == .success,
+              let value else {
+            return nil
+        }
+
+        let cfValue = value as CFTypeRef
+        guard CFGetTypeID(cfValue) == AXUIElementGetTypeID() else {
+            return nil
+        }
+
+        return unsafeBitCast(cfValue, to: AXUIElement.self)
     }
 
     /// Extracts the AXFrame (position + size) from an accessibility element.

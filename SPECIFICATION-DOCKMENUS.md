@@ -38,6 +38,7 @@ When the user left-clicks a Dock app **without Shift**:
 - Zonogy intercepts the click so the Dock does not handle it.
 - Zonogy performs the **Default Launcher action for that app** (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)), including `hasMainWindow` behavior.
 - After the action begins, dismiss the DockMenu.
+- Intercept only when the Dock app icon is the **topmost** UI at the cursor. If another menu/panel/window overlaps the Dock at that point, let that frontmost UI handle the click normally. (Using `AXUIElementCopyElementAtPosition()`)
 
 **Modifiers:**
 
@@ -51,6 +52,7 @@ When the user drags a Dock app icon **without Shift/Control**:
 - Zonogy intercepts the drag so the Dock does not start rearranging icons or show the native Dock menu.
 - **Running apps with windows:** Zonogy resolves the app's preferred managed window using the same selection rules as click interception (including `hasMainWindow`). The resolved window is dragged using the same overlay UI and drop targets as dragging a DockMenu window entry.
 - **Non-running apps or running apps with no windows:** Zone overlays appear. Dropping on a zone targets that zone and launches/activates the app; the new window appears in the targeted zone. Dropping outside all zones cancels (app is not launched/activated).
+- As with click interception, only intercept when the Dock app icon is the **topmost** UI at the cursor; overlapping menus/panels/windows must win.
 
 **Modifiers:**
 
