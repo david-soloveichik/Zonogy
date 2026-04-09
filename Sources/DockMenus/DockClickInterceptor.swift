@@ -258,7 +258,7 @@ final class DockClickInterceptor {
             result = clickedResult
         case .nonDock:
             // Preserve Dock hidden-state bookkeeping when we click inside a stale Dock frame.
-            _ = findClickedAppDockItem(at: location)
+            updateDockHiddenStateBookkeeping(at: location)
             return Unmanaged.passUnretained(event)
         case .unavailable:
             guard let clickedResult = findClickedAppDockItem(at: location) else {
@@ -318,22 +318,8 @@ final class DockClickInterceptor {
     /// Queries the Dock's accessibility tree to find what's at the click position.
     /// Returns the app URL, frame, and running status if it's an AXApplicationDockItem.
     private func findClickedAppDockItem(at location: CGPoint) -> ClickedAppResult? {
-        guard let pid = dockProcessId() else {
-            return nil
-        }
-
-        let dockApp = AXUIElementCreateApplication(pid)
-
-        var elementAtPosition: AXUIElement?
-        let result = AXUIElementCopyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
-
-        guard result == .success, let element = elementAtPosition else {
-            // AX query failed - Dock is hidden (autohide) or stale PID.
-            if result != .success {
-                dockPid = nil
-            }
-            // Notify that no Dock element was found at this position
-            onDockNotFound?()
+        guard let pid = dockProcessId(),
+              let element = dockElement(at: location, dockPid: pid) else {
             return nil
         }
 
@@ -342,6 +328,34 @@ final class DockClickInterceptor {
         }
 
         return clickedAppResult(fromDockItemElement: element)
+    }
+
+    /// Performs the Dock-local hit test used for visibility bookkeeping.
+    /// If the Dock no longer resolves an element at this point, treat the cached Dock PID as stale.
+    private func updateDockHiddenStateBookkeeping(at location: CGPoint) {
+        guard let pid = dockProcessId() else {
+            return
+        }
+        _ = dockElement(at: location, dockPid: pid)
+    }
+
+    private func dockElement(at location: CGPoint, dockPid: pid_t) -> AXUIElement? {
+        let dockApp = AXUIElementCreateApplication(dockPid)
+
+        var elementAtPosition: AXUIElement?
+        let result = AXUIElementCopyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
+
+        guard result == .success, let element = elementAtPosition else {
+            // AX query failed - Dock is hidden (autohide) or stale PID.
+            if result != .success {
+                self.dockPid = nil
+            }
+            // Notify that no Dock element was found at this position
+            onDockNotFound?()
+            return nil
+        }
+
+        return element
     }
 
     private func dockProcessId() -> pid_t? {
