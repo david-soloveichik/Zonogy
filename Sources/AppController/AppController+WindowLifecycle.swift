@@ -114,7 +114,7 @@ extension AppController {
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
         }
-        manualResizeDetachedWindowIds.remove(windowId)
+        _ = clearRememberedManualResizeSize(for: windowId, reason: "destroyed-window")
         selfResizeSnapDebouncer.clear(windowId: windowId)
 
         removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: retarget)

@@ -13,6 +13,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // Window management
     var windowController: WindowController { get }
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
+    func clearRememberedManualResizeSize(for windowId: Int, reason: String) -> CGSize?
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func frameWithMargin(for zone: Zone, in controller: ZoneController) -> CGRect
@@ -520,6 +521,13 @@ class WindowPlacementManager {
         guard let delegate = delegate else { return }
 
         delegate.cancelPendingMinimization(windowId: managed.windowId)
+
+        // WinShot restore intentionally bypasses this shared tiled-placement path
+        // and restores remembered sizes from the snapshot afterwards.
+        _ = delegate.clearRememberedManualResizeSize(
+            for: managed.windowId,
+            reason: "tiled-placement"
+        )
 
         // Record activity for windows placed into zones so they appear in CmdTab/Launcher recency lists.
         delegate.windowController.recordWindowActivity(windowId: managed.windowId)
