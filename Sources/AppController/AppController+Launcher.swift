@@ -446,14 +446,7 @@ extension AppController: LauncherControllerDelegate {
 
     private func launcherSelectionDestination(for managed: ManagedWindow) -> TargetedZoneManager.TargetedDestination? {
         targetedZoneManager.ensureTargetedZone(reason: "launcher-selection")
-        guard let requestedDestination = targetedZoneManager.targetedDestination else {
-            return nil
-        }
-        return windowPlacementManager.effectivePlacementDestinationForMainWindowException(
-            managed,
-            requestedDestination: requestedDestination,
-            reason: "launcher-selection"
-        )
+        return targetedZoneManager.targetedDestination
     }
 
     /// Place a window into a specific zone (used by DockMenu drag-and-drop).

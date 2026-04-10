@@ -9,7 +9,6 @@ final class ExceptionRuleEditViewController: NSViewController {
 
     // Checkbox controls for each exception type
     private var hasMainWindowCheckbox: NSButton!
-    private var floatSecondaryWindowsCheckbox: NSButton!
     private var ignoreActivationPolicyCheckbox: NSButton!
     private var ignoreZoomButtonCheckbox: NSButton!
     private var requireActiveZoomButtonCheckbox: NSButton!
@@ -102,9 +101,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         // Exception checkboxes - "Has main window" first
         hasMainWindowCheckbox = makeCheckbox(
             title: "Prefer app's main window",
-            tooltip: "For Launcher and DockMenus, treat the window with the lowest CGWindowID as this app's main window and prefer it when choosing a window.",
-            target: self,
-            action: #selector(hasMainWindowCheckboxToggled)
+            tooltip: "For Launcher and DockMenus, treat the window with the lowest CGWindowID as this app's main window and prefer it when choosing a window."
         )
         container.addSubview(hasMainWindowCheckbox)
 
@@ -114,19 +111,6 @@ final class ExceptionRuleEditViewController: NSViewController {
             hasMainWindowCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         topAnchor = hasMainWindowCheckbox.bottomAnchor
-
-        floatSecondaryWindowsCheckbox = makeCheckbox(
-            title: "Avoid displacing main window",
-            tooltip: "If the targeted tiled zone already holds this app's main window, place same-app secondary windows into the same screen's floating zone instead of displacing the main window"
-        )
-        container.addSubview(floatSecondaryWindowsCheckbox)
-
-        NSLayoutConstraint.activate([
-            floatSecondaryWindowsCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            floatSecondaryWindowsCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 40),
-            floatSecondaryWindowsCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = floatSecondaryWindowsCheckbox.bottomAnchor
 
         snapToZoneCheckbox = makeCheckbox(
             title: "Snap to zone on self-resize",
@@ -303,7 +287,6 @@ final class ExceptionRuleEditViewController: NSViewController {
 
     private func populateFields() {
         hasMainWindowCheckbox.state = (originalRule.hasMainWindow == true) ? .on : .off
-        floatSecondaryWindowsCheckbox.state = (originalRule.floatSecondaryWindowsWhenMainWindowIsTargeted == true) ? .on : .off
         snapToZoneCheckbox.state = (originalRule.snapToZoneOnSelfResize == true) ? .on : .off
         doNotResizeWidthCheckbox.state = (originalRule.doNotResizeWidth == true) ? .on : .off
         disableControlCommandMouseGesturesCheckbox.state = (originalRule.disableControlCommandMouseGestures == true) ? .on : .off
@@ -318,19 +301,10 @@ final class ExceptionRuleEditViewController: NSViewController {
             excludedTitlesField.stringValue = titles.joined(separator: ", ")
         }
 
-        updateHasMainWindowDependentControls()
     }
 
     @objc private func cancelAction() {
         view.window?.sheetParent?.endSheet(view.window!, returnCode: .cancel)
-    }
-
-    @objc private func hasMainWindowCheckboxToggled() {
-        updateHasMainWindowDependentControls()
-    }
-
-    private func updateHasMainWindowDependentControls() {
-        floatSecondaryWindowsCheckbox.isEnabled = hasMainWindowCheckbox.state == .on
     }
 
     @objc private func saveAction() {
@@ -347,7 +321,6 @@ final class ExceptionRuleEditViewController: NSViewController {
             ignoreHeightRequirement: ignoreHeightCheckbox.state == .on ? true : nil,
             disallowEmptyTitleWindows: disallowEmptyTitleCheckbox.state == .on ? true : nil,
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
-            floatSecondaryWindowsWhenMainWindowIsTargeted: hasMainWindowCheckbox.state == .on && floatSecondaryWindowsCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
             doNotResizeWidth: doNotResizeWidthCheckbox.state == .on ? true : nil,
             disableControlCommandMouseGestures: disableControlCommandMouseGesturesCheckbox.state == .on ? true : nil,

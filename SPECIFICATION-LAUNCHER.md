@@ -193,7 +193,7 @@ When the user selects a window or launches an application:
 1. **If selecting an existing window:**
    - If minimized: resize/position to the eventual placement frame before unminimizing for smooth animation (see "Accessibility API Workarounds" in SPECIFICATION.md). Then place using standard Zonogy placement rules.
    - If not minimized: move the window using standard Zonogy placement rules (if not already there)
-   - Normally this uses the targeted zone, but app-specific placement exceptions may redirect to the floating zone (the `floatSecondaryWindowsWhenMainWindowIsTargeted` exception)
+   - Uses the targeted zone for placement
 
 2. **If selecting a running app with 1+ managed windows:**
    - Selects the preferred window and treats as window selection (zone placement as above)

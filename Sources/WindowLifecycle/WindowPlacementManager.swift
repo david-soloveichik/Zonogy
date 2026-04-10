@@ -153,15 +153,9 @@ class WindowPlacementManager {
             return
         }
 
-        let effectiveDestination = effectivePlacementDestinationForMainWindowException(
-            managed,
-            requestedDestination: targetedDestination,
-            reason: baseReason
-        )
-
         placeWindow(
             managed,
-            into: effectiveDestination,
+            into: targetedDestination,
             centerFloatingWindow: true,
             reason: baseReason,
             retargetOnRemoval: true,
@@ -260,70 +254,6 @@ class WindowPlacementManager {
     }
 
     // MARK: - Private Methods
-
-    internal func effectivePlacementDestinationForMainWindowException(
-        _ managed: ManagedWindow,
-        requestedDestination: TargetedZoneManager.TargetedDestination,
-        reason: String
-    ) -> TargetedZoneManager.TargetedDestination {
-        guard let delegate = delegate,
-              case .tiled(let zoneKey) = requestedDestination,
-              let targetController = delegate.zoneController(for: zoneKey.screenId),
-              let targetZone = targetController.zone(at: zoneKey.index),
-              let targetOccupantWindowId = targetZone.occupantWindowId,
-              let bundleIdentifier = bundleIdentifier(for: managed) else {
-            return requestedDestination
-        }
-
-        let exceptionPolicy = delegate.windowController.applicationExceptionPolicy
-        guard MainWindowSecondaryFloatingPlacementPolicy.shouldRedirectToFloating(
-            hasMainWindow: exceptionPolicy.hasMainWindow(forBundleIdentifier: bundleIdentifier),
-            floatsSecondaryWindowsWhenMainWindowIsTargeted: exceptionPolicy.floatsSecondaryWindowsWhenMainWindowIsTargeted(forBundleIdentifier: bundleIdentifier),
-            incomingWindowId: managed.windowId,
-            targetedZoneOccupantWindowId: targetOccupantWindowId,
-            sameAppWindows: sameAppWindows(forBundleIdentifier: bundleIdentifier, ensuringInclusionOf: managed)
-        ) else {
-            return requestedDestination
-        }
-
-        Logger.debug(
-            "Redirecting same-app secondary window \(managed.windowId) for bundle \(bundleIdentifier) " +
-                "to floating zone on screen \(ScreenContextStore.loggingIndex(for: zoneKey.screenId)); " +
-                "requested tiled zone \(zoneKey.index) already contains the app's main window \(targetOccupantWindowId) " +
-                "(reason: \(reason))"
-        )
-        return .floating(screenId: zoneKey.screenId)
-    }
-
-    private func sameAppWindows(
-        forBundleIdentifier targetBundleIdentifier: String,
-        ensuringInclusionOf managed: ManagedWindow
-    ) -> [MainWindowSecondaryFloatingPlacementPolicy.CandidateWindow] {
-        guard let delegate = delegate else {
-            return []
-        }
-
-        var candidates = delegate.windowController.allWindows.compactMap { window -> MainWindowSecondaryFloatingPlacementPolicy.CandidateWindow? in
-            guard bundleIdentifier(for: window) == targetBundleIdentifier else {
-                return nil
-            }
-            return MainWindowSecondaryFloatingPlacementPolicy.CandidateWindow(
-                windowId: window.windowId,
-                cgWindowId: window.backing.cgWindowId
-            )
-        }
-
-        if !candidates.contains(where: { $0.windowId == managed.windowId }) {
-            candidates.append(
-                MainWindowSecondaryFloatingPlacementPolicy.CandidateWindow(
-                    windowId: managed.windowId,
-                    cgWindowId: managed.backing.cgWindowId
-                )
-            )
-        }
-
-        return candidates
-    }
 
     private func bundleIdentifier(for managed: ManagedWindow) -> String? {
         NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier

@@ -10,7 +10,6 @@ struct ApplicationExceptionRule: Codable {
     let ignoreHeightRequirement: Bool?
     let disallowEmptyTitleWindows: Bool?
     let hasMainWindow: Bool?
-    let floatSecondaryWindowsWhenMainWindowIsTargeted: Bool?
     let snapToZoneOnSelfResize: Bool?
     /// When enabled, Zonogy preserves the window's current width when applying zone frames.
     let doNotResizeWidth: Bool?
@@ -30,7 +29,6 @@ struct ApplicationExceptionRule: Codable {
         ignoreHeightRequirement: Bool? = nil,
         disallowEmptyTitleWindows: Bool? = nil,
         hasMainWindow: Bool? = nil,
-        floatSecondaryWindowsWhenMainWindowIsTargeted: Bool? = nil,
         snapToZoneOnSelfResize: Bool? = nil,
         doNotResizeWidth: Bool? = nil,
         disableControlCommandMouseGestures: Bool? = nil,
@@ -44,7 +42,6 @@ struct ApplicationExceptionRule: Codable {
         self.ignoreHeightRequirement = ignoreHeightRequirement
         self.disallowEmptyTitleWindows = disallowEmptyTitleWindows
         self.hasMainWindow = hasMainWindow
-        self.floatSecondaryWindowsWhenMainWindowIsTargeted = floatSecondaryWindowsWhenMainWindowIsTargeted
         self.snapToZoneOnSelfResize = snapToZoneOnSelfResize
         self.doNotResizeWidth = doNotResizeWidth
         self.disableControlCommandMouseGestures = disableControlCommandMouseGestures
@@ -62,7 +59,6 @@ struct ApplicationExceptionRule: Codable {
             ignoreHeightRequirement: override.ignoreHeightRequirement ?? ignoreHeightRequirement,
             disallowEmptyTitleWindows: override.disallowEmptyTitleWindows ?? disallowEmptyTitleWindows,
             hasMainWindow: override.hasMainWindow ?? hasMainWindow,
-            floatSecondaryWindowsWhenMainWindowIsTargeted: override.floatSecondaryWindowsWhenMainWindowIsTargeted ?? floatSecondaryWindowsWhenMainWindowIsTargeted,
             snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
             doNotResizeWidth: override.doNotResizeWidth ?? doNotResizeWidth,
             disableControlCommandMouseGestures: override.disableControlCommandMouseGestures ?? disableControlCommandMouseGestures,
@@ -116,16 +112,6 @@ struct ApplicationExceptionPolicy {
     /// Returns true if the app prefers its "main window" (lowest CGWindowID) when multiple windows exist
     func hasMainWindow(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.hasMainWindow ?? false
-    }
-
-    /// Returns true if same-app secondary windows should open in the floating zone when
-    /// the targeted tiled zone already contains the app's main window.
-    /// This suboption is ignored unless `hasMainWindow` is also enabled for the bundle.
-    func floatsSecondaryWindowsWhenMainWindowIsTargeted(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        guard hasMainWindow(forBundleIdentifier: bundleIdentifier) else {
-            return false
-        }
-        return rulesByBundleId[bundleIdentifier]?.floatSecondaryWindowsWhenMainWindowIsTargeted ?? false
     }
 
     /// Returns true if the app wants Zonogy to snap its window back to the zone
