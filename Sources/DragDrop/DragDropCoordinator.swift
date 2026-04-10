@@ -50,6 +50,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     var windowController: WindowController { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var targetingMode: TargetingMode { get }
+    func clearRememberedManualResizeSize(for windowId: Int, reason: String) -> CGSize?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
@@ -557,16 +558,24 @@ class DragDropCoordinator {
             return nil
         }
 
+        let sourceKey = session.originZoneKey
+
         if targetZone.occupantWindowId == windowId {
+            _ = delegate.clearRememberedManualResizeSize(
+                for: windowId,
+                reason: "drag-drop-same-tiling-zone"
+            )
             Logger.debug("Window \(windowId) already assigned to target zone \(targetKey.index); no swap needed")
             delegate.setManagedWindow(managed, screenId: targetKey.screenId, zoneIndex: targetKey.index)
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
 
-        let sourceKey = session.originZoneKey
-
         if let sourceKey,
            sourceKey == targetKey {
+            _ = delegate.clearRememberedManualResizeSize(
+                for: windowId,
+                reason: "drag-drop-same-tiling-zone"
+            )
             Logger.debug("Window \(windowId) dropped back into its original zone \(targetKey.index)")
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
