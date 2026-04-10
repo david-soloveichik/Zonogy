@@ -4,7 +4,6 @@ import AppKit
 protocol FloatingZoneCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
     var targetedZoneManager: TargetedZoneManager { get }
-    var targetingMode: TargetingMode { get }
     var screenContexts: [CGDirectDisplayID: ScreenContext] { get }
     var screenContextStore: ScreenContextStore { get }
     var windowPlacementManager: WindowPlacementManager { get }

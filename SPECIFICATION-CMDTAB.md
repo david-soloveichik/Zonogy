@@ -12,6 +12,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 
 - **Default shortcut:** Cmd-Tab (configurable in Zonogy Preferences)
 - **App-specific shortcut:** Cmd-` (configurable in Zonogy Preferences) — shows only windows from the currently active application
+- **Optional active-window retargeting:** When the `CmdTab targets zone with active window` General preference is enabled (default on), CmdTab first retargets to the zone containing the currently active managed window, unless the Launcher is visible. Launcher is always shown on the current target, so while it is visible CmdTab leaves targeting unchanged.
 - CmdTab appears in the same location as the Launcher would appear when invoked
 - The configured shortcut may include multiple modifiers (e.g. Control-Command-Tab)
 
@@ -46,6 +47,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Activate:** Releasing the modifier key dismisses CmdTab and activates the selected window
 - **Cancel:** Pressing Escape dismisses CmdTab without activating any window (even if the modifier key is still held)
 - **Cancel:** Clicking outside the CmdTab window dismisses CmdTab without activating any window
+- **Target restoration:** If CmdTab changed the target when it opened, canceling restores the original target. Activating an already open, unminimized window also restores the original target. Selecting a minimized window or a newly opened window keeps the temporary CmdTab retarget in place.
 
 ## App-Specific Mode (Cmd-`)
 
@@ -60,6 +62,7 @@ When invoked with the app-specific shortcut (default Cmd-`), CmdTab shows only w
 
 - Keyboard shortcut configurable in Zonogy Preferences (default: Cmd-Tab)
 - App-specific shortcut configurable in Zonogy Preferences (default: Cmd-`)
+- `CmdTab targets zone with active window` toggle in Preferences → General (default on)
 - The modifier(s) for cycling are derived from the configured shortcut
 
 ## Implementation Notes

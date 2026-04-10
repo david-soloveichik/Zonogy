@@ -122,20 +122,15 @@ extension AppController {
         var pendingDestination: TargetedZoneManager.TargetedDestination?
         if let currentTarget, currentTarget.screenId == screenId {
             if currentTarget.index == index {
-                // The targeted zone is being removed, find a fallback
-                if let destination = followsFocusTargetOnZoneRemoval(removedIndex: index, removedScreenId: screenId) {
-                    pendingDestination = destination
-                } else {
-                    pendingDestination = targetedZoneManager.preferredRetargetDestination(
-                        preferredSameScreenId: screenId
-                    )
-                }
+                pendingDestination = targetedZoneManager.preferredRetargetDestination(
+                    preferredSameScreenId: screenId
+                )
             } else if currentTarget.index > index {
                 pendingDestination = .tiled(ZoneKey(screenId: screenId, index: currentTarget.index - 1))
             }
         }
 
-        // Spec: When Launcher is open and zone is removed:
+        // Spec: Launcher is always anchored to the current target. When that targeted zone is removed:
         // - If another empty tiling zone becomes targeted → keep Launcher open
         // - Otherwise → dismiss Launcher
         if launcherWasActive {

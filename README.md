@@ -32,7 +32,7 @@ Exactly one zone is **targeted** at any moment, indicated by a glowing indicator
 
 <img src="docs/images/zone-layouts.svg" alt="Zones core concepts" width="800" />
 
-Filling the targeted tiling zone advances to the next empty tiling zone, or the floating zone if no zone is empty. Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click. (Alternative mode: "target follows focus", where activating a window retargets to that window's zone.)
+Filling the targeted tiling zone advances to the next empty tiling zone, or the floating zone if no zone is empty. Emptying a tiling zone makes it targeted automatically. You can target any tiling zone with `Control-Cmd`-click.
 
 ## Features
 

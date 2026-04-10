@@ -4,11 +4,8 @@ import AppKit
 import SwiftUI
 
 protocol CmdTabControllerDelegate: AnyObject {
-    /// Called when a window is selected from the CmdTab list
-    func cmdTabController(_ controller: CmdTabController, didSelectWindow window: LauncherWindowItem)
-
-    /// Called when CmdTab is dismissed without selection
-    func cmdTabControllerDidDismiss(_ controller: CmdTabController)
+    /// Called when CmdTab dismisses, with the final outcome for the session.
+    func cmdTabController(_ controller: CmdTabController, didDismiss outcome: CmdTabController.DismissalOutcome)
 
     /// Returns the frame of the targeted zone in screen coordinates, and its screen descriptor
     func targetedZoneFrame() -> (CGRect, ScreenDescriptor)?
@@ -25,6 +22,12 @@ protocol CmdTabControllerDelegate: AnyObject {
 }
 
 final class CmdTabController {
+    enum DismissalOutcome {
+        case cancelled
+        case selected(LauncherWindowItem)
+        case interrupted
+    }
+
     weak var delegate: CmdTabControllerDelegate?
 
     private var window: CmdTabWindow?
@@ -131,14 +134,25 @@ final class CmdTabController {
 
         window?.makeKeyAndOrderFront(nil)
 
-        startClickMonitor()
-
         isActive = true
+        startClickMonitor()
         Logger.debug("CmdTab: Opened with \(model.windows.count) windows")
         return true
     }
 
-    func hide() {
+    func cancel() {
+        completeDismissal(with: .cancelled)
+    }
+
+    func hideForExternalInterruption() {
+        completeDismissal(with: .interrupted)
+    }
+
+    private func completeDismissal(with outcome: DismissalOutcome) {
+        guard isActive else {
+            return
+        }
+
         stopClickMonitor()
 
         window?.orderOut(nil)
@@ -147,22 +161,18 @@ final class CmdTabController {
 
         isActive = false
         Logger.debug("CmdTab: Closed")
-
-        delegate?.cmdTabControllerDidDismiss(self)
+        delegate?.cmdTabController(self, didDismiss: outcome)
     }
 
     /// Activates the currently selected window and dismisses CmdTab
     func activateSelectedWindow() {
         guard let model = model,
               let selectedWindow = model.selectedWindow else {
-            hide()
+            cancel()
             return
         }
 
-        hide()
-
-        // Notify delegate
-        delegate?.cmdTabController(self, didSelectWindow: selectedWindow)
+        completeDismissal(with: .selected(selectedWindow))
     }
 
     /// Move selection to next window in the list
@@ -178,10 +188,11 @@ final class CmdTabController {
     // MARK: - Click Outside Monitoring
 
     private func startClickMonitor() {
+        stopClickMonitor()
         guard let window = window else { return }
         let monitor = ClickOutsideMonitor(window: window, mode: .includeOwnApp) { [weak self] in
             guard let self, self.isActive else { return }
-            self.hide()
+            self.cancel()
         }
         monitor.start()
         clickMonitor = monitor

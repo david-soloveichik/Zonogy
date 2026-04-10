@@ -245,8 +245,6 @@ extension AppController {
         notifyFullScreenTrackerOfAppTermination(pid: application.processIdentifier)
 
         capturePipeline.cancelRetry(forPid: application.processIdentifier)
-        cancelFocusFollowActivationSettlement(pid: application.processIdentifier, reason: "application-termination")
-
         // When an application terminates, remove all of its managed windows immediately
         let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)
         if removedWindowIds.isEmpty {

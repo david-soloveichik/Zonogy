@@ -95,11 +95,6 @@ extension AppController {
             workItem.cancel()
         }
 
-        let emptiedFloatingScreenId: CGDirectDisplayID? = {
-            guard retarget else { return nil }
-            return floatingZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
-        }()
-
         // Notify full-screen tracker before cleanup
         if let managed = windowController.window(withId: windowId) {
             fullScreenElementCache.removeValue(forKey: AccessibilityElementKey(element: managed.backing.element))
@@ -118,13 +113,6 @@ extension AppController {
         selfResizeSnapDebouncer.clear(windowId: windowId)
 
         removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: retarget)
-        if let emptiedFloatingScreenId {
-            retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
-                emptiedFloatingScreenId: emptiedFloatingScreenId,
-                excludingWindowId: windowId,
-                reason: reason
-            )
-        }
 
         // WinShot: Remove any snapshots containing this window
         winShotManager.removeSnapshotsContaining(windowId: windowId)
@@ -373,15 +361,7 @@ extension AppController {
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }
-        let emptiedFloatingScreenId = floatingZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize", retarget: true)
-        if let emptiedFloatingScreenId {
-            retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
-                emptiedFloatingScreenId: emptiedFloatingScreenId,
-                excludingWindowId: windowId,
-                reason: "delegate-did-miniaturize"
-            )
-        }
         // Sync handles floating zone promotion automatically
         syncWindowsToZones()
 
@@ -814,7 +794,6 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
             return
         }
-        cancelFocusFollowActivationSettlementForCapturedWindowIfNeeded(window)
         if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
            placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
             return

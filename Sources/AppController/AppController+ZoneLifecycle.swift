@@ -13,15 +13,7 @@ extension AppController {
             return
         }
 
-        let emptiedFloatingScreenId = floatingZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
         removeWindowFromAllZones(windowId: windowId, reason: "close-command")
-        if let emptiedFloatingScreenId {
-            retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
-                emptiedFloatingScreenId: emptiedFloatingScreenId,
-                excludingWindowId: windowId,
-                reason: "close-command"
-            )
-        }
 
         // Close the window
         windowController.closeWindow(managed)
@@ -220,19 +212,8 @@ extension AppController {
             wasDetached: manualResizeDetachedWindowIds.contains(managed.windowId),
             rememberedSize: rememberedManualResizeSizesByWindowId[managed.windowId]
         )
-        let emptiedFloatingScreenId: CGDirectDisplayID? = {
-            guard retarget else { return nil }
-            return floatingZoneCoordinator.occupants.first(where: { $0.value == managed.windowId })?.key
-        }()
         minimizeWindowProgrammatically(managed, reason: minimizeReason)
         removeWindowFromAllZones(windowId: managed.windowId, reason: cleanupReason, retarget: retarget)
-        if let emptiedFloatingScreenId {
-            retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
-                emptiedFloatingScreenId: emptiedFloatingScreenId,
-                excludingWindowId: managed.windowId,
-                reason: cleanupReason
-            )
-        }
         return cleanupState
     }
 

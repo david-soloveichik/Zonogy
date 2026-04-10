@@ -1,105 +1,20 @@
-/// Targeting behavior helpers, including focus-follow targeting mode.
+/// Targeting helpers for explicit feature-triggered retargeting and recency history.
 
 import AppKit
 import Foundation
 
 extension AppController {
-    internal func retargetToActiveTiledWindowAfterFloatingZoneEmptyingIfNeeded(
-        emptiedFloatingScreenId: CGDirectDisplayID,
-        excludingWindowId removedWindowId: Int,
-        reason: String
-    ) {
-        guard targetingMode == .followsFocus else {
-            return
-        }
-
-        guard let destination = activeTiledWindowDestinationForFloatingZoneEmptyRetarget(
-            excludingWindowId: removedWindowId
-        ) else {
-            Logger.debug(
-                "Floating zone emptied on screen \(screenContextStore.loggingIndex(for: emptiedFloatingScreenId)); " +
-                "no active tiled window available for follows-focus retarget (reason: \(reason))"
-            )
-            return
-        }
-
-        Logger.debug(
-            "Floating zone emptied on screen \(screenContextStore.loggingIndex(for: emptiedFloatingScreenId)); " +
-            "follows-focus retarget -> zone \(destination.index) on screen " +
-            "\(screenContextStore.loggingIndex(for: destination.screenId)) (reason: \(reason))"
-        )
-        targetedZoneManager.setTargetedZone(
-            destination,
-            reason: "floating-emptied-\(reason)"
-        )
-    }
-
-    /// Returns the target destination when a zone is removed in follows-focus mode.
-    /// Delegates to FollowsFocusZoneRemovalPolicy for the pure selection logic.
-    internal func followsFocusTargetOnZoneRemoval(
-        removedIndex: Int,
-        removedScreenId: CGDirectDisplayID
-    ) -> TargetedZoneManager.TargetedDestination? {
-        guard targetingMode == .followsFocus else { return nil }
-
-        let activeCandidate: FollowsFocusZoneRemovalPolicy.Candidate? = {
-            guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-                  let focused = windowController.focusedWindowIfTracked(pid: pid),
-                  let screenId = focused.screenDisplayId ?? detectScreenId(for: focused) else {
-                return nil
-            }
-            return FollowsFocusZoneRemovalPolicy.Candidate(
-                windowId: focused.windowId,
-                zoneIndex: focused.zoneIndex,
-                screenId: screenId,
-                isInFloatingZone: isWindowInFloatingZone(focused.windowId)
-            )
-        }()
-
-        let recencyCandidates: [FollowsFocusZoneRemovalPolicy.Candidate] = windowController.allWindowsOrderedByRecency().compactMap { window in
-            guard let screenId = window.screenDisplayId ?? detectScreenId(for: window) else { return nil }
-            return FollowsFocusZoneRemovalPolicy.Candidate(
-                windowId: window.windowId,
-                zoneIndex: window.zoneIndex,
-                screenId: screenId,
-                isInFloatingZone: isWindowInFloatingZone(window.windowId)
-            )
-        }
-
-        let destination = FollowsFocusZoneRemovalPolicy.selectDestination(
-            activeCandidate: activeCandidate,
-            recencyCandidates: recencyCandidates,
-            removedIndex: removedIndex,
-            removedScreenId: removedScreenId
-        )
-
-        Logger.debug("Zone removal: follows-focus retarget → \(destination) (active=\(activeCandidate != nil))")
-        return destination
-    }
-
     internal func recordActiveWindowForHistory(windowId: Int, reason: String) {
         cancelPendingWindowActivityRecord()
         windowController.recordWindowActivity(windowId: windowId)
-        updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
+        Logger.debug("Recorded window activity immediately for window \(windowId) (reason: \(reason))")
     }
 
-    /// Update targeting immediately when this activation would change shared managed-window recency,
-    /// but only record window activity if the window remains focused for
-    /// `windowActivityRecordingStabilityDelay`.
+    /// Only record window activity if the window remains focused for `windowActivityRecordingStabilityDelay`.
     /// CmdTab/Launcher recency should ignore brief intermediate activations that can occur during
     /// app/window switching flows (e.g., the app's previously-frontmost window becomes key briefly).
     internal func recordActiveWindowForHistoryDebounced(windowId: Int, pid: pid_t, reason: String) {
-        if shouldSuppressFollowsFocusRetargetDuringActivation(pid: pid, reason: reason) {
-            return
-        }
-
-        // In follows-focus mode, only retarget if this window is not already the most recently
-        // active managed window. This avoids spurious retargeting from OS re-activation
-        // notifications for the already-active window, which could override the user's manual
-        // targeting choice.
-        if !windowController.isMostRecentlyActive(windowId: windowId) {
-            updateTargetingFromActiveWindowIfNeeded(windowId: windowId, reason: reason)
-        }
+        Logger.debug("Scheduling debounced window activity for window \(windowId) (reason: \(reason))")
         scheduleStableWindowActivityRecording(windowId: windowId, pid: pid)
     }
 
@@ -109,108 +24,89 @@ extension AppController {
         pendingWindowActivityRecordWorkItem = nil
     }
 
-    internal func retargetToFocusedWindowZoneIfPossible(reason: String) {
-        guard targetingMode == .followsFocus,
-              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              let focused = windowController.focusedWindowIfTracked(pid: pid) else {
-            return
+    internal func resolvedTriggeredTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
+        let activeWindow = currentActiveManagedWindowForTriggeredTargeting().flatMap { managed in
+            targetedDestination(for: managed).flatMap { destination in
+                switch destination {
+                case .tiled(let key):
+                    return ActiveWindowTriggeredTargetPolicy.ActiveWindow(
+                        screenId: key.screenId,
+                        zoneIndex: key.index,
+                        isInFloatingZone: false
+                    )
+                case .floating(let screenId):
+                    return ActiveWindowTriggeredTargetPolicy.ActiveWindow(
+                        screenId: screenId,
+                        zoneIndex: nil,
+                        isInFloatingZone: true
+                    )
+                }
+            }
         }
 
-        updateTargetingFromActiveWindowIfNeeded(windowId: focused.windowId, reason: reason)
+        // Launcher never has an independent destination: if it is visible, it already occupies
+        // the currently targeted destination, so feature-triggered retargeting should leave it alone.
+        return ActiveWindowTriggeredTargetPolicy.resolveTarget(
+            currentTarget: targetedZoneManager.targetedDestination,
+            launcherOccupiesCurrentTarget: launcherController.isActive,
+            activeWindow: activeWindow
+        )
     }
 
-    private func activeTiledWindowDestinationForFloatingZoneEmptyRetarget(
-        excludingWindowId removedWindowId: Int
-    ) -> ZoneKey? {
+    internal func currentActiveManagedWindowForTriggeredTargeting() -> ManagedWindow? {
         guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
             return nil
         }
 
-        let activeManaged: ManagedWindow? = {
-            if let focused = windowController.focusedWindowIfTracked(pid: pid),
-               focused.windowId != removedWindowId {
-                return focused
-            }
+        if let focused = windowController.focusedWindowIfTracked(pid: pid),
+           focused.zoneIndex != nil || isWindowInFloatingZone(focused.windowId) {
+            return focused
+        }
 
-            if let currentId = currentFrontmostManagedWindowId,
-               currentId != removedWindowId,
-               let current = windowController.window(withId: currentId),
-               current.backing.pid == pid,
-               (current.zoneIndex != nil || isWindowInFloatingZone(currentId)) {
-                return current
-            }
-
-            return nil
-        }()
-
-        guard let activeManaged,
-              let zoneIndex = activeManaged.zoneIndex,
-              let screenId = activeManaged.screenDisplayId ?? detectScreenId(for: activeManaged) else {
+        guard let currentId = currentFrontmostManagedWindowId,
+              let current = windowController.window(withId: currentId),
+              current.backing.pid == pid,
+              current.zoneIndex != nil || isWindowInFloatingZone(currentId) else {
             return nil
         }
 
-        return FollowsFocusZoneRemovalPolicy.selectFloatingZoneEmptyDestination(
-            activeScreenId: screenId,
-            activeZoneIndex: zoneIndex
-        )
+        return current
     }
 
-    private func updateTargetingFromActiveWindowIfNeeded(windowId: Int, reason: String) {
-        guard targetingMode == .followsFocus,
-              let managed = windowController.window(withId: windowId) else {
-            return
+    internal func targetedDestination(for managed: ManagedWindow) -> TargetedZoneManager.TargetedDestination? {
+        if let zoneIndex = managed.zoneIndex,
+           let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) {
+            return .tiled(ZoneKey(screenId: screenId, index: zoneIndex))
         }
 
-        // Check empty-zone retarget protection: when a tiled window was just closed/minimized
-        // and its zone retargeted, suppress the automatic same-app sibling focus fallback.
-        let now = Date()
-        if let protection = emptyZoneRetargetProtection {
-            if now >= protection.deadline {
-                emptyZoneRetargetProtection = nil
-            } else if EmptyZoneRetargetProtectionPolicy.shouldSuppressRetarget(
-                protectedZone: protection.zone,
-                protectedPid: protection.pid,
-                protectedWindowId: protection.fallbackWindowId,
-                currentTarget: targetedZoneManager.targetedDestination,
-                incomingPid: managed.backing.pid,
-                incomingWindowId: managed.windowId,
-                deadline: protection.deadline,
-                now: now
-            ) {
-                Logger.debug(
-                    "Suppressing follows-focus retarget for window \(windowId) — " +
-                    "preserving empty-zone retarget on zone \(protection.zone.index) " +
-                    "(protected fallback window \(protection.fallbackWindowId), reason: \(reason))"
-                )
-                return
-            }
-        }
-
-        if let zoneIndex = managed.zoneIndex {
-            guard let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) else {
-                return
-            }
-            targetedZoneManager.setTargetedZone(
-                ZoneKey(screenId: screenId, index: zoneIndex),
-                reason: "focus-follow-\(reason)"
-            )
-            return
-        }
-
-        guard isWindowInFloatingZone(windowId) else {
-            return
+        guard isWindowInFloatingZone(managed.windowId) else {
+            return nil
         }
 
         guard let screenId = managed.screenDisplayId
-            ?? floatingZoneCoordinator.occupants.first(where: { $0.value == windowId })?.key
+            ?? floatingZoneCoordinator.occupants.first(where: { $0.value == managed.windowId })?.key
             ?? detectScreenId(for: managed) else {
+            return nil
+        }
+
+        return .floating(screenId: screenId)
+    }
+
+    internal func applyTargetedDestination(
+        _ destination: TargetedZoneManager.TargetedDestination?,
+        reason: String
+    ) {
+        guard let destination else {
+            targetedZoneManager.setTargetedZone(nil, reason: reason)
             return
         }
 
-        targetedZoneManager.setFloatingTarget(
-            on: screenId,
-            reason: "focus-follow-\(reason)"
-        )
+        switch destination {
+        case .tiled(let key):
+            targetedZoneManager.setTargetedZone(key, reason: reason)
+        case .floating(let screenId):
+            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+        }
     }
 
     private func scheduleStableWindowActivityRecording(windowId: Int, pid: pid_t) {

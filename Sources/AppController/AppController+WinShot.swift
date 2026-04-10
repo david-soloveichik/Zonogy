@@ -383,26 +383,24 @@ extension AppController {
             }
         }
 
-        // Step 13: Update targeting in "independent of focus" mode
+        // Step 13: Update targeting after restore
         // If the targeted zone is on the restored screen, apply standard targeting rules.
         // If the targeted zone is on another screen, leave targeting as is.
-        if targetingMode != .followsFocus {
-            let targetOnRestoredScreen: Bool
-            if let tiledKey = targetedZoneKey {
-                targetOnRestoredScreen = tiledKey.screenId == screenId
-            } else if let floatingScreenId = targetedFloatingScreenId {
-                targetOnRestoredScreen = floatingScreenId == screenId
-            } else {
-                targetOnRestoredScreen = false
-            }
+        let targetOnRestoredScreen: Bool
+        if let tiledKey = targetedZoneKey {
+            targetOnRestoredScreen = tiledKey.screenId == screenId
+        } else if let floatingScreenId = targetedFloatingScreenId {
+            targetOnRestoredScreen = floatingScreenId == screenId
+        } else {
+            targetOnRestoredScreen = false
+        }
 
-            if targetOnRestoredScreen {
-                // Apply standard targeting preference: lowest-index empty zone, or floating zone if all filled
-                if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
-                    targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
-                } else {
-                    targetedZoneManager.setFloatingTarget(on: screenId, reason: "winshot-restore")
-                }
+        if targetOnRestoredScreen {
+            // Apply standard targeting preference: lowest-index empty zone, or floating zone if all filled
+            if let emptyZone = targetedZoneManager.lowestIndexEmptyZoneOnSameScreen(screenId: screenId, excluding: nil) {
+                targetedZoneManager.setTargetedZone(emptyZone, reason: "winshot-restore")
+            } else {
+                targetedZoneManager.setFloatingTarget(on: screenId, reason: "winshot-restore")
             }
         }
 

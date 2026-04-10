@@ -65,6 +65,9 @@ extension AppController {
 extension AppController: DockMenusCoordinatorDelegate {
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didClickDockAppWithURL appURL: URL, dockItemElement: AXUIElement) {
         Logger.debug("DockMenus: click on \(appURL.lastPathComponent)")
+        if shouldDockMenusRetargetForAppClick(appURL) {
+            retargetDockMenusToActiveWindowIfNeeded(reason: "dockmenu-click")
+        }
         // DockMenus uses activateInPlace:true - windows already in a zone are activated
         // without being moved to the targeted zone (unlike the Launcher)
         performDefaultLauncherAction(for: appURL, activateInPlace: true, dockItemElement: dockItemElement)
@@ -106,6 +109,9 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectWindow window: LauncherWindowItem) {
         Logger.debug("DockMenus: window selected \(window.title)")
+        if shouldDockMenusRetargetForWindowSelection(window) {
+            retargetDockMenusToActiveWindowIfNeeded(reason: "dockmenu-window-selection")
+        }
         // Reuse Launcher's window selection with activateInPlace semantics
         handleWindowSelection(window, activateInPlace: true)
     }
@@ -317,5 +323,40 @@ extension AppController: DockMenusCoordinatorDelegate {
                 Logger.debug("DockMenus: Launched \(app.localizedName ?? url.lastPathComponent)")
             }
         }
+    }
+
+    private func shouldDockMenusRetargetForAppClick(_ appURL: URL) -> Bool {
+        guard dockMenusTargetsZoneWithActiveWindowEnabled else {
+            return false
+        }
+
+        guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
+              let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+            return true
+        }
+
+        return !preferredWindow.isPlacedInZone
+    }
+
+    private func shouldDockMenusRetargetForWindowSelection(_ window: LauncherWindowItem) -> Bool {
+        guard dockMenusTargetsZoneWithActiveWindowEnabled else {
+            return false
+        }
+
+        if let managedWindowId = window.managedWindowId,
+           let managed = windowController.window(withId: managedWindowId) {
+            return !managed.isPlacedInZone
+        }
+
+        return !window.isPlacedInZone
+    }
+
+    private func retargetDockMenusToActiveWindowIfNeeded(reason: String) {
+        guard let destination = resolvedTriggeredTargetUsingActiveWindow(),
+              destination != targetedZoneManager.targetedDestination else {
+            return
+        }
+
+        applyTargetedDestination(destination, reason: reason)
     }
 }

@@ -60,13 +60,10 @@ enum GuardrailTests {
         if !TargetedZoneManagerTests.run() {
             allPassed = false
         }
-        if !DragSwapFollowsFocusPolicyTests.run() {
+        if !ActiveWindowTriggeredTargetPolicyTests.run() {
             allPassed = false
         }
-        if !FollowsFocusZoneRemovalPolicyTests.run() {
-            allPassed = false
-        }
-        if !FocusFollowActivationSettlementPolicyTests.run() {
+        if !CmdTabTemporaryTargetPolicyTests.run() {
             allPassed = false
         }
         if !ActiveFitPolicyTests.run() {
@@ -112,9 +109,6 @@ enum GuardrailTests {
             allPassed = false
         }
         if !WinShotTimelineConnectorRoutingTests.run() {
-            allPassed = false
-        }
-        if !EmptyZoneRetargetProtectionPolicyTests.run() {
             allPassed = false
         }
 

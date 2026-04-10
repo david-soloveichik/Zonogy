@@ -4,6 +4,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 
 - **Hover:** When the mouse moves over an application icon in the macOS Dock, show a DockMenu: a miniature Launcher UI (ie similar to our Launcher feature) pre-filtered (“drilled down”) to that application. Unlike the full Launcher, there is no keyboard navigation, no search field, and no possibility of “drill out” navigation.
 - **Click interception:** Clicking an application icon in the Dock (without Shift) does not activate the real Dock item; instead Zonogy performs the same default action as selecting that application in the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). In particular, it obeys `hasMainWindow` selection rules. For non-running apps or running apps with no managed windows, Zonogy simulates a press on the Dock item (via Accessibility API) to trigger the app's native "clicked in Dock" behavior.
+  - When the `DockMenus targets zone with active window` General preference is enabled (default on), DockMenus first retargets to the zone containing the currently active managed window for placement-oriented actions. If the Launcher is visible, DockMenus leaves targeting unchanged because Launcher is always shown on the current target.
   - **Exception compared to Launcher**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
 - **Dock-icon drag interception:** Dragging an app icon in the Dock (without Shift/Control) initiates a zone-targeting drag. For running apps with managed windows, this drags the app's preferred managed window. For non-running apps or running apps with no managed windows, dropping on a zone targets that zone and launches/activates the app (window appears in the newly targeted zone).
 - **Bypass:** **Shift-click** or **Shift-drag** on a Dock application behaves exactly like a normal Dock action (Zonogy does not intercept).
@@ -63,6 +64,7 @@ When the user drags a Dock app icon **without Shift/Control**:
 Clicking items inside DockMenu performs the same action as clicking the corresponding item in the Launcher:
 
 - **Click window row:** Select/focus that window using normal Zonogy placement rules for the currently targeted zone (including minimized-window pre-positioning behavior).
+- **Already-zoned window rows:** Keep DockMenus' activate-in-place behavior; they do not move into the active window's zone.
 - **Click app header entry:** Activate the app without targeting a specific window (matching Launcher semantics).
 
 ### Dragging Window Entries from DockMenu
@@ -82,6 +84,7 @@ DockMenu dismisses when:
 ## Settings
 
 - DockMenus is a distinct feature flag in settings/config.
+- `DockMenus targets zone with active window` toggle in Preferences → General (default on).
 - Default should be conservative (off by default) until the behavior feels solid, since it changes a core system interaction (Dock clicks).
 
 ## Implementation Notes

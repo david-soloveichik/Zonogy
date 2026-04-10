@@ -5,6 +5,10 @@ import Foundation
 enum UserDefaultsKeys {
     // MARK: - Dock Menus
     static let dockMenusEnabled = "Zonogy.dockMenus.enabled"
+    static let dockMenusTargetsZoneWithActiveWindow = "Zonogy.dockMenus.targetsZoneWithActiveWindow"
+
+    // MARK: - CmdTab
+    static let cmdTabTargetsZoneWithActiveWindow = "Zonogy.cmdTab.targetsZoneWithActiveWindow"
 
     // MARK: - General
     static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
@@ -16,9 +20,6 @@ enum UserDefaultsKeys {
 
     // MARK: - Launcher
     static let launcherAutoShowForEmptyZones = "Zonogy.launcher.autoShowForEmptyZones"
-
-    // MARK: - Targeting
-    static let targetingMode = "Zonogy.targeting.mode"
 
     // MARK: - WinShot
     static let winShotEnabled = "Zonogy.winShot.enabled"

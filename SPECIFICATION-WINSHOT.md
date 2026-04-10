@@ -34,7 +34,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Restores any saved Sticky Resize remembered sizes for the snapshot's windows, so manually resized windows return to their custom sizes when reactivated.
 - Activates the previously active window.
 - **Targeting after restore:**
-  - In "Targeting follows focus" mode: the zone containing the activated window becomes targeted.
-  - In "Targeting independent of focus" mode: if the current target is on the restored screen, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled). If the current target is on another screen, leave targeting unchanged.
+  - If the current target is on the restored screen, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled).
+  - If the current target is on another screen, leave targeting unchanged.
 
 For floating zone protection and notification suppression details, see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).

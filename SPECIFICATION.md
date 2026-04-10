@@ -123,15 +123,7 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the sc
 
 When a screen is full-screen, and a managed window appears on that screen (eg opens or unminimized), we defer placing that window until that screen exits full-screen mode. Then we place that window on that same screen using reuse the standard placement/recapture pipeline (ie prefer the lowest-index empty tiling zone on that screen; if no empty tiling zone exists, place it into that screen's floating zone).
 
-**Targeting modes:** Zonogy supports two targeting modes (switchable in Zonogy Preferences → General):
-
-- **Targeting independent of focus** (default): Targeting is controlled by the rules and shortcuts below and does not automatically change when focus changes.
-- **Targeting follows focus:** Same as “Targeting independent of focus” except:
-  - When a managed window becomes active in a zone (tiling or floating), that zone becomes targeted — but only if the window is not already the most recently active managed window per the recency tracking used by Launcher / CmdTab. (This prevents spurious OS re-activation notifications from overriding the user's manual targeting choice.)
-  - When an app activates, do not immediately retarget to that app's already-focused window if that would steal a different current target. This avoids routing a newly opened window or document to the wrong zone just because the app briefly activated an older window first. Briefly preserve the current target while the activation settles. If the app creates a new managed window during that time, place it into the preserved target; otherwise retarget to the app's settled focused window.
-  - Whenever the targeted tiling zone is filled, keep it targeted (do not auto-retarget to another zone or the floating zone).
-  - When a window is minimized or closed (by any means), the resulting empty-zone retarget takes priority over any follows-focus retarget caused by that same action. In particular, if the app auto-focuses a sibling fallback window after the minimize/close, preserve the emptied zone’s target while focus remains on that fallback window; interacting with that fallback window does not by itself retarget. If focus later moves to a different window, resume normal follows-focus retargeting. Manual targeting actions still apply immediately.
-  - When a floating zone becomes empty because its window was minimized or closed, immediately retarget to the currently active tiled window’s zone, if one exists.
+Focus changes do not retarget zones by themselves. Targeting is controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the DockMenus and CmdTab specifications.
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone.
 
@@ -148,13 +140,13 @@ When a screen is full-screen, and a managed window appears on that screen (eg op
 - Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone; the gesture is consumed before it reaches the underlying window. A brief bluish border flash provides additional visual confirmation: for empty zones the placeholder border pulses; for occupied zones a transient border overlay appears over the zone frame. Exception: if the topmost window under the click belongs to an app with `disableControlCommandMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
-- Whenever a window is placed into the targeted tiling zone (Targeting independent of focus mode): retarget using this priority:
+- Whenever a window is placed into the targeted tiling zone: retarget using this priority:
   1. Lowest-index empty tiling zone on the same screen
   2. Lowest-index empty tiling zone on a different screen (tie-break by screen index; lower is preferred)
   3. Floating zone on the same screen
   4. Floating zone on a different screen (tie-break by screen index; lower is preferred)
 - If a floating zone is filled or emptied: keep the current target.
-- If the targeted tiling zone is removed: retarget using the same priority order as above. Exception: in "Targeting follows focus" mode, try these in order: (1) the currently active window's zone, (2) the most recent window's zone (per recency tracking), (3) zone 1 on the same screen.
+- If the targeted tiling zone is removed: retarget using the same priority order as above.
 - If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 
 **Per-app placement exception for main-window apps:** Applications that opt into `hasMainWindow`, may also enable `floatSecondaryWindowsWhenMainWindowIsTargeted`. Then if a tiling zone containing the main window is targeted, opening / unminimizing a (non-main) managed window from the same app places the new window into the floating zone on that same screen instead of displacing the main window from the tiling zone. The same exception also applies when the user opens that non-main window via Launcher or CmdTab.
@@ -225,7 +217,7 @@ Per-app exception: applications may opt into `doNotResizeWidth`. For those windo
 
 Dragging behavior differs between tiled windows and floating-zone (floating) windows.
 
-**Tiled window drags:** When the user drags a managed window that is currently assigned to a tiling zone, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every tiling zone, and highlights the zone under the mouse cursor. The drop target is whichever tiling zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed). In **targeting follows focus** mode, that exchange immediately retargets to the dragged window's destination zone, since the dragged window remains active there. If the system cannot determine a drop target—either because the cursor is outside every tiling zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
+**Tiled window drags:** When the user drags a managed window that is currently assigned to a tiling zone, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every tiling zone, and highlights the zone under the mouse cursor. The drop target is whichever tiling zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across screens if needed). If the system cannot determine a drop target—either because the cursor is outside every tiling zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
 
 If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
 
@@ -252,8 +244,6 @@ Holding Control-Command during an external drag over an **occupied** tiling zone
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
 
 **Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
-
-In follows-focus mode, the destination chosen by an external drop stays authoritative while the handler app activates and creates the real window. A pre-existing focused window in that app must not steal the target first.
 
 ### Minimize Active Window
 

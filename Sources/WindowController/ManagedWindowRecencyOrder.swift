@@ -1,4 +1,4 @@
-/// Shared managed-window recency ordering used by Launcher, CmdTab, and follow-focus.
+/// Shared managed-window recency ordering used by Launcher and CmdTab.
 import Foundation
 
 enum ManagedWindowRecencyOrder {

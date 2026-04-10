@@ -2,19 +2,31 @@
 import AppKit
 
 extension AppController: CmdTabControllerDelegate {
-    // MARK: - Window Selection
-
-    func cmdTabController(_ controller: CmdTabController, didSelectWindow window: LauncherWindowItem) {
-        // Reuse the Launcher's window selection logic
-        // In-zone windows are activated in place; not-in-zone windows go to target zone
-        handleWindowSelection(window, activateInPlace: window.isPlacedInZone)
-    }
-
-    // MARK: - Dismissal
-
-    func cmdTabControllerDidDismiss(_ controller: CmdTabController) {
-        Logger.debug("CmdTab: Dismissed")
+    func cmdTabController(_ controller: CmdTabController, didDismiss outcome: CmdTabController.DismissalOutcome) {
         cmdTabKeyInterceptor.resetEngagement()
+
+        switch outcome {
+        case .cancelled:
+            Logger.debug("CmdTab: Cancelled")
+            restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-cancelled")
+        case .selected(let window):
+            let policyOutcome: CmdTabTemporaryTargetPolicy.Outcome = window.isPlacedInZone
+                ? .activatedExistingWindow
+                : .placedOrOpenedWindow
+
+            if CmdTabTemporaryTargetPolicy.shouldRestoreOriginalTarget(after: policyOutcome) {
+                restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-restore-existing-window")
+            } else {
+                cmdTabRetargetSession = nil
+            }
+
+            Logger.debug("CmdTab: Selected \(window.title)")
+            // Reuse the Launcher's window selection logic.
+            handleWindowSelection(window, activateInPlace: window.isPlacedInZone)
+        case .interrupted:
+            Logger.debug("CmdTab: Interrupted")
+            cmdTabRetargetSession = nil
+        }
     }
 
     // MARK: - All Managed Windows Provider
@@ -74,6 +86,10 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     }
 
     func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool {
+        // Resolve temporary retargeting before hiding Launcher. While Launcher is visible, it is
+        // already anchored to the current target, so that target should remain authoritative.
+        beginCmdTabRetargetSessionIfNeeded(reason: "cmdtab-open")
+
         // Dismiss Launcher if active to avoid overlapping overlays.
         if launcherController.isActive {
             launcherController.hide()
@@ -87,18 +103,25 @@ extension AppController: CmdTabKeyInterceptorDelegate {
             initialSelection = .leastRecent
         }
 
+        let shown: Bool
         switch mode {
         case .allWindows:
-            return cmdTabController.show(initialSelection: initialSelection)
+            shown = cmdTabController.show(initialSelection: initialSelection)
         case .currentAppOnly:
             guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
                   let bundleId = frontmostApp.bundleIdentifier else {
                 // No frontmost app or no bundle identifier - show empty state
-                return cmdTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
+                shown = cmdTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
+                break
             }
             let appName = frontmostApp.localizedName ?? bundleId
-            return cmdTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
+            shown = cmdTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
         }
+
+        if !shown {
+            restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-open-failed")
+        }
+        return shown
     }
 
     func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode) {
@@ -131,10 +154,42 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     }
 
     func cmdTabKeyInterceptorCancel(_ interceptor: CmdTabKeyInterceptor) {
-        cmdTabController.hide()
+        cmdTabController.cancel()
     }
 
     func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool {
         !hotkeyService.isSuspended
+    }
+}
+
+private extension AppController {
+    func beginCmdTabRetargetSessionIfNeeded(reason: String) {
+        cmdTabRetargetSession = nil
+
+        guard cmdTabTargetsZoneWithActiveWindowEnabled,
+              let temporaryTarget = resolvedTriggeredTargetUsingActiveWindow(),
+              temporaryTarget != targetedZoneManager.targetedDestination else {
+            return
+        }
+
+        cmdTabRetargetSession = CmdTabRetargetSession(
+            originalTarget: targetedZoneManager.targetedDestination,
+            temporaryTarget: temporaryTarget
+        )
+        applyTargetedDestination(temporaryTarget, reason: reason)
+    }
+
+    func restoreCmdTabOriginalTargetIfNeeded(reason: String) {
+        guard let session = cmdTabRetargetSession else {
+            return
+        }
+
+        cmdTabRetargetSession = nil
+
+        guard targetedZoneManager.targetedDestination == session.temporaryTarget else {
+            return
+        }
+
+        applyTargetedDestination(session.originalTarget, reason: reason)
     }
 }

@@ -24,7 +24,6 @@ protocol WindowPlacementManagerDelegate: AnyObject {
 
     // Targeted zone management
     var targetedZoneManager: TargetedZoneManager { get }
-    var targetingMode: TargetingMode { get }
 
     // Placement deferral
     func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
@@ -552,8 +551,7 @@ class WindowPlacementManager {
         delegate.markWindowForNextSyncGeometrySkip(windowId: managed.windowId)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
 
-        if delegate.targetingMode == .independentOfFocus,
-           (wasTargetedZone || forceRetargetAfterFill) {
+        if wasTargetedZone || forceRetargetAfterFill {
             delegate.targetedZoneManager.retargetAfterFillingZone(filledZoneKey, reason: retargetReason)
         }
     }
