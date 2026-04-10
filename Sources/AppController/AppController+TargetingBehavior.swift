@@ -25,23 +25,12 @@ extension AppController {
     }
 
     internal func resolvedTriggeredTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
-        let activeWindow = currentActiveManagedWindowForTriggeredTargeting().flatMap { managed in
-            targetedDestination(for: managed).flatMap { destination in
-                switch destination {
-                case .tiled(let key):
-                    return ActiveWindowTriggeredTargetPolicy.ActiveWindow(
-                        screenId: key.screenId,
-                        zoneIndex: key.index,
-                        isInFloatingZone: false
-                    )
-                case .floating(let screenId):
-                    return ActiveWindowTriggeredTargetPolicy.ActiveWindow(
-                        screenId: screenId,
-                        zoneIndex: nil,
-                        isInFloatingZone: true
-                    )
-                }
-            }
+        let activeWindow = currentActiveManagedWindowContextForTriggeredTargeting().map {
+            ActiveWindowTargetResolver.ActiveWindow(
+                screenId: $0.screenId,
+                zoneIndex: $0.zoneIndex,
+                isInFloatingZone: $0.isInFloatingZone
+            )
         }
 
         // Launcher never has an independent destination: if it is visible, it already occupies
@@ -49,6 +38,21 @@ extension AppController {
         return ActiveWindowTriggeredTargetPolicy.resolveTarget(
             currentTarget: targetedZoneManager.targetedDestination,
             launcherOccupiesCurrentTarget: launcherController.isActive,
+            activeWindow: activeWindow
+        )
+    }
+
+    internal func resolvedRepeatedLauncherShortcutTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
+        let activeWindow = currentActiveManagedWindowContextForTriggeredTargeting().map {
+            ActiveWindowTargetResolver.ActiveWindow(
+                screenId: $0.screenId,
+                zoneIndex: $0.zoneIndex,
+                isInFloatingZone: $0.isInFloatingZone
+            )
+        }
+
+        return ActiveWindowTargetResolver.resolveTarget(
+            currentTarget: targetedZoneManager.targetedDestination,
             activeWindow: activeWindow
         )
     }
@@ -139,5 +143,22 @@ extension AppController {
 
         pendingWindowActivityRecordWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + windowActivityRecordingStabilityDelay, execute: workItem)
+    }
+
+    private func currentActiveManagedWindowContextForTriggeredTargeting() -> (
+        screenId: CGDirectDisplayID,
+        zoneIndex: Int?,
+        isInFloatingZone: Bool
+    )? {
+        currentActiveManagedWindowForTriggeredTargeting().flatMap { managed in
+            targetedDestination(for: managed).flatMap { destination in
+                switch destination {
+                case .tiled(let key):
+                    return (screenId: key.screenId, zoneIndex: key.index, isInFloatingZone: false)
+                case .floating(let screenId):
+                    return (screenId: screenId, zoneIndex: nil, isInFloatingZone: true)
+                }
+            }
+        }
     }
 }

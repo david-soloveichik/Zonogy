@@ -20,6 +20,11 @@ extension AppController {
         // If the target changes while the Launcher is open, either reposition it to the new target
         // (empty tiled / floating) or hide it (occupied tiled / cleared target).
         if launcherController.isActive {
+            if let session = launcherRetargetSession,
+               newDestination != session.temporaryTarget {
+                launcherRetargetSession = nil
+            }
+
             guard let newDestination else {
                 launcherController.hide()
                 Logger.debug("Launcher: Hidden because target cleared")
@@ -30,6 +35,12 @@ extension AppController {
                isScreenPausedForFullScreen(screenId) {
                 launcherController.hide()
                 Logger.debug("Launcher: Hidden because target screen is full-screen")
+                return
+            }
+
+            if launcherRetargetSession?.temporaryTarget == newDestination {
+                launcherController.repositionToCurrentTarget()
+                Logger.debug("Launcher: Repositioned for temporary retarget")
                 return
             }
 
@@ -113,6 +124,46 @@ extension AppController {
         }
         launcherController.hide()
         return true
+    }
+
+    internal func retargetOpenLauncherToActiveWindowIfNeeded(reason: String) {
+        let currentTarget = targetedZoneManager.targetedDestination
+        let resolvedTarget = resolvedRepeatedLauncherShortcutTargetUsingActiveWindow()
+
+        guard let temporaryTarget = resolvedTarget,
+              temporaryTarget != currentTarget else {
+            return
+        }
+
+        if let session = launcherRetargetSession {
+            launcherRetargetSession = TemporaryRetargetSession(
+                originalTarget: session.originalTarget,
+                temporaryTarget: temporaryTarget
+            )
+        } else {
+            launcherRetargetSession = TemporaryRetargetSession(
+                originalTarget: currentTarget,
+                temporaryTarget: temporaryTarget
+            )
+        }
+
+        applyTargetedDestination(temporaryTarget, reason: reason)
+    }
+
+    internal func restoreLauncherOriginalTargetIfNeeded(reason: String) {
+        guard let session = launcherRetargetSession else {
+            return
+        }
+
+        launcherRetargetSession = nil
+
+        guard session.shouldRestoreOriginalTarget(
+            currentTarget: targetedZoneManager.targetedDestination
+        ) else {
+            return
+        }
+
+        applyTargetedDestination(session.originalTarget, reason: reason)
     }
 }
 
@@ -338,7 +389,13 @@ extension AppController: LauncherControllerDelegate {
 
     // MARK: - Dismissal
 
+    func launcherControllerDidCancel(_ controller: LauncherController) {
+        Logger.debug("Launcher: Cancelled")
+        restoreLauncherOriginalTargetIfNeeded(reason: "launcher-cancelled")
+    }
+
     func launcherControllerDidDismiss(_ controller: LauncherController) {
+        launcherRetargetSession = nil
         Logger.debug("Launcher: Dismissed")
     }
 

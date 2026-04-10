@@ -13,6 +13,9 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Called when an app header is selected (activate app without targeting a window)
     func launcherController(_ controller: LauncherController, didActivateApp bundleIdentifier: String)
 
+    /// Called when the launcher is explicitly cancelled.
+    func launcherControllerDidCancel(_ controller: LauncherController)
+
     /// Called when the launcher is dismissed
     func launcherControllerDidDismiss(_ controller: LauncherController)
 
@@ -33,6 +36,11 @@ protocol LauncherControllerDelegate: AnyObject {
 }
 
 final class LauncherController {
+    private enum CloseReason {
+        case cancelled
+        case dismissed
+    }
+
     weak var delegate: LauncherControllerDelegate?
 
     private static let forwardedShortcutEventMarker: Int64 = 0x5A4E4759
@@ -103,7 +111,7 @@ final class LauncherController {
             // Create the SwiftUI view
             let launcherView = LauncherView(
                 model: model,
-                onDismiss: { [weak self] in self?.hide() },
+                onDismiss: { [weak self] in self?.cancel() },
                 onLaunchApp: { [weak self] url in self?.handleAppLaunch(url: url) },
                 onSelectWindow: { [weak self] window in self?.handleWindowSelection(window: window) },
                 onActivateApp: { [weak self] bundleId in self?.handleAppActivation(bundleId: bundleId) }
@@ -160,6 +168,18 @@ final class LauncherController {
     }
 
     func hide() {
+        completeClose(reason: .dismissed)
+    }
+
+    func cancel() {
+        completeClose(reason: .cancelled)
+    }
+
+    private func completeClose(reason: CloseReason) {
+        guard isActive else {
+            return
+        }
+
         stopKeyMonitor()
         stopMouseMonitor()
         stopClickMonitor()
@@ -176,6 +196,9 @@ final class LauncherController {
         isActive = false
         Logger.debug("Launcher: Closed")
 
+        if reason == .cancelled {
+            delegate?.launcherControllerDidCancel(self)
+        }
         delegate?.launcherControllerDidDismiss(self)
     }
 
@@ -200,11 +223,21 @@ final class LauncherController {
             lastAnchor = .main
         }
 
-        makeKeyIfActive()
+        refreshKeyWindowIfActive()
     }
 
-    /// Makes the Launcher window key if it is currently active.
-    /// Call this after system events (like wake from sleep) that may have caused the window to lose key status.
+    /// Refreshes Launcher keyboard focus during ordinary UI repositioning without activating Zonogy.
+    private func refreshKeyWindowIfActive() {
+        MainActor.assumeIsolated {
+            guard self.isActive, let window = self.window else { return }
+
+            window.makeKeyAndOrderFront(nil)
+            self.model?.requestSearchFieldFocus()
+        }
+    }
+
+    /// Makes the Launcher window key after system events that may have broken the non-activating panel focus path.
+    /// Call this only for wake/system recovery cases where ordinary `makeKeyAndOrderFront` is insufficient.
     func makeKeyIfActive() {
         guard isActive, window != nil else { return }
 
@@ -257,7 +290,7 @@ final class LauncherController {
         }
 
         lastAnchor = newAnchor
-        makeKeyIfActive()
+        refreshKeyWindowIfActive()
     }
 
     // MARK: - Event Handling
@@ -370,7 +403,7 @@ final class LauncherController {
             case 53:  // Escape
                 switch model.mode {
                 case .appList:
-                    hide()
+                    cancel()
                 case .windowList:
                     model.exitWindowMode()
                 }
@@ -604,7 +637,7 @@ final class LauncherController {
         guard let window = window else { return }
         let monitor = ClickOutsideMonitor(window: window, mode: .globalOnly) { [weak self] in
             guard let self, self.isActive else { return }
-            self.hide()
+            self.cancel()
         }
         monitor.start()
         clickMonitor = monitor

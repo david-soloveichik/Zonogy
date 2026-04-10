@@ -60,6 +60,12 @@ enum GuardrailTests {
         if !ActiveWindowTriggeredTargetPolicyTests.run() {
             allPassed = false
         }
+        if !ActiveWindowTargetResolverTests.run() {
+            allPassed = false
+        }
+        if !TemporaryRetargetSessionTests.run() {
+            allPassed = false
+        }
         if !CmdTabTemporaryTargetPolicyTests.run() {
             allPassed = false
         }

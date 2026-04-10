@@ -2,10 +2,13 @@
 
 Use this file as a pre-change checklist for tricky behaviors that have previously regressed.
 Each entry is a brief bug report plus something an LLM should be sure to think about to avoid regressing when editing related code.
-Keep entries short and concrete as the LLM should be able to figure the rest out when guided in this way.
+Keep entries short. When applicable, prefer phrasing them generally rather than tying them too tightly to one specific change, since the LLM should be able to figure out the rest when guided this way.
 
 - Bug report: Sometimes if window A is in a tiling zone and window B is in floating zone, then minimizing A also minimizes B.
   - Think about: Focus/activation and sync can race.
+
+- Bug report: Normal Zonogy behavior can steal active status from windows.
+  - Think about: Ordinary UI repositioning, retargeting, and recovery paths should not activate Zonogy or change focus unless that behavior is explicitly intended.
 
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
   - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.
@@ -33,6 +36,9 @@ Keep entries short and concrete as the LLM should be able to figure the rest out
 
 - Bug report: Launcher app-list cache can refresh in the background while the Launcher is open, but the visible list stays stale until close/reopen.
   - Think about: Keep reload behavior consistent across manual and automatic paths, and refresh live Launcher app-list state in place (without dismissing) when cache reload completes.
+
+- Bug report: Launcher can appear somewhere other than the targeted zone.
+  - Think about: Preserve the invariant that Launcher only ever follows the real current target and never keeps an independent destination.
 
 - Bug report: Placing a window into zone 2/3 can visibly flicker (rest-position move(s) before reveal).
   - Think about: Avoid immediate duplicate geometry writes for a just-placed window before ActiveFit reveal applies.

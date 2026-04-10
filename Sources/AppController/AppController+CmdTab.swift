@@ -172,7 +172,7 @@ private extension AppController {
             return
         }
 
-        cmdTabRetargetSession = CmdTabRetargetSession(
+        cmdTabRetargetSession = TemporaryRetargetSession(
             originalTarget: targetedZoneManager.targetedDestination,
             temporaryTarget: temporaryTarget
         )
@@ -186,7 +186,9 @@ private extension AppController {
 
         cmdTabRetargetSession = nil
 
-        guard targetedZoneManager.targetedDestination == session.temporaryTarget else {
+        guard session.shouldRestoreOriginalTarget(
+            currentTarget: targetedZoneManager.targetedDestination
+        ) else {
             return
         }
 
