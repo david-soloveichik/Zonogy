@@ -166,6 +166,21 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(stickyResizeHintLabel)
         self.stickyResizeHintLabel = stickyResizeHintLabel
 
+        let dockMenusSeparator = NSBox()
+        dockMenusSeparator.boxType = .separator
+        dockMenusSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(dockMenusSeparator)
+
+        let targetingSeparator = NSBox()
+        targetingSeparator.boxType = .separator
+        targetingSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingSeparator)
+
+        let targetingSectionLabel = NSTextField(labelWithString: "Targeting to active window")
+        targetingSectionLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        targetingSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingSectionLabel)
+
         let dockMenusTargetsActiveWindowCheckbox = NSButton(
             checkboxWithTitle: "DockMenus targets zone with active window",
             target: self,
@@ -176,7 +191,7 @@ final class GeneralPreferencesViewController: NSViewController {
         self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
 
         let dockMenusTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When DockMenus opens or places a window without an explicit drag destination, it uses the zone containing the active window. If Launcher is visible, it is already shown on the current target, so DockMenus leaves that target unchanged."
+            wrappingLabelWithString: "When DockMenus places a window without an explicit drag destination, it uses the zone containing the active window, unless Launcher is open."
         )
         dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -194,7 +209,7 @@ final class GeneralPreferencesViewController: NSViewController {
         self.cmdTabTargetsActiveWindowCheckbox = cmdTabTargetsActiveWindowCheckbox
 
         let cmdTabTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When CmdTab opens, Zonogy temporarily targets the zone containing the active window. Canceling or activating an already open window restores the previous target. If Launcher is visible, it is already shown on the current target, so CmdTab leaves that target unchanged."
+            wrappingLabelWithString: "Zonogy temporarily targets the zone containing the active window for CmdTab, unless Launcher is open."
         )
         cmdTabTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         cmdTabTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -230,28 +245,39 @@ final class GeneralPreferencesViewController: NSViewController {
             launchAtLoginHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             launchAtLoginHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            autoShowLauncherCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
-            autoShowLauncherCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            autoShowLauncherHintLabel.topAnchor.constraint(equalTo: autoShowLauncherCheckbox.bottomAnchor, constant: 6),
-            autoShowLauncherHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            autoShowLauncherHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            dockMenusCheckbox.topAnchor.constraint(equalTo: autoShowLauncherHintLabel.bottomAnchor, constant: 18),
+            dockMenusCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
             dockMenusCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusHintLabel.topAnchor.constraint(equalTo: dockMenusCheckbox.bottomAnchor, constant: 6),
             dockMenusHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            stickyResizeCheckbox.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 18),
+            dockMenusSeparator.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 20),
+            dockMenusSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            dockMenusSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            autoShowLauncherCheckbox.topAnchor.constraint(equalTo: dockMenusSeparator.bottomAnchor, constant: 14),
+            autoShowLauncherCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            autoShowLauncherHintLabel.topAnchor.constraint(equalTo: autoShowLauncherCheckbox.bottomAnchor, constant: 6),
+            autoShowLauncherHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            autoShowLauncherHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            stickyResizeCheckbox.topAnchor.constraint(equalTo: autoShowLauncherHintLabel.bottomAnchor, constant: 18),
             stickyResizeCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             stickyResizeHintLabel.topAnchor.constraint(equalTo: stickyResizeCheckbox.bottomAnchor, constant: 6),
             stickyResizeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             stickyResizeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 18),
+            targetingSeparator.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 20),
+            targetingSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            targetingSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            targetingSectionLabel.topAnchor.constraint(equalTo: targetingSeparator.bottomAnchor, constant: 12),
+            targetingSectionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: targetingSectionLabel.bottomAnchor, constant: 10),
             dockMenusTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
