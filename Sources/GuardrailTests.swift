@@ -87,6 +87,9 @@ enum GuardrailTests {
         if !ApplicationExceptionPolicyTests.run() {
             allPassed = false
         }
+        if !ExceptionsPreferencesEntryTests.run() {
+            allPassed = false
+        }
         if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }

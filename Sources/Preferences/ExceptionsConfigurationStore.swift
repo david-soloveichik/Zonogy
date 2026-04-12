@@ -77,9 +77,9 @@ enum ExceptionsConfigurationStore {
         try? updatedData.write(to: fileURL, options: [.atomic])
     }
 
-    /// Loads exception rules from config.json.
+    /// Loads the Preferences > Exceptions rows from config.json.
     /// Creates the file with bundled defaults if it doesn't exist.
-    static func loadRules() -> [ApplicationExceptionRule] {
+    static func loadEntries() -> [ExceptionsPreferencesEntry] {
         ensureConfigExists()
 
         let fileURL = configurationFileURL()
@@ -87,12 +87,15 @@ enum ExceptionsConfigurationStore {
               let config = try? JSONDecoder().decode(UserConfig.self, from: data) else {
             return []
         }
-        return config.bundleExceptions ?? []
+        return ExceptionsPreferencesEntry.buildEntries(
+            rules: config.bundleExceptions ?? [],
+            ignoredBundleIdentifiers: config.ignoredBundleIdentifiers ?? []
+        )
     }
 
-    /// Saves exception rules to config.json.
+    /// Saves Preferences > Exceptions rows to config.json.
     /// Preserves any unrelated configuration fields already present in the file.
-    static func saveRules(_ rules: [ApplicationExceptionRule]) {
+    static func saveEntries(_ entries: [ExceptionsPreferencesEntry]) {
         let fileURL = configurationFileURL()
         let directoryURL = fileURL.deletingLastPathComponent()
 
@@ -109,8 +112,11 @@ enum ExceptionsConfigurationStore {
             existingConfig = decoded
         }
 
-        // Update exceptions
-        existingConfig.bundleExceptions = rules.isEmpty ? nil : rules
+        let persisted = ExceptionsPreferencesEntry.splitForPersistence(entries)
+        existingConfig.ignoredBundleIdentifiers = persisted.ignoredBundleIdentifiers.isEmpty
+            ? nil
+            : persisted.ignoredBundleIdentifiers
+        existingConfig.bundleExceptions = persisted.rules.isEmpty ? nil : persisted.rules
 
         // Save
         let encoder = JSONEncoder()

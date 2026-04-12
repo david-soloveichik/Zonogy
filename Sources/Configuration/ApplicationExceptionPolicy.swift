@@ -50,6 +50,22 @@ struct ApplicationExceptionRule: Codable {
         self.excludedWindowTitles = excludedWindowTitles
     }
 
+    /// Returns true when this rule carries any non-default per-app exception.
+    var hasMeaningfulExceptionSettings: Bool {
+        if ignoreActivationPolicy == true { return true }
+        if ignoreZoomButtonRequirement == true { return true }
+        if ignoreHeightRequirement == true { return true }
+        if disallowEmptyTitleWindows == true { return true }
+        if hasMainWindow == true { return true }
+        if snapToZoneOnSelfResize == true { return true }
+        if doNotResizeWidth == true { return true }
+        if disableControlCommandMouseGestures == true { return true }
+        if treatAXUnknownFullWidthAsFullScreen == true { return true }
+        if requireActiveZoomButton == true { return true }
+        if let excludedWindowTitles, !excludedWindowTitles.isEmpty { return true }
+        return false
+    }
+
     /// Returns a new rule with this rule's values as defaults, overridden by non-nil values from `override`.
     func merged(with override: ApplicationExceptionRule) -> ApplicationExceptionRule {
         ApplicationExceptionRule(

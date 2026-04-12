@@ -427,6 +427,7 @@ On launch, if the user config file does not exist, it is created by copying the 
 Fields:
 
 - `ignoredBundleIdentifiers` – optional array of bundle IDs that should be completely ignored by Zonogy. Windows belonging to these apps are never captured or managed.
+- In Preferences → Exceptions, each listed app exposes an **Ignore this application altogether** toggle backed by `ignoredBundleIdentifiers`. When enabled, all other exception controls for that app are disabled.
 - `deriveBundleIdFromPathForProcesses` – optional array of executable names (process names) for which Zonogy derives the bundle identifier by walking up the executable path to find a containing `.app` or `.bundle` directory and reading its `Info.plist`. Useful for Java apps (e.g., Minecraft) where the `java` process is launched from within a JRE bundle but macOS doesn't report a bundle identifier. The default configuration includes `"java"`.
 - `bundleExceptions` – optional array of per-application exception rules. Each object has:
   - `bundleIdentifier` – the app's bundle identifier (e.g., `"com.apple.Dictionary"`).

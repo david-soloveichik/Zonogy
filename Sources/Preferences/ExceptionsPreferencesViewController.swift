@@ -1,4 +1,4 @@
-/// View controller for the Exceptions preferences tab - manages per-app exception rules
+/// View controller for the Exceptions preferences tab - manages per-app exceptions and ignored apps.
 
 import AppKit
 
@@ -10,8 +10,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     private var removeButton: NSButton!
     private var explanationLabel: NSTextField!
 
-    /// Exception rules loaded from config.json
-    private var rules: [ApplicationExceptionRule] = []
+    /// Exception entries loaded from config.json
+    private var entries: [ExceptionsPreferencesEntry] = []
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 400))
@@ -36,7 +36,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let explanationText = """
         Zonogy manages windows that have: a standard window role, a zoom button, \
         height ≥ 250px, and are movable. Use this list to create exceptions for \
-        specific apps that need different management or Control-Command mouse behavior.
+        specific apps that need different management, different Control-Command \
+        mouse behavior, or should be ignored entirely.
         """
         explanationLabel = NSTextField(wrappingLabelWithString: explanationText)
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -139,12 +140,16 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     // MARK: - Data Management
 
     private func loadConfiguration() {
-        rules = ExceptionsConfigurationStore.loadRules()
+        entries = ExceptionsConfigurationStore.loadEntries()
         tableView.reloadData()
     }
 
     private func saveConfiguration() {
-        ExceptionsConfigurationStore.saveRules(rules)
+        ExceptionsConfigurationStore.saveEntries(entries)
+    }
+
+    private func pruneTransientEntries() {
+        entries.removeAll { !$0.isIgnored && $0.persistedRule == nil }
     }
 
     // MARK: - Actions
@@ -153,19 +158,20 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         guard let window = view.window else { return }
 
         let addAppVC = AddAppViewController()
-        addAppVC.existingBundleIds = Set(rules.map { $0.bundleIdentifier })
+        addAppVC.existingBundleIds = Set(entries.map { $0.bundleIdentifier })
         addAppVC.onAppSelected = { [weak self] bundleId in
             guard let self = self else { return }
 
-            // Create a new rule with just the bundle ID
-            let newRule = ApplicationExceptionRule(bundleIdentifier: bundleId)
-            self.rules.append(newRule)
-            self.rules.sort { $0.bundleIdentifier < $1.bundleIdentifier }
+            let newEntry = ExceptionsPreferencesEntry(
+                rule: ApplicationExceptionRule(bundleIdentifier: bundleId)
+            )
+            self.entries.append(newEntry)
+            self.entries = ExceptionsPreferencesEntry.sortedForDisplay(self.entries)
             self.tableView.reloadData()
             self.saveConfiguration()
 
             // Select the new row and open edit dialog
-            if let index = self.rules.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
+            if let index = self.entries.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
                 self.tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
                 self.editException(at: index)
             }
@@ -185,7 +191,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
         // Remove in reverse order to maintain indices
         for index in selectedRows.reversed() {
-            rules.remove(at: index)
+            entries.remove(at: index)
         }
 
         tableView.reloadData()
@@ -202,21 +208,22 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     }
 
     private func editException(at row: Int) {
-        guard row >= 0, row < rules.count, let window = view.window else { return }
+        guard row >= 0, row < entries.count, let window = view.window else { return }
 
-        let rule = rules[row]
-        let editVC = ExceptionRuleEditViewController(rule: rule)
-        editVC.onSave = { [weak self] updatedRule in
+        let entry = entries[row]
+        let editVC = ExceptionRuleEditViewController(entry: entry)
+        editVC.onSave = { [weak self] updatedEntry in
             guard let self = self else { return }
-            self.rules[row] = updatedRule
+            self.entries[row] = updatedEntry
+            self.pruneTransientEntries()
             self.tableView.reloadData()
             self.saveConfiguration()
         }
 
         let sheet = NSWindow(contentViewController: editVC)
         sheet.styleMask = [.titled, .closable]
-        sheet.title = "Edit Exception: \(rule.bundleIdentifier)"
-        sheet.setContentSize(NSSize(width: 450, height: 455))
+        sheet.title = "Edit Exception: \(entry.bundleIdentifier)"
+        sheet.setContentSize(NSSize(width: 450, height: 490))
 
         window.beginSheet(sheet) { _ in }
     }
@@ -224,19 +231,19 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
     // MARK: - NSTableViewDataSource
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        rules.count
+        entries.count
     }
 
     // MARK: - NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let rule = rules[row]
+        let entry = entries[row]
 
         switch tableColumn?.identifier.rawValue {
         case "bundleId":
-            return makeBundleIdCell(for: rule)
+            return makeBundleIdCell(for: entry)
         case "exceptions":
-            return makeExceptionsCell(for: rule)
+            return makeExceptionsCell(for: entry)
         default:
             return nil
         }
@@ -250,12 +257,12 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         // Handle double-click by tableView action
     }
 
-    private func makeBundleIdCell(for rule: ApplicationExceptionRule) -> NSView {
+    private func makeBundleIdCell(for entry: ExceptionsPreferencesEntry) -> NSView {
         let cell = NSTableCellView()
 
         // Get app icon if available
         let icon: NSImage
-        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: rule.bundleIdentifier) {
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: entry.bundleIdentifier) {
             icon = NSWorkspace.shared.icon(forFile: appURL.path)
         } else {
             icon = NSImage(systemSymbolName: "app", accessibilityDescription: "App") ?? NSImage()
@@ -265,7 +272,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let imageView = NSImageView(image: icon)
         imageView.translatesAutoresizingMaskIntoConstraints = false
 
-        let textField = NSTextField(labelWithString: rule.bundleIdentifier)
+        let textField = NSTextField(labelWithString: entry.bundleIdentifier)
         textField.font = NSFont.systemFont(ofSize: 12)
         textField.lineBreakMode = .byTruncatingMiddle
         textField.translatesAutoresizingMaskIntoConstraints = false
@@ -289,11 +296,10 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         return cell
     }
 
-    private func makeExceptionsCell(for rule: ApplicationExceptionRule) -> NSView {
+    private func makeExceptionsCell(for entry: ExceptionsPreferencesEntry) -> NSView {
         let cell = NSTableCellView()
 
-        let summary = summarizeExceptions(rule)
-        let textField = NSTextField(labelWithString: summary)
+        let textField = NSTextField(labelWithString: entry.summary)
         textField.font = NSFont.systemFont(ofSize: 11)
         textField.textColor = .secondaryLabelColor
         textField.lineBreakMode = .byTruncatingTail
@@ -310,27 +316,6 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
         return cell
     }
-
-    private func summarizeExceptions(_ rule: ApplicationExceptionRule) -> String {
-        var parts: [String] = []
-
-        if rule.hasMainWindow == true { parts.append("preferMain") }
-        if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
-        if rule.doNotResizeWidth == true { parts.append("keepWidth") }
-        if rule.disableControlCommandMouseGestures == true { parts.append("noCtrlCmd") }
-        if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
-        if rule.ignoreActivationPolicy == true { parts.append("activation") }
-        if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
-        if rule.requireActiveZoomButton == true { parts.append("activeZoom") }
-        if rule.ignoreHeightRequirement == true { parts.append("height") }
-        if let titles = rule.excludedWindowTitles, !titles.isEmpty {
-            parts.append("excl:\(titles.count)")
-        }
-        if rule.treatAXUnknownFullWidthAsFullScreen == true { parts.append("axUnknownFS") }
-
-        return parts.isEmpty ? "(none)" : parts.joined(separator: ", ")
-    }
-
     // Handle double-click
     override func viewDidAppear() {
         super.viewDidAppear()
