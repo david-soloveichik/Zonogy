@@ -148,6 +148,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var dockMenusTargetsZoneWithActiveWindowEnabled: Bool
     /// True when CmdTab should temporarily retarget to the active window's zone before opening.
     internal var cmdTabTargetsZoneWithActiveWindowEnabled: Bool
+    /// True when the Launcher keyboard shortcut should retarget to the active window's zone before opening.
+    internal var launcherShortcutTargetsZoneWithActiveWindowEnabled: Bool
     internal var dockMenusCoordinator: DockMenusCoordinator?
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
@@ -292,6 +294,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.stickyResizeEnabled = StickyResizePreferencesStore.loadEnabled()
         self.dockMenusTargetsZoneWithActiveWindowEnabled = DockMenusBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow()
         self.cmdTabTargetsZoneWithActiveWindowEnabled = CmdTabBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow()
+        self.launcherShortcutTargetsZoneWithActiveWindowEnabled = LauncherBehaviorPreferencesStore.loadShortcutTargetsZoneWithActiveWindow()
 
         let screens = NSScreen.screens
         guard let contextStore = ScreenContextStore(screens: screens) else {

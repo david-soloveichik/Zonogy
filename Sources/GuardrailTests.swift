@@ -66,6 +66,9 @@ enum GuardrailTests {
         if !TemporaryRetargetSessionTests.run() {
             allPassed = false
         }
+        if !LauncherShortcutTargetPolicyTests.run() {
+            allPassed = false
+        }
         if !CmdTabTemporaryTargetPolicyTests.run() {
             allPassed = false
         }
@@ -91,6 +94,15 @@ enum GuardrailTests {
             allPassed = false
         }
         if !StickyResizePreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !DockMenusBehaviorPreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !CmdTabBehaviorPreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !LauncherBehaviorPreferencesStoreTests.run() {
             allPassed = false
         }
         if !PreferredWindowSelectionTests.run() {

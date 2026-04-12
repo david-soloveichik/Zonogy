@@ -150,6 +150,28 @@ extension AppController {
         applyTargetedDestination(temporaryTarget, reason: reason)
     }
 
+    internal func beginLauncherShortcutRetargetSessionIfNeeded(reason: String) {
+        let currentTarget = targetedZoneManager.targetedDestination
+        let resolvedTarget = resolvedInitialLauncherShortcutTargetUsingActiveWindow()
+
+        guard let temporaryTarget = resolvedTarget,
+              temporaryTarget != currentTarget else {
+            return
+        }
+
+        if let temporaryScreenId = screenId(for: temporaryTarget),
+           isScreenPausedForFullScreen(temporaryScreenId) {
+            Logger.debug("Launcher: Skipping shortcut retarget because resolved screen is full-screen")
+            return
+        }
+
+        launcherRetargetSession = TemporaryRetargetSession(
+            originalTarget: currentTarget,
+            temporaryTarget: temporaryTarget
+        )
+        applyTargetedDestination(temporaryTarget, reason: reason)
+    }
+
     internal func restoreLauncherOriginalTargetIfNeeded(reason: String) {
         guard let session = launcherRetargetSession else {
             return

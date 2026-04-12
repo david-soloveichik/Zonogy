@@ -11,6 +11,7 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 The Launcher opens via:
 
 - **Control-Command-Space** (opens the Launcher; if Launcher is already open, pressing the shortcut again temporarily retargets to the zone containing the currently active managed window while keeping the current Launcher query/mode intact), configurable in settings alongside other Zonogy shortcuts
+  - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default on), the first shortcut press uses that same temporary-retarget behavior before opening the Launcher.
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
@@ -217,6 +218,7 @@ When the user selects a window or launches an application:
 Launcher settings should integrate with Zonogy's existing configuration system:
 
 - **Activation shortcut:** Control-Command-Space (default), configurable
+- **Targeting preference:** `Launcher keyboard shortcut targets zone with active window` in Preferences → Targeting (default on)
 - **App discovery mode:** Directory scanning or Spotlight
 
 ### Configuration Files

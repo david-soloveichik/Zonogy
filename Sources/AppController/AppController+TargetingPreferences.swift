@@ -3,6 +3,10 @@
 import Foundation
 
 extension AppController {
+    internal var isLauncherShortcutTargetsZoneWithActiveWindowEnabledInSettings: Bool {
+        launcherShortcutTargetsZoneWithActiveWindowEnabled
+    }
+
     internal var isDockMenusTargetsZoneWithActiveWindowEnabledInSettings: Bool {
         dockMenusTargetsZoneWithActiveWindowEnabled
     }
@@ -15,6 +19,12 @@ extension AppController {
         Logger.debug("DockMenus: settings updated targetsZoneWithActiveWindow=\(enabled)")
         dockMenusTargetsZoneWithActiveWindowEnabled = enabled
         DockMenusBehaviorPreferencesStore.saveTargetsZoneWithActiveWindow(enabled)
+    }
+
+    internal func setLauncherShortcutTargetsZoneWithActiveWindowEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("Launcher: settings updated shortcutTargetsZoneWithActiveWindow=\(enabled)")
+        launcherShortcutTargetsZoneWithActiveWindowEnabled = enabled
+        LauncherBehaviorPreferencesStore.saveShortcutTargetsZoneWithActiveWindow(enabled)
     }
 
     internal func setCmdTabTargetsZoneWithActiveWindowEnabledFromSettings(_ enabled: Bool) {

@@ -20,6 +20,7 @@ enum UserDefaultsKeys {
 
     // MARK: - Launcher
     static let launcherAutoShowForEmptyZones = "Zonogy.launcher.autoShowForEmptyZones"
+    static let launcherShortcutTargetsZoneWithActiveWindow = "Zonogy.launcher.shortcutTargetsZoneWithActiveWindow"
 
     // MARK: - WinShot
     static let winShotEnabled = "Zonogy.winShot.enabled"

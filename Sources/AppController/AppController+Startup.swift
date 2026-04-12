@@ -448,6 +448,7 @@ extension AppController {
             return
         }
 
+        beginLauncherShortcutRetargetSessionIfNeeded(reason: "shortcut-retarget-before-open-launcher")
         showLauncherIfAllowed(trigger: "shortcut-show-launcher")
     }
 

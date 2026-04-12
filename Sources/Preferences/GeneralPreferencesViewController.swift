@@ -20,13 +20,9 @@ final class GeneralPreferencesViewController: NSViewController {
     private var autoShowLauncherHintLabel: NSTextField?
     private var stickyResizeCheckbox: NSButton?
     private var stickyResizeHintLabel: NSTextField?
-    private var dockMenusTargetsActiveWindowCheckbox: NSButton?
-    private var dockMenusTargetsActiveWindowHintLabel: NSTextField?
-    private var cmdTabTargetsActiveWindowCheckbox: NSButton?
-    private var cmdTabTargetsActiveWindowHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 700))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 520))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -171,52 +167,6 @@ final class GeneralPreferencesViewController: NSViewController {
         dockMenusSeparator.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(dockMenusSeparator)
 
-        let targetingSeparator = NSBox()
-        targetingSeparator.boxType = .separator
-        targetingSeparator.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(targetingSeparator)
-
-        let targetingSectionLabel = NSTextField(labelWithString: "Targeting to active window")
-        targetingSectionLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        targetingSectionLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(targetingSectionLabel)
-
-        let dockMenusTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "DockMenus targets zone with active window",
-            target: self,
-            action: #selector(dockMenusTargetsActiveWindowToggled(_:))
-        )
-        dockMenusTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockMenusTargetsActiveWindowCheckbox)
-        self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
-
-        let dockMenusTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When DockMenus places a window without an explicit drag destination, it uses the zone containing the active window, unless Launcher is open."
-        )
-        dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
-        dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
-        dockMenusTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockMenusTargetsActiveWindowHintLabel)
-        self.dockMenusTargetsActiveWindowHintLabel = dockMenusTargetsActiveWindowHintLabel
-
-        let cmdTabTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "CmdTab targets zone with active window",
-            target: self,
-            action: #selector(cmdTabTargetsActiveWindowToggled(_:))
-        )
-        cmdTabTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(cmdTabTargetsActiveWindowCheckbox)
-        self.cmdTabTargetsActiveWindowCheckbox = cmdTabTargetsActiveWindowCheckbox
-
-        let cmdTabTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Zonogy temporarily targets the zone containing the active window for CmdTab, unless Launcher is open."
-        )
-        cmdTabTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
-        cmdTabTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
-        cmdTabTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(cmdTabTargetsActiveWindowHintLabel)
-        self.cmdTabTargetsActiveWindowHintLabel = cmdTabTargetsActiveWindowHintLabel
-
         // Version info
         let versionLabel = NSTextField(labelWithString: AppVersion.preferencesDisplayString)
         versionLabel.font = NSFont.systemFont(ofSize: 11)
@@ -270,33 +220,12 @@ final class GeneralPreferencesViewController: NSViewController {
             stickyResizeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             stickyResizeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            targetingSeparator.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 20),
-            targetingSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            targetingSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            targetingSectionLabel.topAnchor.constraint(equalTo: targetingSeparator.bottomAnchor, constant: 12),
-            targetingSectionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: targetingSectionLabel.bottomAnchor, constant: 10),
-            dockMenusTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            dockMenusTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
-            dockMenusTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            dockMenusTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            cmdTabTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowHintLabel.bottomAnchor, constant: 18),
-            cmdTabTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            cmdTabTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: cmdTabTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
-            cmdTabTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            cmdTabTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
             versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 670)
+        self.preferredContentSize = NSSize(width: 580, height: 500)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
@@ -304,8 +233,6 @@ final class GeneralPreferencesViewController: NSViewController {
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
-        syncDockMenusTargetsActiveWindowCheckbox()
-        syncCmdTabTargetsActiveWindowCheckbox()
     }
 
     override func viewWillAppear() {
@@ -373,28 +300,6 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncStickyResizeCheckbox() {
         let enabled = AppController.shared.isStickyResizeEnabledInSettings
         stickyResizeCheckbox?.state = enabled ? .on : .off
-    }
-
-    @objc private func dockMenusTargetsActiveWindowToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setDockMenusTargetsZoneWithActiveWindowEnabledFromSettings(enabled)
-        syncDockMenusTargetsActiveWindowCheckbox()
-    }
-
-    private func syncDockMenusTargetsActiveWindowCheckbox() {
-        let enabled = AppController.shared.isDockMenusTargetsZoneWithActiveWindowEnabledInSettings
-        dockMenusTargetsActiveWindowCheckbox?.state = enabled ? .on : .off
-    }
-
-    @objc private func cmdTabTargetsActiveWindowToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setCmdTabTargetsZoneWithActiveWindowEnabledFromSettings(enabled)
-        syncCmdTabTargetsActiveWindowCheckbox()
-    }
-
-    private func syncCmdTabTargetsActiveWindowCheckbox() {
-        let enabled = AppController.shared.isCmdTabTargetsZoneWithActiveWindowEnabledInSettings
-        cmdTabTargetsActiveWindowCheckbox?.state = enabled ? .on : .off
     }
 
     private func syncAccessibilityStatus() {

@@ -36,6 +36,13 @@ final class PreferencesWindowController: NSWindowController {
         generalItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "General")
         tabVC.addTabViewItem(generalItem)
 
+        // Targeting tab
+        let targetingVC = TargetingPreferencesViewController()
+        let targetingItem = NSTabViewItem(viewController: targetingVC)
+        targetingItem.label = "Targeting"
+        targetingItem.image = NSImage(systemSymbolName: "scope", accessibilityDescription: "Targeting")
+        tabVC.addTabViewItem(targetingItem)
+
         // Keyboard Shortcuts tab
         let shortcutsVC = KeyboardShortcutsViewController()
         let shortcutsItem = NSTabViewItem(viewController: shortcutsVC)

@@ -42,6 +42,22 @@ extension AppController {
         )
     }
 
+    internal func resolvedInitialLauncherShortcutTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
+        let activeWindow = currentActiveManagedWindowContextForTriggeredTargeting().map {
+            ActiveWindowTargetResolver.ActiveWindow(
+                screenId: $0.screenId,
+                zoneIndex: $0.zoneIndex,
+                isInFloatingZone: $0.isInFloatingZone
+            )
+        }
+
+        return LauncherShortcutTargetPolicy.resolveInitialTarget(
+            currentTarget: targetedZoneManager.targetedDestination,
+            shortcutTargetsZoneWithActiveWindow: launcherShortcutTargetsZoneWithActiveWindowEnabled,
+            activeWindow: activeWindow
+        )
+    }
+
     internal func resolvedRepeatedLauncherShortcutTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
         let activeWindow = currentActiveManagedWindowContextForTriggeredTargeting().map {
             ActiveWindowTargetResolver.ActiveWindow(

@@ -123,7 +123,7 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the sc
 
 When a screen is full-screen, and a managed window appears on that screen (eg opens or unminimized), we defer placing that window until that screen exits full-screen mode. Then we place that window on that same screen using reuse the standard placement/recapture pipeline (ie prefer the lowest-index empty tiling zone on that screen; if no empty tiling zone exists, place it into that screen's floating zone).
 
-Focus changes do not retarget zones by themselves. Targeting is controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the DockMenus and CmdTab specifications.
+Focus changes do not retarget zones by themselves. Targeting is controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the Launcher, DockMenus, and CmdTab specifications.
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone.
 
