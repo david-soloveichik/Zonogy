@@ -433,8 +433,8 @@ class DragDropCoordinator {
         guard var session = dragSession, session.windowId == windowId else {
             return
         }
-        // Floating drag resumption only applies when there's a real window
-        if let windowId, session.originatedFromFloating,
+        // Floating drag resumption only applies to real (non-cursor-driven) floating-origin drags.
+        if let windowId, session.originatedFromFloating, !session.isCursorDriven,
            let delegate = delegate,
            !delegate.isControlCommandModifierHeld {
             dragOverlayManager.tearDown()
@@ -462,8 +462,8 @@ class DragDropCoordinator {
         if addZoneScreenId == nil {
             floatingScreenId = resolveFloatingDropTarget(cursorPoint: cursorPoint)
         }
-        // Tiled-to-floating promotion only applies when there's a real window
-        if let windowId, !session.originatedFromFloating,
+        // Tiled-to-floating promotion only applies to real (non-cursor-driven) tiled drags.
+        if let windowId, !session.originatedFromFloating, !session.isCursorDriven,
            let delegate,
            delegate.isControlCommandModifierHeld {
             // Clear drag session BEFORE promotion so any follow-up sync runs without stale drag state.
