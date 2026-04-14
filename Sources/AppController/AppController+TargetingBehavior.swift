@@ -58,7 +58,9 @@ extension AppController {
         )
     }
 
-    internal func resolvedRepeatedLauncherShortcutTargetUsingActiveWindow() -> TargetedZoneManager.TargetedDestination? {
+    internal func resolvedRepeatedLauncherShortcutTargetUsingActiveWindow(
+        existingSession: TemporaryRetargetSession?
+    ) -> LauncherShortcutTargetPolicy.RepeatedShortcutResolution? {
         let activeWindow = currentActiveManagedWindowContextForTriggeredTargeting().map {
             ActiveWindowTargetResolver.ActiveWindow(
                 screenId: $0.screenId,
@@ -67,8 +69,9 @@ extension AppController {
             )
         }
 
-        return ActiveWindowTargetResolver.resolveTarget(
+        return LauncherShortcutTargetPolicy.resolveRepeatedTarget(
             currentTarget: targetedZoneManager.targetedDestination,
+            existingSession: existingSession,
             activeWindow: activeWindow
         )
     }

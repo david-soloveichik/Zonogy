@@ -10,8 +10,8 @@ The Launcher provides a quick way to switch between windows or launch applicatio
 
 The Launcher opens via:
 
-- **Control-Command-Space** (opens the Launcher; if Launcher is already open, pressing the shortcut again temporarily retargets to the zone containing the currently active managed window while keeping the current Launcher query/mode intact), configurable in settings alongside other Zonogy shortcuts
-  - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default on), the first shortcut press uses that same temporary-retarget behavior before opening the Launcher.
+- **Control-Command-Space** (opens the Launcher; if Launcher is already open, pressing the shortcut again toggles targeting between the originally targeted destination for this Launcher session and the zone containing the currently active managed window at that keypress, while keeping the current Launcher query/mode intact), configurable in settings alongside other Zonogy shortcuts
+  - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default on), the first shortcut press uses that same active-window retarget behavior before opening the Launcher. When disabled, the first press opens on the current target and the toggle behavior begins on the second shortcut press.
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
@@ -21,7 +21,7 @@ The Launcher opens via:
   - After a zone is added.
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. Exception: after the repeated Launcher shortcut temporarily retargets to the active window's occupied zone, Launcher remains visible on that occupied target until the target changes again or Launcher is dismissed. (Zone removal applies its own rule above, which takes precedence.)
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. Exception: after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed. (Zone removal applies its own rule above, which takes precedence.)
 
 ## Dismissal
 
@@ -29,7 +29,7 @@ The launcher dismisses when user:
 
 - Presses Escape
 - Activates an item (Enter on selection or double-click)
-- If the repeated Launcher shortcut temporarily retargeted the target, then explicit cancelation (Escape or outside click) restores the previously targeted destination only if that temporary retarget is still the current target. If the user changes the target again while Launcher remains open, cancelation no longer restores the older target.
+- If repeated Launcher shortcut presses established the toggle behavior above, then explicit cancelation (Escape or outside click) restores the originally targeted destination only if the current shortcut-owned target is still the current target. If the user changes the target again while Launcher remains open, cancelation no longer restores the older target.
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
 So the launcher automatically dismisses when:

@@ -444,7 +444,7 @@ extension AppController {
 
     internal func showLauncher() {
         if launcherController.isActive {
-            retargetOpenLauncherToActiveWindowIfNeeded(reason: "shortcut-retarget-open-launcher")
+            toggleOpenLauncherShortcutTargetIfNeeded(reason: "shortcut-retarget-open-launcher")
             return
         }
 

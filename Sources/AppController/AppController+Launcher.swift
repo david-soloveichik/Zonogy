@@ -40,7 +40,7 @@ extension AppController {
 
             if launcherRetargetSession?.temporaryTarget == newDestination {
                 launcherController.repositionToCurrentTarget()
-                Logger.debug("Launcher: Repositioned for temporary retarget")
+                Logger.debug("Launcher: Repositioned for shortcut-owned target")
                 return
             }
 
@@ -126,28 +126,19 @@ extension AppController {
         return true
     }
 
-    internal func retargetOpenLauncherToActiveWindowIfNeeded(reason: String) {
-        let currentTarget = targetedZoneManager.targetedDestination
-        let resolvedTarget = resolvedRepeatedLauncherShortcutTargetUsingActiveWindow()
-
-        guard let temporaryTarget = resolvedTarget,
-              temporaryTarget != currentTarget else {
+    internal func toggleOpenLauncherShortcutTargetIfNeeded(reason: String) {
+        guard let resolution = resolvedRepeatedLauncherShortcutTargetUsingActiveWindow(
+            existingSession: launcherRetargetSession
+        ) else {
             return
         }
 
-        if let session = launcherRetargetSession {
-            launcherRetargetSession = TemporaryRetargetSession(
-                originalTarget: session.originalTarget,
-                temporaryTarget: temporaryTarget
-            )
-        } else {
-            launcherRetargetSession = TemporaryRetargetSession(
-                originalTarget: currentTarget,
-                temporaryTarget: temporaryTarget
-            )
-        }
+        launcherRetargetSession = TemporaryRetargetSession(
+            originalTarget: resolution.originalTarget,
+            temporaryTarget: resolution.nextTarget
+        )
 
-        applyTargetedDestination(temporaryTarget, reason: reason)
+        applyTargetedDestination(resolution.nextTarget, reason: reason)
     }
 
     internal func beginLauncherShortcutRetargetSessionIfNeeded(reason: String) {

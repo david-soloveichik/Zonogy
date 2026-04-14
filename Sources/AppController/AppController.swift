@@ -212,7 +212,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingWindowActivityRecordWorkItem: DispatchWorkItem?
     /// Monotonic token used to invalidate previously scheduled recordings.
     internal var pendingWindowActivityRecordToken: Int = 0
-    /// Active Launcher temporary-retarget session, if the repeated shortcut changed the target.
+    /// Active Launcher shortcut-targeting session, used to toggle between the session's
+    /// original target and the currently active window's destination while Launcher is open.
     internal var launcherRetargetSession: TemporaryRetargetSession?
     /// Active CmdTab temporary-retarget session, if CmdTab opened after changing the target.
     internal var cmdTabRetargetSession: TemporaryRetargetSession?

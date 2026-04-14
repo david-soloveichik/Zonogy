@@ -45,7 +45,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
 
         let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When enabled, pressing the Launcher keyboard shortcut once temporarily targets the zone containing the active window before opening the Launcher. When disabled, this retarget happens only on a repeated shortcut press while Launcher is already open."
+            wrappingLabelWithString: "When enabled, the first Launcher shortcut press temporarily targets the zone containing the active window before opening the Launcher. While Launcher is open, additional presses toggle between the original target for that Launcher session and the zone containing the currently active window. When disabled, the first press opens on the current target and this toggle behavior begins on the second press."
         )
         launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor

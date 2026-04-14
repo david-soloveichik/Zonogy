@@ -28,6 +28,10 @@ enum TemporaryRetargetSessionTests {
             originalTarget: nil,
             temporaryTarget: temporaryTarget
         )
+        let sameTargetSession = TemporaryRetargetSession(
+            originalTarget: originalTarget,
+            temporaryTarget: originalTarget
+        )
 
         assert(
             session.shouldRestoreOriginalTarget(currentTarget: temporaryTarget),
@@ -44,6 +48,10 @@ enum TemporaryRetargetSessionTests {
         assert(
             nilOriginSession.shouldRestoreOriginalTarget(currentTarget: temporaryTarget),
             "restoration should still proceed when the original target was nil"
+        )
+        assert(
+            sameTargetSession.shouldRestoreOriginalTarget(currentTarget: originalTarget),
+            "restoration should still proceed when the shortcut-owned target is the original target"
         )
 
         if allPassed {
