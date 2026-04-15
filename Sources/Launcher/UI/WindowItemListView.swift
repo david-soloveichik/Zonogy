@@ -9,6 +9,7 @@ struct WindowItemListView: View {
     let onOpenApp: () -> Void
     let appName: String
     let appIcon: NSImage?
+    let onBeginDrag: (LauncherDragPayload) -> Void
     @State private var skipNextScrollToSelected = false
 
     private let headerID = "appHeader"
@@ -27,7 +28,7 @@ struct WindowItemListView: View {
                         isSelected: isHeaderSelected
                     )
                     .overlay(
-                        MouseClickCaptureView(
+                        RowInteractionCaptureView(
                             onClick: {
                                 skipNextScrollToSelected = true
                                 selectedWindowId = nil
@@ -48,7 +49,7 @@ struct WindowItemListView: View {
                             isSelected: window.id == selectedWindowId
                         )
                         .overlay(
-                            MouseClickCaptureView(
+                            RowInteractionCaptureView(
                                 onClick: {
                                     skipNextScrollToSelected = true
                                     selectedWindowId = window.id
@@ -58,6 +59,11 @@ struct WindowItemListView: View {
                                     guard selectedWindowId != window.id else { return }
                                     skipNextScrollToSelected = true
                                     selectedWindowId = window.id
+                                },
+                                onDragStart: {
+                                    skipNextScrollToSelected = true
+                                    selectedWindowId = window.id
+                                    onBeginDrag(.managedWindow(window))
                                 }
                             )
                         )

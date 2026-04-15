@@ -187,6 +187,61 @@ extension AppController: LauncherControllerDelegate {
         handleWindowSelection(window, activateInPlace: false)
     }
 
+    func launcherController(_ controller: LauncherController, beginDrag payload: LauncherDragPayload) -> LauncherDragPayload? {
+        switch payload {
+        case .managedWindow(let window):
+            guard beginCursorDrivenWindowDrag(for: window) else {
+                return nil
+            }
+            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            return payload
+        case .application(let item):
+            if let preferredWindow = preferredDragWindowItem(forAppURL: item.url) {
+                if beginCursorDrivenWindowDrag(for: preferredWindow) {
+                    Logger.debug("Launcher: drag began for payload \(preferredWindow.title)")
+                    return .managedWindow(preferredWindow)
+                }
+            }
+
+            beginCursorDrivenLaunchTargetDrag()
+            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            return payload
+        case .launchableItem:
+            beginCursorDrivenLaunchTargetDrag(zoneDropPolicy: .emptyZonesOnlyUnlessControlCommand)
+            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            return payload
+        }
+    }
+
+    func launcherControllerDidUpdateDrag(_ controller: LauncherController, cursorPointAX: CGPoint?) {
+        dragDropCoordinator.updateCursorDrivenDragSession(cursorPointAX: cursorPointAX)
+    }
+
+    func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool {
+        Logger.debug("Launcher: drag ended for payload \(payload.previewTitle)")
+
+        switch payload {
+        case .managedWindow(let window):
+            return performCursorDrivenManagedWindowDrop(
+                for: window,
+                cursorPointAX: cursorPointAX,
+                reason: "launcher-drag"
+            )
+        case .application(let item):
+            return performCursorDrivenAppDrop(
+                for: item.url,
+                cursorPointAX: cursorPointAX,
+                reason: "launcher-drag"
+            )
+        case .launchableItem(let item):
+            return performCursorDrivenLaunchableDrop(
+                items: [ExternalDropItem(url: item.url)],
+                cursorPointAX: cursorPointAX,
+                reason: "launcher-drag"
+            )
+        }
+    }
+
     /// Handles window selection from Launcher or DockMenu.
     ///
     /// - Parameters:
@@ -458,6 +513,10 @@ extension AppController: LauncherControllerDelegate {
             return nil
         }
         return pid
+    }
+
+    func launcherCurrentCursorAccessibilityPoint() -> CGPoint? {
+        currentCursorAccessibilityPoint()
     }
 
     var launcherWindowProvider: LauncherWindowProvider {

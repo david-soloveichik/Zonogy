@@ -40,7 +40,7 @@ extension AppController {
         openExternalDropItems(items)
     }
 
-    private func handleExternalDrop(
+    internal func handleExternalDrop(
         into zoneKey: ZoneKey,
         items: [ExternalDropItem],
         clearExistingOccupant: Bool,
@@ -81,7 +81,7 @@ extension AppController {
         openExternalDropItems(items)
     }
 
-    private func openExternalDropItems(_ items: [ExternalDropItem]) {
+    internal func openExternalDropItems(_ items: [ExternalDropItem]) {
         for item in items {
             if item.url.isFileURL {
                 openFileURL(item.url)

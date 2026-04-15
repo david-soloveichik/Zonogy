@@ -9,6 +9,7 @@ struct LauncherView: View {
     let onLaunchApp: (URL) -> Void
     let onSelectWindow: (LauncherWindowItem) -> Void
     let onActivateApp: (String) -> Void
+    let onBeginDrag: (LauncherDragPayload) -> Void
 
     @FocusState private var isSearchFocused: Bool
 
@@ -59,7 +60,8 @@ struct LauncherView: View {
                             windowCountsByBundleIdentifier: model.windowCountsByBundleIdentifier,
                             runningBundleIdentifiers: model.runningBundleIdentifiers,
                             appsWithDefaultWindowInZoneBundleIdentifiers: model.appsWithDefaultWindowInZoneBundleIdentifiers,
-                            onExpandApp: handleExpandApp
+                            onExpandApp: handleExpandApp,
+                            onBeginDrag: onBeginDrag
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -70,7 +72,8 @@ struct LauncherView: View {
                         onOpenSelected: handleWindowSelection,
                         onOpenApp: handleAppActivation,
                         appName: appName,
-                        appIcon: model.windowModeAppIcon
+                        appIcon: model.windowModeAppIcon,
+                        onBeginDrag: onBeginDrag
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }

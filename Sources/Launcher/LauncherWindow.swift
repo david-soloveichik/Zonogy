@@ -19,8 +19,8 @@ final class LauncherWindow: NSPanel {
         hasShadow = false  // Disable window shadow - we'll add custom shadow
         level = .popUpMenu  // Higher than .floating to appear above zone overlays
         collectionBehavior = [.transient, .ignoresCycle]
-        isMovable = true
-        isMovableByWindowBackground = true
+        isMovable = false
+        isMovableByWindowBackground = false
 
         // Create container view for shadow (doesn't clip)
         let containerView = NSView()

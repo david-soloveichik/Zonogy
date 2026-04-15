@@ -20,7 +20,6 @@ struct DockMenuView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // App header
             DockMenuAppHeaderView(
                 appName: viewModel.appName,
                 appIcon: viewModel.appIcon,
@@ -33,23 +32,32 @@ struct DockMenuView: View {
                 }
             )
 
-            // Window list
             if !viewModel.windows.isEmpty {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 2) {
                         ForEach(viewModel.windows) { window in
                             DockMenuWindowRowView(
                                 window: window,
-                                isHovered: viewModel.hoveredWindowId == window.id,
-                                onHover: { hovering in
-                                    viewModel.hoveredWindowId = hovering ? window.id : nil
-                                },
-                                onTap: {
-                                    viewModel.onWindowSelected?(window)
-                                },
-                                onDragStart: {
-                                    viewModel.onWindowDragStart?(window)
-                                }
+                                isHovered: viewModel.hoveredWindowId == window.id
+                            )
+                            .overlay(
+                                RowInteractionCaptureView(
+                                    onClick: {
+                                        viewModel.hoveredWindowId = window.id
+                                        viewModel.onWindowSelected?(window)
+                                    },
+                                    onHover: { hovering in
+                                        viewModel.hoveredWindowId = hovering ? window.id : nil
+                                    },
+                                    onMouseMove: {
+                                        guard viewModel.hoveredWindowId != window.id else { return }
+                                        viewModel.hoveredWindowId = window.id
+                                    },
+                                    onDragStart: {
+                                        viewModel.hoveredWindowId = window.id
+                                        viewModel.onWindowDragStart?(window)
+                                    }
+                                )
                             )
                         }
                     }
@@ -123,19 +131,13 @@ struct DockMenuAppHeaderView: View {
     }
 }
 
-/// Window row for DockMenu with hover, click, and drag handling.
+/// Window row for DockMenu with hover styling; interaction is provided by the overlay capture view.
 struct DockMenuWindowRowView: View {
     let window: LauncherWindowItem
     let isHovered: Bool
-    let onHover: (Bool) -> Void
-    let onTap: () -> Void
-    let onDragStart: () -> Void
-
-    @State private var dragStarted = false
 
     var body: some View {
         HStack(spacing: 8) {
-            // Window icon glyph (or empty for not-in-zone windows)
             if window.isPlacedInZone {
                 Image(systemName: "macwindow")
                     .font(.system(size: 14))
@@ -164,27 +166,6 @@ struct DockMenuWindowRowView: View {
                             .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
                     )
             }
-        }
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            onHover(hovering)
-        }
-        .gesture(
-            // Drag gesture: requires minimum distance to activate
-            DragGesture(minimumDistance: 8)
-                .onChanged { _ in
-                    // Trigger drag start only once
-                    if !dragStarted {
-                        dragStarted = true
-                        onDragStart()
-                    }
-                }
-                .onEnded { _ in
-                    dragStarted = false
-                }
-        )
-        .onTapGesture {
-            onTap()
         }
     }
 }

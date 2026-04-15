@@ -45,6 +45,11 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
 /// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
 final class DockMenusCoordinator {
+    private enum DragPayload {
+        case window(LauncherWindowItem)
+        case nonRunningApp(URL)
+    }
+
     weak var delegate: DockMenusCoordinatorDelegate?
 
     private let primaryScreenBounds: CGRect
@@ -55,17 +60,43 @@ final class DockMenusCoordinator {
     private let hoverTracker = DockHoverTracker()
     private let panelController = DockMenuPanelController()
     private let dismissalPoller = DockMenuDismissalPoller()
-    private let dragFeedback = DockMenuDragFeedback()
 
     private var lastHoverEvent: DockMenuHoverEvent?
     private var lastDockFrameAX: CGRect?
     private static let dockSafePadding: CGFloat = 12
 
-    // Drag state
-    private var draggedWindow: LauncherWindowItem?
-    private var draggedNonRunningAppURL: URL?
-    private var dragGlobalMonitor: Any?
-    private var dragLocalMonitor: Any?
+    private lazy var rowDragController = CursorDrivenRowDragController<DragPayload>(
+        logPrefix: "DockMenusCoordinator",
+        currentCursorAXProvider: { [weak self] in
+            self?.currentCursorAccessibilityPoint()
+        },
+        onDidBeginDrag: { [weak self] payload in
+            guard let self else { return }
+            switch payload {
+            case .window(let window):
+                Logger.debug("DockMenusCoordinator: drag began for window \(window.title)")
+                self.delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window)
+            case .nonRunningApp:
+                Logger.debug("DockMenusCoordinator: non-running app drag began")
+                self.delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
+            }
+        },
+        onDidUpdateDrag: { [weak self] cursorPointAX in
+            guard let self else { return }
+            self.delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPointAX)
+        },
+        onDidEndDrag: { [weak self] payload, cursorPointAX in
+            guard let self else { return }
+            switch payload {
+            case .window(let window):
+                Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title)")
+                self.delegate?.dockMenusCoordinator(self, didEndDragForWindow: window, cursorPointAX: cursorPointAX)
+            case .nonRunningApp(let appURL):
+                Logger.debug("DockMenusCoordinator: drag session ended for non-running app \(appURL.lastPathComponent)")
+                self.delegate?.dockMenusCoordinator(self, didEndDragForNonRunningApp: appURL, cursorPointAX: cursorPointAX)
+            }
+        }
+    )
 
     init(primaryScreenBounds: CGRect, enableDebugOverlay: Bool) {
         self.primaryScreenBounds = primaryScreenBounds
@@ -112,6 +143,7 @@ final class DockMenusCoordinator {
 
     func stop() {
         Logger.debug("DockMenusCoordinator: stopping")
+        rowDragController.cancelDrag()
         clickInterceptor.stop()
         frameMonitor.stop()
         debugOverlay?.setListFrame(accessibilityFrame: nil)
@@ -131,7 +163,6 @@ final class DockMenusCoordinator {
             return
         }
 
-        // Get windows from delegate
         let windows = delegate?.dockMenusCoordinator(self, windowsForBundleId: event.bundleIdentifier) ?? []
 
         Logger.debug("DockMenusCoordinator: showing DockMenu for \(event.appURL.lastPathComponent) with \(windows.count) windows")
@@ -174,10 +205,7 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didInterceptClickOnApp appURL: URL, itemFrame: CGRect, dockItemElement: AXUIElement) {
         Logger.debug("DockMenusCoordinator: click intercepted on app \(appURL.lastPathComponent)")
 
-        // Hide the DockMenu panel and reset hover state
         hideDockMenu()
-
-        // Start ripple feedback immediately, then dispatch delegate call to let animation begin rendering
         clickFeedback.showRipple(at: itemFrame)
 
         DispatchQueue.main.async { [weak self] in
@@ -188,84 +216,68 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
 
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool {
         Logger.debug("DockMenusCoordinator: drag intercepted on running app \(appURL.lastPathComponent)")
-
-        // Hide the DockMenu panel and reset hover state
         hideDockMenu()
 
-        if draggedWindow != nil || draggedNonRunningAppURL != nil {
+        if rowDragController.isDragging {
             Logger.debug("DockMenusCoordinator: drag already active; ignoring new begin")
             return true
         }
 
-        // If app has a preferred window, drag that window
+        let initialCocoaPoint = cocoaPoint(fromAccessibilityPoint: cursorPoint)
+
         if let window = delegate?.dockMenusCoordinator(self, preferredDragWindowForDockAppWithURL: appURL) {
-            beginDrag(for: window, driveViaMouseMonitors: false, initialCursorPointAX: cursorPoint)
-            delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+            rowDragController.beginDrag(
+                for: .window(window),
+                title: window.title,
+                initialCursorPointCocoa: initialCocoaPoint,
+                driveViaMouseMonitors: false
+            )
+            rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
             return true
         }
 
-        // Running app with no windows - treat like non-running app (target zone and activate)
         Logger.debug("DockMenusCoordinator: running app has no windows; treating as non-running app drag")
-        draggedNonRunningAppURL = appURL
-
         let appName = appURL.deletingPathExtension().lastPathComponent
-        dragFeedback.show(title: appName, at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
-
-        delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
-        delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+        rowDragController.beginDrag(
+            for: .nonRunningApp(appURL),
+            title: appName,
+            initialCursorPointCocoa: initialCocoaPoint,
+            driveViaMouseMonitors: false
+        )
+        rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
         return true
     }
 
     func dockClickInterceptor(_ interceptor: DockClickInterceptor, didBeginDragOnNonRunningApp appURL: URL, itemFrame: CGRect, cursorPoint: CGPoint) -> Bool {
         Logger.debug("DockMenusCoordinator: drag intercepted on non-running app \(appURL.lastPathComponent)")
-
-        // Hide the DockMenu panel and reset hover state
         hideDockMenu()
 
-        if draggedWindow != nil || draggedNonRunningAppURL != nil {
+        if rowDragController.isDragging {
             Logger.debug("DockMenusCoordinator: drag already active; ignoring new begin")
             return true
         }
 
-        // Store state for the non-running app drag
-        draggedNonRunningAppURL = appURL
-
-        // Show drag feedback with app name
         let appName = appURL.deletingPathExtension().lastPathComponent
-        dragFeedback.show(title: appName, at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
-
-        // Notify delegate to show zone overlays (without a window)
-        delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
-        delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+        let initialCocoaPoint = cocoaPoint(fromAccessibilityPoint: cursorPoint)
+        rowDragController.beginDrag(
+            for: .nonRunningApp(appURL),
+            title: appName,
+            initialCursorPointCocoa: initialCocoaPoint,
+            driveViaMouseMonitors: false
+        )
+        rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
         return true
     }
 
     func dockClickInterceptorDidUpdateDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint) {
-        // Handle non-running app drag
-        if draggedNonRunningAppURL != nil {
-            dragFeedback.updatePosition(at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
-            delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
-            return
-        }
-
-        // Handle running app window drag
-        guard draggedWindow != nil else { return }
-        dragFeedback.updatePosition(at: cocoaPoint(fromAccessibilityPoint: cursorPoint))
-        delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: cursorPoint)
+        rowDragController.updateDrag(
+            cursorPointAX: cursorPoint,
+            cursorPointCocoa: cocoaPoint(fromAccessibilityPoint: cursorPoint)
+        )
     }
 
     func dockClickInterceptorDidEndDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint) {
-        // Handle non-running app drag end
-        if let appURL = draggedNonRunningAppURL {
-            dragFeedback.hide()
-            delegate?.dockMenusCoordinator(self, didEndDragForNonRunningApp: appURL, cursorPointAX: cursorPoint)
-            draggedNonRunningAppURL = nil
-            return
-        }
-
-        // Handle running app window drag end
-        guard let window = draggedWindow else { return }
-        endDrag(for: window, cursorPointAX: cursorPoint)
+        rowDragController.endDrag(cursorPointAX: cursorPoint)
     }
 }
 
@@ -285,88 +297,16 @@ extension DockMenusCoordinator: DockMenuPanelControllerDelegate {
     }
 
     func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem) {
-        Logger.debug("DockMenusCoordinator: drag began for window \(window.title)")
-        beginDrag(for: window, driveViaMouseMonitors: true)
+        hideDockMenu()
+        rowDragController.beginDrag(
+            for: .window(window),
+            title: window.title,
+            driveViaMouseMonitors: true
+        )
     }
 }
 
-// MARK: - Drag Handling
-
 extension DockMenusCoordinator {
-    private func beginDrag(for window: LauncherWindowItem, driveViaMouseMonitors: Bool, initialCursorPointAX: CGPoint? = nil) {
-        // Dismiss DockMenu immediately
-        hideDockMenu()
-
-        // Store the dragged window
-        draggedWindow = window
-
-        // Show drag feedback following cursor
-        if let initialCursorPointAX {
-            dragFeedback.show(title: window.title, at: cocoaPoint(fromAccessibilityPoint: initialCursorPointAX))
-        } else {
-            dragFeedback.show(title: window.title)
-        }
-
-        // Notify delegate to start drag session (show overlays)
-        delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window)
-
-        guard driveViaMouseMonitors else {
-            Logger.debug("DockMenusCoordinator: drag session started (externally driven)")
-            return
-        }
-
-        // Install both local and global mouse monitors for drag tracking
-        // Global monitor catches events when other apps have focus
-        dragGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            self?.handleDragMouseEvent(event)
-        }
-
-        // Local monitor catches events when our app has focus (or during transition)
-        dragLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            self?.handleDragMouseEvent(event)
-            return event  // Don't consume the event
-        }
-
-        Logger.debug("DockMenusCoordinator: drag session started, mouse monitors installed")
-    }
-
-    private func handleDragMouseEvent(_ event: NSEvent) {
-        guard let window = draggedWindow else { return }
-
-        switch event.type {
-        case .leftMouseDragged:
-            dragFeedback.updatePosition()
-            delegate?.dockMenusCoordinatorDidUpdateDrag(self, cursorPointAX: currentCursorAccessibilityPoint())
-
-        case .leftMouseUp:
-            endDrag(for: window, cursorPointAX: currentCursorAccessibilityPoint())
-
-        default:
-            break
-        }
-    }
-
-    private func endDrag(for window: LauncherWindowItem, cursorPointAX: CGPoint?) {
-        Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title)")
-
-        // Hide drag feedback
-        dragFeedback.hide()
-
-        // Notify delegate to end drag session and perform placement
-        delegate?.dockMenusCoordinator(self, didEndDragForWindow: window, cursorPointAX: cursorPointAX)
-
-        // Clean up monitors
-        if let monitor = dragGlobalMonitor {
-            NSEvent.removeMonitor(monitor)
-            dragGlobalMonitor = nil
-        }
-        if let monitor = dragLocalMonitor {
-            NSEvent.removeMonitor(monitor)
-            dragLocalMonitor = nil
-        }
-        draggedWindow = nil
-    }
-
     private func currentCursorAccessibilityPoint() -> CGPoint? {
         let cocoaPoint = NSEvent.mouseLocation
         let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)

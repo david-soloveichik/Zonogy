@@ -74,6 +74,10 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, preferredDragWindowForDockAppWithURL appURL: URL) -> LauncherWindowItem? {
+        preferredDragWindowItem(forAppURL: appURL)
+    }
+
+    internal func preferredDragWindowItem(forAppURL appURL: URL) -> LauncherWindowItem? {
         guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
               let preferredManaged = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
             return nil
@@ -132,25 +136,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem) {
         Logger.debug("DockMenus: drag began for window \(window.title)")
-
-        guard let managedWindowId = window.managedWindowId,
-              let managed = windowController.window(withId: managedWindowId) else {
-            Logger.debug("DockMenus: cannot begin drag - window not managed")
-            return
-        }
-
-        // Determine origin zone
-        let originZoneKey = zoneKey(forManagedWindow: managed)
-        let originScreenId = detectScreenId(for: managed)
-        let originatedFromFloating = isWindowInFloatingZone(managed.windowId)
-
-        // Start cursor-driven drag session via DragDropCoordinator
-        dragDropCoordinator.beginCursorDrivenDragSession(
-            windowId: managedWindowId,
-            originZoneKey: originZoneKey,
-            originScreenId: originScreenId,
-            originatedFromFloating: originatedFromFloating
-        )
+        _ = beginCursorDrivenWindowDrag(for: window)
     }
 
     func dockMenusCoordinatorDidUpdateDrag(_ coordinator: DockMenusCoordinator, cursorPointAX: CGPoint?) {
@@ -160,169 +146,27 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) {
         Logger.debug("DockMenus: drag ended for window \(window.title)")
-
-        // Get the drop target from DragDropCoordinator
-        let dropTarget = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
-
-        // Perform placement based on drop target
-        performDockMenuDrop(for: window, target: dropTarget)
-    }
-
-    private func performDockMenuDrop(for window: LauncherWindowItem, target: DragDropCoordinator.CursorDrivenDropTarget) {
-        switch target {
-        case .tilingZone(let zoneKey):
-            placeDockMenuWindowIntoZone(window, zoneKey: zoneKey)
-
-        case .floatingZone(let screenId):
-            placeDockMenuWindowIntoFloatingZone(window, screenId: screenId)
-
-        case .addZone(let screenId):
-            placeDockMenuWindowIntoNewZone(window, screenId: screenId)
-
-        case .cancelled:
-            Logger.debug("DockMenus: drag cancelled, no placement")
-        }
-    }
-
-    private func placeDockMenuWindowIntoZone(_ window: LauncherWindowItem, zoneKey: ZoneKey) {
-        guard let managedWindowId = window.managedWindowId,
-              let managed = windowController.window(withId: managedWindowId) else {
-            Logger.debug("DockMenus: cannot place - window not managed")
-            return
-        }
-
-        // Calculate target zone frame for pre-positioning
-        guard let context = screenContexts[zoneKey.screenId],
-              let descriptor = descriptor(for: zoneKey.screenId),
-              let zone = context.zoneController.zone(at: zoneKey.index) else {
-            Logger.debug("DockMenus: cannot place - zone not found")
-            return
-        }
-
-        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-
-        // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
-        if !managed.isPlacedInZone {
-            prePositionMinimizedWindowForDockMenuDrag(managed, to: displayFrame, on: descriptor)
-            suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "dockmenu-drag-unminimize")
-            windowController.unminimizeWindow(managed)
-        }
-
-        // Place in target zone using shared logic
-        placeWindowIntoZone(managed, zoneKey: zoneKey)
-    }
-
-    private func placeDockMenuWindowIntoFloatingZone(_ window: LauncherWindowItem, screenId: CGDirectDisplayID) {
-        guard let managedWindowId = window.managedWindowId,
-              let managed = windowController.window(withId: managedWindowId) else {
-            Logger.debug("DockMenus: cannot place into floating zone - window not managed")
-            return
-        }
-
-        // Unminimize if needed
-        if !managed.isPlacedInZone {
-            suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "dockmenu-drag-unminimize")
-            windowController.unminimizeWindow(managed)
-        }
-
-        // Remove from current zone first
-        removeWindowFromAllZones(windowId: managed.windowId, reason: "dockmenu-drag", retarget: false)
-
-        // Place in floating zone
-        assignWindowToFloatingZone(managed, on: screenId, centerWindow: true, reason: "dockmenu-drag")
-        Logger.debug("DockMenus: placed window \(managed.windowId) into floating zone on screen \(screenContextStore.loggingIndex(for: screenId))")
-
-        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
-        refreshIndicators()
-    }
-
-    private func placeDockMenuWindowIntoNewZone(_ window: LauncherWindowItem, screenId: CGDirectDisplayID) {
-        guard window.managedWindowId != nil else {
-            Logger.debug("DockMenus: cannot place into new zone - window not managed")
-            return
-        }
-
-        guard let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
-            Logger.debug("DockMenus: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
-            return
-        }
-
-        let newZoneKey = ZoneKey(screenId: screenId, index: newZone.index)
-
-        // Place window into the new zone
-        placeDockMenuWindowIntoZone(window, zoneKey: newZoneKey)
-    }
-
-    private func prePositionMinimizedWindowForDockMenuDrag(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
-        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
-            for: managed,
-            requestedFrame: screenFrame,
-            on: screen
+        _ = performCursorDrivenManagedWindowDrop(
+            for: window,
+            cursorPointAX: cursorPointAX,
+            reason: "dockmenu-drag"
         )
-        let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
-
-        var position = accessibilityFrame.origin
-        if let positionValue = AXValueCreate(.cgPoint, &position) {
-            AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
-        }
-
-        var size = accessibilityFrame.size
-        if let sizeValue = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
-        }
-
-        Logger.debug("DockMenus: pre-positioned minimized window \(managed.windowId) to \(effectiveScreenFrame) before unminimizing")
     }
 
     // MARK: - Non-Running App Drag-and-Drop
 
     func dockMenusCoordinatorDidBeginNonRunningAppDrag(_ coordinator: DockMenusCoordinator) {
         Logger.debug("DockMenus: non-running app drag began")
-        // Start cursor-driven drag session without a windowId
-        dragDropCoordinator.beginCursorDrivenDragSession(
-            windowId: nil,
-            originZoneKey: nil,
-            originScreenId: nil
-        )
+        beginCursorDrivenLaunchTargetDrag()
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?) {
         Logger.debug("DockMenus: non-running app drag ended for \(appURL.lastPathComponent)")
-
-        let dropTarget = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
-
-        switch dropTarget {
-        case .tilingZone(let zoneKey):
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
-            launchApp(at: appURL)
-
-        case .floatingZone(let screenId):
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: "dock-nonrunning-drag")
-            launchApp(at: appURL)
-
-        case .addZone(let screenId):
-            if let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) {
-                let zoneKey = ZoneKey(screenId: screenId, index: newZone.index)
-                targetedZoneManager.setTargetedZone(zoneKey, reason: "dock-nonrunning-drag")
-            }
-            launchApp(at: appURL)
-
-        case .cancelled:
-            Logger.debug("DockMenus: non-running app drag cancelled")
-        }
-    }
-
-    private func launchApp(at url: URL) {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
-            if let error = error {
-                Logger.debug("DockMenus: Failed to launch \(url.lastPathComponent): \(error.localizedDescription)")
-            } else if let app = app {
-                Logger.debug("DockMenus: Launched \(app.localizedName ?? url.lastPathComponent)")
-            }
-        }
+        _ = performCursorDrivenAppDrop(
+            for: appURL,
+            cursorPointAX: cursorPointAX,
+            reason: "dock-nonrunning-drag"
+        )
     }
 
     private func shouldDockMenusRetargetForAppClick(_ appURL: URL) -> Bool {

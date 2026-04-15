@@ -28,6 +28,7 @@ struct LaunchItemListView: View {
     var runningBundleIdentifiers: Set<String> = []
     var appsWithDefaultWindowInZoneBundleIdentifiers: Set<String> = []
     var onExpandApp: ((URL) -> Void)?
+    let onBeginDrag: (LauncherDragPayload) -> Void
     @State private var chevronHoveredURL: URL?
     @State private var skipNextScrollToSelected = false
 
@@ -46,7 +47,7 @@ struct LaunchItemListView: View {
                             hasDefaultWindowInZone: hasDefaultWindowInZone
                         )
                         .overlay(
-                            MouseClickCaptureView(
+                            RowInteractionCaptureView(
                                 onClick: {
                                     skipNextScrollToSelected = true
                                     selectedItemURL = item.url
@@ -56,7 +57,18 @@ struct LaunchItemListView: View {
                                     guard selectedItemURL != item.url else { return }
                                     skipNextScrollToSelected = true
                                     selectedItemURL = item.url
-                                }
+                                },
+                                onDragStart: {
+                                    skipNextScrollToSelected = true
+                                    selectedItemURL = item.url
+                                    switch item.kind {
+                                    case .application:
+                                        onBeginDrag(.application(item))
+                                    case .directory, .file:
+                                        onBeginDrag(.launchableItem(item))
+                                    }
+                                },
+                                dragExclusionTrailingWidth: isRunning ? 30 : 0
                             )
                         )
                         .overlay(alignment: .trailing) {

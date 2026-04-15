@@ -1,24 +1,129 @@
-/// Visual feedback during DockMenu drag operations - shows a floating preview following the cursor.
-
 import AppKit
 
-final class DockMenuDragFeedback {
+/// Shared preview + mouse-monitor driver for cursor-driven row drags.
+final class CursorDrivenRowDragController<Payload> {
+    private let logPrefix: String
+    private let currentCursorAXProvider: () -> CGPoint?
+    private let onDidBeginDrag: (Payload) -> Void
+    private let onDidUpdateDrag: (CGPoint?) -> Void
+    private let onDidEndDrag: (Payload, CGPoint?) -> Void
+    private let dragPreview = CursorDrivenDragPreview()
+
+    private var activePayload: Payload?
+    private var dragGlobalMonitor: Any?
+    private var dragLocalMonitor: Any?
+
+    init(
+        logPrefix: String,
+        currentCursorAXProvider: @escaping () -> CGPoint?,
+        onDidBeginDrag: @escaping (Payload) -> Void,
+        onDidUpdateDrag: @escaping (CGPoint?) -> Void,
+        onDidEndDrag: @escaping (Payload, CGPoint?) -> Void
+    ) {
+        self.logPrefix = logPrefix
+        self.currentCursorAXProvider = currentCursorAXProvider
+        self.onDidBeginDrag = onDidBeginDrag
+        self.onDidUpdateDrag = onDidUpdateDrag
+        self.onDidEndDrag = onDidEndDrag
+    }
+
+    var isDragging: Bool {
+        activePayload != nil
+    }
+
+    func beginDrag(
+        for payload: Payload,
+        title: String,
+        initialCursorPointCocoa: CGPoint? = nil,
+        driveViaMouseMonitors: Bool
+    ) {
+        guard activePayload == nil else {
+            Logger.debug("\(logPrefix): drag already active; ignoring new begin")
+            return
+        }
+
+        activePayload = payload
+        dragPreview.show(title: title, at: initialCursorPointCocoa ?? NSEvent.mouseLocation)
+        onDidBeginDrag(payload)
+
+        guard driveViaMouseMonitors else {
+            Logger.debug("\(logPrefix): drag session started (externally driven)")
+            return
+        }
+
+        dragGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handleMouseEvent(event)
+        }
+        dragLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handleMouseEvent(event)
+            return event
+        }
+        Logger.debug("\(logPrefix): drag session started, mouse monitors installed")
+    }
+
+    func updateDrag(cursorPointAX: CGPoint? = nil, cursorPointCocoa: CGPoint? = nil) {
+        guard activePayload != nil else { return }
+        dragPreview.updatePosition(at: cursorPointCocoa ?? NSEvent.mouseLocation)
+        onDidUpdateDrag(cursorPointAX ?? currentCursorAXProvider())
+    }
+
+    func endDrag(cursorPointAX: CGPoint? = nil) {
+        guard let payload = activePayload else { return }
+        tearDownMonitors()
+        activePayload = nil
+        dragPreview.hide()
+        onDidEndDrag(payload, cursorPointAX ?? currentCursorAXProvider())
+    }
+
+    func cancelDrag() {
+        guard activePayload != nil else { return }
+        tearDownMonitors()
+        activePayload = nil
+        dragPreview.hide()
+    }
+
+    private func handleMouseEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDragged:
+            updateDrag()
+        case .leftMouseUp:
+            endDrag()
+        default:
+            break
+        }
+    }
+
+    private func tearDownMonitors() {
+        if let monitor = dragGlobalMonitor {
+            NSEvent.removeMonitor(monitor)
+            dragGlobalMonitor = nil
+        }
+        if let monitor = dragLocalMonitor {
+            NSEvent.removeMonitor(monitor)
+            dragLocalMonitor = nil
+        }
+    }
+
+    deinit {
+        tearDownMonitors()
+    }
+}
+
+/// Floating drag preview that follows the cursor during cursor-driven drags.
+private final class CursorDrivenDragPreview {
     private var feedbackWindow: NSWindow?
     private var titleLabel: NSTextField?
 
     func show(title: String, at mouseLocation: CGPoint) {
-        // Create feedback window if needed
         if feedbackWindow == nil {
             createFeedbackWindow()
         }
 
         guard let feedbackWindow, let titleLabel else { return }
 
-        // Update title
         titleLabel.stringValue = title
-
-        // Size to fit content
         titleLabel.sizeToFit()
+
         let padding: CGFloat = 16
         let windowSize = NSSize(
             width: min(titleLabel.frame.width + padding * 2, 250),
@@ -26,35 +131,24 @@ final class DockMenuDragFeedback {
         )
         feedbackWindow.setContentSize(windowSize)
 
-        // Position at cursor
         updatePosition(at: mouseLocation)
-
-        // Show with fade in
         feedbackWindow.alphaValue = 0
         feedbackWindow.orderFrontRegardless()
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.1
             feedbackWindow.animator().alphaValue = 1
         }
     }
 
-    func show(title: String) {
-        show(title: title, at: NSEvent.mouseLocation)
-    }
-
     func updatePosition(at mouseLocation: CGPoint) {
         guard let feedbackWindow else { return }
 
-        // Offset slightly below and to the right of cursor
         let offset = NSPoint(x: 12, y: -20)
         feedbackWindow.setFrameOrigin(NSPoint(
             x: mouseLocation.x + offset.x,
             y: mouseLocation.y + offset.y - feedbackWindow.frame.height
         ))
-    }
-
-    func updatePosition() {
-        updatePosition(at: NSEvent.mouseLocation)
     }
 
     func hide() {
@@ -69,7 +163,6 @@ final class DockMenuDragFeedback {
     }
 
     private func createFeedbackWindow() {
-        // Create borderless floating window
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 200, height: 32),
             styleMask: [.borderless],
@@ -83,7 +176,6 @@ final class DockMenuDragFeedback {
         window.ignoresMouseEvents = true
         window.hasShadow = true
 
-        // Create visual effect view for background
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .hudWindow
         visualEffect.state = .active
@@ -92,20 +184,17 @@ final class DockMenuDragFeedback {
         visualEffect.layer?.masksToBounds = true
         ForceClickSuppression.apply(to: visualEffect)
 
-        // Create label
         let label = NSTextField(labelWithString: "")
         label.font = NSFont.systemFont(ofSize: 12, weight: .medium)
         label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingMiddle
         label.translatesAutoresizingMaskIntoConstraints = false
 
-        // Add window icon
         let iconView = NSImageView()
         iconView.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
         iconView.contentTintColor = .secondaryLabelColor
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Layout
         visualEffect.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = visualEffect
 
@@ -124,7 +213,7 @@ final class DockMenuDragFeedback {
             iconView.heightAnchor.constraint(equalToConstant: 14),
         ])
 
-        self.feedbackWindow = window
-        self.titleLabel = label
+        feedbackWindow = window
+        titleLabel = label
     }
 }

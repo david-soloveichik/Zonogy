@@ -30,7 +30,7 @@ struct CmdTabView: View {
                                     isSelected: index == model.selectedIndex
                                 )
                                 .overlay(
-                                    MouseClickCaptureView(
+                                    RowInteractionCaptureView(
                                         onClick: {
                                             model.selectedIndex = index
                                             onActivateSelected()

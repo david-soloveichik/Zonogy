@@ -1,34 +1,61 @@
-/// Captures mouse click (mouseUp) and hover/move events for item activation and selection updates
+/// Shared row interaction surface for hover, click-on-mouse-up, and drag-threshold activation.
 
 import AppKit
 import SwiftUI
 
-struct MouseClickCaptureView: NSViewRepresentable {
+struct RowInteractionCaptureView: NSViewRepresentable {
     let onClick: () -> Void
     var onHover: ((Bool) -> Void)? = nil
     var onMouseMove: (() -> Void)? = nil
+    var onDragStart: (() -> Void)? = nil
+    var dragExclusionTrailingWidth: CGFloat = 0
 
     func makeNSView(context: Context) -> CaptureView {
-        CaptureView(onClick: onClick, onHover: onHover, onMouseMove: onMouseMove)
+        CaptureView(
+            onClick: onClick,
+            onHover: onHover,
+            onMouseMove: onMouseMove,
+            onDragStart: onDragStart,
+            dragExclusionTrailingWidth: dragExclusionTrailingWidth
+        )
     }
 
     func updateNSView(_ nsView: CaptureView, context: Context) {
         nsView.onClick = onClick
         nsView.onHover = onHover
         nsView.onMouseMove = onMouseMove
+        nsView.onDragStart = onDragStart
+        nsView.dragExclusionTrailingWidth = dragExclusionTrailingWidth
     }
 
     final class CaptureView: NSView {
+        private enum Constants {
+            static let dragThreshold: CGFloat = 8
+        }
+
         var onClick: () -> Void
         var onHover: ((Bool) -> Void)?
         var onMouseMove: (() -> Void)?
+        var onDragStart: (() -> Void)?
+        var dragExclusionTrailingWidth: CGFloat
         private var trackingArea: NSTrackingArea?
         private var isMouseDown = false
+        private var dragStarted = false
+        private var mouseDownPoint: NSPoint?
+        private var mouseDownAllowsDrag = false
 
-        init(onClick: @escaping () -> Void, onHover: ((Bool) -> Void)?, onMouseMove: (() -> Void)?) {
+        init(
+            onClick: @escaping () -> Void,
+            onHover: ((Bool) -> Void)?,
+            onMouseMove: (() -> Void)?,
+            onDragStart: (() -> Void)?,
+            dragExclusionTrailingWidth: CGFloat
+        ) {
             self.onClick = onClick
             self.onHover = onHover
             self.onMouseMove = onMouseMove
+            self.onDragStart = onDragStart
+            self.dragExclusionTrailingWidth = dragExclusionTrailingWidth
             super.init(frame: .zero)
         }
 
@@ -77,17 +104,49 @@ struct MouseClickCaptureView: NSViewRepresentable {
 
         override func mouseDown(with event: NSEvent) {
             isMouseDown = true
+            dragStarted = false
+            mouseDownPoint = convert(event.locationInWindow, from: nil)
+            mouseDownAllowsDrag = shouldAllowDrag(from: mouseDownPoint)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isMouseDown,
+                  !dragStarted,
+                  mouseDownAllowsDrag,
+                  onDragStart != nil,
+                  let mouseDownPoint else {
+                return
+            }
+
+            let location = convert(event.locationInWindow, from: nil)
+            let dx = location.x - mouseDownPoint.x
+            let dy = location.y - mouseDownPoint.y
+            if hypot(dx, dy) >= Constants.dragThreshold {
+                dragStarted = true
+                onDragStart?()
+            }
         }
 
         override func mouseUp(with event: NSEvent) {
             // Only trigger if mouse is still inside the view (cancel by drag away)
-            if isMouseDown {
+            if isMouseDown, !dragStarted {
                 let location = convert(event.locationInWindow, from: nil)
                 if bounds.contains(location) {
                     onClick()
                 }
             }
             isMouseDown = false
+            dragStarted = false
+            mouseDownPoint = nil
+            mouseDownAllowsDrag = false
+        }
+
+        private func shouldAllowDrag(from point: NSPoint?) -> Bool {
+            guard dragExclusionTrailingWidth > 0,
+                  let point else {
+                return true
+            }
+            return point.x < bounds.maxX - dragExclusionTrailingWidth
         }
     }
 }

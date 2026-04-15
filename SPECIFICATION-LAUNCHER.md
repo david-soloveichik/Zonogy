@@ -29,7 +29,8 @@ The launcher dismisses when user:
 
 - Presses Escape
 - Activates an item (Enter on selection or double-click)
-- If repeated Launcher shortcut presses established the toggle behavior above, then explicit cancelation (Escape or outside click) restores the originally targeted destination only if the current shortcut-owned target is still the current target. If the user changes the target again while Launcher remains open, cancelation no longer restores the older target.
+- Completes a row drag-and-drop
+- If repeated Launcher shortcut presses established the toggle behavior above, then explicit cancelation (Escape, outside click, or a cancelled row drag) restores the originally targeted destination only if the current shortcut-owned target is still the current target. If the user changes the target again while Launcher remains open, cancelation no longer restores the older target. A successful row drag-and-drop counts as completion rather than cancelation and does not restore the older target.
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
 So the launcher automatically dismisses when:
@@ -45,7 +46,7 @@ So the launcher automatically dismisses when:
 
 The launcher window should appear:
 
-1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher window is user-moveable once it is shown, but it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
+1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher is not user-moveable; it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
 2. If the targeted zone is the floating zone (which has no visible placeholder), center on the screen containing the floating zone
 
 ## User Interface
@@ -156,7 +157,11 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
 - **Hover:** Selects item (same visual as keyboard selection)
 - **Click:** Activates item immediately (launch app, focus window)
-- **Drill-down chevron:** Hover brightens icon; click shows press animation before drilling into window list
+- **Drag app row:** Starts the same zone-targeting drag as dragging that app from DockMenus. If the app has a preferred managed window, that window is what gets dragged. Otherwise dropping onto a tiling zone, floating indicator, or add-zone indicator retargets there and launches/activates the app.
+- **Drag window row:** Starts the same drag-and-drop behavior as dragging that window row from DockMenus.
+- **Drag file/folder row:** Starts a launchable-item drag using the same destination semantics as Zonogy's external file/URL drops. Empty tiling zones, the floating indicator, and the add-zone indicator are valid without modifiers; occupied tiling zones only become valid drop targets while Control-Command is held.
+- **Window-list `Menu Bar` row:** Click-only; never draggable.
+- **Drill-down chevron:** Hover brightens icon; click shows press animation before drilling into window list. Dragging begins only from the row surface outside the chevron.
 
 ### Shortcut Forwarding
 

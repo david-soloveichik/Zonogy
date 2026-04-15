@@ -13,6 +13,15 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Called when an app header is selected (activate app without targeting a window)
     func launcherController(_ controller: LauncherController, didActivateApp bundleIdentifier: String)
 
+    /// Starts a Launcher row drag session and returns the effective payload that should stay attached to it.
+    func launcherController(_ controller: LauncherController, beginDrag payload: LauncherDragPayload) -> LauncherDragPayload?
+
+    /// Called repeatedly during a Launcher row drag session as the cursor moves.
+    func launcherControllerDidUpdateDrag(_ controller: LauncherController, cursorPointAX: CGPoint?)
+
+    /// Called when a Launcher row drag session ends. Returns true if the drop resolved successfully.
+    func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool
+
     /// Called when the launcher is explicitly cancelled.
     func launcherControllerDidCancel(_ controller: LauncherController)
 
@@ -30,6 +39,9 @@ protocol LauncherControllerDelegate: AnyObject {
 
     /// Returns the PID of the application that owns the menu bar (frontmost non-Zonogy app)
     func menuBarOwnerPid() -> pid_t?
+
+    /// Returns the current cursor point in accessibility coordinates.
+    func launcherCurrentCursorAccessibilityPoint() -> CGPoint?
 
     /// Called when the user presses a zone-removal shortcut (Cmd-M or Cmd-W) while the Launcher is open
     func launcherControllerDidRequestRemoveZone(_ controller: LauncherController)
@@ -56,6 +68,22 @@ final class LauncherController {
     private var autoShowGraceUntil: Date?
     private var pendingAutoShowGraceOnOpen = false
     private var clickSuppressionGate = LauncherClickSuppressionGate()
+    private lazy var rowDragController = CursorDrivenRowDragController<LauncherDragPayload>(
+        logPrefix: "Launcher",
+        currentCursorAXProvider: { [weak self] in
+            self?.delegate?.launcherCurrentCursorAccessibilityPoint()
+        },
+        onDidBeginDrag: { _ in },
+        onDidUpdateDrag: { [weak self] cursorPointAX in
+            guard let self else { return }
+            self.delegate?.launcherControllerDidUpdateDrag(self, cursorPointAX: cursorPointAX)
+        },
+        onDidEndDrag: { [weak self] payload, cursorPointAX in
+            guard let self else { return }
+            let didResolveDrop = self.delegate?.launcherController(self, didEndDrag: payload, cursorPointAX: cursorPointAX) ?? false
+            self.completeRowDrag(didResolveDrop: didResolveDrop)
+        }
+    )
 
     private(set) var isActive = false
 
@@ -114,7 +142,8 @@ final class LauncherController {
                 onDismiss: { [weak self] in self?.cancel() },
                 onLaunchApp: { [weak self] url in self?.handleAppLaunch(url: url) },
                 onSelectWindow: { [weak self] window in self?.handleWindowSelection(window: window) },
-                onActivateApp: { [weak self] bundleId in self?.handleAppActivation(bundleId: bundleId) }
+                onActivateApp: { [weak self] bundleId in self?.handleAppActivation(bundleId: bundleId) },
+                onBeginDrag: { [weak self] payload in self?.beginDrag(payload: payload) }
             )
 
             let hostingView = NSHostingView(rootView: launcherView)
@@ -180,6 +209,16 @@ final class LauncherController {
             return
         }
 
+        tearDownVisibleLauncherUI()
+        Logger.debug("Launcher: Closed")
+
+        if reason == .cancelled {
+            delegate?.launcherControllerDidCancel(self)
+        }
+        delegate?.launcherControllerDidDismiss(self)
+    }
+
+    private func tearDownVisibleLauncherUI() {
         stopKeyMonitor()
         stopMouseMonitor()
         stopClickMonitor()
@@ -194,11 +233,35 @@ final class LauncherController {
         clickSuppressionGate.clear()
 
         isActive = false
-        Logger.debug("Launcher: Closed")
+    }
 
-        if reason == .cancelled {
-            delegate?.launcherControllerDidCancel(self)
+    private func beginDrag(payload: LauncherDragPayload) {
+        guard isActive,
+              let delegate,
+              let resolvedPayload = delegate.launcherController(self, beginDrag: payload) else {
+            return
         }
+
+        tearDownVisibleLauncherUI()
+        Logger.debug("Launcher: Closed for drag")
+
+        rowDragController.beginDrag(
+            for: resolvedPayload,
+            title: resolvedPayload.previewTitle,
+            initialCursorPointCocoa: NSEvent.mouseLocation,
+            driveViaMouseMonitors: true
+        )
+    }
+
+    private func completeRowDrag(didResolveDrop: Bool) {
+        if didResolveDrop {
+            Logger.debug("Launcher: Drag completed")
+            delegate?.launcherControllerDidDismiss(self)
+            return
+        }
+
+        Logger.debug("Launcher: Drag cancelled")
+        delegate?.launcherControllerDidCancel(self)
         delegate?.launcherControllerDidDismiss(self)
     }
 

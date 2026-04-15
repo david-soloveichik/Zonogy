@@ -13,6 +13,7 @@ struct DragSession {
     var hoveredFloatingScreenId: CGDirectDisplayID?
     let originatedFromFloating: Bool
     let isCursorDriven: Bool  // true for DockMenu drags (no actual window frame updates)
+    let zoneDropPolicy: CursorDrivenZoneDropPolicy
     let beganAt: Date
 }
 
@@ -129,6 +130,7 @@ class DragDropCoordinator {
             hoveredFloatingScreenId: nil,
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: false,
+            zoneDropPolicy: .allZones,
             beganAt: Date()
         )
         Logger.debug("Drag session began for window \(windowId)")
@@ -142,7 +144,8 @@ class DragDropCoordinator {
         windowId: Int?,
         originZoneKey: ZoneKey?,
         originScreenId: CGDirectDisplayID?,
-        originatedFromFloating: Bool = false
+        originatedFromFloating: Bool = false,
+        zoneDropPolicy: CursorDrivenZoneDropPolicy = .allZones
     ) {
         cursorPointOverrideAX = nil
         let cursorFrame = cursorSyntheticFrame()
@@ -157,6 +160,7 @@ class DragDropCoordinator {
             hoveredFloatingScreenId: nil,
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: true,
+            zoneDropPolicy: zoneDropPolicy,
             beganAt: Date()
         )
         if let windowId {
@@ -212,7 +216,10 @@ class DragDropCoordinator {
         switch EdgePillDragPolicy.dropDecision(
             hoveredAddZoneScreenId: session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
             hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
-            hoveredZoneKey: session.hoveredZoneKey ?? resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint)
+            hoveredZoneKey: session.hoveredZoneKey ?? filteredCursorDrivenZoneTarget(
+                resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint),
+                policy: session.zoneDropPolicy
+            )
         ) {
         case .addZone(let screenId):
             target = .addZone(screenId)
@@ -458,7 +465,10 @@ class DragDropCoordinator {
         let addZoneScreenId = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         let floatingScreenId = addZoneScreenId == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
         var targetKey = EdgePillDragPolicy.effectiveZoneHover(
-            hoveredZoneKey: resolveDropTarget(for: frame, cursorPoint: cursorPoint),
+            hoveredZoneKey: filteredCursorDrivenZoneTarget(
+                resolveDropTarget(for: frame, cursorPoint: cursorPoint),
+                policy: session.zoneDropPolicy
+            ),
             hoveredAddZoneScreenId: addZoneScreenId,
             hoveredFloatingScreenId: floatingScreenId
         )
@@ -528,6 +538,32 @@ class DragDropCoordinator {
         } else {
             Logger.debug("Drag cancelled (no window); no reversion needed")
         }
+    }
+
+    private func filteredCursorDrivenZoneTarget(
+        _ hoveredZoneKey: ZoneKey?,
+        policy: CursorDrivenZoneDropPolicy
+    ) -> ZoneKey? {
+        guard let hoveredZoneKey else {
+            return nil
+        }
+
+        let hoveredZoneIsEmpty = isZoneEmpty(hoveredZoneKey)
+        let isControlCommandHeld = delegate?.isControlCommandModifierHeld ?? false
+        return CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
+            hoveredZoneKey: hoveredZoneKey,
+            hoveredZoneIsEmpty: hoveredZoneIsEmpty,
+            isControlCommandHeld: isControlCommandHeld,
+            policy: policy
+        )
+    }
+
+    private func isZoneEmpty(_ key: ZoneKey) -> Bool? {
+        guard let context = delegate?.screenContexts[key.screenId],
+              let zone = context.zoneController.zone(at: key.index) else {
+            return nil
+        }
+        return zone.isEmpty
     }
 
     private func performDropIntoNewZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
