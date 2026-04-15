@@ -82,7 +82,11 @@ extension AppController {
         ),
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint,
-              let key = resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
+              let key = EdgePillDragPolicy.effectiveZoneHover(
+                hoveredZoneKey: resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
+                hoveredAddZoneScreenId: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+                hoveredFloatingScreenId: resolveFloatingDropTarget(cursorPoint: cursorPoint)
+              ),
               placeholderCoordinator.hasPlaceholder(for: key),
               !isScreenPausedForFullScreen(key.screenId) else {
             return

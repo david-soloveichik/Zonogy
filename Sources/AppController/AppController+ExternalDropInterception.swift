@@ -7,6 +7,11 @@ extension AppController {
     }
 
     func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool {
+        guard resolveAddZoneDropTarget(cursorPoint: cursorPoint) == nil,
+              resolveFloatingDropTarget(cursorPoint: cursorPoint) == nil else {
+            return false
+        }
+
         if let (managed, _) = tiledManagedWindowUnderCursor(cursorPoint: cursorPoint),
            managed.zoneIndex != nil,
            !managed.isInFloatingZone,
@@ -27,6 +32,11 @@ extension AppController {
     }
 
     func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey? {
+        guard resolveAddZoneDropTarget(cursorPoint: cursorPoint) == nil,
+              resolveFloatingDropTarget(cursorPoint: cursorPoint) == nil else {
+            return nil
+        }
+
         guard let screenId = screenId(containingAccessibilityPoint: cursorPoint),
               !isScreenPausedForFullScreen(screenId),
               let context = screenContexts[screenId] else {

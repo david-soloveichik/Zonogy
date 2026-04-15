@@ -19,6 +19,7 @@ protocol FloatingDragHandlerHost: AnyObject {
         windowId: Int,
         finalFrame: CGRect,
         hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     )
 
@@ -95,9 +96,16 @@ final class FloatingDragHandler {
         let cursorPoint = host.currentCursorAccessibilityPoint()
         current.lastCursorPoint = cursorPoint
 
+        let addZoneTarget = host.resolveAddZoneDropTarget(cursorPoint: cursorPoint)
+        let floatingTarget = host.resolveFloatingDropTarget(cursorPoint: cursorPoint)
+
         // Auto-promote to zone overlay when cursor is over an empty tiling zone
         if !current.requiresControlCommand {
-            let emptyZone = host.resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint)
+            let emptyZone = EdgePillDragPolicy.effectiveZoneHover(
+                hoveredZoneKey: host.resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
+                hoveredAddZoneScreenId: addZoneTarget,
+                hoveredFloatingScreenId: floatingTarget
+            )
             if current.hoveredEmptyZoneKey != emptyZone {
                 current.hoveredEmptyZoneKey = emptyZone
                 if emptyZone != nil && !current.isOverlayShowing {
@@ -111,13 +119,11 @@ final class FloatingDragHandler {
             }
         }
 
-        let addZoneTarget = host.resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         if current.hoveredAddZoneScreenId != addZoneTarget {
             current.hoveredAddZoneScreenId = addZoneTarget
             host.updateAddZoneIndicatorHighlight(screenId: addZoneTarget)
         }
 
-        let floatingTarget = host.resolveFloatingDropTarget(cursorPoint: cursorPoint)
         if current.hoveredFloatingScreenId != floatingTarget {
             current.hoveredFloatingScreenId = floatingTarget
             host.updateFloatingIndicatorHighlight(screenId: floatingTarget)
@@ -132,29 +138,41 @@ final class FloatingDragHandler {
         }
         state = nil
 
-        // Recheck modifier state: if Control-Command was pressed after the last
-        // drag update, suppress the auto-promoted empty-zone drop.
-        if current.hoveredEmptyZoneKey != nil && host.isControlCommandModifierHeld {
-            current.hoveredEmptyZoneKey = nil
-        }
-
         tearDownOverlaysIfNeeded(&current)
 
-        // Drop onto empty tiling zone (auto-promoted)
-        if let emptyZoneKey = current.hoveredEmptyZoneKey {
-            host.finalizeFloatingDropIntoEmptyZone(windowId: current.windowId, zoneKey: emptyZoneKey)
-            host.updateAddZoneIndicatorHighlight(screenId: nil)
-            host.updateFloatingIndicatorHighlight(screenId: nil)
-            return
-        }
-
         let finalCursorPoint = current.lastCursorPoint ?? host.currentCursorAccessibilityPoint()
-        host.finalizeFloatingDrop(
-            windowId: current.windowId,
-            finalFrame: finalFrame,
+        switch EdgePillDragPolicy.dropDecision(
             hoveredAddZoneScreenId: current.hoveredAddZoneScreenId,
-            finalCursorPoint: finalCursorPoint
-        )
+            hoveredFloatingScreenId: current.hoveredFloatingScreenId,
+            hoveredZoneKey: host.isControlCommandModifierHeld ? nil : current.hoveredEmptyZoneKey
+        ) {
+        case .addZone(let screenId):
+            host.finalizeFloatingDrop(
+                windowId: current.windowId,
+                finalFrame: finalFrame,
+                hoveredAddZoneScreenId: screenId,
+                hoveredFloatingScreenId: nil,
+                finalCursorPoint: finalCursorPoint
+            )
+        case .floatingZone(let screenId):
+            host.finalizeFloatingDrop(
+                windowId: current.windowId,
+                finalFrame: finalFrame,
+                hoveredAddZoneScreenId: nil,
+                hoveredFloatingScreenId: screenId,
+                finalCursorPoint: finalCursorPoint
+            )
+        case .zone(let emptyZoneKey):
+            host.finalizeFloatingDropIntoEmptyZone(windowId: current.windowId, zoneKey: emptyZoneKey)
+        case .fallback:
+            host.finalizeFloatingDrop(
+                windowId: current.windowId,
+                finalFrame: finalFrame,
+                hoveredAddZoneScreenId: nil,
+                hoveredFloatingScreenId: nil,
+                finalCursorPoint: finalCursorPoint
+            )
+        }
         host.updateAddZoneIndicatorHighlight(screenId: nil)
         host.updateFloatingIndicatorHighlight(screenId: nil)
     }

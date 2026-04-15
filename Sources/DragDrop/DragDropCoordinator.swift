@@ -209,13 +209,18 @@ class DragDropCoordinator {
         }
 
         let target: CursorDrivenDropTarget
-        if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
-            target = .addZone(addZoneScreenId)
-        } else if let floatingScreenId = session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint) {
-            target = .floatingZone(floatingScreenId)
-        } else if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint) {
+        switch EdgePillDragPolicy.dropDecision(
+            hoveredAddZoneScreenId: session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
+            hoveredZoneKey: session.hoveredZoneKey ?? resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint)
+        ) {
+        case .addZone(let screenId):
+            target = .addZone(screenId)
+        case .floatingZone(let screenId):
+            target = .floatingZone(screenId)
+        case .zone(let targetKey):
             target = .tilingZone(targetKey)
-        } else {
+        case .fallback:
             target = .cancelled
         }
 
@@ -288,8 +293,13 @@ class DragDropCoordinator {
             )
         }
 
-        if let addZoneScreenId = session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint) {
-            if let result = performDropIntoNewZone(session: session, screenId: addZoneScreenId) {
+        switch EdgePillDragPolicy.dropDecision(
+            hoveredAddZoneScreenId: session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
+            hoveredZoneKey: session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint)
+        ) {
+        case .addZone(let screenId):
+            if let result = performDropIntoNewZone(session: session, screenId: screenId) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
@@ -297,8 +307,8 @@ class DragDropCoordinator {
             } else {
                 handleDropCancellation(session: session)
             }
-        } else if let floatingScreenId = session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint) {
-            if let result = performDropIntoFloatingZone(session: session, screenId: floatingScreenId) {
+        case .floatingZone(let screenId):
+            if let result = performDropIntoFloatingZone(session: session, screenId: screenId) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
@@ -306,7 +316,7 @@ class DragDropCoordinator {
             } else {
                 handleDropCancellation(session: session)
             }
-        } else if let targetKey = session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint) {
+        case .zone(let targetKey):
             // Control-Command floating drags skip empty zones as drop targets
             if session.originatedFromFloating,
                let context = delegate.screenContexts[targetKey.screenId],
@@ -319,7 +329,7 @@ class DragDropCoordinator {
                 displacedDisposition = result.displacedDisposition
                 didResolveDrop = true
             }
-        } else {
+        case .fallback:
             handleDropCancellation(session: session)
         }
 
@@ -446,10 +456,12 @@ class DragDropCoordinator {
         session.latestFrame = frame
         let cursorPoint = currentCursorAccessibilityPoint()
         let addZoneScreenId = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
-        var targetKey: ZoneKey?
-        if addZoneScreenId == nil {
-            targetKey = resolveDropTarget(for: frame, cursorPoint: cursorPoint)
-        }
+        let floatingScreenId = addZoneScreenId == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
+        var targetKey = EdgePillDragPolicy.effectiveZoneHover(
+            hoveredZoneKey: resolveDropTarget(for: frame, cursorPoint: cursorPoint),
+            hoveredAddZoneScreenId: addZoneScreenId,
+            hoveredFloatingScreenId: floatingScreenId
+        )
         // Control-Command floating drags skip empty zones as drop targets
         if session.originatedFromFloating, let key = targetKey {
             if let context = delegate?.screenContexts[key.screenId],
@@ -457,10 +469,6 @@ class DragDropCoordinator {
                zone.isEmpty {
                 targetKey = nil
             }
-        }
-        var floatingScreenId: CGDirectDisplayID?
-        if addZoneScreenId == nil {
-            floatingScreenId = resolveFloatingDropTarget(cursorPoint: cursorPoint)
         }
         // Tiled-to-floating promotion only applies to real (non-cursor-driven) tiled drags.
         if let windowId, !session.originatedFromFloating, !session.isCursorDriven,

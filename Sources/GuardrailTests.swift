@@ -39,6 +39,9 @@ enum GuardrailTests {
         if !FloatingZoneOverlapPolicyTests.run() {
             allPassed = false
         }
+        if !EdgePillDragPolicyTests.run() {
+            allPassed = false
+        }
         if !PlaceholderExternalDragPolicyTests.run() {
             allPassed = false
         }

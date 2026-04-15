@@ -151,12 +151,14 @@ extension AppController {
         windowId: Int,
         finalFrame: CGRect,
         hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     ) {
         floatingZoneCoordinator.finalizeFloatingDrop(
             windowId: windowId,
             finalFrame,
             hoveredAddZoneScreenId: hoveredAddZoneScreenId,
+            hoveredFloatingScreenId: hoveredFloatingScreenId,
             finalCursorPoint: finalCursorPoint
         )
         tiledToFloatingDragContexts.removeValue(forKey: windowId)

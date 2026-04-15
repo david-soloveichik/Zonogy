@@ -31,6 +31,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Holding Control-Command after an external drag stops moving can show the intercepted zone overlay, but releasing without another mouse move drops nothing.
   - Think about: `flagsChanged` alone must not arm the intercepted overlay. Only a subsequent drag move should promote to Control-Command interception; otherwise keep the stationary UI truthful (including leaving empty-zone placeholder behavior unchanged).
 
+- Bug report: A drag aimed at the add-zone pill or floating-zone pill can be stolen by an underlying tiling zone.
+  - Think about: Edge-pill targets must take precedence over overlapping zone targets across drag contexts, and drag/highlight UI should stay truthful about which destination will actually win.
+
 - Bug report: Sleep/wake can leave delayed retries or timers running into AX-not-ready periods, causing false window pruning or other incorrect lifecycle actions.
   - Think about: Route sleep-sensitive timer/work-item cancellation through `cancelSleepSensitiveAsyncWork(reason:)` (in `AppController+SleepWake.swift`), only resume AX-dependent work after wake readiness gates are satisfied, and keep sync-pruned windows in deferred-prune bookkeeping long enough to restore the same `windowId` if the same pid/CGWindowID reappears.
 

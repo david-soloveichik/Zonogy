@@ -607,6 +607,7 @@ extension AppController {
                     windowId: windowId,
                     finalFrame: finalFrame,
                     hoveredAddZoneScreenId: nil,
+                    hoveredFloatingScreenId: nil,
                     finalCursorPoint: nil
                 )
             } else if !isWindowInFloatingZone(windowId) {

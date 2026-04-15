@@ -102,6 +102,8 @@ final class ExternalZoneDropInterceptor {
             return
         }
 
+        let interceptedZoneKey = host.resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint)
+
         if !isInterceptionActive {
             guard allowBeginInterception else {
                 return
@@ -113,10 +115,14 @@ final class ExternalZoneDropInterceptor {
             overlayManager.present(over: host.externalDropOverlayDescriptors())
             isInterceptionActive = true
             Logger.debug("External zone drop interception began")
+        } else if interceptedZoneKey == nil {
+            tearDownOverlays()
+            host.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
+            return
         }
 
         host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
-        overlayManager.updateHighlight(to: host.resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint))
+        overlayManager.updateHighlight(to: interceptedZoneKey)
     }
 
     private func scheduleMouseUpTearDown() {

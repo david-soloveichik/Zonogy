@@ -257,6 +257,7 @@ final class FloatingZoneCoordinator {
         windowId: Int,
         _ finalFrame: CGRect,
         hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     ) {
         guard let host,
@@ -283,6 +284,11 @@ final class FloatingZoneCoordinator {
             return
         }
 
+        if let hoveredFloatingScreenId,
+           handleFloatingIndicatorDrop(managed: managed, destinationScreenId: hoveredFloatingScreenId) {
+            return
+        }
+
         if handleCrossScreenFloatingDrop(managed: managed, finalFrame: finalFrame) {
             return
         }
@@ -290,11 +296,38 @@ final class FloatingZoneCoordinator {
         // Otherwise, leaving the floating zone simply keeps the window floating.
     }
 
+    private func handleFloatingIndicatorDrop(managed: ManagedWindow, destinationScreenId: CGDirectDisplayID) -> Bool {
+        guard let originScreenId = occupants.first(where: { $0.value == managed.windowId })?.key else {
+            return false
+        }
+
+        if destinationScreenId == originScreenId {
+            return true
+        }
+
+        return moveFloatingWindow(managed, originScreenId: originScreenId, destinationScreenId: destinationScreenId)
+    }
+
     private func handleCrossScreenFloatingDrop(managed: ManagedWindow, finalFrame: CGRect) -> Bool {
         guard let host,
               let originScreenId = occupants.first(where: { $0.value == managed.windowId })?.key,
-              let destinationScreenId = host.screenIdForAccessibilityFrame(finalFrame),
-              destinationScreenId != originScreenId else {
+              let destinationScreenId = host.screenIdForAccessibilityFrame(finalFrame) else {
+            return false
+        }
+
+        if destinationScreenId == originScreenId {
+            return false
+        }
+
+        return moveFloatingWindow(managed, originScreenId: originScreenId, destinationScreenId: destinationScreenId)
+    }
+
+    private func moveFloatingWindow(
+        _ managed: ManagedWindow,
+        originScreenId: CGDirectDisplayID,
+        destinationScreenId: CGDirectDisplayID
+    ) -> Bool {
+        guard let host else {
             return false
         }
 
