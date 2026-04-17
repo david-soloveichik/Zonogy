@@ -79,6 +79,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 | --- | --- |
 | `Control-Cmd-=` | Add a zone |
 | `Control-Cmd--` | Remove zone (following preference order, keeping current window open) |
+| `Control-Cmd-0` | Collapse to one zone (same as pressing remove zone repeatedly until one tiling zone remains) |
 | `Cmd-M` | Minimize active window; with Launcher open, removes the zone (so `Cmd-M` twice = minimize + remove zone) |
 | `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |

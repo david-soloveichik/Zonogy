@@ -11,6 +11,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         // Zone Management
         case addZone
         case removeZone
+        case collapseToOneZone
         case clearOrResetZones
         case clearOrResetZonesAtCursor
 
@@ -43,6 +44,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             // Zone Management
             case .addZone: return "Add Zone"
             case .removeZone: return "Remove Zone"
+            case .collapseToOneZone: return "Collapse to One Zone"
             case .clearOrResetZones: return "Clear/Reset Zones (Active Screen)"
             case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Screen)"
             // Window Actions
@@ -78,6 +80,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Equal), modifiers: cmdCtrl)
             case .removeZone:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Minus), modifiers: cmdCtrl)
+            case .collapseToOneZone:
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_0), modifiers: cmdCtrl)
             case .clearOrResetZones:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Escape), modifiers: cmdCtrl)
             case .clearOrResetZonesAtCursor:

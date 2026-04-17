@@ -389,21 +389,9 @@ extension AppController {
             case .addZone:
                 self.addZone()
             case .removeZone:
-                let screenId = self.activeScreenId()
-                guard let removalIndex = self.zoneIndexForShortcutRemoval(on: screenId) else { return }
-                if let context = self.screenContexts[screenId],
-                   let zone = context.zoneController.zone(at: removalIndex) {
-                    let targetedMatch = (self.targetedZoneKey?.screenId == screenId) && (self.targetedZoneKey?.index == removalIndex)
-                    let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
-                    Logger.debug(
-                        "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
-                        "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.occupantWindowId.map(String.init) ?? "none"))"
-                    )
-                } else {
-                    let screenIndex = self.screenContextStore.loggingIndex(for: screenId)
-                    Logger.debug("Shortcut remove selected zone \(removalIndex) on screen \(screenIndex), but zone details unavailable")
-                }
-                _ = self.performRemoveZone(at: removalIndex, on: screenId, announce: true)
+                _ = self.performShortcutZoneRemoval(on: self.activeScreenId())
+            case .collapseToOneZone:
+                self.collapseToOneZoneShortcut()
             case .captureTimeTravelLogs:
                 self.captureTimeTravelLogs(triggerReason: "shortcut")
             case .flipKeyWindow:
@@ -442,6 +430,27 @@ extension AppController {
         }
     }
 
+    private func collapseToOneZoneShortcut() {
+        let screenId = activeScreenId()
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Shortcut collapse to one zone started on screen \(screenIndex)")
+
+        while let context = screenContexts[screenId],
+              context.zoneController.allZones.count > 1 {
+            guard performShortcutZoneRemoval(on: screenId) else {
+                Logger.debug("Shortcut collapse to one zone stopped early on screen \(screenIndex): no removable zone")
+                return
+            }
+        }
+
+        if let context = screenContexts[screenId] {
+            Logger.debug(
+                "Shortcut collapse to one zone finished on screen \(screenIndex) " +
+                "with \(context.zoneController.allZones.count) zone(s)"
+            )
+        }
+    }
+
     internal func showLauncher() {
         if launcherController.isActive {
             toggleOpenLauncherShortcutTargetIfNeeded(reason: "shortcut-retarget-open-launcher")
@@ -463,6 +472,30 @@ extension AppController {
             Logger.debug("Time-travel logs captured at \(Logger.timeTravelLogPath) (reason: \(triggerReason))")
         } else {
             Logger.debug("Time-travel log capture failed (reason: \(triggerReason))")
+        }
+    }
+
+    private func performShortcutZoneRemoval(on screenId: CGDirectDisplayID) -> Bool {
+        guard let removalIndex = zoneIndexForShortcutRemoval(on: screenId) else {
+            return false
+        }
+
+        logShortcutZoneRemoval(screenId: screenId, removalIndex: removalIndex)
+        return performRemoveZone(at: removalIndex, on: screenId, announce: true) != nil
+    }
+
+    private func logShortcutZoneRemoval(screenId: CGDirectDisplayID, removalIndex: Int) {
+        if let context = screenContexts[screenId],
+           let zone = context.zoneController.zone(at: removalIndex) {
+            let targetedMatch = (targetedZoneKey?.screenId == screenId) && (targetedZoneKey?.index == removalIndex)
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "Shortcut remove about to remove zone \(removalIndex) on \(context.descriptor.localizedName) " +
+                "[\(screenIndex)] (empty: \(zone.isEmpty), targeted: \(targetedMatch), window: \(zone.occupantWindowId.map(String.init) ?? "none"))"
+            )
+        } else {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug("Shortcut remove selected zone \(removalIndex) on screen \(screenIndex), but zone details unavailable")
         }
     }
 
@@ -490,11 +523,20 @@ extension AppController {
             targetedIndex = nil
         }
 
-        let candidates = zones.filter { zone in
-            return !activeIndices.contains(zone.index)
+        let zoneSnapshots = zones.map { zone in
+            ZoneShortcutRemovalPolicy.ZoneSnapshot(
+                index: zone.index,
+                isEmpty: zone.isEmpty,
+                occupantWindowId: zone.occupantWindowId
+            )
         }
+        let orderedCandidates = ZoneShortcutRemovalPolicy.orderedCandidates(
+            zones: zoneSnapshots,
+            protectedIndices: activeIndices,
+            targetedIndex: targetedIndex
+        )
 
-        guard !candidates.isEmpty else {
+        guard !orderedCandidates.isEmpty else {
             Logger.debug(
                 "Shortcut remove found no removable zones on \(context.descriptor.localizedName) " +
                 "[screen \(screenContextStore.loggingIndex(for: screenId))] (active zones: \(activeList), total zones: \(zones.count))"
@@ -502,15 +544,10 @@ extension AppController {
             return nil
         }
 
-        let orderedCandidates = candidates.sorted { lhs, rhs in
-            removalPriorityKey(for: lhs, targetedIndex: targetedIndex) <
-                removalPriorityKey(for: rhs, targetedIndex: targetedIndex)
-        }
-
-        let description = orderedCandidates.map { zone -> String in
-            let priority = removalPriorityKey(for: zone, targetedIndex: targetedIndex)
-            let targetedFlag = (targetedIndex == zone.index)
-            return "zone \(zone.index){empty:\(zone.isEmpty), targeted:\(targetedFlag), window:\(zone.occupantWindowId.map(String.init) ?? "none"), priority:\(priority)}"
+        let description = orderedCandidates.compactMap { candidate -> String? in
+            let priority = ZoneShortcutRemovalPolicy.priorityKey(for: candidate, targetedIndex: targetedIndex)
+            let targetedFlag = (targetedIndex == candidate.index)
+            return "zone \(candidate.index){empty:\(candidate.isEmpty), targeted:\(targetedFlag), window:\(candidate.occupantWindowId.map(String.init) ?? "none"), priority:\(priority)}"
         }.joined(separator: ", ")
 
         if let selected = orderedCandidates.first {
@@ -526,13 +563,6 @@ extension AppController {
             )
             return nil
         }
-    }
-
-    private func removalPriorityKey(for zone: Zone, targetedIndex: Int?) -> (Int, Int, Int) {
-        let emptinessRank = zone.isEmpty ? 0 : 1
-        let targetedRank = (targetedIndex == zone.index) ? 1 : 0
-        let indexRank = -zone.index
-        return (emptinessRank, targetedRank, indexRank)
     }
 
     private func activeZoneIndices(on screenId: CGDirectDisplayID) -> Set<Int> {
