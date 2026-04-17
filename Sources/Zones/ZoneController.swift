@@ -104,6 +104,16 @@ class ZoneController {
         return removedWindowIds
     }
 
+    /// Replace the current tiling-zone topology with the provided occupant list.
+    /// Each array element maps to the corresponding 1-based zone index.
+    func replaceZones(withOccupants occupantWindowIds: [Int?]) {
+        let requestedCount = clampedZoneCount(max(1, occupantWindowIds.count))
+        let occupants = Array(occupantWindowIds.prefix(requestedCount))
+            + Array(repeating: nil, count: max(0, requestedCount - occupantWindowIds.count))
+        recomputeLayout(zoneCount: requestedCount, preservingOccupants: occupants)
+        Logger.debug("Replaced zones with \(requestedCount) explicit occupant slot(s)")
+    }
+
     /// Assign an external window to a zone.
     /// Only external windows (from other applications) can occupy zones.
     func assignWindow(windowId: Int, toZoneIndex zoneIndex: Int) {

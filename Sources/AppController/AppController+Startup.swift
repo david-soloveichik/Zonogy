@@ -432,23 +432,28 @@ extension AppController {
 
     private func collapseToOneZoneShortcut() {
         let screenId = activeScreenId()
+        guard let context = screenContexts[screenId] else {
+            return
+        }
+
+        let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Shortcut collapse to one zone started on screen \(screenIndex)")
 
-        while let context = screenContexts[screenId],
-              context.zoneController.allZones.count > 1 {
-            guard performShortcutZoneRemoval(on: screenId) else {
-                Logger.debug("Shortcut collapse to one zone stopped early on screen \(screenIndex): no removable zone")
-                return
-            }
+        let protectedWindowIds = protectedWindowIdsForShortcutCollapse(on: screenId, zones: zones)
+        let targetedIndex = targetedZoneKey?.screenId == screenId ? targetedZoneKey?.index : nil
+        let plan = ZoneCollapsePlanner.plan(
+            zones: zones.map { ZoneCollapsePlanner.ZoneSnapshot(index: $0.index, occupantWindowId: $0.occupantWindowId) },
+            protectedWindowIds: protectedWindowIds,
+            targetedIndex: targetedIndex
+        )
+
+        guard plan.finalZones.count < zones.count else {
+            Logger.debug("Shortcut collapse to one zone stopped early on screen \(screenIndex): no removable zone")
+            return
         }
 
-        if let context = screenContexts[screenId] {
-            Logger.debug(
-                "Shortcut collapse to one zone finished on screen \(screenIndex) " +
-                "with \(context.zoneController.allZones.count) zone(s)"
-            )
-        }
+        applyShortcutCollapsePlan(plan, on: screenId, initialTargetedIndex: targetedIndex)
     }
 
     internal func showLauncher() {
@@ -496,6 +501,111 @@ extension AppController {
         } else {
             let screenIndex = screenContextStore.loggingIndex(for: screenId)
             Logger.debug("Shortcut remove selected zone \(removalIndex) on screen \(screenIndex), but zone details unavailable")
+        }
+    }
+
+    private func protectedWindowIdsForShortcutCollapse(
+        on screenId: CGDirectDisplayID,
+        zones: [Zone]
+    ) -> Set<Int> {
+        let protectedIndices = activeZoneIndices(on: screenId)
+        return Set(
+            zones.compactMap { zone in
+                guard protectedIndices.contains(zone.index) else {
+                    return nil
+                }
+                return zone.occupantWindowId
+            }
+        )
+    }
+
+    private func applyShortcutCollapsePlan(
+        _ plan: ZoneCollapsePlanner.Plan,
+        on screenId: CGDirectDisplayID,
+        initialTargetedIndex: Int?
+    ) {
+        guard let context = screenContexts[screenId] else {
+            return
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug(
+            "Shortcut collapse applying plan on screen \(screenIndex): " +
+            "final zone count \(plan.finalZones.count), removed windows \(plan.removedWindowIds)"
+        )
+
+        endUnderCovers(on: screenId, reason: "collapse-to-one-zone", recreatePlaceholders: false)
+        clearRememberedManualResizeSizes(on: screenId, reason: "collapse-to-one-zone")
+        placeholderCoordinator.clearPlaceholdersForScreen(screenId)
+        windowController.cancelAllAccessibilityFrameRetries()
+        context.zoneController.replaceZones(withOccupants: plan.finalZones.map(\.occupantWindowId))
+
+        let fallbackTargetDestination: TargetedZoneManager.TargetedDestination? = {
+            guard initialTargetedIndex != nil, plan.finalTargetIndex == nil else {
+                return nil
+            }
+            return targetedZoneManager.preferredRetargetDestination(preferredSameScreenId: screenId)
+        }()
+
+        var windowsToMinimize: [ManagedWindow] = []
+        for windowId in plan.removedWindowIds {
+            guard let managed = windowController.window(withId: windowId) else {
+                Logger.debug("Shortcut collapse skipped missing window \(windowId)")
+                continue
+            }
+            windowsToMinimize.append(managed)
+        }
+
+        bulkProgrammaticMinimize(
+            windowsToMinimize,
+            minimizeReason: "collapse-to-one-zone",
+            cleanupReason: "collapse-to-one-zone"
+        ) { managed in
+            clearManagedWindowZone(managed)
+        }
+
+        syncWindowsToZones()
+        activeFitRefreshAfterZoneTopologyChange(reason: "collapse-to-one-zone")
+        applyShortcutCollapseTargetOutcome(
+            on: screenId,
+            initialTargetedIndex: initialTargetedIndex,
+            finalTargetIndex: plan.finalTargetIndex,
+            fallbackDestination: fallbackTargetDestination
+        )
+        refreshLauncherForCurrentTargetAfterTopologyChange()
+
+        if let updatedContext = screenContexts[screenId] {
+            Logger.debug(
+                "Shortcut collapse to one zone finished on screen \(screenIndex) " +
+                "with \(updatedContext.zoneController.allZones.count) zone(s)"
+            )
+        }
+    }
+
+    private func applyShortcutCollapseTargetOutcome(
+        on screenId: CGDirectDisplayID,
+        initialTargetedIndex: Int?,
+        finalTargetIndex: Int?,
+        fallbackDestination: TargetedZoneManager.TargetedDestination?
+    ) {
+        guard initialTargetedIndex != nil else {
+            return
+        }
+
+        if let finalTargetIndex {
+            applyTargetedDestination(
+                .tiled(ZoneKey(screenId: screenId, index: finalTargetIndex)),
+                reason: "collapse-to-one-zone"
+            )
+            return
+        }
+
+        if let fallbackDestination {
+            applyTargetedDestination(fallbackDestination, reason: "collapse-to-one-zone")
+        } else if let destination = targetedZoneManager.preferredRetargetDestination(preferredSameScreenId: screenId) {
+            applyTargetedDestination(destination, reason: "collapse-to-one-zone")
+        } else {
+            targetedZoneManager.ensureTargetedZone(reason: "collapse-to-one-zone")
         }
     }
 

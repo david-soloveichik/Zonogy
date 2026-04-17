@@ -16,50 +16,7 @@ extension AppController {
             Logger.debug("CmdTab: Hidden because targeted zone changed")
         }
 
-        // Invariant: the Launcher must never remain visible while pointing at a non-targeted destination.
-        // If the target changes while the Launcher is open, either reposition it to the new target
-        // (empty tiled / floating) or hide it (occupied tiled / cleared target).
-        if launcherController.isActive {
-            if let session = launcherRetargetSession,
-               newDestination != session.temporaryTarget {
-                launcherRetargetSession = nil
-            }
-
-            guard let newDestination else {
-                launcherController.hide()
-                Logger.debug("Launcher: Hidden because target cleared")
-                return
-            }
-
-            if let screenId = screenId(for: newDestination),
-               isScreenPausedForFullScreen(screenId) {
-                launcherController.hide()
-                Logger.debug("Launcher: Hidden because target screen is full-screen")
-                return
-            }
-
-            if launcherRetargetSession?.temporaryTarget == newDestination {
-                launcherController.repositionToCurrentTarget()
-                Logger.debug("Launcher: Repositioned for shortcut-owned target")
-                return
-            }
-
-            switch newDestination {
-            case .floating:
-                launcherController.repositionToCurrentTarget()
-                Logger.debug("Launcher: Repositioned for floating target")
-            case .tiled(let key):
-                if targetedZoneManager.isZoneEmpty(key) {
-                    launcherController.repositionToCurrentTarget()
-                    Logger.debug("Launcher: Repositioned for empty target zone \(key.index)")
-                } else {
-                    launcherController.hide()
-                    Logger.debug("Launcher: Hidden because target zone \(key.index) is occupied")
-                }
-            }
-            return
-        }
-
+        refreshLauncherForCurrentTargetAfterTopologyChange(newDestination: newDestination)
     }
 
     private func canShowLauncherOnCurrentTarget() -> Bool {
@@ -67,6 +24,53 @@ extension AppController {
             return false
         }
         return !isScreenPausedForFullScreen(screenId)
+    }
+
+    internal func refreshLauncherForCurrentTargetAfterTopologyChange(
+        newDestination: TargetedZoneManager.TargetedDestination? = nil
+    ) {
+        guard launcherController.isActive else {
+            return
+        }
+
+        let effectiveDestination = newDestination ?? targetedZoneManager.targetedDestination
+        if let session = launcherRetargetSession,
+           effectiveDestination != session.temporaryTarget {
+            launcherRetargetSession = nil
+        }
+
+        guard let effectiveDestination else {
+            launcherController.hide()
+            Logger.debug("Launcher: Hidden because target cleared")
+            return
+        }
+
+        if let screenId = screenId(for: effectiveDestination),
+           isScreenPausedForFullScreen(screenId) {
+            launcherController.hide()
+            Logger.debug("Launcher: Hidden because target screen is full-screen")
+            return
+        }
+
+        if launcherRetargetSession?.temporaryTarget == effectiveDestination {
+            launcherController.repositionToCurrentTarget()
+            Logger.debug("Launcher: Repositioned for shortcut-owned target")
+            return
+        }
+
+        switch effectiveDestination {
+        case .floating:
+            launcherController.repositionToCurrentTarget()
+            Logger.debug("Launcher: Repositioned for floating target")
+        case .tiled(let key):
+            if targetedZoneManager.isZoneEmpty(key) {
+                launcherController.repositionToCurrentTarget()
+                Logger.debug("Launcher: Repositioned for empty target zone \(key.index)")
+            } else {
+                launcherController.hide()
+                Logger.debug("Launcher: Hidden because target zone \(key.index) is occupied")
+            }
+        }
     }
 
     internal func showLauncherIfAllowed(trigger: String, autoShow: Bool = false) {

@@ -51,6 +51,9 @@ enum GuardrailTests {
         if !ZoneControllerTests.run() {
             allPassed = false
         }
+        if !ZoneCollapsePlannerTests.run() {
+            allPassed = false
+        }
         if !ZoneShortcutRemovalPolicyTests.run() {
             allPassed = false
         }

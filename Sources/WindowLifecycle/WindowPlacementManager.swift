@@ -167,34 +167,19 @@ class WindowPlacementManager {
         }
     }
 
-    /// Reassigns or minimizes a window after its zone was deleted.
-    func handleWindowAfterZoneRemoval(_ managed: ManagedWindow, preferredScreenId: CGDirectDisplayID) {
+    /// Minimizes a window after its zone was deleted.
+    func handleWindowAfterZoneRemoval(_ managed: ManagedWindow) {
         guard let delegate = delegate else { return }
 
         delegate.removeWindowFromAllZones(
             windowId: managed.windowId,
-            reason: "zone-removal-reassignment",
-            retarget: true,
-            logIfUnassigned: true
+            reason: "zone-removal-minimize",
+            retarget: false,
+            logIfUnassigned: false
         )
-        managed.zoneIndex = nil
 
-        if let (zone, context, descriptor) = findZoneAcceptingRemovedWindow(preferredScreenId: preferredScreenId) {
-            Logger.debug(
-                "Zone removal reassigning window \(managed.windowId) to zone \(zone.index) on \(context.descriptor.localizedName) [\(context.descriptor.displayId)]"
-            )
-            assignWindowToZone(
-                managed,
-                zone: zone,
-                screenId: context.descriptor.displayId,
-                descriptor: descriptor
-            )
-            return
-        }
-
-        Logger.debug("Zone removal minimizing window \(managed.windowId); no available zone without displacement")
-        delegate.clearManagedWindowZone(managed)
-        delegate.minimizeWindowProgrammatically(managed, reason: "zone-removal-no-destination")
+        Logger.debug("Zone removal minimizing window \(managed.windowId) after removing its tiling zone")
+        delegate.minimizeWindowProgrammatically(managed, reason: "zone-removal-minimize")
     }
 
     /// Moves an already managed window between zones, optionally minimizing displaced occupants.
@@ -514,47 +499,6 @@ class WindowPlacementManager {
             descriptor: descriptor
         )
         return DragAssignmentResult(displacedWindow: displacement?.displaced)
-    }
-
-    /// Finds the first zone that can accept a window displaced by zone removal.
-    private func findZoneAcceptingRemovedWindow(
-        preferredScreenId: CGDirectDisplayID
-    ) -> (zone: Zone, context: ScreenContext, descriptor: ScreenDescriptor)? {
-        guard let delegate = delegate else { return nil }
-
-        let orderedScreens = screenOrderStarting(with: preferredScreenId)
-
-        for screenId in orderedScreens {
-            guard let context = delegate.screenContexts[screenId],
-                  let descriptor = delegate.descriptor(for: screenId) else {
-                continue
-            }
-
-            for zone in context.zoneController.allZones {
-                if zone.occupantWindowId == nil {
-                    return (zone, context, descriptor)
-                }
-
-                // Placeholders are managed separately and not tracked in zones,
-                // so zones with windowId == nil are the only empty ones
-            }
-        }
-
-        return nil
-    }
-
-    /// Returns screen order with the preferred display first to keep placement deterministic.
-    private func screenOrderStarting(with preferred: CGDirectDisplayID) -> [CGDirectDisplayID] {
-        guard let delegate = delegate else { return [] }
-
-        var ordered = delegate.screenOrder
-        if let index = ordered.firstIndex(of: preferred) {
-            let prefix = ordered.remove(at: index)
-            ordered.insert(prefix, at: 0)
-        } else {
-            ordered.insert(preferred, at: 0)
-        }
-        return ordered
     }
 
     /// Shared displacement path for tiled-zone placement: evict an existing occupant and plan minimization.

@@ -201,6 +201,57 @@ extension AppController {
         windowController.minimizeWindow(managed)
     }
 
+    internal func bulkProgrammaticMinimize(
+        _ windows: [ManagedWindow],
+        minimizeReason: String,
+        cleanupReason: String,
+        assignmentCleanup: (ManagedWindow) -> Void
+    ) {
+        var uniqueWindows: [ManagedWindow] = []
+        var seenWindowIds: Set<Int> = []
+        for managed in windows where seenWindowIds.insert(managed.windowId).inserted {
+            uniqueWindows.append(managed)
+        }
+
+        guard !uniqueWindows.isEmpty else {
+            return
+        }
+
+        let manualResizeStates = Dictionary(
+            uniqueKeysWithValues: uniqueWindows.map { managed in
+                (
+                    managed.windowId,
+                    ManualResizeCleanupState(
+                        wasDetached: manualResizeDetachedWindowIds.contains(managed.windowId),
+                        rememberedSize: rememberedManualResizeSizesByWindowId[managed.windowId]
+                    )
+                )
+            }
+        )
+
+        let windowIds = uniqueWindows.map(\.windowId)
+        suppressNextEvents(for: windowIds, events: [.miniaturized], reason: minimizeReason)
+
+        for managed in uniqueWindows {
+            windowController.minimizeWindow(managed)
+        }
+
+        for managed in uniqueWindows {
+            assignmentCleanup(managed)
+        }
+
+        for managed in uniqueWindows {
+            scheduleMinimizeVerification(
+                windowId: managed.windowId,
+                emptiedZoneKey: nil,
+                minimizeReason: minimizeReason,
+                cleanupReason: cleanupReason,
+                manualResizeState: manualResizeStates[managed.windowId]
+                    ?? ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
+            )
+        }
+    }
+
     @discardableResult
     internal func performProgrammaticMinimizeCleanup(
         _ managed: ManagedWindow,

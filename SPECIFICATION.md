@@ -103,6 +103,8 @@ When invoking Control-Cmd-[minus], never remove the zone containing the currentl
 2. Prefer non-targeted zones over the targeted zone.
 3. Break any remaining ties by choosing the zone with the highest index.
 
+Removing a zone preserves the surviving tiling zones on that same screen in index order, so higher-index survivors collapse inward to fill the gap. If the removed zone contained a window, if no tiling zone remains for it on that screen after the collapse, minimize it instead.
+
 Pressing Control-Cmd-0 performs that same shortcut-removal action repeatedly on the active screen until only one tiling zone remains.
 
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).

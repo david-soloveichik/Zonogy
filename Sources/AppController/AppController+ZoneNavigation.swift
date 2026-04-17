@@ -62,7 +62,7 @@ extension AppController {
 
             for windowId in removedWindowIds {
                 if let managed = windowController.window(withId: windowId) {
-                    windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
+                    windowPlacementManager.handleWindowAfterZoneRemoval(managed)
                 }
             }
 
@@ -85,34 +85,17 @@ extension AppController {
                 }
             }
 
-            // Suppress all miniaturize events at once, then minimize all in parallel
-            let minimizedWindowIds = windowsToMinimize.map { $0.windowId }
-            if !minimizedWindowIds.isEmpty {
-                suppressNextEvents(for: minimizedWindowIds, events: [.miniaturized], reason: "clear-zones-shortcut")
-            }
-            for managed in windowsToMinimize {
-                windowController.minimizeWindow(managed)
-            }
-
-            // Remove from zones after all minimizes are issued
-            for managed in windowsToMinimize {
+            let minimizedWindowIds = windowsToMinimize.map(\.windowId)
+            bulkProgrammaticMinimize(
+                windowsToMinimize,
+                minimizeReason: "clear-zones-shortcut",
+                cleanupReason: "clear-zones-shortcut"
+            ) { managed in
                 removeWindowFromAllZones(windowId: managed.windowId, reason: "clear-zones-shortcut", retarget: false)
             }
 
             Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
             syncWindowsToZones()
-
-            // Verify minimization actually took effect. Some apps like Word seem to sometimes
-            // auto-activate sibling windows when one is minimized, which can cancel a rapid-fire minimize.
-            for windowId in minimizedWindowIds {
-                scheduleMinimizeVerification(
-                    windowId: windowId,
-                    emptiedZoneKey: nil,
-                    minimizeReason: "clear-zones-shortcut",
-                    cleanupReason: "clear-zones-shortcut",
-                    manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
-                )
-            }
         }
 
         // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.

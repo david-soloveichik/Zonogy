@@ -51,6 +51,18 @@ enum ZoneControllerTests {
 
         do {
             let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            controller.assignWindow(windowId: 601, toZoneIndex: 1)
+            controller.assignWindow(windowId: 603, toZoneIndex: 3)
+
+            let removal = controller.removeZone(at: 2)
+            assert(removal?.removedWindowId == nil, "removing an empty middle zone should not report a removed occupant")
+            assert(controller.allZones.count == 2, "removing an empty middle zone should decrease zone count")
+            assert(controller.zone(at: 1)?.occupantWindowId == 601, "zone 1 occupant should remain after removing empty middle zone")
+            assert(controller.zone(at: 2)?.occupantWindowId == 603, "higher-index survivor should collapse inward after removing empty middle zone")
+        }
+
+        do {
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
             controller.assignWindow(windowId: 401, toZoneIndex: 1)
             controller.assignWindow(windowId: 402, toZoneIndex: 2)
             controller.assignWindow(windowId: 403, toZoneIndex: 3)
@@ -85,6 +97,16 @@ enum ZoneControllerTests {
             let leftWidth = controller.zone(at: 1)!.frame.width
             let expectedMinWidth = screen.width * 0.1
             assertApproximatelyEqual(leftWidth, expectedMinWidth, label: "resizeZone should clamp to minimum width ratio")
+        }
+
+        do {
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            controller.replaceZones(withOccupants: [902, nil])
+
+            assert(controller.allZones.count == 2, "replaceZones should update the zone count")
+            assert(controller.zone(at: 1)?.occupantWindowId == 902, "replaceZones should preserve explicit zone 1 occupant")
+            assert(controller.zone(at: 2)?.occupantWindowId == nil, "replaceZones should preserve explicit empty zones")
+            assert(controller.zone(at: 3) == nil, "replaceZones should drop unspecified trailing zones")
         }
 
         if allPassed {

@@ -159,7 +159,7 @@ extension AppController {
 
         if let removedWindowId = removalResult.removedWindowId,
            let managed = windowController.window(withId: removedWindowId) {
-            windowPlacementManager.handleWindowAfterZoneRemoval(managed, preferredScreenId: screenId)
+            windowPlacementManager.handleWindowAfterZoneRemoval(managed)
         }
 
         syncWindowsToZones()
