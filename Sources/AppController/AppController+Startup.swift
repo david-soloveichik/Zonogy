@@ -394,8 +394,6 @@ extension AppController {
                 self.collapseToOneZoneShortcut()
             case .captureTimeTravelLogs:
                 self.captureTimeTravelLogs(triggerReason: "shortcut")
-            case .flipKeyWindow:
-                self.flipKeyWindowToAnotherScreen()
             case .clearOrResetZones:
                 self.clearOrResetZones()
             case .clearOrResetZonesAtCursor:

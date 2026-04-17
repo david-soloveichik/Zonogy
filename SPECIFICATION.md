@@ -260,16 +260,6 @@ Pressing Control-Cmd-M performs a cursor-targeted action:
 
 When an app is hidden (via MacOS's Cmd-H or any hide action), treat every currently unminimized managed window of that app as if it were minimized by the user. This means the same downstream behavior should occur. Implementation-wise, we achieve this by observing application hide notification and immediately unhiding the app and automatically minimizing its windows.
 
-### Flip the Key Window to Another Screen
-
-This feature moves the currently active/key window to another screen (if there is more than one screen). The shortcut is disabled by default but can be configured in Zonogy Preferences.
-
-If the targeted zone is on another screen, then immediately move the key window into it, minimize any displaced window.
-
-If the targeted zone is on the same screen as the active/key window then: We pick the first `NSScreen` that is not the key window's current screen; all behavior below refers to that destination screen. Choose the lowest-index empty zone on the destination screen, or if none exist, the highest-index occupied zone. Make that zone be target, and perform the move described above.
-
-In either case, since the original zone of the window is now empty, it should become targeted after this.
-
 ### Startup
 
 - **Initial target:** Tiling zone 1 on the primary display. After seeding completes, if no empty tiling zone exists anywhere, target the floating zone on the primary display instead.

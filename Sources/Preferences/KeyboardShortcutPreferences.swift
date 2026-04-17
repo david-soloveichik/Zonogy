@@ -18,7 +18,6 @@ final class KeyboardShortcutPreferences: ObservableObject {
         // Window Actions
         case minimizeActiveWindow
         case minimizeWindowOrRemoveZoneAtCursor
-        case flipKeyWindow
 
         // Target Navigation
         case navigateLeft
@@ -50,7 +49,6 @@ final class KeyboardShortcutPreferences: ObservableObject {
             // Window Actions
             case .minimizeActiveWindow: return "Minimize Active Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
-            case .flipKeyWindow: return "Flip Key Window to Another Screen"
             // Target Navigation
             case .navigateLeft: return "Navigate Left"
             case .navigateRight: return "Navigate Right"
@@ -91,8 +89,6 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdOnly)
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrl)
-            case .flipKeyWindow:
-                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             // Target Navigation
             case .navigateLeft:
                 return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
@@ -129,7 +125,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     /// Actions that are disabled by default (no shortcut assigned out of the box)
-    private static let defaultClearedActions: Set<ShortcutAction> = [.flipKeyWindow]
+    private static let defaultClearedActions: Set<ShortcutAction> = []
 
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []

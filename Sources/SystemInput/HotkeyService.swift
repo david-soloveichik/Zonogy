@@ -8,7 +8,6 @@ final class HotkeyService {
         case removeZone = 2
         case collapseToOneZone = 17
         case captureTimeTravelLogs = 3
-        case flipKeyWindow = 4
         case clearOrResetZones = 5
         case targetFloatingZone = 6
         case targetTilingZone = 7
@@ -29,7 +28,6 @@ final class HotkeyService {
             case .removeZone: return .removeZone
             case .collapseToOneZone: return .collapseToOneZone
             case .captureTimeTravelLogs: return .captureTimeTravelLogs
-            case .flipKeyWindow: return .flipKeyWindow
             case .clearOrResetZones: return .clearOrResetZones
             case .targetFloatingZone: return .targetFloatingZone
             case .targetTilingZone: return .targetTilingZone
