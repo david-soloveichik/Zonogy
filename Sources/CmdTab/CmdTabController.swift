@@ -200,7 +200,7 @@ final class CmdTabController {
     private func startClickMonitor() {
         stopClickMonitor()
         guard let window = window else { return }
-        let monitor = ClickOutsideMonitor(window: window, mode: .includeOwnApp) { [weak self] in
+        let monitor = ClickOutsideMonitor(window: window, mode: .globalOnly) { [weak self] in
             guard let self, self.isActive else { return }
             self.cancel()
         }
