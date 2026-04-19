@@ -123,7 +123,24 @@ final class CmdTabController {
             ])
         }
 
-        // Position window on targeted zone or center on screen
+        positionWindowOnCurrentTarget()
+        window?.makeKeyAndOrderFront(nil)
+
+        isActive = true
+        startClickMonitor()
+        Logger.debug("CmdTab: Opened with \(model.windows.count) windows")
+        return true
+    }
+
+    func repositionToCurrentTarget() {
+        guard isActive else {
+            return
+        }
+        positionWindowOnCurrentTarget()
+    }
+
+    private func positionWindowOnCurrentTarget() {
+        guard let delegate = delegate else { return }
         if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
             window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
         } else if let screenId = delegate.targetedScreenId() {
@@ -131,13 +148,6 @@ final class CmdTabController {
         } else {
             window?.center()
         }
-
-        window?.makeKeyAndOrderFront(nil)
-
-        isActive = true
-        startClickMonitor()
-        Logger.debug("CmdTab: Opened with \(model.windows.count) windows")
-        return true
     }
 
     func cancel() {

@@ -6,16 +6,11 @@ import ApplicationServices
 
 extension AppController {
     /// Called when the targeted destination changes.
-    /// Maintains the invariant that the Launcher never remains visible while pointing at a non-targeted destination.
-    /// CmdTab is dismissed when the target changes (it doesn't follow the target like the Launcher does).
+    /// Both the Launcher and CmdTab follow target changes: Launcher re-centers on empty tiling or
+    /// floating targets and dismisses on occupied tiling targets; CmdTab re-centers on any target
+    /// (empty or occupied) and dismisses only when the target screen enters full-screen pause.
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
-        // Dismiss CmdTab when target changes - CmdTab is for quick window switching,
-        // not zone placement, so it doesn't need to follow the target.
-        if cmdTabController.isActive {
-            cmdTabController.hideForExternalInterruption()
-            Logger.debug("CmdTab: Hidden because targeted zone changed")
-        }
-
+        refreshCmdTabForCurrentTargetAfterTopologyChange(newDestination: newDestination)
         refreshLauncherForCurrentTargetAfterTopologyChange(newDestination: newDestination)
     }
 
@@ -521,7 +516,7 @@ extension AppController: LauncherControllerDelegate {
         return activeScreenId()
     }
 
-    private func screenId(for destination: TargetedZoneManager.TargetedDestination) -> CGDirectDisplayID? {
+    internal func screenId(for destination: TargetedZoneManager.TargetedDestination) -> CGDirectDisplayID? {
         switch destination {
         case .floating(let screenId):
             return screenId

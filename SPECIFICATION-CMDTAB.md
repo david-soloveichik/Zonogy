@@ -15,6 +15,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Optional active-window retargeting:** When the `CmdTab targets zone with active window` Targeting preference is enabled (default on), CmdTab first retargets to the zone containing the currently active managed window, unless the Launcher is visible. Launcher is always shown on the current target, so while it is visible CmdTab leaves targeting unchanged.
 - CmdTab appears in the same location as the Launcher would appear when invoked
 - The configured shortcut may include multiple modifiers (e.g. Control-Command-Tab)
+- **Targeting invariant:** While CmdTab is visible, any target change re-centers CmdTab onto the new target — whether it is a floating zone, an empty tiling zone, or an occupied tiling zone. Unlike the Launcher, CmdTab does not dismiss when retargeting to an occupied tiling zone.
 
 ## UI / Presentation
 
@@ -47,7 +48,8 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Activate:** Releasing the modifier key dismisses CmdTab and activates the selected window
 - **Cancel:** Pressing Escape dismisses CmdTab without activating any window (even if the modifier key is still held)
 - **Cancel:** Clicking outside the CmdTab window dismisses CmdTab without activating any window
-- **Target restoration:** If CmdTab changed the target when it opened, canceling restores the original target. Activating an already open, unminimized window also restores the original target. Selecting a minimized window or a newly opened window keeps the temporary CmdTab retarget in place.
+- **Target restoration:** CmdTab's open-time retarget is temporary. It commits when the user's selection places a window (unminimizing a minimized window or opening a new one). Otherwise — cancel, activating an already-placed window, or the user moving the target elsewhere mid-chooser — the pre-CmdTab target is restored only if the current target still matches the one CmdTab set on open; if the target has since moved (even to a zone and back), restoration is skipped.
+- CmdTab dismisses if its screen enters full-screen pause.
 
 ## App-Specific Mode (Cmd-`)
 

@@ -162,6 +162,37 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     }
 }
 
+extension AppController {
+    /// Re-center CmdTab on the new target (tiled or floating, empty or occupied) and dismiss only
+    /// if the target screen is full-screen paused. If the user manually retargeted mid-chooser,
+    /// `TemporaryRetargetSession.shouldRestoreOriginalTarget(currentTarget:)` naturally skips the
+    /// restore on cancel because currentTarget no longer matches the saved temporaryTarget.
+    internal func refreshCmdTabForCurrentTargetAfterTopologyChange(
+        newDestination: TargetedZoneManager.TargetedDestination? = nil
+    ) {
+        guard cmdTabController.isActive else {
+            return
+        }
+
+        let effectiveDestination = newDestination ?? targetedZoneManager.targetedDestination
+        guard let effectiveDestination else {
+            cmdTabController.hideForExternalInterruption()
+            Logger.debug("CmdTab: Hidden because target cleared")
+            return
+        }
+
+        if let screenId = screenId(for: effectiveDestination),
+           isScreenPausedForFullScreen(screenId) {
+            cmdTabController.hideForExternalInterruption()
+            Logger.debug("CmdTab: Hidden because target screen is full-screen")
+            return
+        }
+
+        cmdTabController.repositionToCurrentTarget()
+        Logger.debug("CmdTab: Repositioned after target change")
+    }
+}
+
 private extension AppController {
     func beginCmdTabRetargetSessionIfNeeded(reason: String) {
         cmdTabRetargetSession = nil

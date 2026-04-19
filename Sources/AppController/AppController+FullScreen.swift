@@ -396,6 +396,15 @@ extension AppController {
                         "entered full-screen"
                 )
             }
+            if cmdTabController.isActive,
+               let targetScreenId = targetedScreenId(),
+               targetScreenId == displayId {
+                cmdTabController.hideForExternalInterruption()
+                Logger.debug(
+                    "CmdTab: Hidden because screen \(screenContextStore.loggingIndex(for: displayId)) " +
+                        "entered full-screen"
+                )
+            }
 
             placeholderCoordinator.clearPlaceholdersForScreen(displayId)
             targetedZoneManager.ensureTargetedZone(reason: "full-screen-entered")
@@ -407,6 +416,12 @@ extension AppController {
                isScreenPausedForFullScreen(targetScreenId) {
                 launcherController.hide()
                 Logger.debug("Launcher: Hidden because target screen entered full-screen")
+            }
+            if cmdTabController.isActive,
+               let targetScreenId = targetedScreenId(),
+               isScreenPausedForFullScreen(targetScreenId) {
+                cmdTabController.hideForExternalInterruption()
+                Logger.debug("CmdTab: Hidden because target screen entered full-screen")
             }
         } else {
             _ = placeTrackedButUnzonedWindowsAfterFullScreenExit(on: displayId)
