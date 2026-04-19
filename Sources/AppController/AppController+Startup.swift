@@ -570,6 +570,10 @@ extension AppController {
             finalTargetIndex: plan.finalTargetIndex,
             fallbackDestination: fallbackTargetDestination
         )
+        enforceLauncherVisibilityAfterZoneTopologyChange(
+            effectiveDestination: targetedZoneManager.targetedDestination,
+            reason: "collapse-to-one-zone"
+        )
         refreshLauncherForCurrentTargetAfterTopologyChange()
 
         if let updatedContext = screenContexts[screenId] {

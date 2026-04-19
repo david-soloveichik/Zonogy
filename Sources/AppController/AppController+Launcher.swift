@@ -26,6 +26,28 @@ extension AppController {
         return !isScreenPausedForFullScreen(screenId)
     }
 
+    internal func enforceLauncherVisibilityAfterZoneTopologyChange(
+        effectiveDestination: TargetedZoneManager.TargetedDestination?,
+        reason: String
+    ) {
+        guard launcherController.isActive else {
+            return
+        }
+
+        let shouldKeepVisible: Bool
+        if case .tiled(let key) = effectiveDestination {
+            shouldKeepVisible = targetedZoneManager.isZoneEmpty(key)
+        } else {
+            shouldKeepVisible = false
+        }
+
+        guard shouldKeepVisible else {
+            launcherController.hide()
+            Logger.debug("Launcher: Dismissed on \(reason) (new target is not empty tiling zone)")
+            return
+        }
+    }
+
     internal func refreshLauncherForCurrentTargetAfterTopologyChange(
         newDestination: TargetedZoneManager.TargetedDestination? = nil
     ) {

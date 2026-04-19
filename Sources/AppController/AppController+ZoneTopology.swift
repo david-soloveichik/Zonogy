@@ -135,17 +135,10 @@ extension AppController {
         // - Otherwise → dismiss Launcher
         if launcherWasActive {
             let effectiveDestination = pendingDestination ?? targetedZoneManager.targetedDestination
-            let newTargetIsEmptyTiledZone: Bool
-            if case .tiled(let key) = effectiveDestination {
-                newTargetIsEmptyTiledZone = targetedZoneManager.isZoneEmpty(key)
-            } else {
-                newTargetIsEmptyTiledZone = false
-            }
-
-            if !newTargetIsEmptyTiledZone {
-                launcherController.hide()
-                Logger.debug("Launcher: Dismissed on zone removal (new target is not empty tiling zone)")
-            }
+            enforceLauncherVisibilityAfterZoneTopologyChange(
+                effectiveDestination: effectiveDestination,
+                reason: "zone removal"
+            )
         }
 
         if let pendingDestination {
