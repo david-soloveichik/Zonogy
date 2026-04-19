@@ -54,4 +54,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: Activating another app can focus a managed window without delivering an AXFocusedWindowChanged event for the arriving app.
   - Think about: Mirror the Sticky Resize restore path from NSWorkspace activation when a tracked focused managed window is already known.
-  
+
+- Bug report: DockMenus window rows can stop highlighting on hover even though the app header still highlights.
+  - Think about: Tracking areas in shared interaction views should use `.activeAlways` rather than `.activeInKeyWindow`, since the view may be hosted in non-activating panels that never become key.

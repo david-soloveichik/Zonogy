@@ -73,7 +73,7 @@ struct RowInteractionCaptureView: NSViewRepresentable {
 
             let newArea = NSTrackingArea(
                 rect: bounds,
-                options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
