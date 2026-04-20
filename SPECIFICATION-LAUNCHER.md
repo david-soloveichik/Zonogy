@@ -12,6 +12,7 @@ The Launcher opens via:
 
 - **Control-Command-Space** (opens the Launcher; if Launcher is already open, pressing the shortcut again toggles targeting between the originally targeted destination for this Launcher session and the zone containing the currently active managed window at that keypress, while keeping the current Launcher query/mode intact), configurable in settings alongside other Zonogy shortcuts
   - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default on), the first shortcut press uses that same active-window retarget behavior before opening the Launcher. When disabled, the first press opens on the current target and the toggle behavior begins on the second shortcut press.
+  - Exception: if CmdTab is visible when the shortcut is pressed, CmdTab is dismissed and Launcher opens on CmdTab's current target without any further retarget. CmdTab's retarget session (if any) is inherited by the Launcher so a subsequent Launcher cancel restores the pre-CmdTab target under the usual rules.
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).

@@ -49,6 +49,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Cancel:** Pressing Escape dismisses CmdTab without activating any window (even if the modifier key is still held)
 - **Cancel:** Clicking outside the CmdTab window dismisses CmdTab without activating any window
 - **Target restoration:** CmdTab's open-time retarget is temporary. It commits when the user's selection places a window (unminimizing a minimized window or opening a new one). Otherwise — cancel, activating an already-placed window, or the user moving the target elsewhere mid-chooser — the pre-CmdTab target is restored only if the current target still matches the one CmdTab set on open; if the target has since moved (even to a zone and back), restoration is skipped.
+- **Launcher shortcut:** Pressing the Launcher keyboard shortcut while CmdTab is visible dismisses CmdTab and opens the Launcher. The target remains wherever CmdTab had it (no additional retarget), and CmdTab's retarget session is inherited by the Launcher so a subsequent Launcher cancel follows the same pre-CmdTab restoration rule above.
 - CmdTab dismisses if its screen enters full-screen pause.
 
 ## App-Specific Mode (Cmd-`)
