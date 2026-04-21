@@ -10,12 +10,20 @@ final class TargetingPreferencesViewController: NSViewController {
     private var cmdTabTargetsActiveWindowHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 340))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 380))
 
         let titleLabel = NSTextField(labelWithString: "Targeting to active window")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
+
+        let headerDescriptionLabel = NSTextField(
+            wrappingLabelWithString: "By default, Zonogy's targeting is independent of which window is active. Turn on options below if you prefer certain actions to target the zone with the active window."
+        )
+        headerDescriptionLabel.font = NSFont.systemFont(ofSize: 13)
+        headerDescriptionLabel.textColor = .secondaryLabelColor
+        headerDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(headerDescriptionLabel)
 
         let dockMenusTargetsActiveWindowCheckbox = NSButton(
             checkboxWithTitle: "DockMenus targets zone with active window",
@@ -75,7 +83,11 @@ final class TargetingPreferencesViewController: NSViewController {
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
+            headerDescriptionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            headerDescriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            headerDescriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: headerDescriptionLabel.bottomAnchor, constant: 18),
             dockMenusTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
@@ -98,7 +110,7 @@ final class TargetingPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 340)
+        self.preferredContentSize = NSSize(width: 580, height: 380)
         syncControls()
     }
 

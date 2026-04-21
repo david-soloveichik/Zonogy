@@ -12,7 +12,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 
 - **Default shortcut:** Cmd-Tab (configurable in Zonogy Preferences)
 - **App-specific shortcut:** Cmd-` (configurable in Zonogy Preferences) — shows only windows from the currently active application
-- **Optional active-window retargeting:** When the `CmdTab targets zone with active window` Targeting preference is enabled (default on), CmdTab first retargets to the zone containing the currently active managed window, unless the Launcher is visible. Launcher is always shown on the current target, so while it is visible CmdTab leaves targeting unchanged.
+- **Optional active-window retargeting:** When the `CmdTab targets zone with active window` Targeting preference is enabled (default off), CmdTab first retargets to the zone containing the currently active managed window, unless the Launcher is visible. Launcher is always shown on the current target, so while it is visible CmdTab leaves targeting unchanged.
 - CmdTab appears in the same location as the Launcher would appear when invoked
 - The configured shortcut may include multiple modifiers (e.g. Control-Command-Tab)
 - **Targeting invariant:** While CmdTab is visible, any target change re-centers CmdTab onto the new target — whether it is a floating zone, an empty tiling zone, or an occupied tiling zone. Unlike the Launcher, CmdTab does not dismiss when retargeting to an occupied tiling zone.
@@ -66,7 +66,7 @@ When invoked with the app-specific shortcut (default Cmd-`), CmdTab shows only w
 
 - Keyboard shortcut configurable in Zonogy Preferences (default: Cmd-Tab)
 - App-specific shortcut configurable in Zonogy Preferences (default: Cmd-`)
-- `CmdTab targets zone with active window` toggle in Preferences → Targeting (default on)
+- `CmdTab targets zone with active window` toggle in Preferences → Targeting (default off)
 - The modifier(s) for cycling are derived from the configured shortcut
 
 ## Implementation Notes

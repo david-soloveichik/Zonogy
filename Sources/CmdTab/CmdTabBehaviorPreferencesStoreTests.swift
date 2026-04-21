@@ -26,8 +26,8 @@ enum CmdTabBehaviorPreferencesStoreTests {
 
         defaults.removeObject(forKey: key)
         assert(
-            CmdTabBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow(),
-            "CmdTab targeting should default to enabled when unset"
+            !CmdTabBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow(),
+            "CmdTab targeting should default to disabled when unset"
         )
 
         CmdTabBehaviorPreferencesStore.saveTargetsZoneWithActiveWindow(false)

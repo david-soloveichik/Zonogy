@@ -46,8 +46,8 @@ enum LauncherBehaviorPreferencesStoreTests {
 
         defaults.removeObject(forKey: shortcutTargetingKey)
         assert(
-            LauncherBehaviorPreferencesStore.loadShortcutTargetsZoneWithActiveWindow(),
-            "Launcher shortcut targeting should default to enabled when unset"
+            !LauncherBehaviorPreferencesStore.loadShortcutTargetsZoneWithActiveWindow(),
+            "Launcher shortcut targeting should default to disabled when unset"
         )
 
         LauncherBehaviorPreferencesStore.saveShortcutTargetsZoneWithActiveWindow(true)
