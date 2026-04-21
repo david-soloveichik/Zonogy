@@ -26,6 +26,9 @@ extension AppController: CmdTabControllerDelegate {
         case .interrupted:
             Logger.debug("CmdTab: Interrupted")
             cmdTabRetargetSession = nil
+        case .dragResolved:
+            Logger.debug("CmdTab: Drag resolved")
+            cmdTabRetargetSession = nil
         }
     }
 
@@ -33,6 +36,36 @@ extension AppController: CmdTabControllerDelegate {
 
     func frontmostManagedWindowId() -> Int? {
         currentFrontmostManagedWindowId
+    }
+
+    // MARK: - Row Drag
+
+    func cmdTabController(_ controller: CmdTabController, beginDragForWindow window: LauncherWindowItem) -> Bool {
+        guard beginCursorDrivenWindowDrag(for: window) else {
+            return false
+        }
+        // The CmdTab UI is being torn down; clear the key interceptor's engaged state so a later
+        // modifier release does not try to activate a window in a destroyed session.
+        cmdTabKeyInterceptor.resetEngagement()
+        Logger.debug("CmdTab: drag began for window \(window.title)")
+        return true
+    }
+
+    func cmdTabControllerDidUpdateDrag(_ controller: CmdTabController, cursorPointAX: CGPoint?) {
+        dragDropCoordinator.updateCursorDrivenDragSession(cursorPointAX: cursorPointAX)
+    }
+
+    func cmdTabController(_ controller: CmdTabController, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) -> Bool {
+        Logger.debug("CmdTab: drag ended for window \(window.title)")
+        return performCursorDrivenManagedWindowDrop(
+            for: window,
+            cursorPointAX: cursorPointAX,
+            reason: "cmdtab-drag"
+        )
+    }
+
+    func cmdTabCurrentCursorAccessibilityPoint() -> CGPoint? {
+        currentCursorAccessibilityPoint()
     }
 
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem] {

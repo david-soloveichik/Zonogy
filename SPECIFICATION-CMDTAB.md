@@ -42,6 +42,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
   Note: There is potential conflict with the "Control-Command-Click" gesture that targets zones (it is globally intercepted and consumed). So while CmdTab is visible, we disable the "Control-Command-Click" targeting gesture so:
   - Row clicks can activate as expected
   - Outside clicks can dismiss CmdTab as expected
+- **Dragging a window row out:** Same drag-and-drop behavior as dragging a window row from the Launcher; CmdTab dismisses on drag start. A drop outside any target restores the pre-CmdTab target under the same rules as a CmdTab cancel.
 
 ## Dismissal
 

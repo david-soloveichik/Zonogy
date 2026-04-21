@@ -18,9 +18,9 @@ final class CmdTabWindow: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         level = .popUpMenu
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        isMovable = true
-        isMovableByWindowBackground = true
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        isMovable = false
+        isMovableByWindowBackground = false
 
         // Create container view for shadow (doesn't clip)
         let containerView = NSView()

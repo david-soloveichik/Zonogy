@@ -7,6 +7,7 @@ struct CmdTabView: View {
     @ObservedObject var model: CmdTabModel
     let headerText: String
     let onActivateSelected: () -> Void
+    let onBeginDrag: (LauncherWindowItem) -> Void
 
     var body: some View {
         VStack(spacing: 8) {
@@ -38,6 +39,10 @@ struct CmdTabView: View {
                                         onMouseMove: {
                                             guard model.selectedIndex != index else { return }
                                             model.selectedIndex = index
+                                        },
+                                        onDragStart: {
+                                            model.selectedIndex = index
+                                            onBeginDrag(window)
                                         }
                                     )
                                 )

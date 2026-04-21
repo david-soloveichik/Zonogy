@@ -19,6 +19,18 @@ protocol CmdTabControllerDelegate: AnyObject {
     /// Returns the window ID of the currently frontmost managed window, or nil if none.
     /// Used to determine whether to start selection at index 0 or 1.
     func frontmostManagedWindowId() -> Int?
+
+    /// Starts a CmdTab row drag session for the given window. Return false to abort the drag.
+    func cmdTabController(_ controller: CmdTabController, beginDragForWindow window: LauncherWindowItem) -> Bool
+
+    /// Called repeatedly during a CmdTab row drag session as the cursor moves.
+    func cmdTabControllerDidUpdateDrag(_ controller: CmdTabController, cursorPointAX: CGPoint?)
+
+    /// Called when a CmdTab row drag session ends. Returns true if the drop resolved successfully.
+    func cmdTabController(_ controller: CmdTabController, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) -> Bool
+
+    /// Returns the current cursor point in accessibility coordinates.
+    func cmdTabCurrentCursorAccessibilityPoint() -> CGPoint?
 }
 
 final class CmdTabController {
@@ -26,6 +38,7 @@ final class CmdTabController {
         case cancelled
         case selected(LauncherWindowItem)
         case interrupted
+        case dragResolved
     }
 
     weak var delegate: CmdTabControllerDelegate?
@@ -34,6 +47,22 @@ final class CmdTabController {
     private var model: CmdTabModel?
     private var hostingView: NSHostingView<CmdTabView>?
     private var clickMonitor: ClickOutsideMonitor?
+    private lazy var rowDragController = CursorDrivenRowDragController<LauncherWindowItem>(
+        logPrefix: "CmdTab",
+        currentCursorAXProvider: { [weak self] in
+            self?.delegate?.cmdTabCurrentCursorAccessibilityPoint()
+        },
+        onDidBeginDrag: { _ in },
+        onDidUpdateDrag: { [weak self] cursorPointAX in
+            guard let self else { return }
+            self.delegate?.cmdTabControllerDidUpdateDrag(self, cursorPointAX: cursorPointAX)
+        },
+        onDidEndDrag: { [weak self] window, cursorPointAX in
+            guard let self else { return }
+            let didResolveDrop = self.delegate?.cmdTabController(self, didEndDragForWindow: window, cursorPointAX: cursorPointAX) ?? false
+            self.completeRowDrag(didResolveDrop: didResolveDrop)
+        }
+    )
 
     private(set) var isActive = false
 
@@ -104,7 +133,8 @@ final class CmdTabController {
         let cmdTabView = CmdTabView(
             model: model,
             headerText: headerText,
-            onActivateSelected: { [weak self] in self?.activateSelectedWindow() }
+            onActivateSelected: { [weak self] in self?.activateSelectedWindow() },
+            onBeginDrag: { [weak self] window in self?.beginDrag(for: window) }
         )
 
         let hostingView = NSHostingView(rootView: cmdTabView)
@@ -163,6 +193,12 @@ final class CmdTabController {
             return
         }
 
+        tearDownVisibleCmdTabUI()
+        Logger.debug("CmdTab: Closed")
+        delegate?.cmdTabController(self, didDismiss: outcome)
+    }
+
+    private func tearDownVisibleCmdTabUI() {
         stopClickMonitor()
 
         window?.orderOut(nil)
@@ -170,8 +206,35 @@ final class CmdTabController {
         model = nil
 
         isActive = false
-        Logger.debug("CmdTab: Closed")
-        delegate?.cmdTabController(self, didDismiss: outcome)
+    }
+
+    private func beginDrag(for window: LauncherWindowItem) {
+        guard isActive,
+              let delegate,
+              delegate.cmdTabController(self, beginDragForWindow: window) else {
+            return
+        }
+
+        tearDownVisibleCmdTabUI()
+        Logger.debug("CmdTab: Closed for drag")
+
+        rowDragController.beginDrag(
+            for: window,
+            title: window.title,
+            initialCursorPointCocoa: NSEvent.mouseLocation,
+            driveViaMouseMonitors: true
+        )
+    }
+
+    private func completeRowDrag(didResolveDrop: Bool) {
+        if didResolveDrop {
+            Logger.debug("CmdTab: Drag completed")
+            delegate?.cmdTabController(self, didDismiss: .dragResolved)
+            return
+        }
+
+        Logger.debug("CmdTab: Drag cancelled")
+        delegate?.cmdTabController(self, didDismiss: .cancelled)
     }
 
     /// Activates the currently selected window and dismisses CmdTab
