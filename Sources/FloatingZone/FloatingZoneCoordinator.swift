@@ -167,8 +167,7 @@ final class FloatingZoneCoordinator {
             }
             let occupantPid = window.backing.pid
 
-            if host.shouldProtectFloatingZoneOccupant(windowId: occupantId) {
-                host.activateFloatingZoneWindow(window, reason: "protection-reactivate")
+            if handleProtectedReactivate(window: window) {
                 continue
             }
 
@@ -202,8 +201,7 @@ final class FloatingZoneCoordinator {
             }
             let occupantPid = window.backing.pid
 
-            if host.shouldProtectFloatingZoneOccupant(windowId: occupantId) {
-                host.activateFloatingZoneWindow(window, reason: "protection-reactivate")
+            if handleProtectedReactivate(window: window) {
                 continue
             }
 
@@ -445,6 +443,21 @@ final class FloatingZoneCoordinator {
 
     private func isTiledWindow(_ window: ManagedWindow) -> Bool {
         return window.zoneIndex != nil
+    }
+
+    /// If `window` is under active floating-zone protection, re-raise it (unless the
+    /// user has just minimized it) and return `true` so the caller skips further
+    /// focus/activation handling. Returns `false` when the window is not protected.
+    private func handleProtectedReactivate(window: ManagedWindow) -> Bool {
+        guard let host, host.shouldProtectFloatingZoneOccupant(windowId: window.windowId) else {
+            return false
+        }
+        if window.isMinimizedPerAccessibility {
+            Logger.debug("Floating zone protection skipped reactivate for minimized window \(window.windowId)")
+            return true
+        }
+        host.activateFloatingZoneWindow(window, reason: "protection-reactivate")
+        return true
     }
 
     private func queueConditionalMinimizeOccupant(on screenId: CGDirectDisplayID, reason: String) {

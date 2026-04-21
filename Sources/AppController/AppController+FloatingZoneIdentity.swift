@@ -45,6 +45,13 @@ extension AppController {
             // (extendFloatingZoneProtection only extends if a deadline exists)
             self.floatingZoneProtectionDeadlines.removeValue(forKey: windowId)
 
+            // Skip re-raise if the user has since minimized the window (avoids
+            // spuriously unminimizing a floating window the user just dismissed).
+            if managed.isMinimizedPerAccessibility {
+                Logger.debug("Floating zone protection expired for window \(windowId); skipping raise (minimized)")
+                return
+            }
+
             // Use simple direct activation (no Zonogy-first workaround needed here).
             Logger.debug("Floating zone protection expired for window \(windowId); reactivating")
             self.raiseWindow(managed)

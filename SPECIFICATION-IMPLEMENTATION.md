@@ -17,7 +17,7 @@ All window removal paths **except app termination** use deferred pruning: instea
 
 ## Floating Zone Protection Windows
 
-When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed.
+When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed. Exception: if the floating window is currently minimized (per the Accessibility API), the protection-driven re-raise is skipped, so a user who quickly minimizes a just-placed floating window is not fought by a spurious unminimize.
 
 The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
