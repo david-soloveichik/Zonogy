@@ -43,6 +43,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Launcher can appear somewhere other than the targeted zone.
   - Think about: Preserve the invariant that Launcher only ever follows the real current target and never keeps an independent destination.
 
+- Bug report: Launcher and CmdTab chooser can both remain visible.
+  - Think about: Explicit Launcher opens should hand off from CmdTab, while automatic Launcher opens should be suppressed until CmdTab is gone.
+
 - Bug report: Placing a window into zone 2/3 can visibly flicker (rest-position move(s) before reveal).
   - Think about: Avoid immediate duplicate geometry writes for a just-placed window before ActiveFit reveal applies.
 

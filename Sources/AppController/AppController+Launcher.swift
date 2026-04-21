@@ -90,13 +90,18 @@ extension AppController {
         }
     }
 
-    internal func showLauncherIfAllowed(trigger: String, autoShow: Bool = false) {
+    @discardableResult
+    internal func showLauncherIfAllowed(trigger: String, autoShow: Bool = false) -> Bool {
         guard !launcherController.isActive else {
-            return
+            return false
         }
         guard canShowLauncherOnCurrentTarget() else {
             Logger.debug("Launcher: Suppressed due to full-screen target (trigger: \(trigger))")
-            return
+            return false
+        }
+
+        guard prepareForLauncherShow(trigger: trigger, autoShow: autoShow) else {
+            return false
         }
 
         if autoShow {
@@ -104,6 +109,7 @@ extension AppController {
         } else {
             launcherController.show()
         }
+        return true
     }
 
     /// Auto-show Launcher if the currently targeted zone is an empty tiled zone.
@@ -132,8 +138,9 @@ extension AppController {
             return
         }
 
-        launcherController.autoShow()
-        Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
+        if showLauncherIfAllowed(trigger: "auto-show-empty-targeted-zone", autoShow: true) {
+            Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
+        }
     }
 
     /// Dismiss the Launcher unless it's in its auto-show grace period.
@@ -198,6 +205,21 @@ extension AppController {
         }
 
         applyTargetedDestination(session.originalTarget, reason: reason)
+    }
+
+    private func prepareForLauncherShow(trigger: String, autoShow: Bool) -> Bool {
+        guard cmdTabController.isActive else {
+            return true
+        }
+
+        if autoShow {
+            Logger.debug("Launcher: Suppressed because CmdTab is visible (trigger: \(trigger))")
+            return false
+        }
+
+        Logger.debug("Launcher: Dismissing CmdTab before show (trigger: \(trigger))")
+        cmdTabController.hideForExternalInterruption()
+        return true
     }
 }
 
