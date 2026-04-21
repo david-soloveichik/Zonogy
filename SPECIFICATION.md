@@ -107,6 +107,8 @@ Removing a zone preserves the surviving tiling zones on that same screen in inde
 
 Pressing Control-Cmd-0 performs that same shortcut-removal action repeatedly on the active screen until only one tiling zone remains.
 
+If the currently active (key) managed window is a floating-zone occupant, Control-Cmd-0 collapses that window's screen to a single tiling zone (minimizing every tiled occupant on that screen) and promotes the floating window into tiling zone 1 on that screen.
+
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
 
 **Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "×" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.

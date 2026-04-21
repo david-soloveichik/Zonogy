@@ -178,6 +178,11 @@ extension AppController {
     // MARK: - Shortcut Collapse To One Zone (Control-Cmd-0)
 
     private func collapseToOneZoneShortcut() {
+        if let (screenId, floatingWindow) = floatingActiveCollapseContext() {
+            applyFloatingActiveCollapse(on: screenId, floatingWindow: floatingWindow)
+            return
+        }
+
         let screenId = activeScreenId()
         guard let context = screenContexts[screenId] else {
             return
@@ -309,6 +314,82 @@ extension AppController {
             applyTargetedDestination(destination, reason: "collapse-to-one-zone")
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "collapse-to-one-zone")
+        }
+    }
+
+    // MARK: - Floating-Active Collapse (Control-Cmd-0 variant)
+
+    /// Returns the screen and floating-zone window when the frontmost managed window is that screen's floating occupant.
+    private func floatingActiveCollapseContext() -> (screenId: CGDirectDisplayID, window: ManagedWindow)? {
+        guard let (managed, _) = managedWindowForFrontmostApplication(logPrefix: "collapseToOneZone floating check") else {
+            return nil
+        }
+        guard managed.isInFloatingZone else {
+            return nil
+        }
+        for screenId in screenOrder {
+            if floatingZoneOccupant(on: screenId)?.windowId == managed.windowId {
+                return (screenId, managed)
+            }
+        }
+        return nil
+    }
+
+    private func applyFloatingActiveCollapse(on screenId: CGDirectDisplayID, floatingWindow: ManagedWindow) {
+        guard let context = screenContexts[screenId] else {
+            return
+        }
+
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
+        let plan = ZoneCollapsePlanner.planWithFloatingPromotion(
+            zones: zones.map { ZoneCollapsePlanner.ZoneSnapshot(index: $0.index, occupantWindowId: $0.occupantWindowId) },
+            floatingWindowId: floatingWindow.windowId
+        )
+
+        Logger.debug(
+            "Shortcut collapse (floating active) on screen \(screenIndex): " +
+            "promote window \(floatingWindow.windowId) to zone 1, minimize tiled windows \(plan.removedWindowIds)"
+        )
+
+        let reason = "collapse-floating-active"
+        endUnderCovers(on: screenId, reason: reason, recreatePlaceholders: false)
+        clearRememberedManualResizeSizes(on: screenId, reason: reason)
+        placeholderCoordinator.clearPlaceholdersForScreen(screenId)
+        windowController.cancelAllAccessibilityFrameRetries()
+
+        // Collapse the topology to a single empty tiling zone before minimizing so
+        // surviving placeholders/frames don't briefly render at the pre-collapse layout.
+        context.zoneController.replaceZones(withOccupants: [nil])
+
+        let windowsToMinimize: [ManagedWindow] = plan.removedWindowIds.compactMap { windowController.window(withId: $0) }
+        bulkProgrammaticMinimize(
+            windowsToMinimize,
+            minimizeReason: reason,
+            cleanupReason: reason
+        ) { managed in
+            clearManagedWindowZone(managed)
+        }
+
+        // Move the floating window into tiling zone 1 via the standard placement pipeline so
+        // floating-zone bookkeeping, frame retargeting, and activation all stay consistent.
+        let zone1Key = ZoneKey(screenId: screenId, index: 1)
+        windowPlacementManager.placeWindow(floatingWindow, into: zone1Key, reason: reason)
+
+        syncWindowsToZones()
+        activeFitRefreshAfterZoneTopologyChange(reason: reason)
+
+        enforceLauncherVisibilityAfterZoneTopologyChange(
+            effectiveDestination: targetedZoneManager.targetedDestination,
+            reason: reason
+        )
+        refreshLauncherForCurrentTargetAfterTopologyChange()
+
+        if let updatedContext = screenContexts[screenId] {
+            Logger.debug(
+                "Shortcut collapse (floating active) finished on screen \(screenIndex) " +
+                "with \(updatedContext.zoneController.allZones.count) zone(s)"
+            )
         }
     }
 

@@ -76,4 +76,22 @@ enum ZoneCollapsePlanner {
             finalTargetIndex: currentTargetIndex
         )
     }
+
+    /// Plan for the Control-Cmd-0 variant triggered while the floating-zone occupant is the active window.
+    /// All tiled occupants on the screen are minimized and the floating window becomes the sole occupant of zone 1.
+    /// `finalTargetIndex` is left `nil` because this variant does not force a retarget — the floating zone
+    /// was the initial target, and per the standard "floating zone emptied: keep current target" rule it
+    /// should remain targeted after the promotion.
+    static func planWithFloatingPromotion(
+        zones: [ZoneSnapshot],
+        floatingWindowId: Int
+    ) -> Plan {
+        let sortedZones = zones.sorted { $0.index < $1.index }
+        let removedWindowIds = sortedZones.compactMap { $0.occupantWindowId }
+        return Plan(
+            finalZones: [ZoneSnapshot(index: 1, occupantWindowId: floatingWindowId)],
+            removedWindowIds: removedWindowIds,
+            finalTargetIndex: nil
+        )
+    }
 }

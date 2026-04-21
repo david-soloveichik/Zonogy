@@ -96,6 +96,82 @@ enum ZoneCollapsePlannerTests {
             assert(plan.finalTargetIndex == 1, "surviving target should remain on the collapsing screen")
         }
 
+        // Floating-promotion variant: all tiled occupants minimized, floating window becomes zone 1.
+        do {
+            let plan = ZoneCollapsePlanner.planWithFloatingPromotion(
+                zones: [
+                    .init(index: 1, occupantWindowId: 101),
+                    .init(index: 2, occupantWindowId: 202),
+                    .init(index: 3, occupantWindowId: 303),
+                ],
+                floatingWindowId: 999
+            )
+
+            assert(
+                plan.finalZones == [.init(index: 1, occupantWindowId: 999)],
+                "floating promotion should leave one zone containing the floating window"
+            )
+            assert(
+                plan.removedWindowIds == [101, 202, 303],
+                "floating promotion should minimize every tiled occupant in index order"
+            )
+            assert(plan.finalTargetIndex == nil, "floating promotion preserves the pre-existing floating target instead of forcing zone 1")
+        }
+
+        do {
+            let plan = ZoneCollapsePlanner.planWithFloatingPromotion(
+                zones: [
+                    .init(index: 1, occupantWindowId: nil),
+                    .init(index: 2, occupantWindowId: 202),
+                ],
+                floatingWindowId: 999
+            )
+
+            assert(
+                plan.finalZones == [.init(index: 1, occupantWindowId: 999)],
+                "floating promotion should ignore pre-existing emptiness and land the floating window in zone 1"
+            )
+            assert(
+                plan.removedWindowIds == [202],
+                "empty tiled zones should contribute nothing to the minimize list"
+            )
+            assert(plan.finalTargetIndex == nil, "floating promotion preserves the pre-existing floating target instead of forcing zone 1")
+        }
+
+        do {
+            let plan = ZoneCollapsePlanner.planWithFloatingPromotion(
+                zones: [.init(index: 1, occupantWindowId: nil)],
+                floatingWindowId: 999
+            )
+
+            assert(
+                plan.finalZones == [.init(index: 1, occupantWindowId: 999)],
+                "floating promotion with only an empty zone should still place the floating window"
+            )
+            assert(plan.removedWindowIds.isEmpty, "no tiled occupants means nothing to minimize")
+            assert(plan.finalTargetIndex == nil, "floating promotion preserves the pre-existing floating target instead of forcing zone 1")
+        }
+
+        do {
+            let plan = ZoneCollapsePlanner.planWithFloatingPromotion(
+                zones: [.init(index: 1, occupantWindowId: 101)],
+                floatingWindowId: 999
+            )
+
+            assert(
+                !plan.removedWindowIds.contains(999),
+                "the floating window must never be added to the minimize list"
+            )
+            assert(
+                plan.removedWindowIds == [101],
+                "the lone tiled occupant should be minimized to make room for the floating window"
+            )
+            assert(
+                plan.finalZones == [.init(index: 1, occupantWindowId: 999)],
+                "single-zone screens collapse in place with the floating window taking over zone 1"
+            )
+        }
+
         if allPassed {
             print("ZoneCollapsePlannerTests: all tests passed")
         }
