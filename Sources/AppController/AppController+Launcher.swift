@@ -143,38 +143,42 @@ extension AppController {
         }
     }
 
-    /// For a tiling-zone window about to be minimized, retargets to that zone and shows the
-    /// Launcher synchronously with the keystroke — without touching zone bookkeeping — so a
-    /// cancelled minimize doesn't orphan the window from its zone. No target change fires
-    /// between this call and the miniaturize notification (same-target `setTargetedZone` is a
-    /// no-op), so nothing hides the Launcher during that gap even though the zone is still
-    /// briefly occupied. If the minimize is cancelled, the Launcher simply stays up over the
-    /// (now durably targeted) zone — acceptable since the user can Escape to dismiss.
-    internal func optimisticallyShowLauncherForMinimize(_ managed: ManagedWindow, reason: String) {
+    /// Retargets to `zoneKey` and shows the Launcher synchronously — without touching zone
+    /// bookkeeping — ahead of a multi-step operation (AX minimize, bulk clear) that would
+    /// otherwise delay the Launcher appearing. Same-target `setTargetedZone` fires no
+    /// did-change callback, so nothing hides the Launcher during the operation even though
+    /// the target zone may still be briefly occupied. If the anticipated emptying never lands
+    /// (e.g., app declines AX minimize), the Launcher stays up over the durably-targeted zone
+    /// — acceptable since the user can Escape to dismiss.
+    internal func optimisticallyShowLauncher(targetingZone zoneKey: ZoneKey, reason: String) {
         guard autoShowLauncherForEmptyTilingZonesEnabled,
-              !launcherController.isActive,
-              let zoneIndex = managed.zoneIndex,
-              let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) else {
+              !launcherController.isActive else {
             return
         }
 
-        if isScreenPausedForFullScreen(screenId) {
+        if isScreenPausedForFullScreen(zoneKey.screenId) {
             Logger.debug("Launcher: Skipping optimistic auto-show because target screen is full-screen")
             return
         }
-        if unmanagedFocusedWindowScreenId == screenId {
-            Logger.debug("Launcher: Skipping optimistic auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: screenId))")
+        if unmanagedFocusedWindowScreenId == zoneKey.screenId {
+            Logger.debug("Launcher: Skipping optimistic auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
             return
         }
 
-        let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
         targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
 
         if showLauncherIfAllowed(trigger: reason, autoShow: true) {
-            Logger.debug(
-                "Launcher: Optimistically auto-shown for zone \(zoneKey.index) pending minimize of window \(managed.windowId)"
-            )
+            Logger.debug("Launcher: Optimistically auto-shown for zone \(zoneKey.index) (reason: \(reason))")
         }
+    }
+
+    /// Wrapper that derives the zone key from a managed window, for the Cmd-M / Control-Cmd-M paths.
+    internal func optimisticallyShowLauncherForMinimize(_ managed: ManagedWindow, reason: String) {
+        guard let zoneIndex = managed.zoneIndex,
+              let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) else {
+            return
+        }
+        optimisticallyShowLauncher(targetingZone: ZoneKey(screenId: screenId, index: zoneIndex), reason: reason)
     }
 
     /// Dismiss the Launcher unless it's in its auto-show grace period.

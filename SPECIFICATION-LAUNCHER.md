@@ -18,7 +18,7 @@ The Launcher opens via:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice (or Cmd-M then Cmd-W) to minimize the window and remove its tiling zone.
-    For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notification arrives, so the Launcher appears immediately.
+    For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a screen whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.

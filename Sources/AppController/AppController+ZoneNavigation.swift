@@ -73,7 +73,19 @@ extension AppController {
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
 
-            // Collect all windows to minimize (floating zone + tiled zones)
+            // Optimistically target tiling zone 1 and show the Launcher before kicking off
+            // the bulk AX minimize. The post-minimize retarget + auto-show inside the
+            // dispatched block below remains as an idempotent safety net for when the
+            // optimistic path is skipped (preference off, full-screen pause, unmanaged-focused-window).
+            if context.zoneController.zone(at: 1) != nil {
+                optimisticallyShowLauncher(
+                    targetingZone: ZoneKey(screenId: screenId, index: 1),
+                    reason: "clear-zones-optimistic"
+                )
+            }
+
+            // Collect all windows to minimize (floating zone + tiled zones) synchronously,
+            // while the pre-minimize zone state is still accurate.
             var windowsToMinimize: [ManagedWindow] = []
             if let floatingOccupant {
                 windowsToMinimize.append(floatingOccupant)
@@ -85,27 +97,40 @@ extension AppController {
                 }
             }
 
-            let minimizedWindowIds = windowsToMinimize.map(\.windowId)
-            bulkProgrammaticMinimize(
-                windowsToMinimize,
-                minimizeReason: "clear-zones-shortcut",
-                cleanupReason: "clear-zones-shortcut"
-            ) { managed in
-                removeWindowFromAllZones(windowId: managed.windowId, reason: "clear-zones-shortcut", retarget: false)
-            }
+            // Dispatch the blocking AX minimize cascade (and post-minimize target/auto-show
+            // safety net) to the next run-loop tick so the Launcher's newly-ordered window
+            // actually renders — `makeKeyAndOrderFront` only queues the draw; each AX
+            // minimize is a synchronous cross-process call that would otherwise hold the
+            // main thread until after every window finishes minimizing.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let minimizedWindowIds = windowsToMinimize.map(\.windowId)
+                self.bulkProgrammaticMinimize(
+                    windowsToMinimize,
+                    minimizeReason: "clear-zones-shortcut",
+                    cleanupReason: "clear-zones-shortcut"
+                ) { managed in
+                    self.removeWindowFromAllZones(windowId: managed.windowId, reason: "clear-zones-shortcut", retarget: false)
+                }
+                Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
+                self.syncWindowsToZones()
 
-            Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
-            syncWindowsToZones()
+                if let ctx = self.screenContexts[screenId], ctx.zoneController.zone(at: 1) != nil {
+                    self.targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
+                } else {
+                    self.targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
+                }
+                self.autoShowLauncherIfEmptyTargetedTiledZone()
+            }
+            return
         }
 
-        // After any clear/minimize cycle on this screen, explicitly target zone 1 on that screen.
+        // Reset branch only: target zone 1 and auto-show Launcher.
         if context.zoneController.zone(at: 1) != nil {
             targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
         }
-
-        // Auto-show Launcher after clearing zones (analogous to emptying a zone).
         autoShowLauncherIfEmptyTargetedTiledZone()
     }
 
