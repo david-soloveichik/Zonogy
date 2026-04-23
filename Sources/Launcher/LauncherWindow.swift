@@ -112,11 +112,10 @@ final class LauncherWindow: NSPanel {
         let windowSize = frame.size
         let x = (screenFrame.midX - windowSize.width / 2).rounded()
 
-        // For floating zone, position lower on screen (closer to the bottom indicator)
-        // Use about 1/3 from bottom instead of centered
         let y: CGFloat
         if forFloatingZone {
-            y = (screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2).rounded()
+            // Sit just above the floating-zone indicator at the screen bottom.
+            y = (screenFrame.minY + 40).rounded()
         } else {
             y = (screenFrame.midY - windowSize.height / 2).rounded()
         }

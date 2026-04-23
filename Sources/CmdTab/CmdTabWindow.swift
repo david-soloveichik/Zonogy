@@ -107,7 +107,8 @@ final class CmdTabWindow: NSPanel {
 
         let y: CGFloat
         if forFloatingZone {
-            y = (screenFrame.minY + screenFrame.height * 0.33 - windowSize.height / 2).rounded()
+            // Sit just above the floating-zone indicator at the screen bottom.
+            y = (screenFrame.minY + 40).rounded()
         } else {
             y = (screenFrame.midY - windowSize.height / 2).rounded()
         }
