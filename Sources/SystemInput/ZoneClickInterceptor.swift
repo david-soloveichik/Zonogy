@@ -1,16 +1,20 @@
 import Foundation
 import ApplicationServices
 
-/// Intercepts global Control+Command left-clicks so zones can be retargeted without
-/// delivering the click to the underlying application.
+/// Intercepts global left-clicks so zones can be retargeted without delivering the click
+/// to the underlying application. The delegate decides, based on current state (modifier
+/// keys, CmdTab visibility, etc), whether a given click should be consumed.
 protocol ZoneClickInterceptorDelegate: AnyObject {
     /// - Returns: true if the gesture was handled and the click should be swallowed.
-    func zoneClickInterceptor(_ interceptor: ZoneClickInterceptor, shouldConsumeClickAt location: CGPoint) -> Bool
+    func zoneClickInterceptor(
+        _ interceptor: ZoneClickInterceptor,
+        shouldConsumeClickAt location: CGPoint,
+        modifiers: CGEventFlags
+    ) -> Bool
 }
 
 final class ZoneClickInterceptor {
     private enum Constants {
-        static let requiredModifiers: CGEventFlags = [.maskCommand, .maskControl]
         static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
     }
 
@@ -35,7 +39,7 @@ final class ZoneClickInterceptor {
             callback: ZoneClickInterceptor.eventCallback,
             userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         ) else {
-            Logger.debug("Failed to install Control+Command click interceptor (missing permission?)")
+            Logger.debug("Failed to install zone click interceptor (missing permission?)")
             return
         }
 
@@ -66,7 +70,7 @@ final class ZoneClickInterceptor {
         case .tapDisabledByUserInput, .tapDisabledByTimeout:
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("Re-enabled Control+Command click interceptor after timeout")
+                Logger.debug("Re-enabled zone click interceptor after timeout")
             }
             return Unmanaged.passUnretained(event)
         case .leftMouseDown:
@@ -75,13 +79,12 @@ final class ZoneClickInterceptor {
             return Unmanaged.passUnretained(event)
         }
 
-        guard let delegate,
-              event.flags.contains(Constants.requiredModifiers) else {
+        guard let delegate else {
             return Unmanaged.passUnretained(event)
         }
 
         let location = event.location
-        if delegate.zoneClickInterceptor(self, shouldConsumeClickAt: location) {
+        if delegate.zoneClickInterceptor(self, shouldConsumeClickAt: location, modifiers: event.flags) {
             return nil
         }
 

@@ -39,16 +39,16 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Minimized windows:** Placed using the same placement rules as Launcher. Normally this means the targeted zone, but app-specific placement exceptions may redirect to the floating zone.
 - **Unminimized windows:** Activated in place without being moved to the targeted zone (note: this is different from Launcher)
 - While CmdTab is visible, clicking a window row activates that window immediately and dismisses CmdTab (even if modifiers are still held).
-  Note: There is potential conflict with the "Control-Command-Click" gesture that targets zones (it is globally intercepted and consumed). So while CmdTab is visible, we disable the "Control-Command-Click" targeting gesture so:
-  - Row clicks can activate as expected
-  - Outside clicks can dismiss CmdTab as expected
+- **Clicks outside the CmdTab window while it's open retarget:**
+  - A left-click (with or without Control-Command) inside a tiling zone targets that zone and flashes its border, just like Control-Command-click does normally.
+  - A click on the floating-zone indicator targets the floating zone; while CmdTab is visible this never opens the Launcher, even if the floating zone was already targeted. Other Zonogy UI (placeholders, add-zone pill, resize bars) behaves normally.
 - **Dragging a window row out:** Same drag-and-drop behavior as dragging a window row from the Launcher; CmdTab dismisses on drag start. A drop outside any target restores the pre-CmdTab target under the same rules as a CmdTab cancel.
 
 ## Dismissal
 
 - **Activate:** Releasing the modifier key dismisses CmdTab and activates the selected window
 - **Cancel:** Pressing Escape dismisses CmdTab without activating any window (even if the modifier key is still held)
-- **Cancel:** Clicking outside the CmdTab window dismisses CmdTab without activating any window
+- **Cancel:** Clicking outside every tiling zone and Zonogy UI dismisses CmdTab.
 - **Target restoration:** CmdTab's open-time retarget is temporary. It commits when the user's selection places a window (unminimizing a minimized window or opening a new one). Otherwise — cancel, activating an already-placed window, or the user moving the target elsewhere mid-chooser — the pre-CmdTab target is restored only if the current target still matches the one CmdTab set on open; if the target has since moved (even to a zone and back), restoration is skipped.
 - **Launcher shortcut:** Pressing the Launcher keyboard shortcut while CmdTab is visible dismisses CmdTab and opens the Launcher. The target remains wherever CmdTab had it (no additional retarget), and CmdTab's retarget session is inherited by the Launcher so a subsequent Launcher cancel follows the same pre-CmdTab restoration rule above.
 - CmdTab dismisses if its screen enters full-screen pause.

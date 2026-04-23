@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import CoreGraphics
 
 /// Targeted zone bookkeeping, manual window removal, and zone click interception.
 extension AppController {
@@ -189,15 +190,25 @@ extension AppController {
 
     // MARK: - ZoneClickInterceptorDelegate
 
-    func zoneClickInterceptor(_ interceptor: ZoneClickInterceptor, shouldConsumeClickAt location: CGPoint) -> Bool {
+    func zoneClickInterceptor(
+        _ interceptor: ZoneClickInterceptor,
+        shouldConsumeClickAt location: CGPoint,
+        modifiers: CGEventFlags
+    ) -> Bool {
         // Don't intercept clicks when WinShot chooser is active - allow clicks to pass through
         if winShotChooserController.isActive {
             return false
         }
 
-        // CmdTab: while the CmdTab overlay is visible, disable Control-Command click targeting
-        // to avoid conflicts with CmdTab interactions.
+        // While CmdTab is visible, any left-click retargets a zone instead of dismissing
+        // CmdTab; clicks on our own Zonogy UI pass through to those windows' own handlers;
+        // clicks outside every zone fall back to dismissal. See SPECIFICATION-CMDTAB.md.
         if cmdTabController.isActive {
+            return handleClickWhileCmdTabVisible(at: location)
+        }
+
+        // Not in CmdTab mode: only Control+Command-click is used for targeting.
+        guard modifiers.contains([.maskCommand, .maskControl]) else {
             return false
         }
 
@@ -229,6 +240,50 @@ extension AppController {
         targetedZoneManager.setTargetedZone(key, reason: "control-command-click")
         flashTargetFeedback(for: key)
         return true
+    }
+
+    /// Route a left-click while CmdTab is visible. Returns true if the event should be consumed.
+    private func handleClickWhileCmdTabVisible(at location: CGPoint) -> Bool {
+        // If the click lands on any of our own windows, let AppKit route it to that window
+        // and do nothing here. Interactive zone UI (CmdTab rows, placeholder surface and its
+        // ×/⌄ button, indicators, resize bars) dispatches its own mouseDown; passive overlays
+        // (flash overlay, passive drag overlays) simply absorb the click. Either way,
+        // retargeting or dismissing from here would fight that dispatch.
+        if clickLandsOnOwnWindow(at: location) {
+            return false
+        }
+
+        if let key = zoneKey(containingScreenPoint: location) {
+            targetedZoneManager.setTargetedZone(key, reason: "cmdtab-click-retarget")
+            flashTargetFeedback(for: key)
+            return true
+        }
+
+        // Click didn't land on any Zonogy UI or any tiling zone (desktop, menu bar, dock,
+        // full-screen space, or a managed window outside every zone): dismiss CmdTab. Other
+        // dismiss paths (Escape, modifier release, full-screen pause) are unchanged.
+        cmdTabController.cancel()
+        return false
+    }
+
+    /// Returns true if the click location (in accessibility coordinates) falls on a visible
+    /// window belonging to our own process.
+    private func clickLandsOnOwnWindow(at accessibilityLocation: CGPoint) -> Bool {
+        let axRect = CGRect(origin: accessibilityLocation, size: .zero)
+        let cocoaPoint = CoordinateConversion.accessibilityToCocoa(
+            accessibilityFrame: axRect,
+            primaryScreenBounds: primaryScreenBounds
+        ).origin
+
+        for window in NSApp.windows {
+            guard window.isVisible, !window.isMiniaturized else {
+                continue
+            }
+            if window.frame.contains(cocoaPoint) {
+                return true
+            }
+        }
+        return false
     }
 
     func flashTargetFeedback(for key: ZoneKey) {

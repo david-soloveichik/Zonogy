@@ -248,7 +248,8 @@ extension AppController {
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
         enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
         let key = zoneKey(for: screenId, index: zoneIndex)
-        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: isDoubleClick)
+        let openLauncher = isDoubleClick && !cmdTabController.isActive
+        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: openLauncher)
         targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
         flashTargetFeedback(for: key)
 
@@ -269,7 +270,7 @@ extension AppController {
                 windowPlacementManager.placeWindow(occupant, into: key, reason: "placeholder-activated-promotion")
             }
         }
-        if isDoubleClick {
+        if isDoubleClick && !cmdTabController.isActive {
             showLauncherIfAllowed(trigger: "placeholder-double-click")
         }
     }
@@ -297,10 +298,11 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
-        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: isDoubleClick || wasAlreadyTargeted)
+        let openLauncher = (isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive
+        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: openLauncher)
         targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
 
-        if isDoubleClick || wasAlreadyTargeted {
+        if openLauncher {
             showLauncherIfAllowed(trigger: "indicator-clicked")
         }
     }
@@ -312,10 +314,11 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Floating zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
-        armLauncherClickSuppressionIfNeeded(for: .floating(screenId: screenId), willOpenLauncher: isDoubleClick || wasAlreadyTargeted)
+        let openLauncher = (isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive
+        armLauncherClickSuppressionIfNeeded(for: .floating(screenId: screenId), willOpenLauncher: openLauncher)
         targetedZoneManager.setFloatingTarget(on: screenId, reason: "floating-indicator-clicked")
 
-        if isDoubleClick || wasAlreadyTargeted {
+        if openLauncher {
             showLauncherIfAllowed(trigger: "floating-indicator-clicked")
         }
     }

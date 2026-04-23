@@ -46,7 +46,6 @@ final class CmdTabController {
     private var window: CmdTabWindow?
     private var model: CmdTabModel?
     private var hostingView: NSHostingView<CmdTabView>?
-    private var clickMonitor: ClickOutsideMonitor?
     private lazy var rowDragController = CursorDrivenRowDragController<LauncherWindowItem>(
         logPrefix: "CmdTab",
         currentCursorAXProvider: { [weak self] in
@@ -157,7 +156,6 @@ final class CmdTabController {
         window?.makeKeyAndOrderFront(nil)
 
         isActive = true
-        startClickMonitor()
         Logger.debug("CmdTab: Opened with \(model.windows.count) windows")
         return true
     }
@@ -199,8 +197,6 @@ final class CmdTabController {
     }
 
     private func tearDownVisibleCmdTabUI() {
-        stopClickMonitor()
-
         window?.orderOut(nil)
         hostingView = nil
         model = nil
@@ -256,23 +252,5 @@ final class CmdTabController {
     /// Move selection to previous window in the list
     func selectPrevious() {
         model?.selectPrevious()
-    }
-
-    // MARK: - Click Outside Monitoring
-
-    private func startClickMonitor() {
-        stopClickMonitor()
-        guard let window = window else { return }
-        let monitor = ClickOutsideMonitor(window: window, mode: .globalOnly) { [weak self] in
-            guard let self, self.isActive else { return }
-            self.cancel()
-        }
-        monitor.start()
-        clickMonitor = monitor
-    }
-
-    private func stopClickMonitor() {
-        clickMonitor?.stop()
-        clickMonitor = nil
     }
 }
