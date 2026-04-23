@@ -143,6 +143,40 @@ extension AppController {
         }
     }
 
+    /// For a tiling-zone window about to be minimized, retargets to that zone and shows the
+    /// Launcher synchronously with the keystroke — without touching zone bookkeeping — so a
+    /// cancelled minimize doesn't orphan the window from its zone. No target change fires
+    /// between this call and the miniaturize notification (same-target `setTargetedZone` is a
+    /// no-op), so nothing hides the Launcher during that gap even though the zone is still
+    /// briefly occupied. If the minimize is cancelled, the Launcher simply stays up over the
+    /// (now durably targeted) zone — acceptable since the user can Escape to dismiss.
+    internal func optimisticallyShowLauncherForMinimize(_ managed: ManagedWindow, reason: String) {
+        guard autoShowLauncherForEmptyTilingZonesEnabled,
+              !launcherController.isActive,
+              let zoneIndex = managed.zoneIndex,
+              let screenId = managed.screenDisplayId ?? detectScreenId(for: managed) else {
+            return
+        }
+
+        if isScreenPausedForFullScreen(screenId) {
+            Logger.debug("Launcher: Skipping optimistic auto-show because target screen is full-screen")
+            return
+        }
+        if unmanagedFocusedWindowScreenId == screenId {
+            Logger.debug("Launcher: Skipping optimistic auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: screenId))")
+            return
+        }
+
+        let zoneKey = ZoneKey(screenId: screenId, index: zoneIndex)
+        targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
+
+        if showLauncherIfAllowed(trigger: reason, autoShow: true) {
+            Logger.debug(
+                "Launcher: Optimistically auto-shown for zone \(zoneKey.index) pending minimize of window \(managed.windowId)"
+            )
+        }
+    }
+
     /// Dismiss the Launcher unless it's in its auto-show grace period.
     /// Use for focus-based dismissals to avoid immediate hide due to macOS auto-focus after close/minimize.
     @discardableResult

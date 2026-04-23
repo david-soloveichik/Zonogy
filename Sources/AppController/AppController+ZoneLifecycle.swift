@@ -384,10 +384,10 @@ extension AppController {
     }
 
     /// Minimizes the currently active/key window using Cmd-M shortcut override.
-    /// We issue only the AX minimize call and let the AXWindowMiniaturized notification
-    /// handler (windowDidMiniaturize) handle zone removal, retargeting, and layout sync.
-    /// This matches the event ordering of native minimize-button clicks, where macOS
-    /// shifts focus before delivering the miniaturize notification.
+    /// Before issuing the AX minimize call, we optimistically retarget to the window's zone
+    /// and show the Launcher (when enabled) so the user sees immediate feedback. Zone
+    /// bookkeeping stays intact: the AXWindowMiniaturized notification handler
+    /// (windowDidMiniaturize) runs the full pipeline.
     internal func minimizeActiveWindow() {
         guard let (managed, pid) = managedWindowForFrontmostApplication(
             logPrefix: "minimizeActiveWindow"
@@ -400,6 +400,7 @@ extension AppController {
             "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid)"
         )
 
+        optimisticallyShowLauncherForMinimize(managed, reason: "cmd-m-optimistic")
         windowController.minimizeWindow(managed)
     }
 
