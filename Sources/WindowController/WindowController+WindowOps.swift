@@ -102,14 +102,6 @@ extension WindowController {
         }
     }
 
-    /// Close a window
-    func closeWindow(_ managedWindow: ManagedWindow) {
-        windowLastActiveTime.removeValue(forKey: managedWindow.windowId)
-        removeManagedWindowFromLiveTracking(managedWindow)
-        _ = AXUIElementPerformAction(managedWindow.backing.element, axCloseAction)
-        Logger.debug("Closed window \(managedWindow.windowId)")
-    }
-
     /// Checks if a managed window is currently visible.
     func isWindowVisible(_ managedWindow: ManagedWindow) -> Bool {
         var hiddenValue: CFTypeRef?

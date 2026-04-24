@@ -39,10 +39,34 @@ final class FloatingZoneCoordinator {
     weak var host: FloatingZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
     private(set) var occupants: [CGDirectDisplayID: Int] = [:]
+    /// Per-window remembered floating-zone size. Updated whenever the user resizes a window while
+    /// it is a floating-zone occupant, and cleared only when the window is destroyed. Applied on
+    /// subsequent placements into any floating zone so a window returns to its last floating size.
+    private var rememberedSizesByWindowId: [Int: CGSize] = [:]
 
     init(host: FloatingZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
         self.displacedWindowCoordinator = displacedWindowCoordinator
+    }
+
+    func rememberSize(for windowId: Int, size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        rememberedSizesByWindowId[windowId] = size
+        Logger.debug("FloatingZoneSize: remembered size \(size) for window \(windowId)")
+    }
+
+    func clearRememberedSize(for windowId: Int) {
+        if rememberedSizesByWindowId.removeValue(forKey: windowId) != nil {
+            Logger.debug("FloatingZoneSize: cleared remembered size for window \(windowId)")
+        }
+    }
+
+    private func rememberedSize(for windowId: Int) -> CGSize? {
+        guard let size = rememberedSizesByWindowId[windowId],
+              size.width > 0, size.height > 0 else {
+            return nil
+        }
+        return size
     }
 
     func occupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
@@ -96,10 +120,24 @@ final class FloatingZoneCoordinator {
                 managed.isInFloatingZone = true
                 host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
 
+                var committedSize: CGSize?
                 if centerWindow,
                    let descriptor = host.descriptor(for: screenId) {
                     let frame = placementFrame(for: managed, on: descriptor)
                     host.windowController.showWindow(managed, at: frame, on: descriptor)
+                    committedSize = frame.size
+                } else {
+                    let actual = managed.actualFrame.size
+                    if actual.width > 0, actual.height > 0 {
+                        committedSize = actual
+                    }
+                }
+
+                // Seed the remembered size on first placement so subsequent re-entries
+                // (after tiling-zone excursions) restore this floating-zone size instead
+                // of the window's post-excursion actualFrame.
+                if let committedSize, rememberedSize(for: managed.windowId) == nil {
+                    rememberSize(for: managed.windowId, size: committedSize)
                 }
             },
             afterAssignIncoming: {
@@ -377,10 +415,15 @@ final class FloatingZoneCoordinator {
         let minHeight = bounds.height / 3
         let maxHeight = bounds.height * 0.8
 
-        var width = managed.actualFrame.width
-        var height = managed.actualFrame.height
-
-        if width <= 0 || height <= 0 {
+        var width: CGFloat
+        var height: CGFloat
+        if let remembered = rememberedSize(for: managed.windowId) {
+            width = remembered.width
+            height = remembered.height
+        } else if managed.actualFrame.width > 0, managed.actualFrame.height > 0 {
+            width = managed.actualFrame.width
+            height = managed.actualFrame.height
+        } else {
             width = (bounds.width * 0.55).rounded()
             height = (bounds.height * 0.55).rounded()
         }

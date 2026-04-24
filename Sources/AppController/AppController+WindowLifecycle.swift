@@ -110,6 +110,7 @@ extension AppController {
             currentFrontmostManagedWindowId = nil
         }
         _ = clearRememberedManualResizeSize(for: windowId, reason: "destroyed-window")
+        floatingZoneCoordinator.clearRememberedSize(for: windowId)
         selfResizeSnapDebouncer.clear(windowId: windowId)
 
         removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: retarget)
@@ -406,8 +407,16 @@ extension AppController {
             refreshResizeHandles(frontmostWindowIdOverride: windowId)
         }
 
-        guard let managed = windowController.window(withId: windowId),
-              let zoneIndex = managed.zoneIndex else {
+        guard let managed = windowController.window(withId: windowId) else {
+            manualResizeDetachedWindowIds.remove(windowId)
+            return
+        }
+
+        if managed.isInFloatingZone {
+            floatingZoneCoordinator.rememberSize(for: windowId, size: frame.size)
+        }
+
+        guard let zoneIndex = managed.zoneIndex else {
             Logger.debug("Window \(windowId) manual resize ended outside tiled zone; ignoring snapback tracking")
             manualResizeDetachedWindowIds.remove(windowId)
             return

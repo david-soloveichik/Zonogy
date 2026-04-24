@@ -6,7 +6,6 @@ import ApplicationServices
 // Accessibility attribute that exposes this identifier, so we must rely on this symbol.
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
-let axCloseAction: CFString = "AXClose" as CFString
 let axDestroyedNotification = kAXUIElementDestroyedNotification as String
 let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as String
 let axDeminiaturizedNotification = kAXWindowDeminiaturizedNotification as String

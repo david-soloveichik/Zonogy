@@ -7,24 +7,6 @@ extension AppController {
 
     // MARK: - Window Management
 
-    func closeWindow(withId windowId: Int) {
-        guard let managed = windowController.window(withId: windowId) else {
-            print("Window \(windowId) not found")
-            return
-        }
-
-        removeWindowFromAllZones(windowId: windowId, reason: "close-command")
-
-        // Close the window
-        windowController.closeWindow(managed)
-
-        // Sync to create placeholder if needed
-        syncWindowsToZones()
-
-        print("Closed window \(windowId)")
-    }
-
-
     func captureFrontmostWindow() {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            let bundleId = frontmost.bundleIdentifier,
