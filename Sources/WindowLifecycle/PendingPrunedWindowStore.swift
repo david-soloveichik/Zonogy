@@ -60,4 +60,8 @@ struct PendingPrunedWindowStore {
     func hasEntries(forPid pid: pid_t) -> Bool {
         entriesByIdentifier.keys.contains { $0.pid == pid }
     }
+
+    func hasEntry(forWindowId windowId: Int) -> Bool {
+        entriesByIdentifier.values.contains { $0.windowId == windowId }
+    }
 }

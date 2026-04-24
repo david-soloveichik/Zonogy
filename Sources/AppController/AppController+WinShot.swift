@@ -357,6 +357,9 @@ extension AppController {
 
             if let targetFrame = floatingItem.targetFrame {
                 windowController.moveWindow(floatingItem.managed, to: targetFrame, on: floatingItem.descriptor)
+                // Override any stale seed from assign (which used pre-restore actualFrame)
+                // so the remembered floating size matches the restored snapshot frame.
+                floatingZoneCoordinator.rememberSize(for: floatingItem.managed.windowId, size: targetFrame.size)
             }
 
             scheduleFloatingZoneProtection(windowId: floatingItem.managed.windowId)

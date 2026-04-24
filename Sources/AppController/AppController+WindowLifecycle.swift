@@ -109,8 +109,14 @@ extension AppController {
         if currentFrontmostManagedWindowId == windowId {
             currentFrontmostManagedWindowId = nil
         }
-        _ = clearRememberedManualResizeSize(for: windowId, reason: "destroyed-window")
-        floatingZoneCoordinator.clearRememberedSize(for: windowId)
+        // If the window is staged for deferred prune, keep its remembered sizes alive —
+        // a false-positive detection followed by restore would otherwise lose user state.
+        // The sizes are cleared when the pending-prune entry is permanently discarded
+        // (see windowController(_:didDiscardPendingPrunedWindowIds:reason:)).
+        if !windowController.hasPendingPrunedEntry(forWindowId: windowId) {
+            _ = clearRememberedManualResizeSize(for: windowId, reason: "destroyed-window")
+            floatingZoneCoordinator.clearRememberedSize(for: windowId)
+        }
         selfResizeSnapDebouncer.clear(windowId: windowId)
 
         removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: retarget)
@@ -814,6 +820,17 @@ extension AppController {
         windowPlacementManager.placeNewWindow(window)
     }
 
+    func windowController(
+        _ controller: WindowController,
+        didDiscardPendingPrunedWindowIds windowIds: [Int],
+        reason: String
+    ) {
+        for windowId in windowIds {
+            _ = clearRememberedManualResizeSize(for: windowId, reason: "pending-prune-discarded-\(reason)")
+            floatingZoneCoordinator.clearRememberedSize(for: windowId)
+        }
+    }
+
     private func placeRestoredDeferredPruneWindowIfPossible(
         _ window: ManagedWindow,
         destination: PendingPrunedWindowDestination
@@ -1186,6 +1203,9 @@ extension AppController {
         if let frame = context.displacedWindowFrame,
            let descriptor = descriptor(for: context.floatingScreenId) {
             windowController.showWindow(displaced, at: frame, on: descriptor)
+            // Override any stale seed from assign (which used pre-revert actualFrame)
+            // so the remembered floating size matches the restored pre-drag frame.
+            floatingZoneCoordinator.rememberSize(for: displaced.windowId, size: frame.size)
         }
     }
 

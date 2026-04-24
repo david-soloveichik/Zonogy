@@ -77,8 +77,11 @@ extension WindowController {
         switch notificationName {
         case axDestroyedNotification:
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
-            delegate?.windowWillClose(windowId: managed.windowId)
+            // Stage before notifying the delegate so deferred-prune-aware cleanup
+            // (e.g. remembered-size preservation) can detect the pending entry and
+            // avoid dropping state on a spurious AXDestroyed + restore cycle.
             stagePendingPrunedWindow(managed, reason: "ax-destroyed-notification")
+            delegate?.windowWillClose(windowId: managed.windowId)
 
         case axMiniaturizedNotification:
             Logger.debug("External window \(managed.windowId) minimized")

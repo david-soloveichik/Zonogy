@@ -502,6 +502,9 @@ protocol WindowControllerDelegate: AnyObject {
     func windowManualMoveDidAbort(windowId: Int)  // Drag died because the source window vanished mid-gesture.
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
+    /// Called when pending-prune entries are permanently discarded (window truly gone).
+    /// Staged windows restored via deferred-prune matching do NOT fire this callback.
+    func windowController(_ controller: WindowController, didDiscardPendingPrunedWindowIds windowIds: [Int], reason: String)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool

@@ -60,9 +60,11 @@ extension WindowController {
             restoredPendingPruneActivitySkipWindowIds.remove(entry.windowId)
         }
 
+        let reason = "new-managed-cgwindowid-\(discoveredIdentifier.cgWindowId)"
         Logger.debug(
             "Discarded \(cleared.count) deferred-prune window(s) for pid \(pid) after discovering new managed CGWindowID \(discoveredIdentifier.cgWindowId)"
         )
+        delegate?.windowController(self, didDiscardPendingPrunedWindowIds: cleared.map { $0.windowId }, reason: reason)
     }
 
     internal func discardPendingPrunedWindows(forPid pid: pid_t, reason: String) {
@@ -76,6 +78,11 @@ extension WindowController {
         }
 
         Logger.debug("Discarded \(cleared.count) deferred-prune window(s) for pid \(pid) (reason: \(reason))")
+        delegate?.windowController(self, didDiscardPendingPrunedWindowIds: cleared.map { $0.windowId }, reason: reason)
+    }
+
+    internal func hasPendingPrunedEntry(forWindowId windowId: Int) -> Bool {
+        pendingPrunedWindows.hasEntry(forWindowId: windowId)
     }
 
     internal func consumeRestoredPendingPruneDestination(for windowId: Int) -> PendingPrunedWindowDestination? {
