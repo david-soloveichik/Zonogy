@@ -22,7 +22,7 @@ extension AppController {
             }
 
             let result = app?.activate()
-            _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+            _ = AXCall.performAction(element, kAXRaiseAction as CFString)
 
             if let logPrefix, let result {
                 Logger.debug("\(logPrefix): activated pid \(pid) (result: \(result)) (reason: \(reason))")

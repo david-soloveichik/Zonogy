@@ -74,8 +74,8 @@ class ManagedWindow {
     /// Prefer `isPlacedInZone` for most checks - this is only needed for edge cases
     /// like the recapture pipeline that must detect the actual OS state.
     var isMinimizedPerAccessibility: Bool {
-        var value: AnyObject?
-        let error = AXUIElementCopyAttributeValue(backing.element, kAXMinimizedAttribute as CFString, &value)
+        var value: CFTypeRef?
+        let error = AXCall.copyAttribute(backing.element, kAXMinimizedAttribute as CFString, &value)
         if error == .success, let boolValue = value as? Bool {
             return boolValue
         }

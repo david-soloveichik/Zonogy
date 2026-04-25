@@ -117,9 +117,9 @@ extension WindowController {
         }
 
         // Get window title for debugging
-        var titleValue: AnyObject?
+        var titleValue: CFTypeRef?
         var windowTitle = "unknown"
-        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue) == .success,
+        if AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleValue) == .success,
            let title = titleValue as? String {
             windowTitle = title.isEmpty ? "(empty title)" : title
         }

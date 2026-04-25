@@ -60,7 +60,7 @@ final class FullScreenTracker {
     /// Check if a window is in full-screen mode by querying the AXFullScreen attribute.
     static func isWindowFullScreen(element: AXUIElement) -> Bool {
         var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, kAXFullscreenAttribute, &value)
+        let status = AXCall.copyAttribute(element, kAXFullscreenAttribute, &value)
         guard status == .success, let value else {
             return false
         }

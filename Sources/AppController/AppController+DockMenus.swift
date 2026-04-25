@@ -92,7 +92,7 @@ extension AppController: DockMenusCoordinatorDelegate {
         let pid = preferredManaged.backing.pid
 
         var titleRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+        _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
         let title = (titleRef as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Window"
 
         return LauncherWindowItem(

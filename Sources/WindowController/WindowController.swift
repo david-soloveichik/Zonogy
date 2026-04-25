@@ -2,10 +2,6 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-// Bridge to the private AX API that reveals a window's CGWindowID. There is no public
-// Accessibility attribute that exposes this identifier, so we must rely on this symbol.
-@_silgen_name("_AXUIElementGetWindow")
-func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
 let axDestroyedNotification = kAXUIElementDestroyedNotification as String
 let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as String
 let axDeminiaturizedNotification = kAXWindowDeminiaturizedNotification as String
@@ -323,7 +319,7 @@ class WindowController {
 
         func attributeAppearsValid(_ attribute: CFString) -> Bool {
             var value: CFTypeRef?
-            let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+            let status = AXCall.copyAttribute(element, attribute, &value)
             if status == .success || status == .noValue || status == .attributeUnsupported {
                 return true
             }
@@ -434,7 +430,7 @@ extension ManagedWindow {
     /// Helper methods to copy AX values - made internal for use by WindowController
     static func copyCGPointValue(element: AXUIElement, attribute: CFString) -> CGPoint? {
         var rawValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        let status = AXCall.copyAttribute(element, attribute, &rawValue)
         guard status == .success, let rawValue else {
             return nil
         }
@@ -454,7 +450,7 @@ extension ManagedWindow {
 
     static func copyCGSizeValue(element: AXUIElement, attribute: CFString) -> CGSize? {
         var rawValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        let status = AXCall.copyAttribute(element, attribute, &rawValue)
         guard status == .success, let rawValue else {
             return nil
         }

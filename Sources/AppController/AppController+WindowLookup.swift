@@ -83,7 +83,7 @@ extension AppController {
 
         let appElement = windowController.accessibilityWatcher.applicationElement(for: pid)
         var windowObject: CFTypeRef?
-        let focusedWindowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
+        let focusedWindowResult = AXCall.copyAttribute(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
         guard focusedWindowResult == .success,
               let windowObject,
               CFGetTypeID(windowObject) == AXUIElementGetTypeID() else {

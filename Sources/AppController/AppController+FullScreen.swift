@@ -297,7 +297,7 @@ extension AppController {
 
     internal func resolveCgWindowId(for element: AXUIElement) -> CGWindowID? {
         var cgWindowId: CGWindowID = 0
-        let status = _AXUIElementGetWindow(element, &cgWindowId)
+        let status = AXCall.getWindow(element, &cgWindowId)
         guard status == .success, cgWindowId != 0 else {
             return nil
         }
@@ -327,7 +327,7 @@ extension AppController {
         }
 
         var subroleValue: CFTypeRef?
-        let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleValue)
+        let subroleStatus = AXCall.copyAttribute(element, kAXSubroleAttribute as CFString, &subroleValue)
         guard subroleStatus == .success,
               let subrole = subroleValue as? String,
               subrole == "AXUnknown" else {
@@ -358,7 +358,7 @@ extension AppController {
 
     private func windowElements(for appElement: AXUIElement) -> [AXUIElement] {
         var windowsObject: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
         guard status == .success, let windowsObject else {
             return []
         }

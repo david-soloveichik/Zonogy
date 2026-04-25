@@ -15,8 +15,8 @@ struct WindowIdentity {
 
         let title: String?
         let element = managed.backing.element
-        var value: AnyObject?
-        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+        var value: CFTypeRef?
+        if AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &value) == .success,
            let candidate = value as? String,
            !candidate.isEmpty {
             title = candidate
@@ -53,8 +53,8 @@ struct WindowIdentity {
 
     private func currentTitle(for managed: ManagedWindow) -> String? {
         let element = managed.backing.element
-        var value: AnyObject?
-        if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+        var value: CFTypeRef?
+        if AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &value) == .success,
            let title = value as? String,
            !title.isEmpty {
             return title

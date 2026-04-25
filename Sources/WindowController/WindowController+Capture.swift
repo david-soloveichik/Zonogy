@@ -60,7 +60,7 @@ extension WindowController {
         let appElement = accessibilityWatcher.applicationElement(for: pid)
 
         var windowObject: CFTypeRef?
-        let windowResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
+        let windowResult = AXCall.copyAttribute(appElement, kAXFocusedWindowAttribute as CFString, &windowObject)
         guard windowResult == .success, let windowObject else {
             let bundleId = application.bundleIdentifier ?? "unknown"
             Logger.debug(
@@ -146,7 +146,7 @@ extension WindowController {
         }
 
         var windowsObject: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
         if status != .success {
             let bundleDescription = bundleIdentifier ?? "unknown-bundle-identifier"
             Logger.debug("Failed to enumerate windows for pid \(pid) (bundle \(bundleDescription)) (AX error \(status.rawValue))")

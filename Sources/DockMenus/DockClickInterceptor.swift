@@ -297,7 +297,7 @@ final class DockClickInterceptor {
 
         let systemWideElement = AXUIElementCreateSystemWide()
         var elementAtPosition: AXUIElement?
-        let status = AXUIElementCopyElementAtPosition(
+        let status = AXCall.copyElementAtPosition(
             systemWideElement,
             Float(location.x),
             Float(location.y),
@@ -343,7 +343,7 @@ final class DockClickInterceptor {
         let dockApp = AXUIElementCreateApplication(dockPid)
 
         var elementAtPosition: AXUIElement?
-        let result = AXUIElementCopyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
+        let result = AXCall.copyElementAtPosition(dockApp, Float(location.x), Float(location.y), &elementAtPosition)
 
         guard result == .success, let element = elementAtPosition else {
             // AX query failed - Dock is hidden (autohide) or stale PID.
@@ -405,7 +405,7 @@ final class DockClickInterceptor {
         }
 
         var subroleRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+        guard AXCall.copyAttribute(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
               let subrole = subroleRef as? String else {
             return false
         }
@@ -415,7 +415,7 @@ final class DockClickInterceptor {
 
     private func clickedAppResult(fromDockItemElement element: AXUIElement) -> ClickedAppResult? {
         var urlRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &urlRef) == .success,
+        guard AXCall.copyAttribute(element, kAXURLAttribute as CFString, &urlRef) == .success,
               let url = urlRef as? URL else {
             return nil
         }
@@ -435,7 +435,7 @@ final class DockClickInterceptor {
 
     private func axParent(of element: AXUIElement) -> AXUIElement? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &value) == .success,
+        guard AXCall.copyAttribute(element, kAXParentAttribute as CFString, &value) == .success,
               let value else {
             return nil
         }
@@ -453,8 +453,8 @@ final class DockClickInterceptor {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+        guard AXCall.copyAttribute(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXCall.copyAttribute(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
               let positionValue, let sizeValue else {
             return nil
         }

@@ -170,8 +170,8 @@ extension AppController {
             // Get window title for logging (best-effort).
             var windowTitle = "untitled"
             let element = managed.backing.element
-            var value: AnyObject?
-            if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
+            var value: CFTypeRef?
+            if AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &value) == .success,
                let title = value as? String,
                !title.isEmpty {
                 windowTitle = title

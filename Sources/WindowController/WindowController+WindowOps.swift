@@ -19,14 +19,14 @@ extension WindowController {
             }
             let appElement = accessibilityWatcher.applicationElement(for: pid)
 
-            var windowsObject: AnyObject?
-            let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+            var windowsObject: CFTypeRef?
+            let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
             guard status == .success, let windowElements = windowsObject as? [AXUIElement] else {
                 continue
             }
 
             for windowElement in windowElements {
-                _ = AXUIElementSetAttributeValue(windowElement, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+                _ = AXCall.setAttribute(windowElement, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
             }
         }
     }
@@ -58,14 +58,14 @@ extension WindowController {
                 screen: screen
             )
         }
-        _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        _ = AXCall.performAction(element, kAXRaiseAction as CFString)
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
         Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame)")
     }
 
     /// Minimize a window
     func minimizeWindow(_ managedWindow: ManagedWindow) {
-        let error = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+        let error = AXCall.setAttribute(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
         if error != .success {
             Logger.debug("WARNING: Minimize AX call failed for window \(managedWindow.windowId) (error \(error.rawValue))")
         } else {
@@ -81,14 +81,14 @@ extension WindowController {
         let element = managedWindow.backing.element
         let windowId = managedWindow.windowId
         let perform = {
-            let error = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            let error = AXCall.setAttribute(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
             if error != .success {
                 Logger.debug("WARNING: Unminimize AX call failed for window \(windowId) (error \(error.rawValue))")
             } else {
                 Logger.debug("Unminimized window \(windowId)")
             }
             if raise {
-                _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+                _ = AXCall.performAction(element, kAXRaiseAction as CFString)
             }
         }
 
@@ -105,7 +105,7 @@ extension WindowController {
     /// Checks if a managed window is currently visible.
     func isWindowVisible(_ managedWindow: ManagedWindow) -> Bool {
         var hiddenValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(managedWindow.backing.element, kAXHiddenAttribute as CFString, &hiddenValue)
+        let status = AXCall.copyAttribute(managedWindow.backing.element, kAXHiddenAttribute as CFString, &hiddenValue)
         guard status == .success, let hiddenValue else {
             // If we can't get the attribute, assume it's visible for safety.
             return true
@@ -121,7 +121,7 @@ extension WindowController {
 
     /// Hides a managed window.
     func hideWindow(_ managedWindow: ManagedWindow, reason: HideReason) {
-        _ = AXUIElementSetAttributeValue(managedWindow.backing.element, kAXHiddenAttribute as CFString, kCFBooleanTrue)
+        _ = AXCall.setAttribute(managedWindow.backing.element, kAXHiddenAttribute as CFString, kCFBooleanTrue)
         let reasonLabel: String
         switch reason {
         case .zoneExcluded: reasonLabel = "zone-excluded"

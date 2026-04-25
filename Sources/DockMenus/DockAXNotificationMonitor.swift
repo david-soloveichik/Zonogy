@@ -85,7 +85,7 @@ final class DockAXNotificationMonitor {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         for element in elementsToObserve {
             for notification in notifications {
-                _ = AXObserverAddNotification(observer, element, notification, refcon)
+                _ = AXCall.addObserverNotification(observer, element, notification, refcon)
             }
         }
 
@@ -105,7 +105,7 @@ final class DockAXNotificationMonitor {
             ]
             for element in observedElements {
                 for notification in notifications {
-                    _ = AXObserverRemoveNotification(observer, element, notification)
+                    _ = AXCall.removeObserverNotification(observer, element, notification)
                 }
             }
 
@@ -189,8 +189,8 @@ final class DockAXNotificationMonitor {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+        guard AXCall.copyAttribute(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXCall.copyAttribute(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
               let positionValue, let sizeValue else {
             return nil
         }
@@ -264,7 +264,7 @@ final class DockAXNotificationMonitor {
 
     private func axElementArrayAttribute(element: AXUIElement, attribute: CFString) -> [AXUIElement] {
         var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+        let status = AXCall.copyAttribute(element, attribute, &value)
         guard status == .success, let value else {
             return []
         }
@@ -289,7 +289,7 @@ final class DockAXNotificationMonitor {
 
     private func axStringAttribute(element: AXUIElement, attribute: CFString) -> String? {
         var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+        let status = AXCall.copyAttribute(element, attribute, &value)
         guard status == .success, let value else {
             return nil
         }
@@ -298,7 +298,7 @@ final class DockAXNotificationMonitor {
 
     private func axURLAttribute(element: AXUIElement, attribute: CFString) -> URL? {
         var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, attribute, &value)
+        let status = AXCall.copyAttribute(element, attribute, &value)
         guard status == .success, let value else {
             return nil
         }

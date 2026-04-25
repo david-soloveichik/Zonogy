@@ -78,7 +78,7 @@ extension AppController: CmdTabControllerDelegate {
 
             // Get title from AX
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+            _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
             var title = (titleRef as? String) ?? ""
             guard !title.isEmpty else { continue }
 

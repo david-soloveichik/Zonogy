@@ -82,7 +82,7 @@ final class AccessibilityWatcher {
 
         for notificationName in notificationsToAttempt {
             let notification = notificationName as CFString
-            let status = AXObserverAddNotification(observer, appElement, notification, observerRefcon)
+            let status = AXCall.addObserverNotification(observer, appElement, notification, observerRefcon)
             if status == .success || status == .notificationAlreadyRegistered {
                 Logger.debug("Registered application AX notification '\(notificationName)' for pid \(pid)")
                 continue
@@ -111,7 +111,7 @@ final class AccessibilityWatcher {
         }
 
         for notification in windowNotifications {
-            let status = AXObserverAddNotification(observer, element, notification, observerRefcon)
+            let status = AXCall.addObserverNotification(observer, element, notification, observerRefcon)
             if status == .success || status == .notificationAlreadyRegistered {
                 Logger.debug("Registered window AX notification '\(notification as String)' for pid \(pid)")
             } else {
@@ -126,7 +126,7 @@ final class AccessibilityWatcher {
         }
 
         for notification in windowNotifications {
-            AXObserverRemoveNotification(observer, element, notification)
+            _ = AXCall.removeObserverNotification(observer, element, notification)
         }
     }
 

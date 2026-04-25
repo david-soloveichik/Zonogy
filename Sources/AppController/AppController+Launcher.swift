@@ -368,12 +368,12 @@ extension AppController: LauncherControllerDelegate {
     private func focusWindowViaAccessibility(_ window: LauncherWindowItem) {
         // Unminimize if needed (based on last known state when item was constructed)
         if !window.isPlacedInZone {
-            AXUIElementSetAttributeValue(window.axElement, kAXMinimizedAttribute as CFString, false as CFTypeRef)
+            _ = AXCall.setAttribute(window.axElement, kAXMinimizedAttribute as CFString, false as CFTypeRef)
         }
 
         // Make it the main window and raise it
-        AXUIElementSetAttributeValue(window.axElement, kAXMainAttribute as CFString, true as CFTypeRef)
-        AXUIElementPerformAction(window.axElement, kAXRaiseAction as CFString)
+        _ = AXCall.setAttribute(window.axElement, kAXMainAttribute as CFString, true as CFTypeRef)
+        _ = AXCall.performAction(window.axElement, kAXRaiseAction as CFString)
 
         // Activate the application
         if let app = NSRunningApplication(processIdentifier: window.pid) {
@@ -439,7 +439,7 @@ extension AppController: LauncherControllerDelegate {
         // This triggers the app's native "clicked in Dock" behavior (launches app or creates new window)
         if let dockItemElement {
             Logger.debug("Launcher: No managed windows, simulating Dock item press for \(url.lastPathComponent)")
-            AXUIElementPerformAction(dockItemElement, kAXPressAction as CFString)
+            _ = AXCall.performAction(dockItemElement, kAXPressAction as CFString)
             return
         }
 
@@ -478,7 +478,7 @@ extension AppController: LauncherControllerDelegate {
 
             // Check title (must have a title to be considered a real window)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
+            _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
                 eligibleWindows.append(window)
             }
@@ -736,7 +736,7 @@ extension AppController: LauncherWindowProvider {
 
             // Get title from AX (not cached - titles change frequently)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+            _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
             var title = (titleRef as? String) ?? ""
             guard !title.isEmpty else { continue }
 
@@ -783,7 +783,7 @@ extension AppController: LauncherWindowProvider {
 
             // Check title (still need AX for this - titles change)
             var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
+            _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
                 count += 1
             }

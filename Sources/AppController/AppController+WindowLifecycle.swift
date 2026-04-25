@@ -390,7 +390,7 @@ extension AppController {
             // Activate the app too in case the unminimize stole app activation.
             if var pending = pendingRestoreRaise, pending.pendingWindowIds.remove(windowId) != nil {
                 NSRunningApplication(processIdentifier: pending.pid)?.activate()
-                _ = AXUIElementPerformAction(pending.element, kAXRaiseAction as CFString)
+                _ = AXCall.performAction(pending.element, kAXRaiseAction as CFString)
                 Logger.debug("Re-raised restore active window after unminimize of window \(windowId)")
                 pendingRestoreRaise = pending.pendingWindowIds.isEmpty ? nil : pending
             }

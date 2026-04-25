@@ -7,7 +7,7 @@ extension WindowController {
     /// Check if a window is minimized.
     internal func isWindowMinimized(_ element: AXUIElement) -> Bool {
         var minimizedValue: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(element, kAXMinimizedAttribute as CFString, &minimizedValue)
+        let status = AXCall.copyAttribute(element, kAXMinimizedAttribute as CFString, &minimizedValue)
         guard status == .success, let minimizedValue else {
             return false
         }
@@ -41,8 +41,8 @@ extension WindowController {
     ) -> Bool {
         let contextPrefix = "isStandardWindow(pid: \(pid), cgWindowId: \(cgWindowId))"
 
-        var roleObject: AnyObject?
-        let roleStatus = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleObject)
+        var roleObject: CFTypeRef?
+        let roleStatus = AXCall.copyAttribute(element, kAXRoleAttribute as CFString, &roleObject)
         guard roleStatus == .success, let role = roleObject as? String, role == kAXWindowRole as String else {
             if roleStatus != .success {
                 Logger.debug("\(contextPrefix): Failed to get role attribute, AX error \(roleStatus.rawValue)")
@@ -50,8 +50,8 @@ extension WindowController {
             return false
         }
 
-        var subroleObject: AnyObject?
-        let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleObject)
+        var subroleObject: CFTypeRef?
+        let subroleStatus = AXCall.copyAttribute(element, kAXSubroleAttribute as CFString, &subroleObject)
         if subroleStatus == .success, let subrole = subroleObject as? String {
             if skipSubroleCheck {
                 Logger.debug("\(contextPrefix): Skipping subrole check for minimized window (subrole: \(subrole))")
@@ -66,8 +66,8 @@ extension WindowController {
         }
 
         // By default, manage windows with empty titles; apps can opt out via disallowEmptyTitleWindows
-        var titleValue: AnyObject?
-        let titleStatus = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue)
+        var titleValue: CFTypeRef?
+        let titleStatus = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleValue)
         let windowTitle = (titleStatus == .success) ? (titleValue as? String) ?? "" : ""
         if windowTitle.isEmpty {
             if let app = NSRunningApplication(processIdentifier: pid),
@@ -94,7 +94,7 @@ extension WindowController {
         // Check isMovable attribute (per SPECIFICATION.md)
         // Use the same approach as winmanmon: check if position is settable
         var isPositionSettable: DarwinBoolean = false
-        let settableStatus = AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &isPositionSettable)
+        let settableStatus = AXCall.isAttributeSettable(element, kAXPositionAttribute as CFString, &isPositionSettable)
         if settableStatus != .success || !isPositionSettable.boolValue {
             if settableStatus != .success {
                 Logger.debug("\(contextPrefix): Failed to check if position is settable, AX error \(settableStatus.rawValue)")
@@ -106,7 +106,7 @@ extension WindowController {
 
         // Check for zoom button (hasZoom) attribute (per SPECIFICATION.md)
         var zoomButtonValue: CFTypeRef?
-        let zoomStatus = AXUIElementCopyAttributeValue(element, kAXZoomButtonAttribute as CFString, &zoomButtonValue)
+        let zoomStatus = AXCall.copyAttribute(element, kAXZoomButtonAttribute as CFString, &zoomButtonValue)
 
         var hasZoomButton = false
         if zoomStatus == .success {
@@ -159,7 +159,7 @@ extension WindowController {
            applicationExceptionPolicy.requiresActiveZoomButton(forBundleIdentifier: bundleId) {
             let zoomElement = zoomButtonValue as! AXUIElement
             var enabledRef: CFTypeRef?
-            let enabledStatus = AXUIElementCopyAttributeValue(zoomElement, kAXEnabledAttribute as CFString, &enabledRef)
+            let enabledStatus = AXCall.copyAttribute(zoomElement, kAXEnabledAttribute as CFString, &enabledRef)
             if enabledStatus == .success, let enabled = enabledRef as? Bool, !enabled {
                 Logger.debug("\(contextPrefix): Zoom button is disabled (grayed out) and bundle \(bundleId) requires active zoom button")
                 return false
@@ -208,7 +208,7 @@ extension WindowController {
     /// Get the CGWindowID for an accessibility element with status information.
     internal func cgWindowIdWithStatus(for element: AXUIElement, pid: pid_t, context: String) -> (id: CGWindowID?, axError: AXError?) {
         var cgWindowId: CGWindowID = 0
-        let status = _AXUIElementGetWindow(element, &cgWindowId)
+        let status = AXCall.getWindow(element, &cgWindowId)
         guard status == .success else {
             Logger.debug("cgWindowId(\(context)): _AXUIElementGetWindow failed for pid \(pid) with AXError \(status.logDescription)")
             return (nil, status)

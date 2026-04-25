@@ -627,7 +627,7 @@ extension WindowController {
         guard let value = AXValueCreate(AXValueType(rawValue: kAXValueCGPointType)!, &mutablePoint) else {
             return false
         }
-        let status = AXUIElementSetAttributeValue(element, attribute, value)
+        let status = AXCall.setAttribute(element, attribute, value)
         return status == .success
     }
 
@@ -636,7 +636,7 @@ extension WindowController {
         guard let value = AXValueCreate(AXValueType(rawValue: kAXValueCGSizeType)!, &mutableSize) else {
             return false
         }
-        let status = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
+        let status = AXCall.setAttribute(element, kAXSizeAttribute as CFString, value)
         return status == .success
     }
 

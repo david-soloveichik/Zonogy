@@ -84,11 +84,11 @@ extension AppController {
         let apply = {
             var position = accessibilityFrame.origin
             if let positionValue = AXValueCreate(.cgPoint, &position) {
-                AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
+                _ = AXCall.setAttribute(element, kAXPositionAttribute as CFString, positionValue)
             }
             var size = accessibilityFrame.size
             if let sizeValue = AXValueCreate(.cgSize, &size) {
-                AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
+                _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
             }
         }
 
