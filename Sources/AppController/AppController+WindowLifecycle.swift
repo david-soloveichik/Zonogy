@@ -1193,7 +1193,7 @@ extension AppController {
               let displaced = windowController.window(withId: displacedId) else {
             return
         }
-        windowController.unminimizeWindow(displaced)
+        unminimizeWithPrePositioning(displaced, reason: "floating-drag-revert")
         assignWindowToFloatingZone(
             displaced,
             on: context.floatingScreenId,

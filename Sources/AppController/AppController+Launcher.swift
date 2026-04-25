@@ -346,12 +346,14 @@ extension AppController: LauncherControllerDelegate {
 
             // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
             if !managed.isPlacedInZone {
-                if let (frame, descriptor) = targetInfo {
-                    prePositionMinimizedWindowForLauncher(managed, to: frame, on: descriptor)
-                }
                 // Suppress deminiaturized notification so it doesn't trigger re-placement
                 suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
-                windowController.unminimizeWindow(managed)
+                unminimizeWithPrePositioning(
+                    managed,
+                    targetFrame: targetInfo?.frame,
+                    on: targetInfo?.descriptor,
+                    reason: "launcher"
+                )
             }
             // Place in targeted zone
             placeSelectedWindow(managed, destination: destination)
@@ -418,12 +420,14 @@ extension AppController: LauncherControllerDelegate {
 
             // Pre-position and unminimize if needed
             if !preferredWindow.isPlacedInZone {
-                if let (frame, descriptor) = targetInfo {
-                    prePositionMinimizedWindowForLauncher(preferredWindow, to: frame, on: descriptor)
-                }
                 // Suppress deminiaturized notification so it doesn't trigger re-placement
                 suppressNextEvents(for: [preferredWindow.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
-                windowController.unminimizeWindow(preferredWindow)
+                unminimizeWithPrePositioning(
+                    preferredWindow,
+                    targetFrame: targetInfo?.frame,
+                    on: targetInfo?.descriptor,
+                    reason: "launcher"
+                )
             }
 
             // Place in targeted zone
@@ -703,30 +707,6 @@ extension AppController: LauncherControllerDelegate {
             let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
             return (displayFrame, descriptor)
         }
-    }
-
-    /// Pre-position a minimized window to the target zone frame before unminimizing
-    /// This ensures the unminimize animation shows the window "restoring" to the correct position
-    private func prePositionMinimizedWindowForLauncher(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
-        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
-            for: managed,
-            requestedFrame: screenFrame,
-            on: screen
-        )
-        let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
-
-        var position = accessibilityFrame.origin
-        if let positionValue = AXValueCreate(.cgPoint, &position) {
-            AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
-        }
-
-        var size = accessibilityFrame.size
-        if let sizeValue = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
-        }
-
-        Logger.debug("Launcher: Pre-positioned minimized window \(managed.windowId) to \(effectiveScreenFrame) before unminimizing")
     }
 
     private func activateWindow(_ managed: ManagedWindow) {

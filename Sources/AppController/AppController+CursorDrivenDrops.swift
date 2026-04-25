@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import Foundation
 
 /// Shared explicit-drop helpers for cursor-driven drags initiated by Launcher and DockMenus.
@@ -170,9 +169,13 @@ extension AppController {
 
         let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
         if !managed.isPlacedInZone {
-            prePositionMinimizedManagedWindowForExplicitDrop(managed, to: displayFrame, on: descriptor, reason: reason)
             suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "\(reason)-unminimize")
-            windowController.unminimizeWindow(managed)
+            unminimizeWithPrePositioning(
+                managed,
+                targetFrame: displayFrame,
+                on: descriptor,
+                reason: reason
+            )
         }
 
         placeWindowIntoZone(managed, zoneKey: zoneKey)
@@ -191,7 +194,7 @@ extension AppController {
 
         if !managed.isPlacedInZone {
             suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "\(reason)-unminimize")
-            windowController.unminimizeWindow(managed)
+            unminimizeWithPrePositioning(managed, reason: reason)
         }
 
         removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: false)
@@ -216,30 +219,4 @@ extension AppController {
         return zone.occupantWindowId
     }
 
-    private func prePositionMinimizedManagedWindowForExplicitDrop(
-        _ managed: ManagedWindow,
-        to screenFrame: CGRect,
-        on screen: ScreenDescriptor,
-        reason: String
-    ) {
-        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
-            for: managed,
-            requestedFrame: screenFrame,
-            on: screen
-        )
-        let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
-
-        var position = accessibilityFrame.origin
-        if let positionValue = AXValueCreate(.cgPoint, &position) {
-            AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
-        }
-
-        var size = accessibilityFrame.size
-        if let sizeValue = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
-        }
-
-        Logger.debug("Cursor-driven drop: pre-positioned minimized window \(managed.windowId) to \(effectiveScreenFrame) before unminimizing (reason: \(reason))")
-    }
 }

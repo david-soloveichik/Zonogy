@@ -5,6 +5,7 @@ enum DebugPreferencesStore {
     private static let defaultLogToFileEnabled = false
     private static let defaultDockMenusOverlayEnabled = false
     private static let defaultFullScreenOverlayEnabled = false
+    private static let defaultDisablePrePositionBeforeUnminimize = false
 
     static func loadLogToFileEnabled() -> Bool {
         loadBool(
@@ -37,6 +38,17 @@ enum DebugPreferencesStore {
 
     static func saveFullScreenOverlayEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.fullScreenDebugOverlay)
+    }
+
+    static func loadDisablePrePositionBeforeUnminimize() -> Bool {
+        loadBool(
+            forKey: UserDefaultsKeys.disablePrePositionBeforeUnminimize,
+            defaultValue: defaultDisablePrePositionBeforeUnminimize
+        )
+    }
+
+    static func saveDisablePrePositionBeforeUnminimize(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.disablePrePositionBeforeUnminimize)
     }
 
     private static func loadBool(forKey key: String, defaultValue: Bool) -> Bool {

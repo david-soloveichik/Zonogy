@@ -6,6 +6,10 @@ extension AppController {
         DebugPreferencesStore.loadLogToFileEnabled()
     }
 
+    internal var isDisablePrePositionBeforeUnminimizeInSettings: Bool {
+        DebugPreferencesStore.loadDisablePrePositionBeforeUnminimize()
+    }
+
     internal func setDebugLogToFileEnabledFromSettings(_ enabled: Bool) {
         let wasEnabled = Logger.logToFile
         DebugPreferencesStore.saveLogToFileEnabled(enabled)
@@ -23,5 +27,10 @@ extension AppController {
             Logger.debug("Debug file logging disabled")
         }
         Logger.logToFile = false
+    }
+
+    internal func setDisablePrePositionBeforeUnminimizeFromSettings(_ enabled: Bool) {
+        Logger.debug("Debug: disable pre-position before unminimize=\(enabled)")
+        DebugPreferencesStore.saveDisablePrePositionBeforeUnminimize(enabled)
     }
 }

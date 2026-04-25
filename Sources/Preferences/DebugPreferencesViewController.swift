@@ -5,9 +5,10 @@ final class DebugPreferencesViewController: NSViewController {
     private var saveLogCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
+    private var disablePrePositionCheckbox: NSButton?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 380))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 440))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -65,6 +66,23 @@ final class DebugPreferencesViewController: NSViewController {
         fullScreenOverlayHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(fullScreenOverlayHintLabel)
 
+        let disablePrePositionCheckbox = NSButton(
+            checkboxWithTitle: "Disable pre-position of minimized windows prior to unminimize",
+            target: self,
+            action: #selector(disablePrePositionToggled(_:))
+        )
+        disablePrePositionCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(disablePrePositionCheckbox)
+        self.disablePrePositionCheckbox = disablePrePositionCheckbox
+
+        let disablePrePositionHintLabel = NSTextField(
+            wrappingLabelWithString: "When on, Zonogy skips moving a minimized window to its target frame before unminimizing; the window is positioned only after it is restored."
+        )
+        disablePrePositionHintLabel.font = NSFont.systemFont(ofSize: 12)
+        disablePrePositionHintLabel.textColor = .secondaryLabelColor
+        disablePrePositionHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(disablePrePositionHintLabel)
+
         let filesHeaderLabel = NSTextField(labelWithString: "Debug File Locations")
         filesHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
         filesHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -119,7 +137,14 @@ final class DebugPreferencesViewController: NSViewController {
             fullScreenOverlayHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             fullScreenOverlayHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            filesHeaderLabel.topAnchor.constraint(equalTo: fullScreenOverlayHintLabel.bottomAnchor, constant: 20),
+            disablePrePositionCheckbox.topAnchor.constraint(equalTo: fullScreenOverlayHintLabel.bottomAnchor, constant: 14),
+            disablePrePositionCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            disablePrePositionHintLabel.topAnchor.constraint(equalTo: disablePrePositionCheckbox.bottomAnchor, constant: 6),
+            disablePrePositionHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            disablePrePositionHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            filesHeaderLabel.topAnchor.constraint(equalTo: disablePrePositionHintLabel.bottomAnchor, constant: 20),
             filesHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             debugLogPathLabel.topAnchor.constraint(equalTo: filesHeaderLabel.bottomAnchor, constant: 8),
@@ -136,7 +161,7 @@ final class DebugPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 380)
+        self.preferredContentSize = NSSize(width: 580, height: 440)
         syncControls()
     }
 
@@ -158,9 +183,16 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func disablePrePositionToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setDisablePrePositionBeforeUnminimizeFromSettings(enabled)
+        syncControls()
+    }
+
     private func syncControls() {
         saveLogCheckbox?.state = AppController.shared.isDebugLogToFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
+        disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
     }
 }

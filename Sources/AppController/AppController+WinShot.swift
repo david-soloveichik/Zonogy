@@ -278,18 +278,28 @@ extension AppController {
         }
 
         for workItem in zoneWorkItems where workItem.wasMinimized {
-            prePositionMinimizedWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
             let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
-            windowController.unminimizeWindow(workItem.managed, raise: shouldRaise)
+            unminimizeWithPrePositioning(
+                workItem.managed,
+                targetFrame: workItem.targetFrame,
+                on: workItem.descriptor,
+                reason: "winshot-restore",
+                suppressAXNotifications: true,
+                raise: shouldRaise
+            )
         }
 
         // Unminimize floating zone window in parallel with tiled windows
         if let floatingItem = floatingWorkItem, floatingItem.wasMinimized {
-            if let targetFrame = floatingItem.targetFrame {
-                prePositionMinimizedWindow(floatingItem.managed, to: targetFrame, on: floatingItem.descriptor)
-            }
             let shouldRaise = !suppressRaiseDuringUnminimize || floatingItem.managed.windowId == restoredActiveWindowId
-            windowController.unminimizeWindow(floatingItem.managed, raise: shouldRaise)
+            unminimizeWithPrePositioning(
+                floatingItem.managed,
+                targetFrame: floatingItem.targetFrame,
+                on: floatingItem.descriptor,
+                reason: "winshot-restore",
+                suppressAXNotifications: true,
+                raise: shouldRaise
+            )
         }
 
         // Step 6b: ActiveFit coordination.
@@ -664,32 +674,6 @@ extension AppController {
         }
 
         return nil
-    }
-
-    private func prePositionMinimizedWindow(_ managed: ManagedWindow, to screenFrame: CGRect, on screen: ScreenDescriptor) {
-        // Pre-position the window while minimized for smooth animation
-        // Convert from screen-local coordinates to accessibility coordinates
-        let effectiveScreenFrame = windowController.resolvedTargetScreenFrame(
-            for: managed,
-            requestedFrame: screenFrame,
-            on: screen
-        )
-        let element = managed.backing.element
-        let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
-
-        // Mark this as a programmatic update so any resulting AX moved/resized notifications
-        // are ignored (avoids misclassifying restore pre-positioning as a user drag/resize).
-        windowController.performProgrammaticUpdate(for: managed.windowId) {
-            var position = accessibilityFrame.origin
-            if let positionValue = AXValueCreate(.cgPoint, &position) {
-                AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
-            }
-
-            var size = accessibilityFrame.size
-            if let sizeValue = AXValueCreate(.cgSize, &size) {
-                AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
-            }
-        }
     }
 
     private func activateWindow(_ managed: ManagedWindow) {

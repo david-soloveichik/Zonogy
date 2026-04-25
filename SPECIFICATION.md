@@ -340,13 +340,16 @@ For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFIC
 
 ### Debug Preferences
 
-Zonogy Preferences includes a **Debug** tab with three independent debug toggles, all **off by default**:
+Zonogy Preferences includes a **Debug** tab with four independent debug toggles, all **off by default**:
 
 - Save debug log to file (`/tmp/zonogy-debug.log`)
 - Show Dock debug rectangle
 - Show full-screen debug rectangles
+- Disable pre-position of minimized windows prior to unminimize
 
 Changes apply immediately while Zonogy is running.
+
+The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
 
 When "Save debug log to file" is off, Zonogy does not write to `/tmp/zonogy-debug.log` and does not modify any existing file at that path.
 When this toggle is turned on, Zonogy clears `/tmp/zonogy-debug.log` before writing new entries.

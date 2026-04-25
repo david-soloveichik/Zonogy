@@ -17,6 +17,7 @@ enum UserDefaultsKeys {
     static let debugLogToFile = "Zonogy.debug.logToFile"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"
     static let fullScreenDebugOverlay = "Zonogy.fullScreen.debugOverlay"
+    static let disablePrePositionBeforeUnminimize = "Zonogy.debug.disablePrePositionBeforeUnminimize"
 
     // MARK: - Launcher
     static let launcherAutoShowForEmptyZones = "Zonogy.launcher.autoShowForEmptyZones"
