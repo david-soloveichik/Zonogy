@@ -101,6 +101,18 @@ enum AXCall {
     }
 
     @discardableResult
+    static func createObserver(
+        _ application: pid_t,
+        _ callback: AXObserverCallback,
+        _ observer: UnsafeMutablePointer<AXObserver?>
+    ) -> AXError {
+        let start = DispatchTime.now()
+        let status = AXObserverCreate(application, callback, observer)
+        report(start: start, function: "AXObserverCreate", detail: nil, pid: application, status: status)
+        return status
+    }
+
+    @discardableResult
     static func addObserverNotification(
         _ observer: AXObserver,
         _ element: AXUIElement,
@@ -135,18 +147,54 @@ enum AXCall {
         let elapsedNs = DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds
         let durationSeconds = Double(elapsedNs) / 1_000_000_000
         guard durationSeconds >= thresholdSeconds else { return }
-        let ms = Int((durationSeconds * 1000).rounded())
-        let detailSuffix = detail.map { " \($0)" } ?? ""
 
         var pid: pid_t = 0
-        let appComponent: String
         if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
-            let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown-bundle"
-            appComponent = "pid=\(pid) bundle=\(bundle)"
+            logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, pid: pid, status: status)
         } else {
-            appComponent = "pid=unknown bundle=unknown"
+            logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, appComponent: "pid=unknown bundle=unknown", status: status)
         }
+    }
 
+    private static func report(
+        start: DispatchTime,
+        function: String,
+        detail: String?,
+        pid: pid_t,
+        status: AXError
+    ) {
+        let elapsedNs = DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds
+        let durationSeconds = Double(elapsedNs) / 1_000_000_000
+        guard durationSeconds >= thresholdSeconds else { return }
+        logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, pid: pid, status: status)
+    }
+
+    private static func logSlowCall(
+        function: String,
+        detail: String?,
+        durationSeconds: TimeInterval,
+        pid: pid_t,
+        status: AXError
+    ) {
+        let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown-bundle"
+        logSlowCall(
+            function: function,
+            detail: detail,
+            durationSeconds: durationSeconds,
+            appComponent: "pid=\(pid) bundle=\(bundle)",
+            status: status
+        )
+    }
+
+    private static func logSlowCall(
+        function: String,
+        detail: String?,
+        durationSeconds: TimeInterval,
+        appComponent: String,
+        status: AXError
+    ) {
+        let ms = Int((durationSeconds * 1000).rounded())
+        let detailSuffix = detail.map { " \($0)" } ?? ""
         let threadTag = Thread.isMainThread ? "main" : "bg"
 
         Logger.debug(

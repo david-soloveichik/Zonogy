@@ -56,7 +56,7 @@ final class DockAXNotificationMonitor {
         self.dockPid = pid
 
         var observer: AXObserver?
-        let status = AXObserverCreate(pid, Self.axObserverCallback, &observer)
+        let status = AXCall.createObserver(pid, Self.axObserverCallback, &observer)
         guard status == .success, let observer else {
             Logger.debug("DockAXNotificationMonitor: AXObserverCreate failed (status=\(status.rawValue))")
             return
