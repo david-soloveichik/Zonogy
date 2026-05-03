@@ -48,6 +48,15 @@ When a window is replaced in the floating zone, the displaced window is queued f
 - **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
 (`grep --line-buffered` streams matching lines without delay.)
 
+## Slow AX Call Logging
+
+Every synchronous Accessibility API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single `[SLOW-AX]` line with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
+
+To inspect slow calls in `/tmp/zonogy-debug.log`:
+
+- All slow calls: `grep '\[SLOW-AX\]' /tmp/zonogy-debug.log`
+- Only calls of 1 second or longer: `grep -E '\[SLOW-AX\].*took [0-9]{4,}ms' /tmp/zonogy-debug.log` (the `{4,}` matches 4+ digit millisecond counts, i.e. ≥ 1000ms)
+
 ## Accessibility API Workarounds
 
 ### Retry Mechanisms Tied to Accessibility
