@@ -260,16 +260,19 @@ class WindowPlacementManager {
             minimizeReason: "\(reason)-displaced"
         )
 
+        // Finalize (sync minimize) before assigning the incoming window so the displaced
+        // occupant's AX kAXMinimized flash-to-key cannot appear above the just-positioned
+        // incoming window. See `SingleOccupantReplacement` for the full rationale.
+        if minimizeDisplacedWindows {
+            displacement?.finalize()
+        }
+
         assignWindowToZone(
             managed,
             zone: destinationZone,
             screenId: destinationKey.screenId,
             descriptor: descriptor
         )
-
-        if minimizeDisplacedWindows {
-            displacement?.finalize()
-        }
 
         let originScreenIndex = delegate.screenOrder.firstIndex(of: originKey.screenId) ?? Int(originKey.screenId)
         let destinationScreenIndex = delegate.screenOrder.firstIndex(of: destinationKey.screenId) ?? Int(destinationKey.screenId)
@@ -314,14 +317,16 @@ class WindowPlacementManager {
             minimizeReason: "\(reason)-displaced"
         )
 
+        // Finalize before assigning so the displaced occupant's AX kAXMinimized
+        // flash-to-key happens before the incoming window is positioned/raised.
+        displacement?.finalize()
+
         assignWindowToZone(
             managed,
             zone: highestZone,
             screenId: screenId,
             descriptor: descriptor
         )
-
-        displacement?.finalize()
     }
 
     /// Places a window into a specific zone, used for restoring pre-sleep assignments.
@@ -441,13 +446,18 @@ class WindowPlacementManager {
         let displacedMinimizeReason = "\(reason)-displaced"
         let retargetReason = "\(reason)-filled"
 
+        // Minimize the displaced occupant synchronously (not via the debounced queue)
+        // so it happens before the incoming window's frame writes and raise.
+        // `SingleOccupantReplacement` runs `finalize` before `assignIncoming`, which
+        // keeps AX kAXMinimized's brief flash-to-key on the displaced window invisible
+        // regardless of whether the incoming window is already visible.
         SingleOccupantReplacement.replaceIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: managed.windowId,
             lookupWindow: { delegate.windowController.window(withId: $0) },
             evictExistingWindowId: { context.zoneController.removeWindow(windowId: $0) },
             clearDisplacedAssignment: { delegate.clearManagedWindowZone($0) },
-            finalizeDisplaced: { delegate.queueDeferredMinimization(windowId: $0.windowId, reason: displacedMinimizeReason) },
+            finalizeDisplaced: { delegate.minimizeWindowProgrammatically($0, reason: displacedMinimizeReason) },
             assignIncoming: {
                 assignWindowToZone(
                     managed,
@@ -543,6 +553,8 @@ class WindowPlacementManager {
     }
 
     /// Shared displacement path for tiled-zone placement: evict an existing occupant and plan minimization.
+    /// Callers must `finalize()` the returned plan BEFORE writing the incoming window's frame/raise,
+    /// so the displaced occupant's AX kAXMinimized flash-to-key cannot land above the incoming window.
     private func displacementPlanIfNeeded(
         in zone: Zone,
         controller: ZoneController,
@@ -556,7 +568,7 @@ class WindowPlacementManager {
             lookupWindow: { delegate.windowController.window(withId: $0) },
             evictExistingWindowId: { controller.removeWindow(windowId: $0) },
             clearDisplacedAssignment: { delegate.clearManagedWindowZone($0) },
-            finalizeDisplaced: { delegate.queueDeferredMinimization(windowId: $0.windowId, reason: minimizeReason) }
+            finalizeDisplaced: { delegate.minimizeWindowProgrammatically($0, reason: minimizeReason) }
         )
     }
 

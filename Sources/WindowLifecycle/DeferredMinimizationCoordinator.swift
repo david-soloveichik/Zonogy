@@ -1,7 +1,11 @@
-/// Debounced minimization queue used to batch rapid window displacements.
+/// Debounced minimization queue used to batch rapid window minimizations.
 ///
-/// This is intentionally shared between tiled-zone and floating-zone displacement so the
-/// replacement pipelines can be uniform and avoid redundant AX churn.
+/// Used by occlusion- and focus-driven floating-zone minimization (where rapid
+/// signals genuinely benefit from coalescing) and the floating-zone explicit
+/// `minimizeOccupant` path. Tiled- and floating-zone *placement* displacement
+/// bypass this queue and minimize the displaced occupant synchronously so AX
+/// kAXMinimized's brief flash-to-key happens before the incoming window is raised
+/// (see `SingleOccupantReplacement` for the ordering rationale).
 import Foundation
 protocol DeferredMinimizationCoordinatorHost: AnyObject {
     var windowController: WindowController { get }

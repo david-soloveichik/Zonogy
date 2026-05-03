@@ -53,6 +53,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func clearRememberedManualResizeSize(for windowId: Int, reason: String) -> CGSize?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
+    func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
 
     // Zone management
@@ -626,6 +627,21 @@ class DragDropCoordinator {
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId] {
             sourceContext.zoneController.removeWindow(windowId: windowId)
+        }
+
+        // Floating-origin drops minimize the displaced occupant (no swap-back). Do that
+        // sync minimize NOW, before assignWindowFromDrag positions/raises the incoming
+        // window — otherwise the displaced window's AX kAXMinimized flash-to-key would
+        // briefly land above the just-positioned incoming window. After this, the
+        // target zone is empty and assignWindowFromDrag returns no displacedWindow.
+        if session.originatedFromFloating,
+           let existingOccupantId = targetZone.occupantWindowId,
+           existingOccupantId != windowId,
+           let existingOccupant = delegate.windowController.window(withId: existingOccupantId) {
+            targetContext.zoneController.removeWindow(windowId: existingOccupantId)
+            delegate.clearManagedWindowZone(existingOccupant)
+            delegate.minimizeWindowProgrammatically(existingOccupant, reason: "drag-floating-origin-displaced")
+            Logger.debug("Pre-minimized displaced occupant \(existingOccupantId) before floating-origin drop into zone \(targetKey.index)")
         }
 
         guard let assignment = delegate.windowPlacementManager.assignWindowFromDrag(managed, to: targetKey) else {

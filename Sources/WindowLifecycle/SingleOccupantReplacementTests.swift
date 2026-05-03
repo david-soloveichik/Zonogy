@@ -31,8 +31,8 @@ enum SingleOccupantReplacementTests {
                 afterAssignIncoming: { events.append("after-assign") }
             )
             assert(
-                events == ["evict", "clear-displaced", "assign-incoming", "after-assign", "finalize-displaced"],
-                "expected replacement ordering to be stable (got \(events))"
+                events == ["evict", "clear-displaced", "finalize-displaced", "assign-incoming", "after-assign"],
+                "expected finalize to run before assignIncoming so a synchronous displaced-minimize cannot flash-to-key over a just-positioned incoming window (got \(events))"
             )
         }
 

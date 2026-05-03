@@ -109,10 +109,15 @@ final class FloatingZoneCoordinator {
                 occupants.removeValue(forKey: screenId)
             },
             clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
+            // Sync minimize (not the debounced queue) so the displaced occupant's
+            // AX kAXMinimized brief flash-to-key happens before the incoming window's
+            // frame writes/raise. `SingleOccupantReplacement` runs `finalize` before
+            // `assignIncoming`, keeping the flash invisible. Mirrors the tiled-zone
+            // displacement path.
             finalizeDisplaced: { displaced in
-                host.queueDeferredMinimization(windowId: displaced.windowId, reason: displacedMinimizeReason)
+                host.minimizeWindowProgrammatically(displaced, reason: displacedMinimizeReason)
                 Logger.debug(
-                    "Floating zone queued minimization for occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
+                    "Floating zone minimized displaced occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
                 )
             },
             assignIncoming: {
