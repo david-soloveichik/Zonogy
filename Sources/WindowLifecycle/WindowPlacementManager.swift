@@ -2,6 +2,19 @@
 import Foundation
 import Cocoa
 
+/// Decision returned by the delegate when classifying how to place a newly opened or
+/// unminimized window. Combines the full-screen partial-pause decision with the drag
+/// tear-out defer rule.
+enum NewWindowPlacementDecision: Equatable {
+    /// Park the window without zoning it (FS-paused screen, or active drag tear-out).
+    case `defer`
+    /// Place via the standard pipeline; no further action.
+    case placeNormally
+    /// Place via the standard pipeline; afterwards, re-raise the originating screen's
+    /// full-screen window so macOS switches that screen back to its full-screen Space.
+    case placeAndRestoreNativeFullScreenSpace(originScreenId: CGDirectDisplayID)
+}
+
 protocol WindowPlacementManagerDelegate: AnyObject {
     // Zone management
     func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool, logIfUnassigned: Bool)
@@ -25,8 +38,17 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     // Targeted zone management
     var targetedZoneManager: TargetedZoneManager { get }
 
-    // Placement deferral
-    func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool
+    // Placement decision: defer (parking), place normally, or place + restore native FS Space.
+    func decideNewWindowPlacement(
+        _ managed: ManagedWindow,
+        targetedZoneKey: ZoneKey?,
+        targetedScreenId: CGDirectDisplayID?
+    ) -> NewWindowPlacementDecision
+
+    // Native full-screen partial-pause follow-up: re-raise the origin screen's full-screen
+    // window so macOS switches that screen back to its full-screen Space. Only invoked after
+    // a placement that returned `.placeAndRestoreNativeFullScreenSpace`.
+    func restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: CGDirectDisplayID)
 
     // Floating zone management
     func assignWindowToFloatingZone(
@@ -96,6 +118,8 @@ class WindowPlacementManager {
 
         let baseReason = "place-new-window"
 
+        // Explicit-screen placements (drag tear-out displaced windows, recapture, startup
+        // seeding) bypass the decision logic — the caller has already chosen the screen.
         if let preferredScreenId {
             delegate.removeWindowFromAllZones(
                 windowId: managed.windowId,
@@ -120,9 +144,21 @@ class WindowPlacementManager {
             }
             return nil
         }()
+        let targetedScreenId: CGDirectDisplayID? = {
+            switch targetedDestination {
+            case .tiled(let key): return key.screenId
+            case .floating(let id): return id
+            case .none: return nil
+            }
+        }()
 
-        // Keep the current zone occupant alive while the source app is mid tear-out.
-        if delegate.shouldDeferPlacementForNewWindow(managed, targetedZoneKey: targetedKey) {
+        let decision = delegate.decideNewWindowPlacement(
+            managed,
+            targetedZoneKey: targetedKey,
+            targetedScreenId: targetedScreenId
+        )
+
+        if case .defer = decision {
             delegate.removeWindowFromAllZones(
                 windowId: managed.windowId,
                 reason: baseReason,
@@ -147,6 +183,8 @@ class WindowPlacementManager {
             managed.zoneIndex = nil
             placeWindow(managed, on: fallbackScreen, reason: baseReason)
             queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
+            // Note: a fallback (no targeted destination) cannot be a partial-pause case —
+            // partial pause requires a non-nil non-paused targeted screen.
             if requestSync {
                 delegate.requestSync()
             }
@@ -162,6 +200,9 @@ class WindowPlacementManager {
             forceRetargetAfterFill: false,
             logIfUnassignedOnRemoval: false
         )
+        if case .placeAndRestoreNativeFullScreenSpace(let originScreenId) = decision {
+            delegate.restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
+        }
         if requestSync {
             delegate.requestSync()
         }

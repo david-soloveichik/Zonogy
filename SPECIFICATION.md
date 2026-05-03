@@ -127,7 +127,11 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the sc
 
 **Full-screen pause:** When a screen's active Space is showing a native macOS full-screen window, Zonogy pauses on that screen. Switching away from that full-screen Space or minimizing the full-screen window clears the pause. No Zonogy UI/overlays should appear there (placeholders, Launcher, targeting indicators, add‑zone indicator, zone resize bars, drag overlays, etc). Zones on that screen are not targetable; when a screen enters full‑screen mode, retarget using normal rules. (If all screens are full‑screen, target screen 0 (normal rules) as a last resort to maintain the invariant that one zone is always targeted.)
 
-When a screen is full-screen, and a managed window appears on that screen (eg opens or unminimized), we defer placing that window until that screen exits full-screen mode. Then we place that window on that same screen using reuse the standard placement/recapture pipeline (ie prefer the lowest-index empty tiling zone on that screen; if no empty tiling zone exists, place it into that screen's floating zone).
+When a screen is full-screen and a managed window appears on it (opens or is unminimized):
+
+- **Native full-screen** (the green-button kind that creates a dedicated Space): Place the window into the currently targeted zone (which by the retargeting rule lives on a different, non-paused screen) then re-raise the originating screen's full-screen window so macOS switches that screen back to its full-screen Space. This avoids interrupting what user was doing (eg watching full screen movie).
+- **Otherwise** (non-native full-screen, or the all-screens-full-screen fallback): defer placement until the screen exits full-screen mode, then place the window on that same screen (into the lowest-index empty tiling zone, or its floating zone if none is empty).
+
 
 Focus changes do not retarget zones by themselves. Targeting is controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the Launcher, DockMenus, and CmdTab specifications.
 

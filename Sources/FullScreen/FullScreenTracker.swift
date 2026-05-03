@@ -1,12 +1,14 @@
-/// Tracks which screens have full-screen windows from eligible apps using the AXFullScreen attribute.
+/// Tracks which screens have full-screen windows from eligible apps.
 ///
-/// Note: `AXFullScreen` can remain true for windows on inactive Spaces. A best-effort WindowServer
-/// on-screen-only check helps ignore minimized/off-screen windows, but it does not reliably exclude
-/// inactive-Space full-screen windows, so we also repair stale pause based on the focused window.
+/// Detection signals:
+/// - The AX `AXFullScreen` attribute, which marks native macOS full-screen windows.
+/// - An opt-in heuristic for apps whose full-screen window reports subrole `AXUnknown`
+///   with screen-matching width.
 ///
-/// Detection approach:
-/// 1. Query the `AXFullScreen` attribute via Accessibility API
-/// 2. Listen to `kAXResizedNotification` which fires when windows enter/exit full-screen
+/// State changes ride on `kAXResizedNotification` (fired when windows enter/exit full-screen).
+/// The on-screen visibility decision is made by `FullScreenVisibilityPolicy`, which combines
+/// the WindowServer active-Space list with CGS Space membership so native FS windows
+/// remain tracked while their dedicated Space is inactive on a display.
 import AppKit
 import ApplicationServices
 
@@ -14,12 +16,21 @@ import ApplicationServices
 private let kAXFullscreenAttribute = "AXFullScreen" as CFString
 
 /// Information about a full-screen window on a display.
+///
+/// `isNativeFullScreen` is `true` when AX `AXFullScreen` reports the window as full-screen
+/// (the green-button, Space-creating mode), `false` for the AXUnknown full-width heuristic.
+/// Only the native variety triggers partial-pause placement.
+///
+/// `element` is retained so the partial-pause restore can re-raise the full-screen window
+/// to switch its display back to the full-screen Space.
 struct FullScreenWindowInfo: Equatable {
     let windowId: Int?
     let cgWindowId: CGWindowID
     let pid: pid_t
     let bundleIdentifier: String?
     let screenDisplayId: CGDirectDisplayID
+    let element: AXUIElement
+    let isNativeFullScreen: Bool
 
     static func == (lhs: FullScreenWindowInfo, rhs: FullScreenWindowInfo) -> Bool {
         lhs.cgWindowId == rhs.cgWindowId && lhs.pid == rhs.pid
@@ -43,7 +54,23 @@ final class FullScreenTracker {
         Set(fullScreenWindows.keys)
     }
 
-    init() {}
+    /// CGS-backed predicate for "is this CGWindowID currently in a native FS Space?"
+    /// Injected so tests can supply a deterministic stub.
+    private let isWindowInNativeFullScreenSpaceQuery: (CGWindowID) -> Bool
+
+    init(
+        isWindowInNativeFullScreenSpace: @escaping (CGWindowID) -> Bool =
+            SpaceQueries.isWindowInNativeFullScreenSpace
+    ) {
+        self.isWindowInNativeFullScreenSpaceQuery = isWindowInNativeFullScreenSpace
+    }
+
+    /// Returns the display the tracker has currently associated with `cgWindowId`/`pid`,
+    /// or `nil` if no FS record matches. Useful for resolving the destination display when
+    /// AX detection fails for an inactive native FS window.
+    func displayId(forCgWindowId cgWindowId: CGWindowID, pid: pid_t) -> CGDirectDisplayID? {
+        trackedEntry(for: cgWindowId, pid: pid)?.displayId
+    }
 
     /// Check if a specific screen is in full-screen mode.
     func isFullScreen(displayId: CGDirectDisplayID) -> Bool {
@@ -103,23 +130,40 @@ final class FullScreenTracker {
         screenDisplayId: CGDirectDisplayID,
         treatAsFullScreen: Bool
     ) {
-        let claimsFullScreen = FullScreenTracker.isWindowFullScreen(element: element) || treatAsFullScreen
-        // Only pause a screen when the full-screen window is actually visible in the active Space.
-        // If we cannot determine on-screen status, stay conservative and treat it as visible.
-        let isOnScreen: Bool = {
-            guard claimsFullScreen else { return true }
-            let onScreen = FullScreenTracker.isWindowOnScreen(cgWindowId: cgWindowId)
-            if onScreen == false {
-                let windowIdDesc = windowId.map(String.init) ?? "n/a"
-                let bundleDesc = bundleIdentifier ?? "unknown"
+        let isNative = FullScreenTracker.isWindowFullScreen(element: element)
+        let claimsFullScreen = isNative || treatAsFullScreen
+        let isOnScreenInActiveSpace = claimsFullScreen
+            ? FullScreenTracker.isWindowOnScreen(cgWindowId: cgWindowId)
+            : nil
+        // For native FS, off-screen-in-active-Space is expected when another Space is showing
+        // on the same display. CGS Spaces resolves the ambiguity: a window still in a
+        // `kCGSSpaceFullscreen` Space is genuinely full-screen, just inactive.
+        let needsSpaceMembershipCheck = claimsFullScreen && isOnScreenInActiveSpace == false && isNative
+        let isInNativeFullScreenSpace = needsSpaceMembershipCheck
+            ? isWindowInNativeFullScreenSpaceQuery(cgWindowId)
+            : false
+        let isFullScreen = FullScreenVisibilityPolicy.shouldTrackAsFullScreen(
+            claimsFullScreen: claimsFullScreen,
+            isNative: isNative,
+            isOnScreenInActiveSpace: isOnScreenInActiveSpace,
+            isInNativeFullScreenSpace: isInNativeFullScreenSpace
+        )
+        if claimsFullScreen, isOnScreenInActiveSpace == false {
+            let windowIdDesc = windowId.map(String.init) ?? "n/a"
+            let bundleDesc = bundleIdentifier ?? "unknown"
+            if isFullScreen {
+                Logger.debug(
+                    "FullScreenTracker: keeping native full-screen state for windowId \(windowIdDesc) " +
+                        "(CGWindowID \(cgWindowId), bundle: \(bundleDesc)) despite inactive active-Space; " +
+                        "CGS confirms FS Space membership"
+                )
+            } else {
                 Logger.debug(
                     "FullScreenTracker: ignoring full-screen windowId \(windowIdDesc) (CGWindowID \(cgWindowId), bundle: \(bundleDesc)) " +
                         "because it is not on-screen in the active Space(s)"
                 )
             }
-            return onScreen ?? true
-        }()
-        let isFullScreen = claimsFullScreen && isOnScreen
+        }
         let existingEntry = trackedEntry(for: cgWindowId, pid: pid)
         let existingInfo = existingEntry?.info
         let wasFullScreen = existingInfo != nil
@@ -132,7 +176,9 @@ final class FullScreenTracker {
                 cgWindowId: cgWindowId,
                 pid: pid,
                 bundleIdentifier: resolvedBundleId,
-                screenDisplayId: screenDisplayId
+                screenDisplayId: screenDisplayId,
+                element: element,
+                isNativeFullScreen: isNative
             )
 
             if let existingEntry {

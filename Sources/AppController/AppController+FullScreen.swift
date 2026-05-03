@@ -72,9 +72,60 @@ extension AppController {
         fullScreenTracker.isFullScreen(displayId: screenId)
     }
 
-    /// Clears a stale full-screen pause when the currently focused window on a display is not
-    /// actually full-screen. This repairs cases where `AXFullScreen` remains true for a window
-    /// that moved to an inactive Space.
+    /// Returns `true` when `screenId` is paused for a native macOS full-screen window — the
+    /// green-button variety that lives in its own dedicated Space.
+    ///
+    /// The tracker's `isNativeFullScreen` flag (set from AX `AXFullScreen`) is the primary
+    /// signal; the CGS Space membership re-check is defensive duplication of the tracker's
+    /// invariants (the tracker's on-screen filter already keeps that flag honest). It can be
+    /// dropped without changing behavior — see SPECIFICATION-IMPLEMENTATION.md for the
+    /// load-bearing vs defensive split.
+    internal func isNativeFullScreenPause(screenId: CGDirectDisplayID) -> Bool {
+        guard let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
+              info.isNativeFullScreen else {
+            return false
+        }
+        return SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId)
+    }
+
+    /// Partial-pause follow-up: re-raises `originScreenId`'s full-screen window so macOS
+    /// switches that display back to its full-screen Space. Invoked only after a
+    /// `placeNewWindow` whose decision was `.placeAndRestoreNativeFullScreenSpace`. The
+    /// `isNativeFullScreen` + CGS Space re-check is defensive — it guards against a race
+    /// where the screen exited full-screen between the decision and this call.
+    internal func restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: CGDirectDisplayID) {
+        guard let info = fullScreenTracker.fullScreenWindowInfo(for: originScreenId),
+              info.isNativeFullScreen,
+              SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId) else {
+            let screenIndex = screenContextStore.loggingIndex(for: originScreenId)
+            Logger.debug(
+                "Partial-pause restore: skipped on screen \(screenIndex) " +
+                    "(no longer in native full-screen mode)"
+            )
+            return
+        }
+        let screenIndex = screenContextStore.loggingIndex(for: originScreenId)
+        let bundleDesc = info.bundleIdentifier ?? "unknown"
+        Logger.debug(
+            "Partial-pause restore: re-raising full-screen window (CGWindowID \(info.cgWindowId), bundle: \(bundleDesc)) " +
+                "to switch screen \(screenIndex) back to its full-screen Space"
+        )
+        scheduleWindowRaise(
+            pid: info.pid,
+            element: info.element,
+            logPrefix: "Partial-pause restore",
+            reason: "native-full-screen-space-restore"
+        )
+    }
+
+    /// Clears the full-screen pause on `screenId` when:
+    /// - the focused window on that display does not itself claim full-screen, AND
+    /// - the recorded FS window's status cannot be confirmed by CGS Spaces as a native FS Space.
+    ///
+    /// CGS Space membership is the stop sign for native FS: while a recorded native FS window
+    /// still belongs to a `kCGSSpaceFullscreen` Space, the pause is real — its FS Space is
+    /// just inactive because another Space is showing. The pause is only cleared when there
+    /// is no surviving FS Space membership to anchor it.
     internal func repairFullScreenPauseStateFromFocusedWindowIfNeeded(
         focusedWindow: AXUIElement,
         pid: pid_t,
@@ -93,6 +144,17 @@ extension AppController {
         )
         let focusedClaimsFullScreen = FullScreenTracker.isWindowFullScreen(element: focusedWindow) || treatAsFullScreen
         guard !focusedClaimsFullScreen else {
+            return
+        }
+
+        if let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
+           info.isNativeFullScreen,
+           SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId) {
+            let screenIndex = screenContextStore.loggingIndex(for: screenId)
+            Logger.debug(
+                "FullScreenTracker: keeping native full-screen pause on screen \(screenIndex) " +
+                    "(focused window not FS but recorded FS window still in native FS Space) (reason: \(reason))"
+            )
             return
         }
 
@@ -272,7 +334,22 @@ extension AppController {
             return
         }
 
-        let resolvedDisplayId = screenDisplayIdHint ?? detectScreenId(for: element) ?? primaryScreenId
+        // Display resolution: prefer the caller hint, then live AX detection. If neither is
+        // available, anchor a tracked native FS window to its existing recorded display
+        // (its FS Space is just inactive). Otherwise fall back to the primary display. The
+        // CGS Space membership check here is defensive — the tracker entry alone is enough,
+        // but the extra confirmation costs little and fails closed.
+        let resolvedDisplayId: CGDirectDisplayID = {
+            if let screenDisplayIdHint { return screenDisplayIdHint }
+            if let detected = detectScreenId(for: element) { return detected }
+            if let cachedDisplayId = fullScreenTracker.displayId(forCgWindowId: resolvedCgWindowId, pid: pid),
+               let info = fullScreenTracker.fullScreenWindowInfo(for: cachedDisplayId),
+               info.isNativeFullScreen,
+               SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: resolvedCgWindowId) {
+                return cachedDisplayId
+            }
+            return primaryScreenId
+        }()
         let resolvedBundleId = bundleIdentifier ?? application.bundleIdentifier
 
         let elementKey = AccessibilityElementKey(element: element)

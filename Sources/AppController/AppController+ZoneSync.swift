@@ -422,23 +422,55 @@ extension AppController {
         DispatchQueue.main.async(execute: workItem)
     }
 
-    func shouldDeferPlacementForNewWindow(_ managed: ManagedWindow, targetedZoneKey: ZoneKey?) -> Bool {
-        if let resolvedScreenId = detectScreenId(for: managed),
-           isScreenPausedForFullScreen(resolvedScreenId) {
-            let screenIndex = screenContextStore.loggingIndex(for: resolvedScreenId)
-            Logger.debug(
-                "Deferring placement for window \(managed.windowId) because screen \(screenIndex) is paused for full-screen"
-            )
-            return true
+    func decideNewWindowPlacement(
+        _ managed: ManagedWindow,
+        targetedZoneKey: ZoneKey?,
+        targetedScreenId: CGDirectDisplayID?
+    ) -> NewWindowPlacementDecision {
+        let originScreenId = detectScreenId(for: managed)
+        let originPaused = originScreenId.map { isScreenPausedForFullScreen($0) } ?? false
+        let originNative = (originScreenId.map { isNativeFullScreenPause(screenId: $0) }) ?? false
+        let targetPaused = targetedScreenId.map { isScreenPausedForFullScreen($0) } ?? false
+
+        let fullScreenOutcome = FullScreenPlacementPolicy.decide(
+            originScreenId: originScreenId,
+            originIsPausedForFullScreen: originPaused,
+            originIsNativeFullScreen: originNative,
+            targetedScreenId: targetedScreenId,
+            targetIsPausedForFullScreen: targetPaused
+        )
+
+        switch fullScreenOutcome {
+        case .defer:
+            if let originScreenId {
+                let screenIndex = screenContextStore.loggingIndex(for: originScreenId)
+                Logger.debug(
+                    "Deferring placement for window \(managed.windowId) because screen \(screenIndex) is paused for full-screen"
+                )
+            }
+            return .defer
+        case .placeAndRestoreNativeFullScreenSpace(let origin):
+            let originIndex = screenContextStore.loggingIndex(for: origin)
+            if let targetedScreenId {
+                let targetIndex = screenContextStore.loggingIndex(for: targetedScreenId)
+                Logger.debug(
+                    "Partial-pause placement: window \(managed.windowId) opened on native-full-screen screen \(originIndex); " +
+                        "routing to targeted zone on screen \(targetIndex)"
+                )
+            }
+            return .placeAndRestoreNativeFullScreenSpace(originScreenId: origin)
+        case .proceedNormally:
+            break
         }
 
-        // Chrome merges kill the dragged window until the drop completes; avoid evicting the sibling.
+        // Drag tear-out: Chrome merges kill the dragged window until the drop completes;
+        // avoid evicting the sibling that's still in the targeted tiled zone.
         guard let targetedZoneKey = targetedZoneKey else {
-            return false
+            return .placeNormally
         }
         let pid = managed.backing.pid
         guard MouseButtons.isLeftMouseButtonDown() else {
-            return false
+            return .placeNormally
         }
         guard let context = screenContexts[targetedZoneKey.screenId],
               let zone = context.zoneController.zone(at: targetedZoneKey.index),
@@ -446,13 +478,13 @@ extension AppController {
               occupantId != managed.windowId,
               let occupant = windowController.window(withId: occupantId),
               occupant.backing.pid == pid else {
-            return false
+            return .placeNormally
         }
         Logger.debug(
             "Deferring placement for window \(managed.windowId) because of active drag tear-out " +
                 "targeting zone \(targetedZoneKey.index) on screen \(screenContextStore.loggingIndex(for: targetedZoneKey.screenId))"
         )
-        return true
+        return .defer
     }
 
     /// Compute the frame used to render content inside a zone, honoring the spec margin
