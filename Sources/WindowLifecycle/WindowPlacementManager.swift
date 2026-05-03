@@ -55,7 +55,8 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool,
-        reason: String
+        reason: String,
+        displacement: DisplacementStrategy
     )
     func cancelPendingMinimization(windowId: Int)
     func queueDeferredMinimization(windowId: Int, reason: String)
@@ -109,6 +110,13 @@ class WindowPlacementManager {
     ///   - managed: The managed window to place.
     ///   - preferredScreenId: Optional preferred display for placement.
     ///   - requestSync: Whether to request an immediate zone sync after placement.
+    ///
+    /// Defaults the displacement strategy to `.deferred`. This is the shared entry point
+    /// for "a window arrived" events — external unminimizes, fresh window captures, and
+    /// a few internal callers (manual capture, recapture, startup, drag tear-out
+    /// reassignment). The external arrivals can be part of a launching app's queue, and
+    /// keeping every caller on the same loop-safe path avoids per-callsite reasoning.
+    /// See `DisplacementStrategy` for why `.deferred` is required here.
     func placeNewWindow(
         _ managed: ManagedWindow,
         preferredScreenId: CGDirectDisplayID? = nil,
@@ -117,6 +125,7 @@ class WindowPlacementManager {
         guard let delegate = delegate else { return }
 
         let baseReason = "place-new-window"
+        let displacement: DisplacementStrategy = .deferred
 
         // Explicit-screen placements (drag tear-out displaced windows, recapture, startup
         // seeding) bypass the decision logic — the caller has already chosen the screen.
@@ -128,7 +137,7 @@ class WindowPlacementManager {
                 logIfUnassigned: false
             )
             managed.zoneIndex = nil
-            placeWindow(managed, on: preferredScreenId, reason: baseReason)
+            placeWindow(managed, on: preferredScreenId, reason: baseReason, displacement: displacement)
             queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             if requestSync {
                 delegate.requestSync()
@@ -181,7 +190,7 @@ class WindowPlacementManager {
                 logIfUnassigned: false
             )
             managed.zoneIndex = nil
-            placeWindow(managed, on: fallbackScreen, reason: baseReason)
+            placeWindow(managed, on: fallbackScreen, reason: baseReason, displacement: displacement)
             queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(managed, reason: "new-window-tiled")
             // Note: a fallback (no targeted destination) cannot be a partial-pause case —
             // partial pause requires a non-nil non-paused targeted screen.
@@ -198,7 +207,8 @@ class WindowPlacementManager {
             reason: baseReason,
             retargetOnRemoval: true,
             forceRetargetAfterFill: false,
-            logIfUnassignedOnRemoval: false
+            logIfUnassignedOnRemoval: false,
+            displacement: displacement
         )
         if case .placeAndRestoreNativeFullScreenSpace(let originScreenId) = decision {
             delegate.restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
@@ -224,12 +234,17 @@ class WindowPlacementManager {
     }
 
     /// Moves an already managed window between zones, optionally minimizing displaced occupants.
+    ///
+    /// Defaults the displacement strategy to `.synchronous` because this is a Zonogy-initiated
+    /// single-window swap; the displaced occupant cannot be in another app's mid-launch
+    /// unminimize queue. See `DisplacementStrategy` for the trade-off.
     func moveWindow(
         _ managed: ManagedWindow,
         from originKey: ZoneKey,
         to destinationKey: ZoneKey,
         reason: String = "move-window",
-        minimizeDisplacedWindows: Bool = true
+        minimizeDisplacedWindows: Bool = true,
+        displacement: DisplacementStrategy = .synchronous
     ) -> Bool {
         guard let delegate = delegate else { return false }
 
@@ -253,18 +268,20 @@ class WindowPlacementManager {
         originContext.zoneController.removeWindow(windowId: managed.windowId)
         delegate.clearManagedWindowZone(managed)
 
-        let displacement = displacementPlanIfNeeded(
+        let plan = displacementPlanIfNeeded(
             in: destinationZone,
             controller: destinationContext.zoneController,
             excluding: managed.windowId,
-            minimizeReason: "\(reason)-displaced"
+            minimizeReason: "\(reason)-displaced",
+            displacement: displacement
         )
 
-        // Finalize (sync minimize) before assigning the incoming window so the displaced
-        // occupant's AX kAXMinimized flash-to-key cannot appear above the just-positioned
-        // incoming window. See `SingleOccupantReplacement` for the full rationale.
+        // For `.synchronous` displacement: finalize before assigning the incoming window so the
+        // displaced occupant's AX kAXMinimized flash-to-key cannot appear above the just-positioned
+        // incoming window. See `SingleOccupantReplacement` for the full rationale. For `.deferred`,
+        // finalize just queues — order vs. assign does not affect visual outcome.
         if minimizeDisplacedWindows {
-            displacement?.finalize()
+            plan?.finalize()
         }
 
         assignWindowToZone(
@@ -289,7 +306,12 @@ class WindowPlacementManager {
     }
 
     /// Places a window on a specific screen, preferring empty zones before evicting occupants.
-    private func placeWindow(_ managed: ManagedWindow, on screenId: CGDirectDisplayID, reason: String) {
+    private func placeWindow(
+        _ managed: ManagedWindow,
+        on screenId: CGDirectDisplayID,
+        reason: String,
+        displacement: DisplacementStrategy
+    ) {
         guard let delegate = delegate,
               let controller = delegate.zoneController(for: screenId),
               let descriptor = delegate.descriptor(for: screenId) else {
@@ -310,16 +332,18 @@ class WindowPlacementManager {
             return
         }
 
-        let displacement = displacementPlanIfNeeded(
+        let plan = displacementPlanIfNeeded(
             in: highestZone,
             controller: controller,
             excluding: managed.windowId,
-            minimizeReason: "\(reason)-displaced"
+            minimizeReason: "\(reason)-displaced",
+            displacement: displacement
         )
 
-        // Finalize before assigning so the displaced occupant's AX kAXMinimized
-        // flash-to-key happens before the incoming window is positioned/raised.
-        displacement?.finalize()
+        // For `.synchronous`: finalize before assigning so the displaced occupant's AX
+        // kAXMinimized flash-to-key happens before the incoming window is positioned/raised.
+        // For `.deferred`: order does not matter; finalize just queues.
+        plan?.finalize()
 
         assignWindowToZone(
             managed,
@@ -333,7 +357,8 @@ class WindowPlacementManager {
     func placeWindow(
         _ managed: ManagedWindow,
         into zoneKey: ZoneKey,
-        reason: String
+        reason: String,
+        displacement: DisplacementStrategy = .synchronous
     ) {
         placeWindow(
             managed,
@@ -341,7 +366,8 @@ class WindowPlacementManager {
             centerFloatingWindow: true,
             reason: reason,
             retargetOnRemoval: true,
-            forceRetargetAfterFill: false
+            forceRetargetAfterFill: false,
+            displacement: displacement
         )
     }
 
@@ -370,7 +396,8 @@ class WindowPlacementManager {
         retargetOnRemoval: Bool = true,
         forceRetargetAfterFill: Bool = false,
         logIfUnassignedOnRemoval: Bool = true,
-        afterPlacementAction: (() -> Void)? = nil
+        afterPlacementAction: (() -> Void)? = nil,
+        displacement: DisplacementStrategy = .synchronous
     ) {
         guard let delegate = delegate else {
             return
@@ -407,7 +434,8 @@ class WindowPlacementManager {
                 managed,
                 on: screenId,
                 centerWindow: centerFloatingWindow,
-                reason: reason
+                reason: reason,
+                displacement: displacement
             )
         case .tiled(let zoneKey):
             placePreparedWindowIntoZone(
@@ -415,7 +443,8 @@ class WindowPlacementManager {
                 zoneKey: zoneKey,
                 reason: reason,
                 forceRetargetAfterFill: forceRetargetAfterFill,
-                afterPlacementAction: afterPlacementAction
+                afterPlacementAction: afterPlacementAction,
+                displacement: displacement
             )
         }
 
@@ -430,7 +459,8 @@ class WindowPlacementManager {
         zoneKey: ZoneKey,
         reason: String,
         forceRetargetAfterFill: Bool,
-        afterPlacementAction: (() -> Void)?
+        afterPlacementAction: (() -> Void)?,
+        displacement: DisplacementStrategy
     ) {
         guard let delegate = delegate,
               let context = delegate.screenContexts[zoneKey.screenId],
@@ -445,19 +475,24 @@ class WindowPlacementManager {
 
         let displacedMinimizeReason = "\(reason)-displaced"
         let retargetReason = "\(reason)-filled"
+        let finalizeDisplaced = displacementFinalizeClosure(
+            for: displacement,
+            reason: displacedMinimizeReason
+        )
 
-        // Minimize the displaced occupant synchronously (not via the debounced queue)
-        // so it happens before the incoming window's frame writes and raise.
-        // `SingleOccupantReplacement` runs `finalize` before `assignIncoming`, which
-        // keeps AX kAXMinimized's brief flash-to-key on the displaced window invisible
-        // regardless of whether the incoming window is already visible.
+        // For `.synchronous`: `SingleOccupantReplacement` runs `finalize` before
+        // `assignIncoming`, so the displaced window's AX kAXMinimized flash-to-key
+        // happens while the incoming window is still hidden — invisible to the user.
+        // For `.deferred`: `finalize` just queues; the actual minimize happens after
+        // the debounce window so any external launch-driven unminimize burst can drain
+        // first (avoiding the infinite ping-pong loop with apps restoring their windows).
         SingleOccupantReplacement.replaceIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: managed.windowId,
             lookupWindow: { delegate.windowController.window(withId: $0) },
             evictExistingWindowId: { context.zoneController.removeWindow(windowId: $0) },
             clearDisplacedAssignment: { delegate.clearManagedWindowZone($0) },
-            finalizeDisplaced: { delegate.minimizeWindowProgrammatically($0, reason: displacedMinimizeReason) },
+            finalizeDisplaced: finalizeDisplaced,
             assignIncoming: {
                 assignWindowToZone(
                     managed,
@@ -553,23 +588,46 @@ class WindowPlacementManager {
     }
 
     /// Shared displacement path for tiled-zone placement: evict an existing occupant and plan minimization.
-    /// Callers must `finalize()` the returned plan BEFORE writing the incoming window's frame/raise,
-    /// so the displaced occupant's AX kAXMinimized flash-to-key cannot land above the incoming window.
+    /// For `.synchronous` displacement, callers must `finalize()` the returned plan BEFORE writing
+    /// the incoming window's frame/raise, so the displaced occupant's AX kAXMinimized flash-to-key
+    /// cannot land above the incoming window. For `.deferred`, the order does not affect visuals.
     private func displacementPlanIfNeeded(
         in zone: Zone,
         controller: ZoneController,
         excluding windowId: Int,
-        minimizeReason: String
+        minimizeReason: String,
+        displacement: DisplacementStrategy
     ) -> DisplacedWindowPlan<ManagedWindow>? {
         guard let delegate else { return nil }
+        let finalizeDisplaced = displacementFinalizeClosure(for: displacement, reason: minimizeReason)
         return DisplacedWindowPlanner.planIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: windowId,
             lookupWindow: { delegate.windowController.window(withId: $0) },
             evictExistingWindowId: { controller.removeWindow(windowId: $0) },
             clearDisplacedAssignment: { delegate.clearManagedWindowZone($0) },
-            finalizeDisplaced: { delegate.minimizeWindowProgrammatically($0, reason: minimizeReason) }
+            finalizeDisplaced: finalizeDisplaced
         )
+    }
+
+    /// Builds the closure used as `finalizeDisplaced` for displacement planning.
+    /// `.synchronous` minimizes the displaced window immediately via the AppController;
+    /// `.deferred` queues it through `DeferredMinimizationCoordinator` so an external
+    /// app's mid-launch unminimize burst can drain before our minimize lands.
+    private func displacementFinalizeClosure(
+        for displacement: DisplacementStrategy,
+        reason: String
+    ) -> (ManagedWindow) -> Void {
+        switch displacement {
+        case .synchronous:
+            return { [weak self] displaced in
+                self?.delegate?.minimizeWindowProgrammatically(displaced, reason: reason)
+            }
+        case .deferred:
+            return { [weak self] displaced in
+                self?.delegate?.queueDeferredMinimization(windowId: displaced.windowId, reason: reason)
+            }
+        }
     }
 
     private func queueOcclusionBasedFloatingZoneMinimizationAfterPlacementIfNeeded(_ managed: ManagedWindow, reason: String) {

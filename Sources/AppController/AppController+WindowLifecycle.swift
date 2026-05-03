@@ -396,6 +396,15 @@ extension AppController {
             }
             return
         }
+        // A non-suppressed deminiaturize for a window we just programmatically minimized
+        // is the signal of a placement-driven minimize/unminimize loop (e.g., a launching
+        // app re-unminimizing windows from its own queue). Feed the guard so subsequent
+        // synchronous minimizes route through the deferred queue and break the loop.
+        if minimizeLoopGuard.recordExternalDeminiaturize(windowId: windowId) {
+            Logger.debug(
+                "Minimize loop suspected: routing future programmatic minimizes through deferred queue for ~3s (triggered by window \(windowId))"
+            )
+        }
         guard let managed = windowController.window(withId: windowId) else { return }
         windowPlacementManager.placeNewWindow(managed)
     }

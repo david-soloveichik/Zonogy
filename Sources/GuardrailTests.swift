@@ -15,6 +15,9 @@ enum GuardrailTests {
         if !SingleOccupantReplacementTests.run() {
             allPassed = false
         }
+        if !MinimizeLoopGuardTests.run() {
+            allPassed = false
+        }
         if !WindowPlacementManagerNoOpPlacementTests.run() {
             allPassed = false
         }

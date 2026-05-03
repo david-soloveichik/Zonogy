@@ -27,7 +27,8 @@ extension AppController {
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool = true,
-        reason: String
+        reason: String,
+        displacement: DisplacementStrategy = .synchronous
     ) {
         // Invariant: when a floating-zone window is active, no tiled window
         // should remain in ActiveFit reveal mode. Exit reveal mode for any
@@ -38,7 +39,8 @@ extension AppController {
             managed,
             to: screenId,
             centerWindow: centerWindow,
-            reason: reason
+            reason: reason,
+            displacement: displacement
         )
     }
 

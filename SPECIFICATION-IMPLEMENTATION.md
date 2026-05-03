@@ -33,9 +33,18 @@ Implementation notes:
 - Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
 - Define occlusion as: at least one in-front occupied tiling zone's frame intersects the floating window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
 
-## Debounced Floating Zone Minimization
+## Displacement Minimization Strategy
 
-When a window is replaced in the floating zone, the displaced window is queued for deferred minimization rather than minimized immediately. The queue flushes after a 150ms pause with no new additions. This batches rapid replacements together (e.g., when launching an app that opens multiple windows in quick succession), leading to faster behavior and fixing some apparent bugs. If a queued window is reassigned to any zone before the timer fires, it is removed from the queue.
+When a placement displaces an existing zone occupant, Zonogy picks one of two ways to minimize the displaced window:
+
+- **Synchronous** (`DisplacementStrategy.synchronous`): minimize before the incoming window is positioned/raised. Setting `kAXMinimized = true` on a non-frontmost window can produce a brief visual flash of that window before its minimize animation; the exact mechanism isn't certain, but a "brief flash to key window" is a useful mental model. Running the minimize first means the flash happens while the incoming window is still hidden, so the user never sees it. Used by Zonogy-initiated single-window swaps where the source window already exists and no app launch is in flight (Launcher, drag-drop, moves between zones, full-screen exit deferred placements, etc.).
+- **Deferred** (`DisplacementStrategy.deferred`): queue the minimize through `DeferredMinimizationCoordinator` (150ms debounce). Used by `placeNewWindow`, the entry point for any "a window arrived" placement (external unminimize/capture, plus internal callers: manual capture, recapture, startup, drag tear-out reassignment). When a launching app is processing its own queue of windows to unminimize, a synchronous minimize would land at the back of that queue and be re-unminimized — an infinite ping-pong. The debounce keeps resetting as arrivals come in, so displaced windows minimize only after the burst settles, by which point they're no longer in the app's queue. Trade-off: the flash artifact can appear over the new occupant, but external-arrival visuals are already imperfect (Zonogy doesn't control the unminimize timing); internal callers accept the same brief glitch to share one loop-safe entry point.
+
+`DeferredMinimizationCoordinator` is also used by occlusion- and focus-driven floating-zone minimization and the floating-zone explicit `minimizeOccupant` path. Queued minimizations are cancelled if the window is reassigned to any zone before the timer fires.
+
+### Loop guard safety net
+
+`MinimizeLoopGuard` catches the rare case where a synchronous-path minimize is rapidly re-unminimized by an app outside any launch burst. When two non-suppressed deminiaturize events arrive within 2 seconds for windows Zonogy programmatically minimized in the previous 0.5 seconds, the guard activates for 3 seconds; while active, `minimizeWindowProgrammatically` routes through the deferred queue regardless of the placement's requested strategy.
 
 ## Additional Notes
 

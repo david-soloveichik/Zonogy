@@ -1,11 +1,23 @@
 /// Debounced minimization queue used to batch rapid window minimizations.
 ///
 /// Used by occlusion- and focus-driven floating-zone minimization (where rapid
-/// signals genuinely benefit from coalescing) and the floating-zone explicit
-/// `minimizeOccupant` path. Tiled- and floating-zone *placement* displacement
-/// bypass this queue and minimize the displaced occupant synchronously so AX
-/// kAXMinimized's brief flash-to-key happens before the incoming window is raised
-/// (see `SingleOccupantReplacement` for the ordering rationale).
+/// signals genuinely benefit from coalescing), the floating-zone explicit
+/// `minimizeOccupant` path, and any placement that flows through
+/// `WindowPlacementManager.placeNewWindow` — i.e. the entry point for "a window
+/// arrived" events (external unminimizes, fresh window captures, manual capture,
+/// recapture, startup, drag tear-out reassignment). Those placements pass
+/// `DisplacementStrategy.deferred`, which builds a `finalizeDisplaced` closure
+/// that queues here. The debounce lets a launching app drain its own queue of
+/// windows to unminimize before our minimize lands, breaking the otherwise
+/// infinite minimize/unminimize ping-pong (see `SPECIFICATION-IMPLEMENTATION.md`).
+///
+/// Zonogy-initiated single-window swaps that do not go through `placeNewWindow`
+/// (Launcher, drag-drop, moves between zones) keep using a synchronous minimize
+/// so the brief visual flash that the minimize can produce on the displaced
+/// window happens while the incoming window is still hidden (see
+/// `SingleOccupantReplacement` for the ordering rationale and what we know
+/// about the flash). `MinimizeLoopGuard` is the safety net that redirects
+/// synchronous minimizes to this queue when it detects the loop happening anyway.
 import Foundation
 protocol DeferredMinimizationCoordinatorHost: AnyObject {
     var windowController: WindowController { get }

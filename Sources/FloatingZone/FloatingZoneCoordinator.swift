@@ -80,11 +80,16 @@ final class FloatingZoneCoordinator {
         return occupants.values.contains(windowId)
     }
 
+    /// Defaults the displacement strategy to `.synchronous` (Zonogy-initiated swap, no
+    /// app-launch unminimize storm to fight). Callers that propagate from `placeNewWindow`
+    /// (any "a window arrived" placement targeting the floating zone) pass `.deferred` to
+    /// avoid an infinite minimize/unminimize loop with apps restoring their session windows.
     func assign(
         _ managed: ManagedWindow,
         to screenId: CGDirectDisplayID,
         centerWindow: Bool = true,
-        reason: String
+        reason: String,
+        displacement: DisplacementStrategy = .synchronous
     ) {
         guard let host else { return }
 
@@ -99,6 +104,20 @@ final class FloatingZoneCoordinator {
         }
 
         let displacedMinimizeReason = "\(reason)-displaced"
+        let finalizeDisplaced: (ManagedWindow) -> Void = { displaced in
+            switch displacement {
+            case .synchronous:
+                host.minimizeWindowProgrammatically(displaced, reason: displacedMinimizeReason)
+                Logger.debug(
+                    "Floating zone minimized displaced occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
+                )
+            case .deferred:
+                host.queueDeferredMinimization(windowId: displaced.windowId, reason: displacedMinimizeReason)
+                Logger.debug(
+                    "Floating zone queued deferred minimization for displaced occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
+                )
+            }
+        }
 
         SingleOccupantReplacement.replaceIfNeeded(
             existingWindowId: occupants[screenId],
@@ -109,17 +128,13 @@ final class FloatingZoneCoordinator {
                 occupants.removeValue(forKey: screenId)
             },
             clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
-            // Sync minimize (not the debounced queue) so the displaced occupant's
-            // AX kAXMinimized brief flash-to-key happens before the incoming window's
-            // frame writes/raise. `SingleOccupantReplacement` runs `finalize` before
-            // `assignIncoming`, keeping the flash invisible. Mirrors the tiled-zone
-            // displacement path.
-            finalizeDisplaced: { displaced in
-                host.minimizeWindowProgrammatically(displaced, reason: displacedMinimizeReason)
-                Logger.debug(
-                    "Floating zone minimized displaced occupant \(displaced.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(displacedMinimizeReason))"
-                )
-            },
+            // For `.synchronous`: AX kAXMinimized's brief flash-to-key on the displaced
+            // window happens before the incoming window's frame writes/raise (because
+            // `SingleOccupantReplacement` runs `finalize` before `assignIncoming`), so
+            // the flash is invisible. For `.deferred`: the minimize is queued so any
+            // ongoing external unminimize burst can drain before it lands (avoiding the
+            // infinite ping-pong loop with apps restoring their session windows).
+            finalizeDisplaced: finalizeDisplaced,
             assignIncoming: {
                 occupants[screenId] = managed.windowId
                 managed.isInFloatingZone = true

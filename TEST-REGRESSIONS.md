@@ -52,6 +52,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: WinShot restore can leave the active window behind other restored windows.
   - Think about: Async unminimize animations complete after the active window's AXRaise; re-raise the active window when each suppressed deminiaturize notification arrives.
 
+- Bug report: When a launching app processes its own queue of windows to unminimize, synchronously minimizing the displaced occupant appends it to the back of that queue, where the app re-unminimizes it — infinite minimize/unminimize loop.
+  - Think about: A programmatic minimize issued during an app's own unminimize burst can be picked up and undone by the app's pending queue. Sequence or defer such minimizes so they don't feed the burst, and have a fallback that detects the loop and breaks it.
+
 - Bug report: When a Sticky Resize window is activated in a right-column zone, one focus-related notification can restore its remembered size at the zone origin and ActiveFit can then shift it into reveal mode, but a second focus/main-window notification can move it back to the rest-position origin while ActiveFit still thinks the window is already revealed. The result is that the window stays at the rest position and hangs off-screen even though ActiveFit state says reveal mode is active.
   - Fixed by: Reusing cached ActiveFit reveal state only when the window's actual current frame still matches the stored reveal frame; otherwise ActiveFit reapplies the reveal move instead of returning early.
 

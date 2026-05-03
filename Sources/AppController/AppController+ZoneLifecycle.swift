@@ -179,7 +179,20 @@ extension AppController {
         reason: String,
         suppressTimeout: TimeInterval = 3.0
     ) {
+        // Loop guard: when an external app is fighting our minimizes by re-unminimizing
+        // them rapidly, route through the deferred queue so the app's queue can drain
+        // first. This is a safety net for placement paths that requested `.synchronous`
+        // displacement; `placeNewWindow` already uses `.deferred` directly.
+        if minimizeLoopGuard.isLoopActive {
+            Logger.debug(
+                "Loop guard active: redirecting programmatic minimize to deferred queue for window \(managed.windowId) (reason: \(reason))"
+            )
+            queueDeferredMinimization(windowId: managed.windowId, reason: "loop-guard-\(reason)")
+            return
+        }
+
         suppressNextEvents(for: [managed.windowId], events: [.miniaturized], timeout: suppressTimeout, reason: reason)
+        minimizeLoopGuard.recordProgrammaticMinimize(windowId: managed.windowId)
         windowController.minimizeWindow(managed)
     }
 

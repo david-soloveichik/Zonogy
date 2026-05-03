@@ -95,6 +95,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var controlCommandExternalDragSourceBundleIdentifier: String?
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
+    internal let minimizeLoopGuard = MinimizeLoopGuard()
     internal lazy var floatingZoneCoordinator = FloatingZoneCoordinator(
         host: self,
         displacedWindowCoordinator: displacedWindowCoordinator
