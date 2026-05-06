@@ -318,7 +318,7 @@ When UnderCovers is active, the first add-zone action on that screen just exits 
 
 **Display removal:** When a display is disconnected or otherwise disappears from `NSScreen.screens`, minimize every non-placeholder managed window that was on that display (instead of reassigning it to another screen). Close any placeholders tied to the removed display.
 
-**Recapture after display/wake events:** After display topology changes or wake-from-sleep (see `SPECIFICATION-WAKE.md`), Zonogy runs a recapture pass. This pass captures any previously unseen windows and also identifies tracked windows that are unminimized but not currently in any zone (tiled or floating); such windows are placed via the normal placement flow.
+**Recapture after display/wake events:** After display topology changes or wake-from-sleep (see `SPECIFICATION-WAKE.md`), Zonogy runs a recapture pass. This pass captures any previously unseen windows and also identifies tracked windows that are unminimized but not currently in any zone (tiled or floating); such windows are placed via the normal placement flow. The pass also handles floating-zone occupants whose live position no longer sits on the screen their floating slot is booked against (which can happen when a display reattaches and the system relocates the window): such an occupant is minimized.
 
 ### WinShot Snapshots
 
