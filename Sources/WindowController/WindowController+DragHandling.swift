@@ -14,7 +14,7 @@ extension WindowController {
         updateMouseUpGlobalMonitorInstallation()
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
         Logger.debug(
-            "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), targetedZone: \(targetDescription))"
+            "User began dragging window \(managed.windowId) (trigger: \(trigger.rawValue), cursorTargetedZone: \(targetDescription))"
         )
         delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
     }

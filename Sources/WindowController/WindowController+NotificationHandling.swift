@@ -232,15 +232,17 @@ extension WindowController {
     private func handleWindowMovedNotification(managed: ManagedWindow) {
         let isProgrammatic = programmaticUpdateWindowIds.contains(managed.windowId)
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
+        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
         if isProgrammatic {
-            Logger.debug("External window \(managed.windowId) moved (ignored programmatic update; targetedZone: \(targetDescription))")
+            Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame) (ignored programmatic update; cursorTargetedZone: \(targetDescription))")
             return
         }
 
-        Logger.debug("External window \(managed.windowId) moved by user (targetedZone: \(targetDescription))")
-        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+        Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame) (cursorTargetedZone: \(targetDescription))")
         if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
             delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
+        } else {
+            Logger.debug("External window \(managed.windowId) move not part of an active manual drag; no zone update issued")
         }
     }
 
