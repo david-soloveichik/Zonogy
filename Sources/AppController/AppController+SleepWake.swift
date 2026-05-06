@@ -37,10 +37,14 @@ extension AppController {
         cancelWakeReadinessTimer(reason: "restarted")
         wakeReadinessPollingStartedAt = Date()
         wakeReadinessPollingAttemptCount = 0
-        Logger.debug("SleepWake: wake readiness polling started (interval: 0.5s)")
+        Logger.debug("SleepWake: wake readiness polling started (interval: 0.5s, leeway: 0.25s)")
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
+        timer.schedule(
+            deadline: .now() + .milliseconds(500),
+            repeating: .milliseconds(500),
+            leeway: .milliseconds(250)
+        )
 
         timer.setEventHandler { [weak self] in
             guard let self else { return }

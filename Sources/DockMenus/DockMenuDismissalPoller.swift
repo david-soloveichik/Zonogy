@@ -7,6 +7,7 @@ import Foundation
 final class DockMenuDismissalPoller {
     private let graceInterval: TimeInterval
     private let pollInterval: TimeInterval
+    private let pollTolerance: TimeInterval
 
     var isCursorInSafeRegion: (() -> Bool)?
     var onGraceExpired: (() -> Void)?
@@ -14,9 +15,14 @@ final class DockMenuDismissalPoller {
     private var timer: Timer?
     private var outsideSince: TimeInterval?
 
-    init(graceInterval: TimeInterval = 0.2, pollInterval: TimeInterval = 0.05) {
+    init(
+        graceInterval: TimeInterval = 0.2,
+        pollInterval: TimeInterval = 0.05,
+        pollTolerance: TimeInterval = 0.025
+    ) {
         self.graceInterval = graceInterval
         self.pollInterval = pollInterval
+        self.pollTolerance = pollTolerance
     }
 
     func start() {
@@ -25,6 +31,7 @@ final class DockMenuDismissalPoller {
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        timer.tolerance = min(pollTolerance, pollInterval)
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         outsideSince = nil

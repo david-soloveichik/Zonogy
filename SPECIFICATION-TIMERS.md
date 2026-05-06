@@ -46,7 +46,7 @@ These batch rapid events to avoid redundant work or UI flicker.
 | **Full-screen check debounce (Space change)** | 0.25s | `asyncAfter` | `AppController+FullScreen.swift` | Some apps don't emit resize events for full-screen windows on Space change. Debounces the rescan to 250ms after the Space change. |
 | **Self-resize snap debounce** | 0.25s | stateful timestamp cache | `WindowSelfResizeSnapSupport.swift` | For apps with `snapToZoneOnSelfResize`, prevents repeated snap-to-zone attempts for the same window and target frame within 250ms. Avoids infinite loops when an app's internal resize triggers a snap which triggers another resize notification. |
 | **Launcher install-watch debounce** | 2.0s | `asyncAfter` | `LauncherInstallWatchService.swift` | App installations/removals trigger many filesystem events. Waits 2s after the last event before reloading the Launcher's app cache. |
-| **Launcher install-watch stream latency** | 1.0s | `FSEventStream` | `LauncherInstallWatchService.swift` | FSEvents stream coalescing latency — the OS batches filesystem events for up to 1s before delivering them. |
+| **Launcher install-watch stream latency** | 3.0s | `FSEventStream` | `LauncherInstallWatchService.swift` | FSEvents stream coalescing latency — the OS may batch filesystem events for up to 3s before delivering them. The stream does not use `kFSEventStreamCreateFlagNoDefer`, so macOS can defer delivery to reduce wakeups. |
 | **Launcher usage persistence debounce** | 0.5s | `Task.sleep` | `LaunchItemUsageStore.swift` | Batches rapid Launcher item usage updates before persisting to disk. |
 
 ### UX / Interaction
@@ -57,7 +57,7 @@ These provide smooth user experience during interactions.
 |-------|----------|-----------|------|---------|
 | **Zone resize drag throttle** | 0.025s (40 Hz) | `Timer` + `RunLoop.main` | `ZoneResizeHandleManager.swift` | Mouse drag events can arrive faster than layout can update. Batches drag deltas and dispatches resize at ~40 Hz to keep the main thread responsive. Runs in `.common` RunLoop mode so it fires during mouse tracking. |
 | **DockMenu show delay** | 0.12s | `asyncAfter` | `DockHoverTracker.swift` | Prevents DockMenu from flickering during fast Dock scrubbing. Only shows if cursor remains on the same Dock icon for 120ms. |
-| **DockMenu dismissal polling** | 0.05s repeating, 0.2s grace | `Timer` + `RunLoop.main` | `DockMenuDismissalPoller.swift` | No reliable event for "cursor left both the Dock icon and DockMenu panel". Polls cursor position at 50ms; dismisses after cursor stays outside the safe region for 200ms. |
+| **DockMenu dismissal polling** | 0.05s repeating with 0.025s tolerance, 0.2s grace | `Timer` + `RunLoop.main` | `DockMenuDismissalPoller.swift` | No reliable event for "cursor left both the Dock icon and DockMenu panel". Polls cursor position at 50ms with timer tolerance so macOS can coalesce wakeups; dismisses after cursor stays outside the safe region for 200ms. |
 | **Floating zone indicator hover-exit** | 0.06s | `asyncAfter` | `FloatingZoneIndicatorManager.swift` | Hysteresis for hover detection on the floating zone indicator. Delays the exit check by 60ms to avoid flicker during fast edge swiping. |
 | **Add-zone indicator hover-exit** | 0.06s | `asyncAfter` | `AddZoneIndicatorManager.swift` | Same hysteresis for the add-zone indicator pill on the screen edge. |
 | **External drag overlay teardown** | 0.05s | `asyncAfter` | `ExternalZoneDropInterceptor.swift` | Brief pause before cleaning up drag overlay UI after an external drop, allowing the drop animation to complete. |
@@ -81,7 +81,7 @@ These timers handle the sleep/wake transition, where AX APIs become temporarily 
 
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
-| **Wake readiness polling** | 0.5s repeating | `DispatchSourceTimer` | `AppController+SleepWake.swift` | After `screensDidWakeNotification`, AX APIs may not be ready yet. Polls every 0.5s until the display is awake, the session is unlocked, and `NSWorkspace.shared.frontmostApplication` returns non-nil. (Uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery.) |
+| **Wake readiness polling** | 0.5s repeating with 0.25s leeway | `DispatchSourceTimer` | `AppController+SleepWake.swift` | After `screensDidWakeNotification`, AX APIs may not be ready yet. Polls every 0.5s until the display is awake, the session is unlocked, and `NSWorkspace.shared.frontmostApplication` returns non-nil. The timer uses leeway so macOS can coalesce wakeups during recovery. (Uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery.) |
 | **Deferred recapture (wake)** | 0.5s + 1.5s | `asyncAfter` | `AppController+Recapture.swift` | After wake-from-sleep, schedules the same two deferred recapture/placement passes as display topology changes. |
 
 ### Sleep Cancellation
@@ -108,7 +108,7 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
-| **Accessibility permission polling** | 1.0s repeating | `Timer.scheduledTimer` | `GeneralPreferencesViewController.swift` | No notification exists for accessibility/screen-recording permission changes. Polls every 1s while the Preferences General tab is open to update the UI. |
+| **Accessibility permission polling** | 1.0s repeating with 0.5s tolerance | `Timer.scheduledTimer` | `GeneralPreferencesViewController.swift` | No notification exists for accessibility/screen-recording permission changes. Polls every 1s while the Preferences General tab is open to update the UI, with timer tolerance so macOS can coalesce wakeups. |
 
 ---
 

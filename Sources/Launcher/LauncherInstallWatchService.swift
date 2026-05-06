@@ -13,7 +13,7 @@ final class LauncherInstallWatchService {
     private var isStarted = false
     var reloadHandler: (() -> Void)?
 
-    private let streamLatencySeconds: CFTimeInterval = 1.0
+    private let streamLatencySeconds: CFTimeInterval = 3.0
     private let reloadDebounceSeconds: TimeInterval = 2.0
 
     func start() {
@@ -119,8 +119,7 @@ final class LauncherInstallWatchService {
 
         let streamFlags = FSEventStreamCreateFlags(
             kFSEventStreamCreateFlagUseCFTypes |
-            kFSEventStreamCreateFlagWatchRoot |
-            kFSEventStreamCreateFlagNoDefer
+            kFSEventStreamCreateFlagWatchRoot
         )
 
         guard let stream = FSEventStreamCreate(

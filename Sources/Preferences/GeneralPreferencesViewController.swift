@@ -247,10 +247,12 @@ final class GeneralPreferencesViewController: NSViewController {
 
     private func startAccessibilityPolling() {
         stopAccessibilityPolling()
-        accessibilityPollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.syncAccessibilityStatus()
             self?.syncScreenRecordingStatus()
         }
+        timer.tolerance = 0.5
+        accessibilityPollingTimer = timer
     }
 
     private func stopAccessibilityPolling() {
