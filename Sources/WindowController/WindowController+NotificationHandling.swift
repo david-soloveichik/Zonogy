@@ -286,6 +286,9 @@ extension WindowController {
         externalWindowsByElement[newKey] = managed
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 
+        // 4. Drop any cached liveness result — it referred to the old AX element.
+        lastConfirmedAliveAt.removeValue(forKey: managed.windowId)
+
         Logger.debug("Rebound AX element for window \(managed.windowId) (pid \(managed.backing.pid), CGWindowID \(managed.backing.cgWindowId))")
     }
 

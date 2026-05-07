@@ -117,6 +117,7 @@ extension WindowController {
         externalWindows.removeValue(forKey: managed.externalIdentifier)
         windowRegistry.removeWindow(withId: windowId)
 
+        lastConfirmedAliveAt.removeValue(forKey: windowId)
         programmaticUpdateWindowIds.remove(windowId)
         programmaticUpdateWorkItems[windowId]?.cancel()
         programmaticUpdateWorkItems.removeValue(forKey: windowId)

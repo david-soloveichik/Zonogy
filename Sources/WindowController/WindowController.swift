@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import OSLog
 
 let axDestroyedNotification = kAXUIElementDestroyedNotification as String
 let axMiniaturizedNotification = kAXWindowMiniaturizedNotification as String
@@ -41,6 +42,16 @@ class WindowController {
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
+    /// Most recent moment each window was confirmed alive via a successful AX liveness check.
+    /// Used to skip redundant per-sync AX reads when the same window was just verified.
+    internal var lastConfirmedAliveAt: [Int: Date] = [:]
+    /// Window-liveness AX check is skipped if a positive result was recorded within this window.
+    /// CGWindowList removal is the primary destruction signal and runs unconditionally on every
+    /// prune; the AX check is a safety net for the rare "still in window list but AX-element
+    /// invalid" case. Empirical traces show this safety net almost never fires, so the TTL is
+    /// sized generously: 5s eliminates the bulk of redundant AX reads while bounding the
+    /// worst-case detection delay for that edge case to 5s.
+    internal static let aliveCheckCacheTTL: TimeInterval = 5.0
     internal static let frameRetryDelays: [TimeInterval] = [0.25, 0.5, 1.0, 3.0]
     internal var accessibilityFrameRetryStates: [Int: FrameRetryState] = [:]
     internal var nextAccessibilityFrameRetryChainId: UInt64 = 1
@@ -210,7 +221,22 @@ class WindowController {
             return []
         }
 
+        let signpostState = ZonogySignposts.pointsOfInterest.beginInterval("PruneDestroyed")
+        var considered = 0
+        var aliveCacheHits = 0
+        var aliveCacheMisses = 0
+        var staleByCGWindowList = 0
+        var staleByAX = 0
+        defer {
+            ZonogySignposts.pointsOfInterest.endInterval(
+                "PruneDestroyed",
+                signpostState,
+                "considered=\(considered, privacy: .public) cacheHits=\(aliveCacheHits, privacy: .public) cacheMisses=\(aliveCacheMisses, privacy: .public) staleCG=\(staleByCGWindowList, privacy: .public) staleAX=\(staleByAX, privacy: .public)"
+            )
+        }
+
         var stale: [(Int, ManagedWindow, String)] = []
+        let now = Date()
 
         for managed in windowRegistry.allWindows {
             let windowId = managed.windowId
@@ -221,13 +247,27 @@ class WindowController {
                 continue
             }
 
+            considered += 1
+
             if !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
+                staleByCGWindowList += 1
                 stale.append((windowId, managed, "missing-from-cgwindowlist"))
                 continue
             }
 
+            if let lastAlive = lastConfirmedAliveAt[windowId],
+               now.timeIntervalSince(lastAlive) < Self.aliveCheckCacheTTL {
+                aliveCacheHits += 1
+                continue
+            }
+
+            aliveCacheMisses += 1
             if !isAccessibilityElementAlive(managed) {
+                lastConfirmedAliveAt.removeValue(forKey: windowId)
+                staleByAX += 1
                 stale.append((windowId, managed, "ax-element-invalid"))
+            } else {
+                lastConfirmedAliveAt[windowId] = now
             }
         }
 
