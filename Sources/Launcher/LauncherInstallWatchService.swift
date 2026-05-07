@@ -3,6 +3,7 @@
 import AppKit
 import CoreServices
 import Foundation
+import OSLog
 
 final class LauncherInstallWatchService {
     private let streamQueue = DispatchQueue(label: "com.zonogy.launcher.install-watch")
@@ -177,6 +178,10 @@ final class LauncherInstallWatchService {
         let flagSummary = flagLabels.isEmpty ? "none" : flagLabels.joined(separator: ",")
 
         Logger.debug("LauncherInstallWatchService: Received \(eventCount) fs event(s), flags=\(flagSummary), sample=\(samplePath)")
+        ZonogySignposts.pointsOfInterest.emitEvent(
+            "LauncherInstallWatchFSEvents",
+            "count=\(eventCount) flags=\(flagSummary, privacy: .public)"
+        )
 
         if rootChanged || droppedEvents {
             refreshWatchedRoots(reason: "fsevents-\(flagSummary)")
@@ -190,6 +195,13 @@ final class LauncherInstallWatchService {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.isStarted else { return }
+            let signpostState = ZonogySignposts.pointsOfInterest.beginInterval(
+                "LauncherInstallWatchReload",
+                "reason=\(reason, privacy: .public)"
+            )
+            defer {
+                ZonogySignposts.pointsOfInterest.endInterval("LauncherInstallWatchReload", signpostState)
+            }
             Logger.debug("LauncherInstallWatchService: Debounced reload triggered (\(reason))")
             if let reloadHandler = self.reloadHandler {
                 reloadHandler()

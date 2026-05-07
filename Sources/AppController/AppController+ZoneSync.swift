@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import OSLog
 
 /// Zone synchronization: keeping windows, placeholders, and layout model in lockstep.
 extension AppController {
@@ -111,6 +112,14 @@ extension AppController {
                 let nextMode = nextCoalescedZoneSyncMode(pendingFloatingZoneExclusion: pendingFloatingZoneExclusion)
                 runZoneSync(mode: nextMode, recentlyPlacedInFloatingZone: pendingFloatingZoneExclusion)
             }
+        }
+
+        let signpostState = ZonogySignposts.pointsOfInterest.beginInterval(
+            "ZoneSync",
+            "mode=\(mode.debugLabel(in: self), privacy: .public) floatingExclusion=\(floatingZoneExclusion ?? -1)"
+        )
+        defer {
+            ZonogySignposts.pointsOfInterest.endInterval("ZoneSync", signpostState)
         }
 
         Logger.debug("Syncing windows to zones (\(mode.debugLabel(in: self)))")

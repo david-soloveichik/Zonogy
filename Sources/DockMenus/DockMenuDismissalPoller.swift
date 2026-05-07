@@ -1,6 +1,7 @@
 /// Polls cursor position to dismiss the DockMenu after the cursor leaves both the Dock and the DockMenu panel.
 
 import Foundation
+import OSLog
 
 /// Runs a lightweight polling timer (scheduled in common run loop modes) that triggers dismissal when the cursor
 /// remains outside a "safe region" for a configurable grace period.
@@ -28,6 +29,8 @@ final class DockMenuDismissalPoller {
     func start() {
         guard timer == nil else { return }
 
+        ZonogySignposts.pointsOfInterest.emitEvent("DockMenuDismissalPollerStart")
+
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -38,6 +41,9 @@ final class DockMenuDismissalPoller {
     }
 
     func stop() {
+        if timer != nil {
+            ZonogySignposts.pointsOfInterest.emitEvent("DockMenuDismissalPollerStop")
+        }
         timer?.invalidate()
         timer = nil
         outsideSince = nil
@@ -60,6 +66,7 @@ final class DockMenuDismissalPoller {
         guard let outsideSince else { return }
         if now - outsideSince >= graceInterval {
             self.outsideSince = nil
+            ZonogySignposts.pointsOfInterest.emitEvent("DockMenuDismissalGraceExpired")
             onGraceExpired?()
         }
     }

@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import OSLog
 
 /// Sleep/wake pipeline: screens-off event gating, AX readiness polling, and post-wake recapture.
 extension AppController {
@@ -38,6 +39,7 @@ extension AppController {
         wakeReadinessPollingStartedAt = Date()
         wakeReadinessPollingAttemptCount = 0
         Logger.debug("SleepWake: wake readiness polling started (interval: 0.5s, leeway: 0.25s)")
+        ZonogySignposts.pointsOfInterest.emitEvent("WakeReadinessPollingStart")
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(
@@ -85,11 +87,19 @@ extension AppController {
         let duration = Date().timeIntervalSince(startedAt)
         let durationString = String(format: "%.1f", duration)
         if let reason {
+            ZonogySignposts.pointsOfInterest.emitEvent(
+                "WakeReadinessPollingEnd",
+                "attempts=\(attempts) duration=\(durationString, privacy: .public) reason=\(reason, privacy: .public)"
+            )
             Logger.debug(
                 "SleepWake: wake readiness polling ended " +
                 "(attempts: \(attempts), duration: \(durationString)s, reason: \(reason))"
             )
         } else {
+            ZonogySignposts.pointsOfInterest.emitEvent(
+                "WakeReadinessPollingEnd",
+                "attempts=\(attempts) duration=\(durationString, privacy: .public)"
+            )
             Logger.debug(
                 "SleepWake: wake readiness polling ended " +
                 "(attempts: \(attempts), duration: \(durationString)s)"

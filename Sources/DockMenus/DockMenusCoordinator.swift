@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import OSLog
 
 /// Notified when actions occur in DockMenus that require integration with the main app.
 protocol DockMenusCoordinatorDelegate: AnyObject {
@@ -165,6 +166,11 @@ final class DockMenusCoordinator {
 
         let windows = delegate?.dockMenusCoordinator(self, windowsForBundleId: event.bundleIdentifier) ?? []
 
+        ZonogySignposts.pointsOfInterest.emitEvent(
+            "DockMenuShow",
+            "app=\(event.appURL.lastPathComponent, privacy: .public) windows=\(windows.count)"
+        )
+
         Logger.debug("DockMenusCoordinator: showing DockMenu for \(event.appURL.lastPathComponent) with \(windows.count) windows")
         panelController.show(for: event, windows: windows, stableDockFrame: stableDockFrame)
         hoverTracker.menuDidShow(appURL: event.appURL)
@@ -172,6 +178,9 @@ final class DockMenusCoordinator {
     }
 
     private func hideDockMenu() {
+        if panelController.isVisible {
+            ZonogySignposts.pointsOfInterest.emitEvent("DockMenuHide")
+        }
         dismissalPoller.stop()
         panelController.hide()
         hoverTracker.reset()

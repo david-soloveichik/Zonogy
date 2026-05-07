@@ -2,6 +2,7 @@
 
 import AppKit
 import Foundation
+import OSLog
 
 extension Notification.Name {
     static let launcherAppCacheDidReload = Notification.Name("LauncherAppCacheDidReload")
@@ -22,6 +23,15 @@ final class LauncherAppCache {
     func preload() async {
         guard !isLoaded else { return }
 
+        let signpostState = ZonogySignposts.pointsOfInterest.beginInterval("LauncherAppCachePreload")
+        defer {
+            ZonogySignposts.pointsOfInterest.endInterval(
+                "LauncherAppCachePreload",
+                signpostState,
+                "items=\(self.items.count)"
+            )
+        }
+
         let ignoredBundleIds = Configuration.load().ignoredBundleIdentifiers
         let apps = await appProvider.discoverApplications(skipIcons: true)
         let filteredApps = filterIgnoredApps(apps, ignoredBundleIds: ignoredBundleIds)
@@ -37,6 +47,15 @@ final class LauncherAppCache {
     /// Reloads the application list and clears the icon cache.
     /// Also reloads launcher-config.json for alias changes.
     func reload() async {
+        let signpostState = ZonogySignposts.pointsOfInterest.beginInterval("LauncherAppCacheReload")
+        defer {
+            ZonogySignposts.pointsOfInterest.endInterval(
+                "LauncherAppCacheReload",
+                signpostState,
+                "items=\(self.items.count)"
+            )
+        }
+
         iconCache.removeAll()
 
         let ignoredBundleIds = Configuration.load().ignoredBundleIdentifiers

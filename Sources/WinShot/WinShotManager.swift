@@ -1,5 +1,6 @@
 /// Manages per-screen WinShot snapshot storage and lifecycle
 import AppKit
+import OSLog
 
 final class WinShotManager {
     private static let thumbnailHeight: CGFloat = 200
@@ -121,6 +122,11 @@ final class WinShotManager {
         // Store snapshot
         addSnapshot(snapshot, for: screenId)
 
+        ZonogySignposts.pointsOfInterest.emitEvent(
+            "WinShotSnapshotCreated",
+            "screenId=\(screenId) tiled=\(zoneAssignments.count) floating=\(floatingIdentity != nil ? 1 : 0, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+
         Logger.debug(
             "WinShot: Created snapshot \(snapshot.id) on \(ScreenContextStore.logDescription(for: screenId)) with \(zoneAssignments.count) zone windows + \(floatingIdentity != nil ? 1 : 0) floating (reason: \(reason))"
         )
@@ -231,6 +237,14 @@ final class WinShotManager {
     }
 
     private func captureScreenThumbnail(screenId: CGDirectDisplayID) -> NSImage? {
+        let signpostState = ZonogySignposts.pointsOfInterest.beginInterval(
+            "WinShotCaptureThumbnail",
+            "screenId=\(screenId)"
+        )
+        defer {
+            ZonogySignposts.pointsOfInterest.endInterval("WinShotCaptureThumbnail", signpostState)
+        }
+
         guard let cgImage = CGDisplayCreateImage(screenId) else {
             Logger.debug("WinShot: Failed to capture \(ScreenContextStore.logDescription(for: screenId))")
             return nil

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import OSLog
 
 // Bridge to the private AX API that reveals a window's CGWindowID. There is no public
 // Accessibility attribute that exposes this identifier, so we must rely on this symbol.
@@ -32,7 +33,9 @@ enum AXCall {
         _ value: UnsafeMutablePointer<CFTypeRef?>
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXCopyAttribute", detail: attribute as String)
         let status = AXUIElementCopyAttributeValue(element, attribute, value)
+        endAXInterval("AXCopyAttribute", interval, status: status)
         report(start: start, function: "AXUIElementCopyAttributeValue", detail: attribute as String, element: element, status: status)
         return status
     }
@@ -44,7 +47,9 @@ enum AXCall {
         _ value: CFTypeRef
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXSetAttribute", detail: attribute as String)
         let status = AXUIElementSetAttributeValue(element, attribute, value)
+        endAXInterval("AXSetAttribute", interval, status: status)
         report(start: start, function: "AXUIElementSetAttributeValue", detail: attribute as String, element: element, status: status)
         return status
     }
@@ -55,7 +60,9 @@ enum AXCall {
         _ action: CFString
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXPerformAction", detail: action as String)
         let status = AXUIElementPerformAction(element, action)
+        endAXInterval("AXPerformAction", interval, status: status)
         report(start: start, function: "AXUIElementPerformAction", detail: action as String, element: element, status: status)
         return status
     }
@@ -68,12 +75,15 @@ enum AXCall {
         _ element: UnsafeMutablePointer<AXUIElement?>
     ) -> AXError {
         let start = DispatchTime.now()
+        let detail = "(\(x), \(y))"
+        let interval = beginAXInterval("AXElementAtPosition", detail: detail)
         let status = AXUIElementCopyElementAtPosition(application, x, y, element)
+        endAXInterval("AXElementAtPosition", interval, status: status)
         // Hit-tests are commonly issued against the system-wide element, which has no
         // useful pid of its own. When the call returned an element, prefer that — it
         // identifies the actual app whose AX server we just waited on.
         let reportingElement = element.pointee ?? application
-        report(start: start, function: "AXUIElementCopyElementAtPosition", detail: "(\(x), \(y))", element: reportingElement, status: status)
+        report(start: start, function: "AXUIElementCopyElementAtPosition", detail: detail, element: reportingElement, status: status)
         return status
     }
 
@@ -84,7 +94,9 @@ enum AXCall {
         _ settable: UnsafeMutablePointer<DarwinBoolean>
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXIsAttributeSettable", detail: attribute as String)
         let status = AXUIElementIsAttributeSettable(element, attribute, settable)
+        endAXInterval("AXIsAttributeSettable", interval, status: status)
         report(start: start, function: "AXUIElementIsAttributeSettable", detail: attribute as String, element: element, status: status)
         return status
     }
@@ -95,7 +107,9 @@ enum AXCall {
         _ windowID: UnsafeMutablePointer<CGWindowID>
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXGetWindowID", detail: nil)
         let status = _AXUIElementGetWindow(element, windowID)
+        endAXInterval("AXGetWindowID", interval, status: status)
         report(start: start, function: "_AXUIElementGetWindow", detail: nil, element: element, status: status)
         return status
     }
@@ -107,7 +121,9 @@ enum AXCall {
         _ observer: UnsafeMutablePointer<AXObserver?>
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXCreateObserver", detail: "pid=\(application)")
         let status = AXObserverCreate(application, callback, observer)
+        endAXInterval("AXCreateObserver", interval, status: status)
         report(start: start, function: "AXObserverCreate", detail: nil, pid: application, status: status)
         return status
     }
@@ -120,7 +136,9 @@ enum AXCall {
         _ refcon: UnsafeMutableRawPointer?
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXAddObserverNotification", detail: notification as String)
         let status = AXObserverAddNotification(observer, element, notification, refcon)
+        endAXInterval("AXAddObserverNotification", interval, status: status)
         report(start: start, function: "AXObserverAddNotification", detail: notification as String, element: element, status: status)
         return status
     }
@@ -132,9 +150,26 @@ enum AXCall {
         _ notification: CFString
     ) -> AXError {
         let start = DispatchTime.now()
+        let interval = beginAXInterval("AXRemoveObserverNotification", detail: notification as String)
         let status = AXObserverRemoveNotification(observer, element, notification)
+        endAXInterval("AXRemoveObserverNotification", interval, status: status)
         report(start: start, function: "AXObserverRemoveNotification", detail: notification as String, element: element, status: status)
         return status
+    }
+
+    private static func beginAXInterval(_ name: StaticString, detail: String?) -> OSSignpostIntervalState? {
+        let signposter = ZonogySignposts.pointsOfInterest
+        guard signposter.isEnabled else { return nil }
+        return signposter.beginInterval(name, "detail=\(detail ?? "none", privacy: .public)")
+    }
+
+    private static func endAXInterval(_ name: StaticString, _ state: OSSignpostIntervalState?, status: AXError) {
+        guard let state else { return }
+        ZonogySignposts.pointsOfInterest.endInterval(
+            name,
+            state,
+            "status=\(status.logDescription, privacy: .public)"
+        )
     }
 
     private static func report(
