@@ -76,7 +76,9 @@ extension AppController: CmdTabControllerDelegate {
             let element = window.backing.element
             let pid = window.backing.pid
 
-            // Get title from AX
+            // Get title from AX. Read intentionally includes parked (minimized) windows —
+            // CmdTab surfaces them so the user can switch to and unminimize them. Do NOT
+            // gate on `isPlacedInZone`. Cacheable via a future title cache.
             var titleRef: CFTypeRef?
             _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
             var title = (titleRef as? String) ?? ""

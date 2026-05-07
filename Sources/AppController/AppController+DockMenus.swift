@@ -88,6 +88,9 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
 
         // Fallback: construct a minimal LauncherWindowItem for drag feedback and placement.
+        // Single AX title read on a cold drag-fallback path. The window may be parked —
+        // do NOT gate on `isPlacedInZone`; the user is initiating a drag and needs a
+        // displayable title.
         let element = preferredManaged.backing.element
         let pid = preferredManaged.backing.pid
 

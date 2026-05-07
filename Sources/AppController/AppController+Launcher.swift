@@ -476,7 +476,9 @@ extension AppController: LauncherControllerDelegate {
                 continue
             }
 
-            // Check title (must have a title to be considered a real window)
+            // Title read intentionally includes parked (minimized) windows: Launcher's
+            // app-drilldown surfaces them so users can re-activate. Do NOT gate on
+            // `isPlacedInZone` here. If a title cache is added later, read it from cache.
             var titleRef: CFTypeRef?
             _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {
@@ -734,7 +736,11 @@ extension AppController: LauncherWindowProvider {
             }
             let element = window.backing.element
 
-            // Get title from AX (not cached - titles change frequently)
+            // Get title from AX. Read intentionally includes parked (minimized) windows
+            // since the Launcher and DockMenus surface them. This call also feeds
+            // `dockMenusCoordinator(_, windowsForBundleId:)`, where freshness is
+            // user-visible — if a title cache is added later, that path must refresh
+            // titles each time a DockMenu is shown rather than serve a stale entry.
             var titleRef: CFTypeRef?
             _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
             var title = (titleRef as? String) ?? ""
@@ -781,7 +787,9 @@ extension AppController: LauncherWindowProvider {
                 continue
             }
 
-            // Check title (still need AX for this - titles change)
+            // Title read intentionally includes parked (minimized) windows — they count
+            // for the per-app window count in switcher UIs. Do NOT gate on
+            // `isPlacedInZone`. Cacheable via a future title cache.
             var titleRef: CFTypeRef?
             _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
             if let title = titleRef as? String, !title.isEmpty {

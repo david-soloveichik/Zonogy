@@ -227,11 +227,12 @@ class WindowController {
         var aliveCacheMisses = 0
         var staleByCGWindowList = 0
         var staleByAX = 0
+        var parkedSkips = 0
         defer {
             ZonogySignposts.pointsOfInterest.endInterval(
                 "PruneDestroyed",
                 signpostState,
-                "considered=\(considered, privacy: .public) cacheHits=\(aliveCacheHits, privacy: .public) cacheMisses=\(aliveCacheMisses, privacy: .public) staleCG=\(staleByCGWindowList, privacy: .public) staleAX=\(staleByAX, privacy: .public)"
+                "considered=\(considered, privacy: .public) cacheHits=\(aliveCacheHits, privacy: .public) cacheMisses=\(aliveCacheMisses, privacy: .public) parkedSkips=\(parkedSkips, privacy: .public) staleCG=\(staleByCGWindowList, privacy: .public) staleAX=\(staleByAX, privacy: .public)"
             )
         }
 
@@ -252,6 +253,21 @@ class WindowController {
             if !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
                 staleByCGWindowList += 1
                 stale.append((windowId, managed, "missing-from-cgwindowlist"))
+                continue
+            }
+
+            // Don't fire AX queries at parked windows (minimized or otherwise unplaced).
+            // Parked windows aren't in zones, so we're not actively using their AX state,
+            // and the target app may be App-Napping — an AX read here forces a wake-up
+            // for no observable user benefit. CGWindowList already covers the destruction
+            // path for parked windows; the AX safety-net only mattered for the rare
+            // "still listed but AX-element invalid" edge case, which is even rarer for
+            // a window the user has actively parked.
+            //
+            // Checked before the cache-hit branch so the `parkedSkips` counter cleanly
+            // measures the skip-on-parked rule independent of cache state.
+            if !managed.isPlacedInZone {
+                parkedSkips += 1
                 continue
             }
 
