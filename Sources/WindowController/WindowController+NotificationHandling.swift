@@ -17,6 +17,23 @@ extension WindowController {
         accessibilityWatcher.registerWindowNotifications(for: element, pid: pid)
     }
 
+    /// Refresh the per-window liveness timestamp used by `pruneDestroyedExternalWindows`.
+    /// Receiving an AX notification (or completing any successful AX read) for a window
+    /// is direct evidence that its element is still alive, so this lets the prune cache
+    /// stay warm without needing a dedicated AX round trip on the next sync.
+    ///
+    /// `sourceElement` must be the AX element the signal was observed on. We require it
+    /// to equal the window's currently-stored backing element so that a delayed
+    /// notification arriving from a pre-rebind element does not falsely refresh the
+    /// timestamp for the now-different backing.
+    internal func noteWindowAliveFromAX(windowId: Int, sourceElement: AXUIElement) {
+        guard let managed = windowRegistry.window(withId: windowId),
+              CFEqual(managed.backing.element, sourceElement) else {
+            return
+        }
+        lastConfirmedAliveAt[windowId] = Date()
+    }
+
     /// Find a managed window matching an accessibility element.
     internal func managedWindow(matching element: AXUIElement) -> ManagedWindow? {
         let elementKey = AccessibilityElementKey(element: element)
@@ -72,6 +89,14 @@ extension WindowController {
                 }
             }
             return
+        }
+
+        // Any notification we successfully resolved to a managed window is itself proof
+        // that the window's AX element is alive — except the destroy notification, which
+        // contradicts the signal. Refreshing here keeps the prune cache warm across the
+        // long quiet periods between bursty ZoneSyncs.
+        if notificationName != axDestroyedNotification {
+            noteWindowAliveFromAX(windowId: managed.windowId, sourceElement: element)
         }
 
         switch notificationName {
@@ -193,7 +218,9 @@ extension WindowController {
             focusedWindowId = managed.windowId
         }
 
-        if focusedWindowId == nil {
+        if let focusedWindowId {
+            noteWindowAliveFromAX(windowId: focusedWindowId, sourceElement: element)
+        } else {
             let bundleId = NSRunningApplication(processIdentifier: targetPid)?.bundleIdentifier ?? "unknown"
             Logger.debug("AXMainWindowChanged: unable to resolve focused window id for pid \(targetPid) (bundle: \(bundleId))")
         }
@@ -221,7 +248,9 @@ extension WindowController {
             } else if let managed = managedWindow(matching: element) {
                 focusedWindowId = managed.windowId
             }
-            if focusedWindowId == nil {
+            if let focusedWindowId {
+                noteWindowAliveFromAX(windowId: focusedWindowId, sourceElement: element)
+            } else {
                 let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
                 Logger.debug("AXFocusedWindowChanged: unable to resolve focused window id for pid \(pid) (bundle: \(bundleId))")
             }
