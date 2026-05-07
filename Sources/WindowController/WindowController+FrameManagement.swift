@@ -55,7 +55,8 @@ extension WindowController {
                 windowId: managedWindow.windowId,
                 element: element,
                 targetScreenFrame: effectiveTargetScreenFrame,
-                screen: screen
+                screen: screen,
+                precomputedCurrentFrame: currentFrame
             )
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
@@ -127,10 +128,14 @@ extension WindowController {
         windowId: Int,
         element: AXUIElement,
         targetScreenFrame: CGRect,
-        screen: ScreenDescriptor
+        screen: ScreenDescriptor,
+        precomputedCurrentFrame: CGRect? = nil
     ) {
         let targetAccessibilityFrame = screen.screenToAccessibility(targetScreenFrame)
-        let currentFrame = accessibilityFrameForWindow(element: element, on: screen)
+        // Reuse the caller's current-frame read if it has one. moveWindow already
+        // reads the frame for its skip-if-already-at-target check; reading again
+        // here would just duplicate the AX-IPC round trip on every actual move.
+        let currentFrame = precomputedCurrentFrame ?? accessibilityFrameForWindow(element: element, on: screen)
         let visibleBounds = screen.visibleScreenBounds
         // Decide whether to move first or resize first so the in-between frame stays on-screen if possible
         let order = preferredAccessibilityUpdateOrder(
