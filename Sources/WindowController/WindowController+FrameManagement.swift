@@ -171,16 +171,24 @@ extension WindowController {
             return
         }
 
-        if !framesRoughlyEqual(actual, targetScreenFrame) {
-            logFrameMismatch(
-                windowId: windowId,
-                screen: screen,
-                context: "post-apply",
-                target: targetScreenFrame,
-                actual: actual,
-                order: order
-            )
+        // The opposite-order pass exists to recover from cases where the first order put
+        // the window into an intermediate state that prevented full settlement (e.g., the
+        // size couldn't apply at the old origin but can at the new one). When the first
+        // pass already settled to target, that pass would re-issue identical writes that
+        // produce no change in the window but still cost two AX-IPC round trips and trigger
+        // notification cascades in the target app — pure waste. Skip it in that case.
+        if framesRoughlyEqual(actual, targetScreenFrame) {
+            return
         }
+
+        logFrameMismatch(
+            windowId: windowId,
+            screen: screen,
+            context: "post-apply",
+            target: targetScreenFrame,
+            actual: actual,
+            order: order
+        )
 
         // Try opposite order immediately
         let retryOrder = order.opposite
