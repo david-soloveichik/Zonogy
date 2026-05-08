@@ -66,6 +66,28 @@ To inspect slow calls in `/tmp/zonogy-debug.log`:
 - All slow calls: `grep '\[SLOW-AX\]' /tmp/zonogy-debug.log`
 - Only calls of 1 second or longer: `grep -E '\[SLOW-AX\].*took [0-9]{4,}ms' /tmp/zonogy-debug.log` (the `{4,}` matches 4+ digit millisecond counts, i.e. ≥ 1000ms)
 
+## Reducing Accessibility API Cost
+
+Each synchronous Accessibility API call is an inter-process request: the target application must be scheduled, read its own state, and reply. When Zonogy issues many such calls per second across many tracked windows, this drains battery both directly (Zonogy's own CPU work) and indirectly (waking applications that macOS's App Nap would otherwise leave idle). The mechanisms below keep that volume low without changing user-visible behavior.
+
+### Liveness-check cache for prune
+
+The destroyed-window prune pass runs on every full sync. For each tracked window it first checks `CGWindowListCopyWindowInfo` (cheap, no per-app accessibility IPC); if the window is still listed, it falls back to an accessibility safety-net read for the rare "still listed but accessibility element invalid" case.
+
+The safety-net is throttled by a per-window timestamp cache with a 5-second time-to-live. The cache is also refreshed at notification dispatch time: any incoming AX move, resize, miniaturize, deminiaturize, focus-change, or main-window-change notification for a tracked window is itself proof the element is alive, so the corresponding cache entry is refreshed without an additional read.
+
+### Skipping the safety-net for minimized windows
+
+Even with the cache, the safety-net still fires for windows that haven't received recent AX notifications. When such a window is minimized, the read is wasted work: Zonogy isn't acting on its accessibility state, and the target application is more likely to be in App Nap, so the read forces a wake-up to confirm something the user can't observe. The safety-net is skipped entirely for minimized windows. `CGWindowListCopyWindowInfo` still runs unconditionally, so the primary destruction signal is unchanged.
+
+### Single-pass window placement when the first pass settles
+
+When applying a target frame, the placement code first chooses a position-vs-size order so the in-progress frame stays inside the visible screen, applies it, and reads back the resulting frame to verify. If the first pass produced the target frame, the move is done. Otherwise, it follows up with the opposite order as a recovery step, falling through to the existing retry chain if needed.
+
+### Reusing the current frame read
+
+The move pipeline reads the window's current frame once at entry. The same value serves both the skip-if-at-target check and the placement step's apply-order decision.
+
 ## Accessibility API Workarounds
 
 ### Retry Mechanisms Tied to Accessibility
