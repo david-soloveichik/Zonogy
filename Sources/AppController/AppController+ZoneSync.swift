@@ -404,6 +404,9 @@ extension AppController {
         refreshIndicators()
         refreshResizeHandles()
         launcherController.repositionIfNeeded()
+        // Refresh Launcher's zone-derived row data; it's snapshotted at open time
+        // and would otherwise stay stale after the optimistic auto-show.
+        launcherController.refreshZoneDerivedDataIfActive()
     }
 
     func requestSync() {

@@ -356,6 +356,18 @@ final class LauncherController {
         refreshKeyWindowIfActive()
     }
 
+    /// Re-derives zone-dependent data (per-app "default window in zone" status and
+    /// per-app window counts) from the current window/zone state. Called after any
+    /// zone sync so the visible Launcher row glyphs and badges stay consistent
+    /// with the optimistic auto-show path, where the Launcher is shown before the
+    /// AX miniaturize/deminiaturize notifications update zone bookkeeping.
+    func refreshZoneDerivedDataIfActive() {
+        guard isActive else { return }
+        MainActor.assumeIsolated {
+            self.model?.refreshDefaultWindowZoneStatus()
+        }
+    }
+
     // MARK: - Event Handling
 
     private func handleAppLaunch(url: URL) {

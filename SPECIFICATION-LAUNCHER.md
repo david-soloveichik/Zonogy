@@ -70,6 +70,8 @@ The launcher window should be a floating panel that stays above all other window
    - Icon (application icon, window glyph, or file icon)
    - Display name
    - Running indicator (small dot) for running applications
+   - Window-in-zone indicator (small window glyph after the name) for running applications whose preferred window is currently placed in a tiling or floating zone. The preferred window is the one that selecting the app would activate (see Window Placement → "If selecting a running app with 1+ managed windows").
+   - Window count (small number next to the expandable indicator) for running applications with one or more managed windows
    - Expandable indicator (">") for running applications
 
 ### Empty State
