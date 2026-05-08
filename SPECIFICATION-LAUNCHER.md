@@ -23,7 +23,8 @@ The Launcher opens via:
   - After a zone is added.
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. Exception: after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed. (Zone removal applies its own rule above, which takes precedence.)
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
+  Exceptions: (a) after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed; (b) the target-navigation keyboard shortcuts (Control-Cmd-Up, Control-Cmd-Down, Control-Cmd-Left, Control-Cmd-Right) never open or close the Launcher (even if new target is a filled tiling zone).
 
 ## Dismissal
 

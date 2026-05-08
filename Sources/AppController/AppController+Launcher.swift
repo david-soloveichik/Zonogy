@@ -83,6 +83,9 @@ extension AppController {
             if targetedZoneManager.isZoneEmpty(key) {
                 launcherController.repositionToCurrentTarget()
                 Logger.debug("Launcher: Repositioned for empty target zone \(key.index)")
+            } else if keepLauncherVisibleAcrossTargetNavigation {
+                launcherController.repositionToCurrentTarget()
+                Logger.debug("Launcher: Repositioned for navigation-shortcut target zone \(key.index)")
             } else {
                 launcherController.hide()
                 Logger.debug("Launcher: Hidden because target zone \(key.index) is occupied")

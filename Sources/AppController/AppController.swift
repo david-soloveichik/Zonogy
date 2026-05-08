@@ -216,6 +216,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Active Launcher shortcut-targeting session, used to toggle between the session's
     /// original target and the currently active window's destination while Launcher is open.
     internal var launcherRetargetSession: TemporaryRetargetSession?
+    /// Set by target-navigation keyboard shortcuts (Control-Cmd-Up/Down/Left/Right) so that
+    /// the next target change keeps an already-visible Launcher anchored to the new target —
+    /// even when the new target is an occupied tiling zone — rather than dismissing it.
+    /// Reset to false after the shortcut's retarget is processed.
+    internal var keepLauncherVisibleAcrossTargetNavigation: Bool = false
     /// Active CmdTab temporary-retarget session, if CmdTab opened after changing the target.
     internal var cmdTabRetargetSession: TemporaryRetargetSession?
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).

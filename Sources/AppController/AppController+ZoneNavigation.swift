@@ -293,95 +293,113 @@ extension AppController {
 
     /// Target the floating zone, preferring the screen of the currently targeted normal zone
     internal func targetFloatingZone() {
-        guard let targetedZone = targetedZoneManager.targetedZoneKey else {
-            Logger.debug("Target floating zone: normal zone not targeted; shortcut ignored")
-            return
-        }
-
-        let preferredScreenId: CGDirectDisplayID
-        if screenContexts[targetedZone.screenId] != nil {
-            preferredScreenId = targetedZone.screenId
-        } else {
-            let active = activeScreenId()
-            if screenContexts[active] != nil {
-                preferredScreenId = active
-            } else {
-                preferredScreenId = screenOrder.first ?? active
+        performTargetNavigationShortcut {
+            guard let targetedZone = targetedZoneManager.targetedZoneKey else {
+                Logger.debug("Target floating zone: normal zone not targeted; shortcut ignored")
+                return
             }
-        }
 
-        let screenIndex = screenContextStore.loggingIndex(for: preferredScreenId)
-        Logger.debug("Target floating zone: setting floating zone on screen \(screenIndex) as target")
-        targetedZoneManager.setFloatingTarget(on: preferredScreenId, reason: "shortcut-target-floating")
+            let preferredScreenId: CGDirectDisplayID
+            if screenContexts[targetedZone.screenId] != nil {
+                preferredScreenId = targetedZone.screenId
+            } else {
+                let active = activeScreenId()
+                if screenContexts[active] != nil {
+                    preferredScreenId = active
+                } else {
+                    preferredScreenId = screenOrder.first ?? active
+                }
+            }
+
+            let screenIndex = screenContextStore.loggingIndex(for: preferredScreenId)
+            Logger.debug("Target floating zone: setting floating zone on screen \(screenIndex) as target")
+            targetedZoneManager.setFloatingTarget(on: preferredScreenId, reason: "shortcut-target-floating")
+        }
     }
 
     /// Target tiling zone: from floating zone to normal zone on same screen
     internal func targetTilingZone() {
-        guard let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId else {
-            Logger.debug("Target tiling zone: floating zone not targeted, doing nothing")
-            return
+        performTargetNavigationShortcut {
+            guard let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId else {
+                Logger.debug("Target tiling zone: floating zone not targeted, doing nothing")
+                return
+            }
+
+            guard let context = screenContexts[targetedFloatingScreenId] else {
+                Logger.debug("Target tiling zone: no context for floating zone screen")
+                return
+            }
+
+            let zones = context.zoneController.allZones
+
+            // Prefer empty tiling zone with lowest index
+            let emptyZones = zones.filter { $0.isEmpty }.sorted { $0.index < $1.index }
+            if let firstEmptyZone = emptyZones.first {
+                let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstEmptyZone.index)
+                Logger.debug("Target tiling zone: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
+                targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
+                return
+            }
+
+            // If no empty zone, target filled zone with highest index
+            let filledZones = zones.filter { !$0.isEmpty }.sorted { $0.index > $1.index }
+            if let firstFilledZone = filledZones.first {
+                let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstFilledZone.index)
+                Logger.debug("Target tiling zone: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
+                targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
+                return
+            }
+
+            Logger.debug("Target tiling zone: no zones available on screen")
         }
-
-        guard let context = screenContexts[targetedFloatingScreenId] else {
-            Logger.debug("Target tiling zone: no context for floating zone screen")
-            return
-        }
-
-        let zones = context.zoneController.allZones
-
-        // Prefer empty tiling zone with lowest index
-        let emptyZones = zones.filter { $0.isEmpty }.sorted { $0.index < $1.index }
-        if let firstEmptyZone = emptyZones.first {
-            let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstEmptyZone.index)
-            Logger.debug("Target tiling zone: targeting empty zone \(firstEmptyZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
-            return
-        }
-
-        // If no empty zone, target filled zone with highest index
-        let filledZones = zones.filter { !$0.isEmpty }.sorted { $0.index > $1.index }
-        if let firstFilledZone = filledZones.first {
-            let zoneKey = ZoneKey(screenId: targetedFloatingScreenId, index: firstFilledZone.index)
-            Logger.debug("Target tiling zone: targeting filled zone \(firstFilledZone.index) on screen \(screenContextStore.loggingIndex(for: targetedFloatingScreenId))")
-            targetedZoneManager.setTargetedZone(zoneKey, reason: "shortcut-target-tiling-zone")
-            return
-        }
-
-        Logger.debug("Target tiling zone: no zones available on screen")
     }
 
     /// Navigate left: between zones or screens
     internal func navigateLeft() {
-        // If floating zone is targeted, go to floating zone on screen to the left
-        if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
-            navigateFloatingZoneLeft(from: targetedFloatingScreenId)
-            return
-        }
+        performTargetNavigationShortcut {
+            // If floating zone is targeted, go to floating zone on screen to the left
+            if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
+                navigateFloatingZoneLeft(from: targetedFloatingScreenId)
+                return
+            }
 
-        // If normal zone is targeted, navigate to lower index or previous screen
-        if let targetedKey = targetedZoneManager.targetedZoneKey {
-            navigateNormalZoneLeft(from: targetedKey)
-            return
-        }
+            // If normal zone is targeted, navigate to lower index or previous screen
+            if let targetedKey = targetedZoneManager.targetedZoneKey {
+                navigateNormalZoneLeft(from: targetedKey)
+                return
+            }
 
-        Logger.debug("Navigate left: no zone targeted")
+            Logger.debug("Navigate left: no zone targeted")
+        }
     }
 
     /// Navigate right: between zones or screens
     internal func navigateRight() {
-        // If floating zone is targeted, go to floating zone on screen to the right
-        if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
-            navigateFloatingZoneRight(from: targetedFloatingScreenId)
-            return
-        }
+        performTargetNavigationShortcut {
+            // If floating zone is targeted, go to floating zone on screen to the right
+            if let targetedFloatingScreenId = targetedZoneManager.targetedFloatingScreenId {
+                navigateFloatingZoneRight(from: targetedFloatingScreenId)
+                return
+            }
 
-        // If normal zone is targeted, navigate to higher index or next screen
-        if let targetedKey = targetedZoneManager.targetedZoneKey {
-            navigateNormalZoneRight(from: targetedKey)
-            return
-        }
+            // If normal zone is targeted, navigate to higher index or next screen
+            if let targetedKey = targetedZoneManager.targetedZoneKey {
+                navigateNormalZoneRight(from: targetedKey)
+                return
+            }
 
-        Logger.debug("Navigate right: no zone targeted")
+            Logger.debug("Navigate right: no zone targeted")
+        }
+    }
+
+    /// Wrap a target-navigation keyboard shortcut so a visible Launcher follows the new
+    /// target instead of dismissing on occupied tiling zones, and a closed Launcher
+    /// stays closed (no auto-show is triggered along the navigation path).
+    private func performTargetNavigationShortcut(_ block: () -> Void) {
+        let wasLauncherActive = launcherController.isActive
+        keepLauncherVisibleAcrossTargetNavigation = wasLauncherActive
+        defer { keepLauncherVisibleAcrossTargetNavigation = false }
+        block()
     }
 
     private func navigateFloatingZoneLeft(from currentScreenId: CGDirectDisplayID) {
