@@ -95,6 +95,22 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 - **Screen Recording Permissions** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
 - **Automation Permissions** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.
 
+## Limitations
+
+- **Not compatible with native MacOS tabs.** Currently, the Accessibility API does not let us distinguish native tabs from separate windows. (Note that tabs in Safari, Chrome, and many other applications are not "native" MacOS tabs, and thus cause no issues.) I suggest *System Settings* > *Desktop & Dock* > *Prefer tabs when opening documents*: "Never".
+- **Not compatible with native MacOS Spaces or Stage Manager.** Zonogy is meant to replace these native features.
+
+## Additional Suggestions
+
+- **Recommended.** Since Zonogy uses window minimization extensively, I suggest *System Settings* > *Desktop & Dock* > *Minimize windows using*: "Scale Effect" (appears faster than the default Genie), and *System Settings* > *Desktop & Dock* > *Minimize windows into application icon*: on (so minimized windows don't fill up the Dock).
+- **Optional.** Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
+
+  ```sh
+  $ defaults write -g NSZoomButtonShowMenu -bool no
+  $ # to bring it back:
+  $ defaults delete -g NSZoomButtonShowMenu
+  ```
+
 ## Development
 
 Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the repo serve as the single source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
@@ -102,13 +118,3 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 ## History
 
 My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically *opinionated* and reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
-
-## Additional suggestions
-
-Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
-
-```sh
-$ defaults write -g NSZoomButtonShowMenu -bool no
-$ # to bring it back:
-$ defaults delete -g NSZoomButtonShowMenu
-```
