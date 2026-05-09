@@ -155,7 +155,8 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
   2. Lowest-index empty tiling zone on a different screen (tie-break by screen index; lower is preferred)
   3. Floating zone on the same screen
   4. Floating zone on a different screen (tie-break by screen index; lower is preferred)
-- If a floating zone is filled or emptied: keep the current target.
+- If a floating zone is filled: keep the current target.
+- If a floating zone is emptied because its window is minimized or closed (etc): If the current target is another floating zone (e.g., on a different screen), retarget to the now-empty floating zone. (Conceptually, floating-zone emptying is "weaker" than tiling-zone emptying as it never steals targeting from a tiling zone, only from another floating zone.)
 - If the targeted tiling zone is removed: retarget using the same priority order as above.
 - If the targeted destination becomes invalid (zone removed, screen removed, etc): repair it using the same priority order as above.
 

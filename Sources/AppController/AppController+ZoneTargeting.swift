@@ -20,6 +20,11 @@ extension AppController {
             dragDropCoordinator.tearDownDragSession()
         }
 
+        // Capture floating-zone occupancy before any clearing happens, so we can apply
+        // the floating-empty retarget rule below after the floating slot is cleared.
+        let floatingScreenIdBeforeClear = floatingZoneCoordinator.occupants
+            .first(where: { $0.value == windowId })?.key
+
         // Clear the window's record of its zone assignment (ManagedWindow -> Zone)
         if let managed = windowController.window(withId: windowId) {
             clearManagedWindowZone(managed)
@@ -51,6 +56,20 @@ extension AppController {
         }
 
         clearFloatingZone(for: windowId, minimize: false, reason: reason)
+
+        // Specification: when a floating zone is emptied (window minimized/closed) and the
+        // current target is *another* floating zone, retarget to the now-empty floating zone.
+        // Floating zones are "weaker" — they never steal targeting from tiling zones. Gated
+        // by `retarget` to honor the explicit-reassignment exception (Launcher/DockMenu drops
+        // pass `retarget: false`).
+        if retarget,
+           let emptiedFloatingScreenId = floatingScreenIdBeforeClear,
+           let retargetScreenId = FloatingZoneEmptyRetargetPolicy.retargetScreenId(
+               emptiedScreenId: emptiedFloatingScreenId,
+               currentTarget: targetedZoneManager.targetedDestination
+           ) {
+            targetedZoneManager.setFloatingTarget(on: retargetScreenId, reason: reason)
+        }
 
         if !removed, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")

@@ -72,7 +72,15 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Promoting floating zone occupant \(occupant.windowId) into new zone \(zone.index) on screen \(screenIndex): overlaps zone frame")
-        windowPlacementManager.placeWindow(occupant, into: ZoneKey(screenId: screenId, index: zone.index), reason: "add-zone-promote-overlap")
+        // Explicit floating→tile promotion: don't retarget on removal of the floating source.
+        windowPlacementManager.placeWindow(
+            occupant,
+            into: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
+            centerFloatingWindow: true,
+            reason: "add-zone-promote-overlap",
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: false
+        )
     }
 
     func removeZone(at index: Int) {

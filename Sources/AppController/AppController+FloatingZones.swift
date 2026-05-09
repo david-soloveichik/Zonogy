@@ -120,7 +120,16 @@ extension AppController {
             }
 
             Logger.debug("Promoting floating zone occupant \(occupant.windowId) to zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
-            windowPlacementManager.placeWindow(occupant, into: zoneKey, reason: reason)
+            // Explicit floating→tile promotion: don't retarget on removal of the floating
+            // source (preserves the user's current target per the spec's reassignment exception).
+            windowPlacementManager.placeWindow(
+                occupant,
+                into: .tiled(zoneKey),
+                centerFloatingWindow: true,
+                reason: reason,
+                retargetOnRemoval: false,
+                forceRetargetAfterFill: false
+            )
         }
     }
 

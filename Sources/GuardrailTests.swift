@@ -42,6 +42,9 @@ enum GuardrailTests {
         if !FloatingZoneOverlapPolicyTests.run() {
             allPassed = false
         }
+        if !FloatingZoneEmptyRetargetPolicyTests.run() {
+            allPassed = false
+        }
         if !FullScreenPlacementPolicyTests.run() {
             allPassed = false
         }

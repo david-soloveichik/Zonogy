@@ -274,7 +274,15 @@ extension AppController {
                 zoneFrame: zoneFrame
             ) {
                 Logger.debug("Promoting floating zone occupant \(occupant.windowId) into zone \(zoneIndex) on screen \(screenIndex) (placeholder-activated)")
-                windowPlacementManager.placeWindow(occupant, into: key, reason: "placeholder-activated-promotion")
+                // Explicit floating→tile promotion: don't retarget on removal of the floating source.
+                windowPlacementManager.placeWindow(
+                    occupant,
+                    into: .tiled(key),
+                    centerFloatingWindow: true,
+                    reason: "placeholder-activated-promotion",
+                    retargetOnRemoval: false,
+                    forceRetargetAfterFill: false
+                )
             }
         }
         if isDoubleClick && !cmdTabController.isActive {

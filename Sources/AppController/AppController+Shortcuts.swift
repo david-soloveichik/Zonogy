@@ -373,8 +373,18 @@ extension AppController {
 
         // Move the floating window into tiling zone 1 via the standard placement pipeline so
         // floating-zone bookkeeping, frame retargeting, and activation all stay consistent.
+        // Explicit floating→tile promotion: don't retarget on removal of the floating source
+        // (preserves the user's current target per the spec's reassignment exception, including
+        // the case where target is a floating zone on a different screen).
         let zone1Key = ZoneKey(screenId: screenId, index: 1)
-        windowPlacementManager.placeWindow(floatingWindow, into: zone1Key, reason: reason)
+        windowPlacementManager.placeWindow(
+            floatingWindow,
+            into: .tiled(zone1Key),
+            centerFloatingWindow: true,
+            reason: reason,
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: false
+        )
 
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: reason)
