@@ -59,6 +59,22 @@ notarize() {
 }
 
 step "Sanity checks"
+# Defense in depth: refuse to release from an untrusted CI context (e.g., a
+# pull_request event running fork-controlled code). The signing identity and
+# notary credentials live in the local keychain; if a future CI workflow ever
+# exposes them on PR events, an attacker's PR could get its modified app
+# signed and notarized under this project's Developer ID without ever needing
+# to exfiltrate the secrets themselves. Releases must come from a protected
+# tag/branch after review. Set ZONOGY_RELEASE_OVERRIDE=1 to bypass intentionally.
+if [[ "${CI:-}" == "true" \
+   && ( "${GITHUB_EVENT_NAME:-}" == "pull_request" \
+     || "${GITHUB_EVENT_NAME:-}" == "pull_request_target" ) \
+   && "${ZONOGY_RELEASE_OVERRIDE:-}" != "1" ]]; then
+  echo "Refusing to release from a CI pull_request event."
+  echo "Releases must run on a protected tag/branch after review."
+  echo "Set ZONOGY_RELEASE_OVERRIDE=1 to bypass intentionally."
+  exit 1
+fi
 security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY" \
   || { echo "Signing identity not found: $SIGN_IDENTITY"; exit 1; }
 xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
