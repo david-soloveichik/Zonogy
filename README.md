@@ -73,7 +73,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 ## Default Keyboard Shortcuts (configurable)
 
-> **Tip:** Most default Zonogy shortcuts use `Control-Cmd` as the modifier. Using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap Caps Lock to `Control-Cmd` makes all of them single-hand accessible — e.g., Caps Lock + Space opens the Launcher.
+> **Tip:** Most default Zonogy shortcuts use `Control-Cmd` as the modifier. See [Additional Suggestions](#additional-suggestions) below for using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap `Caps Lock` to `Control-Cmd`.
 
 | Shortcut | Action |
 | --- | --- |
@@ -106,14 +106,16 @@ Apps don't expose enough information for Zonogy to always make the right choices
 
 ## Additional Suggestions
 
-- **Recommended.** Since Zonogy uses window minimization extensively, I suggest *System Settings* > *Desktop & Dock* > *Minimize windows using*: "Scale Effect" (appears faster than the default Genie), and *System Settings* > *Desktop & Dock* > *Minimize windows into application icon*: on (so minimized windows don't fill up the Dock).
-- **Optional.** Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
+- **Highly recommended.** Since Zonogy uses window minimization extensively, I suggest *System Settings* > *Desktop & Dock* > *Minimize windows using*: "Scale Effect" (appears faster than the default Genie), and *System Settings* > *Desktop & Dock* > *Minimize windows into application icon*: on (so minimized windows don't fill up the Dock).
+- Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
 
   ```sh
   $ defaults write -g NSZoomButtonShowMenu -bool no
   $ # to bring it back:
   $ defaults delete -g NSZoomButtonShowMenu
   ```
+
+- Most default Zonogy shortcuts use `Control-Cmd` as the modifier. Using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap `Caps Lock` to `Control-Cmd` is very convenient. The [config I use](docs/karabiner-elements.md) sets this up, with the bonus that tapping `Caps Lock` on its own opens the Launcher.
 
 ## Development
 
