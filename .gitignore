@@ -39,6 +39,9 @@ Brewfile.lock.json
 # Built app bundle
 *.app
 
+# Release artifacts
+dist/
+
 PLANNING/
 EXPERIMENTS/
 log.txt
