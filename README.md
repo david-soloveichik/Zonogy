@@ -1,8 +1,8 @@
 # Zonogy
 
-Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source.
+Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source (MIT license).
 
-Zonogy divides each screen into persistent tiling zones plus a floating zone, with one zone targeted for the next window. Entire arrangements can be snapshotted to switch working contexts, and you can find any window with a keyboard-driven Launcher or hover-over Dock menus.
+Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is targeted for the next window. Entire arrangements can be snapshotted to switch working contexts, and you can find any window with a keyboard-driven Launcher or hover-over Dock menus.
 
 > Philosophy: An intentional place for every window.
 
@@ -99,6 +99,10 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 - **Not compatible with native MacOS tabs.** Currently, the Accessibility API does not let us distinguish native tabs from separate windows. (Note that tabs in Safari, Chrome, and many other applications are not "native" MacOS tabs, and thus cause no issues.) I suggest *System Settings* > *Desktop & Dock* > *Prefer tabs when opening documents*: "Never".
 - **Not compatible with native MacOS Spaces or Stage Manager.** Zonogy is meant to replace these native features.
+
+## Per-App Exceptions
+
+Apps don't expose enough information for Zonogy to always make the right choices about which windows to manage and how. The [Exceptions](docs/preferences-exceptions.md) tab of Zonogy Preferences lets you add per-app overrides.
 
 ## Additional Suggestions
 
