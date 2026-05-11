@@ -85,6 +85,26 @@ extension AppController {
         return true
     }
 
+    /// Resolves an Option-drag drop into a "new window of `appURL`" action.
+    /// Targets the resolved zone and then either posts Cmd-N to the running app or launches
+    /// it (which naturally creates a new window). The new window flows into the targeted zone
+    /// via Zonogy's normal placement.
+    @discardableResult
+    internal func performCursorDrivenNewWindowDrop(
+        for appURL: URL,
+        cursorPointAX: CGPoint?,
+        reason: String
+    ) -> Bool {
+        let target = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
+        guard applyCursorDrivenLaunchTarget(target, reason: reason) else {
+            Logger.debug("Cursor-driven drop: new-window drag cancelled for \(appURL.lastPathComponent)")
+            return false
+        }
+
+        openNewWindow(forAppURL: appURL, reason: reason)
+        return true
+    }
+
     @discardableResult
     internal func performCursorDrivenLaunchableDrop(
         items: [ExternalDropItem],

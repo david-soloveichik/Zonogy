@@ -137,8 +137,10 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     // MARK: - Drag-and-Drop
 
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem) {
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem, appURL: URL) {
         Logger.debug("DockMenus: drag began for window \(window.title)")
+        // Begin in window-drag mode; the drop handler checks Option state and may switch
+        // to a new-window action using `appURL`.
         _ = beginCursorDrivenWindowDrag(for: window)
     }
 
@@ -147,8 +149,17 @@ extension AppController: DockMenusCoordinatorDelegate {
         dragDropCoordinator.updateCursorDrivenDragSession(cursorPointAX: cursorPointAX)
     }
 
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) {
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, appURL: URL, cursorPointAX: CGPoint?) {
         Logger.debug("DockMenus: drag ended for window \(window.title)")
+        if NSEvent.modifierFlags.contains(.option) {
+            Logger.debug("DockMenus: Option held at drop — switching to new-window for \(appURL.lastPathComponent)")
+            _ = performCursorDrivenNewWindowDrop(
+                for: appURL,
+                cursorPointAX: cursorPointAX,
+                reason: "dock-option-drag"
+            )
+            return
+        }
         _ = performCursorDrivenManagedWindowDrop(
             for: window,
             cursorPointAX: cursorPointAX,
@@ -164,7 +175,16 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?) {
-        Logger.debug("DockMenus: non-running app drag ended for \(appURL.lastPathComponent)")
+        Logger.debug("DockMenus: dock-app drag ended for \(appURL.lastPathComponent)")
+        if NSEvent.modifierFlags.contains(.option) {
+            Logger.debug("DockMenus: Option held at drop — switching to new-window for \(appURL.lastPathComponent)")
+            _ = performCursorDrivenNewWindowDrop(
+                for: appURL,
+                cursorPointAX: cursorPointAX,
+                reason: "dock-option-drag"
+            )
+            return
+        }
         _ = performCursorDrivenAppDrop(
             for: appURL,
             cursorPointAX: cursorPointAX,

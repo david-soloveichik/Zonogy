@@ -245,12 +245,37 @@ final class LauncherController {
         tearDownVisibleLauncherUI()
         Logger.debug("Launcher: Closed for drag")
 
+        // For an application-row drag (either window-mode or launch-target-mode), Option toggles
+        // the preview into a "new window" affordance. For a managedWindow drag (an existing
+        // window from the window list), we don't toggle since dragging a specific window has a
+        // clear single meaning.
+        let normalTitle = resolvedPayload.previewTitle
+        let alternateTitle = optionAlternateTitle(for: resolvedPayload, originalPayload: payload)
+        let affordance = alternateTitle.map { NewWindowAffordance(normalTitle: normalTitle, alternateTitle: $0) }
+
         rowDragController.beginDrag(
             for: resolvedPayload,
-            title: resolvedPayload.previewTitle,
+            title: normalTitle,
             initialCursorPointCocoa: NSEvent.mouseLocation,
-            driveViaMouseMonitors: true
+            driveViaMouseMonitors: true,
+            newWindowAffordance: affordance
         )
+    }
+
+    /// Returns the alternate (Option-held) preview title for a drag, or nil if Option should
+    /// not toggle anything for this payload.
+    private func optionAlternateTitle(
+        for resolvedPayload: LauncherDragPayload,
+        originalPayload: LauncherDragPayload
+    ) -> String? {
+        // Application rows: alternate title is the app's display name.
+        if case .application(let item) = originalPayload {
+            return item.displayName
+        }
+        // managedWindow rows in the window list don't get an Option affordance; the user is
+        // explicitly dragging that window. Dragging .launchableItem also doesn't get one.
+        _ = resolvedPayload
+        return nil
     }
 
     private func completeRowDrag(didResolveDrop: Bool) {

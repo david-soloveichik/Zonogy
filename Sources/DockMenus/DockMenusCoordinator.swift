@@ -26,29 +26,39 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
     // MARK: - Drag-and-Drop
 
-    /// Called when a drag session begins from a DockMenu window entry.
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem)
+    /// Called when a drag begins for an app window from either a Dock app icon (running app
+    /// with a preferred window) or a DockMenu hover-panel row. `appURL` is the application
+    /// bundle URL; drops switch to "new window" when Option is held at drop time.
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem, appURL: URL)
 
     /// Called repeatedly during a drag session as the cursor moves.
     func dockMenusCoordinatorDidUpdateDrag(_ coordinator: DockMenusCoordinator, cursorPointAX: CGPoint?)
 
-    /// Called when a drag session ends (mouse up).
-    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?)
+    /// Called when a window-drag session ends (mouse up).
+    func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, appURL: URL, cursorPointAX: CGPoint?)
 
-    // MARK: - Non-Running App Drag-and-Drop
+    // MARK: - App-Icon (no window) Drag-and-Drop
 
-    /// Called when a drag session begins from a non-running app's Dock icon.
+    /// Called when a drag session begins from an app icon that has no associated window:
+    /// a non-running app, or a running app with no managed windows.
     func dockMenusCoordinatorDidBeginNonRunningAppDrag(_ coordinator: DockMenusCoordinator)
 
-    /// Called when a drag session ends for a non-running app.
+    /// Called when such a drag session ends.
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?)
 }
 
 /// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
 final class DockMenusCoordinator {
     private enum DragPayload {
-        case window(LauncherWindowItem)
-        case nonRunningApp(URL)
+        /// Dragging a specific managed window of an app — either the preferred window from a
+        /// Dock icon drag of a running app, or a particular window picked from a DockMenu
+        /// hover-panel row. `appURL` is carried so drops can route to "new window" when
+        /// Option is held.
+        case appWindow(LauncherWindowItem, appURL: URL)
+        /// Dragging an app icon that has no associated window: a non-running app, or a
+        /// running app with no managed windows. The drop launches / creates a new window
+        /// via the launch-target pipeline.
+        case dockApp(URL)
     }
 
     weak var delegate: DockMenusCoordinatorDelegate?
@@ -74,11 +84,11 @@ final class DockMenusCoordinator {
         onDidBeginDrag: { [weak self] payload in
             guard let self else { return }
             switch payload {
-            case .window(let window):
-                Logger.debug("DockMenusCoordinator: drag began for window \(window.title)")
-                self.delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window)
-            case .nonRunningApp:
-                Logger.debug("DockMenusCoordinator: non-running app drag began")
+            case .appWindow(let window, let appURL):
+                Logger.debug("DockMenusCoordinator: drag began for window \(window.title) (app \(appURL.lastPathComponent))")
+                self.delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window, appURL: appURL)
+            case .dockApp:
+                Logger.debug("DockMenusCoordinator: dock-app drag began")
                 self.delegate?.dockMenusCoordinatorDidBeginNonRunningAppDrag(self)
             }
         },
@@ -89,11 +99,11 @@ final class DockMenusCoordinator {
         onDidEndDrag: { [weak self] payload, cursorPointAX in
             guard let self else { return }
             switch payload {
-            case .window(let window):
-                Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title)")
-                self.delegate?.dockMenusCoordinator(self, didEndDragForWindow: window, cursorPointAX: cursorPointAX)
-            case .nonRunningApp(let appURL):
-                Logger.debug("DockMenusCoordinator: drag session ended for non-running app \(appURL.lastPathComponent)")
+            case .appWindow(let window, let appURL):
+                Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title) (app \(appURL.lastPathComponent))")
+                self.delegate?.dockMenusCoordinator(self, didEndDragForWindow: window, appURL: appURL, cursorPointAX: cursorPointAX)
+            case .dockApp(let appURL):
+                Logger.debug("DockMenusCoordinator: drag session ended for dock app \(appURL.lastPathComponent)")
                 self.delegate?.dockMenusCoordinator(self, didEndDragForNonRunningApp: appURL, cursorPointAX: cursorPointAX)
             }
         }
@@ -233,25 +243,27 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
         }
 
         let initialCocoaPoint = cocoaPoint(fromAccessibilityPoint: cursorPoint)
+        let appName = appURL.deletingPathExtension().lastPathComponent
 
         if let window = delegate?.dockMenusCoordinator(self, preferredDragWindowForDockAppWithURL: appURL) {
             rowDragController.beginDrag(
-                for: .window(window),
+                for: .appWindow(window, appURL: appURL),
                 title: window.title,
                 initialCursorPointCocoa: initialCocoaPoint,
-                driveViaMouseMonitors: false
+                driveViaMouseMonitors: false,
+                newWindowAffordance: NewWindowAffordance(normalTitle: window.title, alternateTitle: appName)
             )
             rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
             return true
         }
 
-        Logger.debug("DockMenusCoordinator: running app has no windows; treating as non-running app drag")
-        let appName = appURL.deletingPathExtension().lastPathComponent
+        Logger.debug("DockMenusCoordinator: running app has no windows; treating as dock-app drag")
         rowDragController.beginDrag(
-            for: .nonRunningApp(appURL),
+            for: .dockApp(appURL),
             title: appName,
             initialCursorPointCocoa: initialCocoaPoint,
-            driveViaMouseMonitors: false
+            driveViaMouseMonitors: false,
+            newWindowAffordance: NewWindowAffordance(normalTitle: appName, alternateTitle: appName)
         )
         rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
         return true
@@ -269,10 +281,11 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
         let appName = appURL.deletingPathExtension().lastPathComponent
         let initialCocoaPoint = cocoaPoint(fromAccessibilityPoint: cursorPoint)
         rowDragController.beginDrag(
-            for: .nonRunningApp(appURL),
+            for: .dockApp(appURL),
             title: appName,
             initialCursorPointCocoa: initialCocoaPoint,
-            driveViaMouseMonitors: false
+            driveViaMouseMonitors: false,
+            newWindowAffordance: NewWindowAffordance(normalTitle: appName, alternateTitle: appName)
         )
         rowDragController.updateDrag(cursorPointAX: cursorPoint, cursorPointCocoa: initialCocoaPoint)
         return true
@@ -305,12 +318,14 @@ extension DockMenusCoordinator: DockMenuPanelControllerDelegate {
         delegate?.dockMenusCoordinator(self, didSelectAppHeader: bundleIdentifier)
     }
 
-    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem) {
+    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem, appURL: URL) {
         hideDockMenu()
+        let appName = appURL.deletingPathExtension().lastPathComponent
         rowDragController.beginDrag(
-            for: .window(window),
+            for: .appWindow(window, appURL: appURL),
             title: window.title,
-            driveViaMouseMonitors: true
+            driveViaMouseMonitors: true,
+            newWindowAffordance: NewWindowAffordance(normalTitle: window.title, alternateTitle: appName)
         )
     }
 }

@@ -273,7 +273,7 @@ extension AppController: LauncherControllerDelegate {
 
     func launcherController(_ controller: LauncherController, beginDrag payload: LauncherDragPayload) -> LauncherDragPayload? {
         switch payload {
-        case .managedWindow(let window):
+        case .managedWindow(let window, _):
             guard beginCursorDrivenWindowDrag(for: window) else {
                 return nil
             }
@@ -283,7 +283,10 @@ extension AppController: LauncherControllerDelegate {
             if let preferredWindow = preferredDragWindowItem(forAppURL: item.url) {
                 if beginCursorDrivenWindowDrag(for: preferredWindow) {
                     Logger.debug("Launcher: drag began for payload \(preferredWindow.title)")
-                    return .managedWindow(preferredWindow)
+                    // Resolve to a managedWindow drag, but carry the originating app URL so
+                    // an Option-held drop can switch to a new-window action without having
+                    // to rediscover the URL from the window's bundle identifier.
+                    return .managedWindow(preferredWindow, appURL: item.url)
                 }
             }
 
@@ -304,14 +307,34 @@ extension AppController: LauncherControllerDelegate {
     func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool {
         Logger.debug("Launcher: drag ended for payload \(payload.previewTitle)")
 
+        let optionHeldAtDrop = NSEvent.modifierFlags.contains(.option)
+
         switch payload {
-        case .managedWindow(let window):
+        case .managedWindow(let window, let appURL):
+            // Option toggles to new-window only when the drag was resolved from an app row
+            // (appURL is non-nil); direct window-list-mode drags ignore Option even if held.
+            if optionHeldAtDrop, let appURL {
+                Logger.debug("Launcher: Option held at drop — switching to new-window for \(appURL.lastPathComponent)")
+                return performCursorDrivenNewWindowDrop(
+                    for: appURL,
+                    cursorPointAX: cursorPointAX,
+                    reason: "launcher-option-drag"
+                )
+            }
             return performCursorDrivenManagedWindowDrop(
                 for: window,
                 cursorPointAX: cursorPointAX,
                 reason: "launcher-drag"
             )
         case .application(let item):
+            if optionHeldAtDrop {
+                Logger.debug("Launcher: Option held at drop — switching to new-window for \(item.displayName)")
+                return performCursorDrivenNewWindowDrop(
+                    for: item.url,
+                    cursorPointAX: cursorPointAX,
+                    reason: "launcher-option-drag"
+                )
+            }
             return performCursorDrivenAppDrop(
                 for: item.url,
                 cursorPointAX: cursorPointAX,

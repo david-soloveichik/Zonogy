@@ -63,7 +63,9 @@ struct WindowItemListView: View {
                                 onDragStart: {
                                     skipNextScrollToSelected = true
                                     selectedWindowId = window.id
-                                    onBeginDrag(.managedWindow(window))
+                                    // Window-list rows drag a specific window; no app-URL
+                                    // context is attached (Option has no effect for these).
+                                    onBeginDrag(.managedWindow(window, appURL: nil))
                                 }
                             )
                         )

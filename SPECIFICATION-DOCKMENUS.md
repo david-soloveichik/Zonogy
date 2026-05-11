@@ -7,6 +7,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
   - When the `DockMenus targets zone with active window` Targeting preference is enabled (default off), DockMenus first retargets to the zone containing the currently active managed window for placement-oriented actions. If the Launcher is visible, DockMenus leaves targeting unchanged because Launcher is always shown on the current target.
   - **Exception compared to Launcher**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
 - **Dock-icon drag interception:** Dragging an app icon in the Dock (without Shift/Control) initiates a zone-targeting drag. For running apps with managed windows, this drags the app's preferred managed window. For non-running apps or running apps with no managed windows, dropping on a zone targets that zone and launches/activates the app (window appears in the newly targeted zone).
+- **Option-drag (new window):** Holding Option during a Dock-icon drag or a drag of a window entry from a DockMenu hover panel shows a "+" affordance on the drag preview (and replaces the window title with the app name). Pressing or releasing Option updates the preview live. Releasing the mouse with Option held targets the zone under the cursor and opens a new window of the app (for running apps Zonogy activates the app and simulates a Cmd-N keystroke; for non-running apps Zonogy launches the app, which typically produces a new window).
 - **Bypass:** **Shift-click** or **Shift-drag** on a Dock application behaves exactly like a normal Dock action (Zonogy does not intercept).
 - **DockMenus (hover panels):** Only shown for running apps.
 
@@ -58,6 +59,7 @@ When the user drags a Dock app icon **without Shift/Control**:
 **Modifiers:**
 
 - **Shift-drag / control-drag:** Do not intercept; allow normal Dock behavior (rearranging icons / context menus).
+- **Option-drag:** Intercepted; see "Option-drag (new window)" above.
 
 ### Clicking Inside DockMenu
 

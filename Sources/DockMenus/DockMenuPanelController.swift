@@ -7,7 +7,10 @@ import SwiftUI
 protocol DockMenuPanelControllerDelegate: AnyObject {
     func dockMenuPanelController(_ controller: DockMenuPanelController, didSelectWindow window: LauncherWindowItem)
     func dockMenuPanelControllerDidSelectAppHeader(_ controller: DockMenuPanelController, bundleIdentifier: String)
-    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem)
+    /// Begins a drag from a panel window entry. `appURL` is the URL of the app whose panel
+    /// was open — used so an Option-held drop can switch to the new-window action without
+    /// rediscovering the app from the dragged window's bundle identifier.
+    func dockMenuPanelController(_ controller: DockMenuPanelController, didBeginDragForWindow window: LauncherWindowItem, appURL: URL)
 }
 
 /// Controls the DockMenu floating panel display and interaction.
@@ -18,6 +21,7 @@ final class DockMenuPanelController: NSObject {
     private var hostingView: NSHostingView<DockMenuView>?
     private var viewModel: DockMenuViewModel?
     private var currentBundleIdentifier: String?
+    private var currentAppURL: URL?
 
     /// Whether the panel is currently visible.
     var isVisible: Bool {
@@ -39,6 +43,7 @@ final class DockMenuPanelController: NSObject {
         Logger.debug("DockMenuPanelController: show for \(event.appURL.lastPathComponent) with \(windows.count) windows")
 
         currentBundleIdentifier = event.bundleIdentifier
+        currentAppURL = event.appURL
 
         // Create or reuse panel
         let panel: DockMenuPanel
@@ -68,9 +73,9 @@ final class DockMenuPanelController: NSObject {
         }
 
         viewModel.onWindowDragStart = { [weak self] window in
-            guard let self else { return }
+            guard let self, let appURL = self.currentAppURL else { return }
             Logger.debug("DockMenuPanelController: drag started for window \(window.title)")
-            self.delegate?.dockMenuPanelController(self, didBeginDragForWindow: window)
+            self.delegate?.dockMenuPanelController(self, didBeginDragForWindow: window, appURL: appURL)
         }
 
         self.viewModel = viewModel
