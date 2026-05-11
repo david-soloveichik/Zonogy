@@ -36,7 +36,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 ## Features
 
-- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the targeted zone where the window will appear.
+- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the targeted zone where the window will appear. Hold `Option` while selecting an app row to open a new window of that app instead of activating the existing one.
 
 <img src="docs/images/launcher.png" alt="Launcher" width="499" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" width="608" />
 
@@ -70,6 +70,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 | Drag file or URL → empty zone or new zone pill | Open it there in the default app |
 | Hold `Control-Cmd` during file or URL drag | Replace zone occupant with the dragged item opened in default app |
 | Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |
+| Hold `Option` while dragging a Dock icon, DockMenu window, or Launcher app row | Drop on a zone opens a new document/window of that app there (as if `Cmd-N` pressed) |
 
 ## Default Keyboard Shortcuts (configurable)
 
