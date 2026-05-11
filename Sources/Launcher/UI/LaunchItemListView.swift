@@ -27,6 +27,9 @@ struct LaunchItemListView: View {
     var windowCountsByBundleIdentifier: [String: Int] = [:]
     var runningBundleIdentifiers: Set<String> = []
     var appsWithDefaultWindowInZoneBundleIdentifiers: Set<String> = []
+    /// When true, application rows replace their `[count >]` chevron with a non-interactive
+    /// "+" badge; clicking such a row opens a new window of the app instead of the default action.
+    var isOptionHeld: Bool = false
     var onExpandApp: ((URL) -> Void)?
     let onBeginDrag: (LauncherDragPayload) -> Void
     @State private var chevronHoveredURL: URL?
@@ -40,6 +43,8 @@ struct LaunchItemListView: View {
                         let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url)
                         let isRunning = bundleId.map { runningBundleIdentifiers.contains($0) } ?? false
                         let hasDefaultWindowInZone = bundleId.map { appsWithDefaultWindowInZoneBundleIdentifiers.contains($0) } ?? false
+                        let isAppRow = item.kind == .application
+                        let showsNewWindowAffordance = isOptionHeld && isAppRow
                         LaunchItemRowView(
                             item: item,
                             isSelected: item.url == selectedItemURL,
@@ -68,11 +73,20 @@ struct LaunchItemListView: View {
                                         onBeginDrag(.launchableItem(item))
                                     }
                                 },
-                                dragExclusionTrailingWidth: isRunning ? 30 : 0
+                                // In Option mode, the chevron is replaced by a non-interactive
+                                // badge — the whole row is clickable, including the trailing region.
+                                dragExclusionTrailingWidth: (isRunning && !showsNewWindowAffordance) ? 30 : 0
                             )
                         )
                         .overlay(alignment: .trailing) {
-                            if isRunning {
+                            if showsNewWindowAffordance {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Color.green)
+                                    .padding(.trailing, 10)
+                                    .allowsHitTesting(false)
+                                    .accessibilityLabel("New window")
+                            } else if isRunning {
                                 HStack(spacing: 2) {
                                     if let bundleId,
                                        let count = windowCountsByBundleIdentifier[bundleId],

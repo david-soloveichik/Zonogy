@@ -415,6 +415,12 @@ extension AppController: LauncherControllerDelegate {
         performDefaultLauncherAction(for: url)
     }
 
+    func launcherController(_ controller: LauncherController, didRequestNewWindowForApp url: URL) {
+        Logger.debug("Launcher: Option-Enter on app row — opening new window for \(url.lastPathComponent)")
+        targetedZoneManager.ensureTargetedZone(reason: "launcher-option-enter")
+        openNewWindow(forAppURL: url, reason: "launcher-option-enter")
+    }
+
     /// Performs the default Launcher action for an app URL.
     /// - If the app is running with managed windows: selects preferred window (respecting hasMainWindow),
     ///   pre-positions if minimized, unminimizes, and places in targeted zone.

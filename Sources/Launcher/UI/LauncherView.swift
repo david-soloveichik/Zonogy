@@ -60,6 +60,7 @@ struct LauncherView: View {
                             windowCountsByBundleIdentifier: model.windowCountsByBundleIdentifier,
                             runningBundleIdentifiers: model.runningBundleIdentifiers,
                             appsWithDefaultWindowInZoneBundleIdentifiers: model.appsWithDefaultWindowInZoneBundleIdentifiers,
+                            isOptionHeld: model.isOptionHeld,
                             onExpandApp: handleExpandApp,
                             onBeginDrag: onBeginDrag
                         )

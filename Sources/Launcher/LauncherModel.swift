@@ -34,6 +34,10 @@ final class LauncherModel: ObservableObject {
     @Published private(set) var appsWithDefaultWindowInZoneBundleIdentifiers: Set<String> = []
     @Published private(set) var windowCountsByBundleIdentifier: [String: Int] = [:]
     @Published private(set) var focusSearchFieldToken: Int = 0
+    /// True when the Option modifier is currently held. While true, application rows in
+    /// app-list mode swap their `[count >]` chevron for a non-interactive "+" badge and
+    /// selecting such a row opens a new window of that app instead of the default action.
+    @Published var isOptionHeld: Bool = false
 
     var isAppHeaderSelected: Bool {
         if case .windowList = mode {

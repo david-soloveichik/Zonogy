@@ -10,6 +10,10 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Called when an application should be launched
     func launcherController(_ controller: LauncherController, didLaunchApp url: URL)
 
+    /// Called when the user selects an application row while Option is held: instead of the
+    /// default launcher action, Zonogy should open a new window of that app in the targeted zone.
+    func launcherController(_ controller: LauncherController, didRequestNewWindowForApp url: URL)
+
     /// Called when an app header is selected (activate app without targeting a window)
     func launcherController(_ controller: LauncherController, didActivateApp bundleIdentifier: String)
 
@@ -62,6 +66,8 @@ final class LauncherController {
     private var hostingView: NSHostingView<LauncherView>?
     private var keyMonitor: Any?
     private var mouseMonitor: Any?
+    private var flagsGlobalMonitor: Any?
+    private var flagsLocalMonitor: Any?
     private var clickMonitor: ClickOutsideMonitor?
     private var appTerminationObserver: Any?
     private var lastAnchor: Anchor?
@@ -189,6 +195,7 @@ final class LauncherController {
 
         startKeyMonitor()
         startMouseMonitor()
+        startFlagsMonitor()
         startClickMonitor()
         startAppTerminationObserver()
 
@@ -221,6 +228,7 @@ final class LauncherController {
     private func tearDownVisibleLauncherUI() {
         stopKeyMonitor()
         stopMouseMonitor()
+        stopFlagsMonitor()
         stopClickMonitor()
         stopAppTerminationObserver()
 
@@ -396,11 +404,19 @@ final class LauncherController {
     // MARK: - Event Handling
 
     private func handleAppLaunch(url: URL) {
+        // Capture state synchronously, before `hide()` tears down the model. Option-new-window
+        // only applies to application rows; file/folder rows always do the default action.
+        let isOptionHeld = NSEvent.modifierFlags.contains(.option)
+        let isAppItem = MainActor.assumeIsolated { model?.selectedItem()?.kind == .application }
+        let asNewWindow = isOptionHeld && isAppItem
         hide()
-        // Dispatch async to let the UI hide before doing work
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.delegate?.launcherController(self, didLaunchApp: url)
+            if asNewWindow {
+                self.delegate?.launcherController(self, didRequestNewWindowForApp: url)
+            } else {
+                self.delegate?.launcherController(self, didLaunchApp: url)
+            }
         }
     }
 
@@ -452,6 +468,49 @@ final class LauncherController {
         if let monitor = mouseMonitor {
             NSEvent.removeMonitor(monitor)
             mouseMonitor = nil
+        }
+    }
+
+    // MARK: - Modifier Monitoring
+
+    private func startFlagsMonitor() {
+        // Seed the model with the current Option state in case Option is already held when the
+        // Launcher opens, then observe changes via global + local monitors. Global covers the
+        // case where another app is frontmost; local covers events delivered to Zonogy.
+        updateOptionHeldInModel(NSEvent.modifierFlags.contains(.option))
+
+        if flagsGlobalMonitor == nil {
+            flagsGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
+                self?.handleFlagsChanged(event)
+            }
+        }
+        if flagsLocalMonitor == nil {
+            flagsLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
+                self?.handleFlagsChanged(event)
+                return event
+            }
+        }
+    }
+
+    private func stopFlagsMonitor() {
+        if let monitor = flagsGlobalMonitor {
+            NSEvent.removeMonitor(monitor)
+            flagsGlobalMonitor = nil
+        }
+        if let monitor = flagsLocalMonitor {
+            NSEvent.removeMonitor(monitor)
+            flagsLocalMonitor = nil
+        }
+    }
+
+    private func handleFlagsChanged(_ event: NSEvent) {
+        updateOptionHeldInModel(event.modifierFlags.contains(.option))
+    }
+
+    private func updateOptionHeldInModel(_ isOption: Bool) {
+        MainActor.assumeIsolated {
+            guard let model = self.model, model.isOptionHeld != isOption else { return }
+            model.isOptionHeld = isOption
         }
     }
 

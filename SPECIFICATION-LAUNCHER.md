@@ -151,12 +151,17 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 
 - **Up/Down arrows:** Select item from the filtered list
 - **Enter:** Activate selected item (launch app, focus window, open file)
+- **Option-Enter (app row):** Opens a new window of the selected application in the targeted zone (see "Option mode" below).
 - **Tab:** When a running app is selected, drill into window list
 - **Right arrow:** When cursor is at end of search string, same as Tab (drill into window list)
 - **Left arrow (in window list):** When cursor is at start of search string, same as Shift-Tab (return to app list)
 - **Shift-Tab or Escape (in window list):** Return to main app list
 - **Escape (in main list):** Dismiss launcher without action
 - **Cmd-M / Cmd-W:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
+
+### Option Mode
+
+While the Launcher is open in app-list mode and Option is held, each application row replaces its `[window count] >` chevron with a non-interactive "+" badge. Releasing Option restores the chevron. Selecting an application row (Enter or click) while Option is held opens a new window of that app in the targeted zone instead of performing the default action (for running apps Zonogy activates the app and simulates a Cmd-N keystroke; for non-running apps Zonogy launches the app). Option mode only affects application rows; file and folder rows are unchanged. No effect in the window list mode.
 
 ### Mouse Interaction
 
