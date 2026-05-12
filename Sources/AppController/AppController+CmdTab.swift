@@ -64,6 +64,11 @@ extension AppController: CmdTabControllerDelegate {
         )
     }
 
+    func cmdTabControllerDidCancelDrag(_ controller: CmdTabController) {
+        Logger.debug("CmdTab: drag cancelled by user (Escape)")
+        dragDropCoordinator.tearDownDragSession()
+    }
+
     func cmdTabCurrentCursorAccessibilityPoint() -> CGPoint? {
         currentCursorAccessibilityPoint()
     }

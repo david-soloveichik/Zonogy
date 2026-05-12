@@ -29,6 +29,10 @@ protocol CmdTabControllerDelegate: AnyObject {
     /// Called when a CmdTab row drag session ends. Returns true if the drop resolved successfully.
     func cmdTabController(_ controller: CmdTabController, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) -> Bool
 
+    /// Called when the user cancels an in-flight CmdTab row drag (e.g., by pressing Escape).
+    /// The delegate should tear down any cursor-driven drag session it owns.
+    func cmdTabControllerDidCancelDrag(_ controller: CmdTabController)
+
     /// Returns the current cursor point in accessibility coordinates.
     func cmdTabCurrentCursorAccessibilityPoint() -> CGPoint?
 }
@@ -60,6 +64,11 @@ final class CmdTabController {
             guard let self else { return }
             let didResolveDrop = self.delegate?.cmdTabController(self, didEndDragForWindow: window, cursorPointAX: cursorPointAX) ?? false
             self.completeRowDrag(didResolveDrop: didResolveDrop)
+        },
+        onDidCancelByUser: { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.cmdTabControllerDidCancelDrag(self)
+            self.completeRowDrag(didResolveDrop: false)
         }
     )
 

@@ -8,6 +8,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
   - **Exception compared to Launcher**: While the Launcher allows "moving" a currently open window from one zone to another, DockMenus has different behavior when a currently open (in a zone) window is chosen: it simply activates it in its current zone.
 - **Dock-icon drag interception:** Dragging an app icon in the Dock (without Shift/Control) initiates a zone-targeting drag. For running apps with managed windows, this drags the app's preferred managed window. For non-running apps or running apps with no managed windows, dropping on a zone targets that zone and launches/activates the app (window appears in the newly targeted zone).
 - **Option-drag (new window):** Holding Option during a Dock-icon drag or a drag of a window entry from a DockMenu hover panel shows a "+" affordance on the drag preview (and replaces the window title with the app name). Pressing or releasing Option updates the preview live. Releasing the mouse with Option held targets the zone under the cursor and opens a new window of the app (for running apps Zonogy activates the app and simulates a Cmd-N keystroke; for non-running apps Zonogy launches the app, which typically produces a new window).
+- **Escape during a drag:** Cancels any in-flight Dock-icon or DockMenu row drag.
 - **Bypass:** **Shift-click** or **Shift-drag** on a Dock application behaves exactly like a normal Dock action (Zonogy does not intercept).
 - **DockMenus (hover panels):** Only shown for running apps.
 

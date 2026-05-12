@@ -26,6 +26,10 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Called when a Launcher row drag session ends. Returns true if the drop resolved successfully.
     func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool
 
+    /// Called when the user cancels an in-flight Launcher row drag (e.g., by pressing Escape).
+    /// The delegate should tear down any cursor-driven drag session it owns.
+    func launcherControllerDidCancelDrag(_ controller: LauncherController)
+
     /// Called when the launcher is explicitly cancelled.
     func launcherControllerDidCancel(_ controller: LauncherController)
 
@@ -88,6 +92,11 @@ final class LauncherController {
             guard let self else { return }
             let didResolveDrop = self.delegate?.launcherController(self, didEndDrag: payload, cursorPointAX: cursorPointAX) ?? false
             self.completeRowDrag(didResolveDrop: didResolveDrop)
+        },
+        onDidCancelByUser: { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.launcherControllerDidCancelDrag(self)
+            self.completeRowDrag(didResolveDrop: false)
         }
     )
 

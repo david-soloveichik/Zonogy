@@ -45,6 +45,12 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
     /// Called when such a drag session ends.
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForNonRunningApp appURL: URL, cursorPointAX: CGPoint?)
+
+    // MARK: - Drag Cancellation
+
+    /// Called when the user cancels an in-flight drag (e.g., by pressing Escape). The
+    /// delegate should tear down any cursor-driven drag session and not perform the drop.
+    func dockMenusCoordinatorDidCancelDrag(_ coordinator: DockMenusCoordinator)
 }
 
 /// Owns DockMenus subcomponents (Dock geometry monitoring, debug visuals, click interception, hover menu) and isolates feature wiring.
@@ -106,6 +112,20 @@ final class DockMenusCoordinator {
                 Logger.debug("DockMenusCoordinator: drag session ended for dock app \(appURL.lastPathComponent)")
                 self.delegate?.dockMenusCoordinator(self, didEndDragForNonRunningApp: appURL, cursorPointAX: cursorPointAX)
             }
+        },
+        onDidCancelByUser: { [weak self] payload in
+            guard let self else { return }
+            switch payload {
+            case .appWindow(let window, let appURL):
+                Logger.debug("DockMenusCoordinator: drag cancelled for window \(window.title) (app \(appURL.lastPathComponent))")
+            case .dockApp(let appURL):
+                Logger.debug("DockMenusCoordinator: drag cancelled for dock app \(appURL.lastPathComponent)")
+            }
+            // For Dock-icon drags, the CGEventTap is still holding a pendingClick that would
+            // post a synthetic mouse-up on release. Mark it cancelled so the eventual
+            // mouse-up is consumed silently.
+            self.clickInterceptor.cancelInProgressDrag()
+            self.delegate?.dockMenusCoordinatorDidCancelDrag(self)
         }
     )
 

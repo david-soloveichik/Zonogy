@@ -304,6 +304,11 @@ extension AppController: LauncherControllerDelegate {
         dragDropCoordinator.updateCursorDrivenDragSession(cursorPointAX: cursorPointAX)
     }
 
+    func launcherControllerDidCancelDrag(_ controller: LauncherController) {
+        Logger.debug("Launcher: drag cancelled by user (Escape)")
+        dragDropCoordinator.tearDownDragSession()
+    }
+
     func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool {
         Logger.debug("Launcher: drag ended for payload \(payload.previewTitle)")
 

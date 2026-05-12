@@ -67,6 +67,7 @@ final class DockClickInterceptor {
         case none
         case intercepted
         case unhandled
+        case cancelled
     }
 
     private enum TopmostDockHit {
@@ -87,6 +88,18 @@ final class DockClickInterceptor {
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
+    }
+
+    /// Mark the in-flight intercepted drag as cancelled (e.g., user pressed Esc). Further
+    /// drag updates are ignored and the eventual mouse-up will not post a synthetic mouse-up
+    /// or fire the drag-end delegate — it is consumed silently so the Dock takes no action.
+    func cancelInProgressDrag() {
+        guard var pending = pendingClick, pending.dragState == .intercepted else {
+            return
+        }
+        pending.dragState = .cancelled
+        pendingClick = pending
+        Logger.debug("DockClickInterceptor: in-progress drag marked cancelled (Escape)")
     }
 
     func updateVisibility(_ visible: Bool) {
@@ -160,7 +173,7 @@ final class DockClickInterceptor {
                     return nil
                 }
 
-                if pending.dragState == .unhandled {
+                if pending.dragState == .unhandled || pending.dragState == .cancelled {
                     return nil
                 }
 
@@ -211,6 +224,10 @@ final class DockClickInterceptor {
             case .unhandled:
                 // Still complete the Dock's click tracking, but don't trigger any Zonogy action.
                 postMouseUp(at: pending.downLocation)
+                return nil
+            case .cancelled:
+                // User cancelled mid-drag (Escape). Drop the eventual mouse-up silently — no
+                // synthetic mouse-up to the Dock and no drag-end delegate.
                 return nil
             case .none:
                 break

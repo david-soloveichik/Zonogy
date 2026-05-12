@@ -192,6 +192,13 @@ extension AppController: DockMenusCoordinatorDelegate {
         )
     }
 
+    // MARK: - Drag Cancellation
+
+    func dockMenusCoordinatorDidCancelDrag(_ coordinator: DockMenusCoordinator) {
+        Logger.debug("DockMenus: drag cancelled by user (Escape)")
+        dragDropCoordinator.tearDownDragSession()
+    }
+
     private func shouldDockMenusRetargetForAppClick(_ appURL: URL) -> Bool {
         guard dockMenusTargetsZoneWithActiveWindowEnabled else {
             return false

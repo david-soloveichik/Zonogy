@@ -16,6 +16,7 @@ final class CursorDrivenRowDragController<Payload> {
     private let onDidBeginDrag: (Payload) -> Void
     private let onDidUpdateDrag: (CGPoint?) -> Void
     private let onDidEndDrag: (Payload, CGPoint?) -> Void
+    private let onDidCancelByUser: ((Payload) -> Void)?
     private let dragPreview = CursorDrivenDragPreview()
 
     private var activePayload: Payload?
@@ -23,6 +24,8 @@ final class CursorDrivenRowDragController<Payload> {
     private var dragLocalMonitor: Any?
     private var flagsGlobalMonitor: Any?
     private var flagsLocalMonitor: Any?
+    private var escGlobalMonitor: Any?
+    private var escLocalMonitor: Any?
     private var newWindowAffordance: NewWindowAffordance?
 
     init(
@@ -30,13 +33,15 @@ final class CursorDrivenRowDragController<Payload> {
         currentCursorAXProvider: @escaping () -> CGPoint?,
         onDidBeginDrag: @escaping (Payload) -> Void,
         onDidUpdateDrag: @escaping (CGPoint?) -> Void,
-        onDidEndDrag: @escaping (Payload, CGPoint?) -> Void
+        onDidEndDrag: @escaping (Payload, CGPoint?) -> Void,
+        onDidCancelByUser: ((Payload) -> Void)? = nil
     ) {
         self.logPrefix = logPrefix
         self.currentCursorAXProvider = currentCursorAXProvider
         self.onDidBeginDrag = onDidBeginDrag
         self.onDidUpdateDrag = onDidUpdateDrag
         self.onDidEndDrag = onDidEndDrag
+        self.onDidCancelByUser = onDidCancelByUser
     }
 
     var isDragging: Bool {
@@ -70,6 +75,8 @@ final class CursorDrivenRowDragController<Payload> {
             installFlagsMonitors()
         }
 
+        installEscMonitors()
+
         guard driveViaMouseMonitors else {
             Logger.debug("\(logPrefix): drag session started (externally driven)")
             return
@@ -98,6 +105,20 @@ final class CursorDrivenRowDragController<Payload> {
         newWindowAffordance = nil
         dragPreview.hide()
         onDidEndDrag(payload, cursorPointAX ?? currentCursorAXProvider())
+    }
+
+    /// User pressed Esc while a drag was in flight. Tears down preview/monitors and dispatches
+    /// `onDidCancelByUser` so the owning controller can clean up its session state. The user
+    /// may still be holding the mouse button; the owning controller is responsible for
+    /// ensuring that the eventual mouse-up has no effect.
+    func cancelDragByUser() {
+        guard let payload = activePayload else { return }
+        Logger.debug("\(logPrefix): drag cancelled by user (Escape)")
+        tearDownMonitors()
+        activePayload = nil
+        newWindowAffordance = nil
+        dragPreview.hide()
+        onDidCancelByUser?(payload)
     }
 
     func cancelDrag() {
@@ -138,6 +159,25 @@ final class CursorDrivenRowDragController<Payload> {
         )
     }
 
+    private func installEscMonitors() {
+        escGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            self?.handleKeyDown(event)
+        }
+        escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            guard let self else { return event }
+            if event.keyCode == 53 {
+                self.handleKeyDown(event)
+                return nil
+            }
+            return event
+        }
+    }
+
+    private func handleKeyDown(_ event: NSEvent) {
+        guard event.keyCode == 53 else { return }
+        cancelDragByUser()
+    }
+
     private func previewTitle(forOptionHeld isOption: Bool, fallback: String) -> String {
         guard let affordance = newWindowAffordance else { return fallback }
         return isOption ? affordance.alternateTitle : affordance.normalTitle
@@ -159,6 +199,14 @@ final class CursorDrivenRowDragController<Payload> {
         if let monitor = flagsLocalMonitor {
             NSEvent.removeMonitor(monitor)
             flagsLocalMonitor = nil
+        }
+        if let monitor = escGlobalMonitor {
+            NSEvent.removeMonitor(monitor)
+            escGlobalMonitor = nil
+        }
+        if let monitor = escLocalMonitor {
+            NSEvent.removeMonitor(monitor)
+            escLocalMonitor = nil
         }
     }
 
