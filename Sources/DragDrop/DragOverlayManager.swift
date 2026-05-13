@@ -217,6 +217,9 @@ final class DragOverlayManager {
     }
 
     func tearDown() {
+        if !overlays.isEmpty {
+            Logger.debug("DragOverlayManager: tearDown closing \(overlays.count) overlay window(s)")
+        }
         for handle in overlays.values {
             handle.window.close()
         }
