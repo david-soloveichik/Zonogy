@@ -58,6 +58,27 @@ enum ActiveFitRevealStatePolicyTests {
             "changed desired reveal frame should not reuse stale cached state"
         )
 
+        let cachedKey = ZoneKey(screenId: 11, index: 2)
+        let reassignedKey = ActiveFitRevealStatePolicy.restTransitionZoneKey(
+            cachedZoneKey: cachedKey,
+            currentScreenId: 11,
+            currentZoneIndex: 1
+        )
+        assert(
+            reassignedKey == ZoneKey(screenId: 11, index: 1),
+            "rest transition should use the current assignment after zone reindexing"
+        )
+
+        let fallbackKey = ActiveFitRevealStatePolicy.restTransitionZoneKey(
+            cachedZoneKey: cachedKey,
+            currentScreenId: nil,
+            currentZoneIndex: nil
+        )
+        assert(
+            fallbackKey == cachedKey,
+            "rest transition should fall back to cached reveal state when current assignment is unavailable"
+        )
+
         if allPassed {
             print("ActiveFitRevealStatePolicyTests: all tests passed")
         }

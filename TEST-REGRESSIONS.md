@@ -58,6 +58,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: When a Sticky Resize window is activated in a right-column zone, one focus-related notification can restore its remembered size at the zone origin and ActiveFit can then shift it into reveal mode, but a second focus/main-window notification can move it back to the rest-position origin while ActiveFit still thinks the window is already revealed. The result is that the window stays at the rest position and hangs off-screen even though ActiveFit state says reveal mode is active.
   - Fixed by: Reusing cached ActiveFit reveal state only when the window's actual current frame still matches the stored reveal frame; otherwise ActiveFit reapplies the reveal move instead of returning early.
 
+- Bug report: Removing a lower-index zone can reindex an ActiveFit reveal-mode window from zone 2 to zone 1, but the reveal-state cache still names the old zone 2 when exiting reveal mode. The stale rest transition can move the window back into the new zone 2, stacking it with that zone's occupant.
+  - Think about: Rest-mode transitions should use the window's current zone assignment after reindexing, falling back to cached reveal state only if the current assignment is unavailable.
+
 - Bug report: Activating another app can focus a managed window without delivering an AXFocusedWindowChanged event for the arriving app.
   - Think about: Mirror the Sticky Resize restore path from NSWorkspace activation when a tracked focused managed window is already known.
 

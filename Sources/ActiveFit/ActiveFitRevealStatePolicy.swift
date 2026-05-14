@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Decides when cached ActiveFit reveal state can be reused without reapplying geometry.
+/// Pure decisions for ActiveFit reveal-state reuse and rest-transition bookkeeping.
 enum ActiveFitRevealStatePolicy {
     static func shouldReuseExistingRevealFrame(
         existingRevealFrame: CGRect?,
@@ -14,6 +14,19 @@ enum ActiveFitRevealStatePolicy {
 
         return framesClose(existingRevealFrame, desiredRevealFrame, tolerance: tolerance) &&
             framesClose(actualFrame, desiredRevealFrame, tolerance: tolerance)
+    }
+
+    static func restTransitionZoneKey(
+        cachedZoneKey: ZoneKey,
+        currentScreenId: CGDirectDisplayID?,
+        currentZoneIndex: Int?
+    ) -> ZoneKey {
+        guard let currentScreenId,
+              let currentZoneIndex else {
+            return cachedZoneKey
+        }
+
+        return ZoneKey(screenId: currentScreenId, index: currentZoneIndex)
     }
 
     private static func framesClose(

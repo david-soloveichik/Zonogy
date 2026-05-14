@@ -260,10 +260,21 @@ extension AppController {
 
     /// Transitions a window from reveal mode back to rest mode (zone-anchored position).
     private func transitionToRestMode(state: ActiveFitState, reason: String) {
-        guard let context = screenContexts[state.zoneKey.screenId],
-              let descriptor = descriptor(for: state.zoneKey.screenId),
-              let zone = context.zoneController.zone(at: state.zoneKey.index),
-              let managed = windowController.window(withId: state.windowId) else {
+        guard let managed = windowController.window(withId: state.windowId) else {
+            Logger.debug("ActiveFit: clearing reveal state for window \(state.windowId) without rest transition (\(reason))")
+            activeFitState = nil
+            return
+        }
+
+        let restZoneKey = ActiveFitRevealStatePolicy.restTransitionZoneKey(
+            cachedZoneKey: state.zoneKey,
+            currentScreenId: managed.screenDisplayId,
+            currentZoneIndex: managed.zoneIndex
+        )
+
+        guard let context = screenContexts[restZoneKey.screenId],
+              let descriptor = descriptor(for: restZoneKey.screenId),
+              let zone = context.zoneController.zone(at: restZoneKey.index) else {
             Logger.debug("ActiveFit: clearing reveal state for window \(state.windowId) without rest transition (\(reason))")
             activeFitState = nil
             return
@@ -274,7 +285,7 @@ extension AppController {
             zone: zone,
             controller: context.zoneController
         ).frame
-        Logger.debug("ActiveFit: returning window \(state.windowId) to rest mode in zone \(state.zoneKey.index) (\(reason))")
+        Logger.debug("ActiveFit: returning window \(state.windowId) to rest mode in zone \(restZoneKey.index) (\(reason))")
 
         // Clear state before moving window to avoid race condition with frame retry checks
         activeFitState = nil
