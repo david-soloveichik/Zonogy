@@ -41,14 +41,12 @@ final class CmdTabKeyInterceptor {
 
     private enum Constants {
         static let relevantModifierFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
-        static let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
         static let escapeKeyCode = CGKeyCode(kVK_Escape)
     }
 
     weak var delegate: CmdTabKeyInterceptorDelegate?
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventTap: EventTapController?
 
     private var isEngaged = false
     private var engagedShortcut: EngagedShortcut?
@@ -68,37 +66,20 @@ final class CmdTabKeyInterceptor {
             return
         }
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(Constants.eventMask),
-            callback: CmdTabKeyInterceptor.eventCallback,
-            userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        ) else {
-            Logger.debug("Failed to install CmdTab keyboard interceptor (missing Input Monitoring permission?)")
-            return
+        let tap = EventTapController(
+            name: "CmdTab keyboard interceptor",
+            events: [.keyDown, .flagsChanged],
+            handler: { [weak self] type, event in
+                self?.processEvent(event, type: type) ?? .pass
+            }
+        )
+        if tap.start() {
+            eventTap = tap
         }
-
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        if let source = runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        Logger.debug("CmdTab keyboard interceptor started")
     }
 
     func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        runLoopSource = nil
+        eventTap?.stop()
         eventTap = nil
         isEngaged = false
         engagedShortcut = nil
@@ -109,22 +90,16 @@ final class CmdTabKeyInterceptor {
         engagedShortcut = nil
     }
 
-    private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
+    private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
         switch type {
-        case .tapDisabledByUserInput, .tapDisabledByTimeout:
-            if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("Re-enabled CmdTab keyboard interceptor after timeout")
-            }
-            return Unmanaged.passUnretained(event)
         case .keyDown, .flagsChanged:
             break
         default:
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         guard let delegate, delegate.cmdTabKeyInterceptorShouldHandleEvents(self) else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         let relevantFlags = event.flags.intersection(Constants.relevantModifierFlags)
@@ -136,9 +111,9 @@ final class CmdTabKeyInterceptor {
         return handleKeyDown(event: event, relevantFlags: relevantFlags)
     }
 
-    private func handleFlagsChanged(event: CGEvent, relevantFlags: CGEventFlags) -> Unmanaged<CGEvent>? {
+    private func handleFlagsChanged(event: CGEvent, relevantFlags: CGEventFlags) -> EventTapDecision {
         guard isEngaged, let engagedShortcut else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Session ends when any required modifier is released.
@@ -152,13 +127,13 @@ final class CmdTabKeyInterceptor {
 
             isEngaged = false
             self.engagedShortcut = nil
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
-        return Unmanaged.passUnretained(event)
+        return .pass
     }
 
-    private func handleKeyDown(event: CGEvent, relevantFlags: CGEventFlags) -> Unmanaged<CGEvent>? {
+    private func handleKeyDown(event: CGEvent, relevantFlags: CGEventFlags) -> EventTapDecision {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
 
         if isEngaged {
@@ -186,7 +161,7 @@ final class CmdTabKeyInterceptor {
         }
 
         guard let shortcut = matchedShortcut else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Begin session immediately so repeated key presses are swallowed even if UI work is async.
@@ -201,14 +176,14 @@ final class CmdTabKeyInterceptor {
         }
 
         // Swallow to override the system app switcher.
-        return nil
+        return .swallow
     }
 
-    private func handleKeyDownWhileEngaged(keyCode: CGKeyCode, relevantFlags: CGEventFlags, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handleKeyDownWhileEngaged(keyCode: CGKeyCode, relevantFlags: CGEventFlags, event: CGEvent) -> EventTapDecision {
         guard let engagedShortcut else {
             // Shouldn't happen, but don't get stuck in an engaged state.
             isEngaged = false
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Cancel (even while modifiers are held).
@@ -219,7 +194,7 @@ final class CmdTabKeyInterceptor {
             }
             isEngaged = false
             self.engagedShortcut = nil
-            return nil
+            return .swallow
         }
 
         // Cycle on repeated presses of the configured key while the required modifiers are held.
@@ -231,7 +206,7 @@ final class CmdTabKeyInterceptor {
                     self.delegate?.cmdTabKeyInterceptor(self, cycle: direction)
                 }
             }
-            return nil
+            return .swallow
         }
 
         // Switch mode when the other CmdTab shortcut key is pressed while engaged.
@@ -254,12 +229,12 @@ final class CmdTabKeyInterceptor {
                         guard let self else { return }
                         self.delegate?.cmdTabKeyInterceptorSwitchMode(self, mode: mode)
                     }
-                    return nil
+                    return .swallow
                 }
             }
         }
 
-        return Unmanaged.passUnretained(event)
+        return .pass
     }
 
     private struct ShortcutInfo {
@@ -333,14 +308,6 @@ final class CmdTabKeyInterceptor {
         if modifiers & UInt32(optionKey) != 0 { flags.insert(.maskAlternate) }
         if modifiers & UInt32(shiftKey) != 0 { flags.insert(.maskShift) }
         return flags
-    }
-
-    private static let eventCallback: CGEventTapCallBack = { proxy, type, cgEvent, userInfo in
-        guard let userInfo else {
-            return Unmanaged.passUnretained(cgEvent)
-        }
-        let interceptor = Unmanaged<CmdTabKeyInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
-        return interceptor.processEvent(cgEvent, type: type)
     }
 
     deinit {

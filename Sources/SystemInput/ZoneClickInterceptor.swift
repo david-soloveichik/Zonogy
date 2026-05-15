@@ -14,14 +14,9 @@ protocol ZoneClickInterceptorDelegate: AnyObject {
 }
 
 final class ZoneClickInterceptor {
-    private enum Constants {
-        static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
-    }
-
     weak var delegate: ZoneClickInterceptorDelegate?
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventTap: EventTapController?
 
     func start(delegate: ZoneClickInterceptorDelegate) {
         self.delegate = delegate
@@ -31,71 +26,37 @@ final class ZoneClickInterceptor {
             return
         }
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(Constants.eventMask),
-            callback: ZoneClickInterceptor.eventCallback,
-            userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        ) else {
-            Logger.debug("Failed to install zone click interceptor (missing permission?)")
-            return
+        let tap = EventTapController(
+            name: "zone click interceptor",
+            events: [.leftMouseDown],
+            handler: { [weak self] type, event in
+                self?.processEvent(event, type: type) ?? .pass
+            }
+        )
+        if tap.start() {
+            eventTap = tap
         }
-
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        if let source = runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        Logger.debug("Zone click interceptor started")
     }
 
     func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        runLoopSource = nil
+        eventTap?.stop()
         eventTap = nil
     }
 
-    private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
-        switch type {
-        case .tapDisabledByUserInput, .tapDisabledByTimeout:
-            if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("Re-enabled zone click interceptor after timeout")
-            }
-            return Unmanaged.passUnretained(event)
-        case .leftMouseDown:
-            break
-        default:
-            return Unmanaged.passUnretained(event)
+    private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
+        guard type == .leftMouseDown else {
+            return .pass
         }
 
         guard let delegate else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         let location = event.location
         if delegate.zoneClickInterceptor(self, shouldConsumeClickAt: location, modifiers: event.flags) {
-            return nil
+            return .swallow
         }
 
-        return Unmanaged.passUnretained(event)
-    }
-
-    private static let eventCallback: CGEventTapCallBack = { proxy, type, cgEvent, userInfo in
-        guard let userInfo else {
-            return Unmanaged.passUnretained(cgEvent)
-        }
-        let interceptor = Unmanaged<ZoneClickInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
-        return interceptor.processEvent(cgEvent, type: type)
+        return .pass
     }
 }

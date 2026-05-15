@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 
 /// Describes the dynamic "new window" affordance for a cursor-driven drag. When the
 /// caller provides one of these, the drag controller observes Option-key state during
@@ -24,7 +25,7 @@ final class CursorDrivenRowDragController<Payload> {
     private var dragLocalMonitor: Any?
     private var flagsGlobalMonitor: Any?
     private var flagsLocalMonitor: Any?
-    private var escapeInterceptor: EscapeKeyInterceptor?
+    private var escapeEventTap: EventTapController?
     private var newWindowAffordance: NewWindowAffordance?
 
     init(
@@ -106,14 +107,14 @@ final class CursorDrivenRowDragController<Payload> {
         onDidEndDrag(payload, cursorPointAX ?? currentCursorAXProvider())
     }
 
-    /// User pressed Esc while a drag was in flight. Called synchronously from the Escape
-    /// CGEventTap callback. Everything that has to close races against a pending mouse-up
+    /// User pressed Esc while a drag was in flight. Called synchronously from the event-tap
+    /// callback. Everything that has to close races against a pending mouse-up
     /// happens synchronously: `activePayload` is cleared so the NSEvent mouse monitor
     /// becomes a no-op, the preview is hidden, and `onDidCancelByUser` fires so owners can
     /// flip their own state (e.g. `DockClickInterceptor.cancelInProgressDrag()`) before
     /// the eventual mouse-up is delivered. Only monitor/tap teardown is deferred to the
-    /// next main-runloop turn, so we never call `escapeInterceptor.stop()` from inside
-    /// the very CGEventTap callback we are running on.
+    /// next main-runloop turn, so we never call `escapeEventTap.stop()` from inside
+    /// the event-tap callback we are running on.
     func cancelDragByUser() {
         guard let payload = activePayload else { return }
         Logger.debug("\(logPrefix): drag cancelled by user (Escape)")
@@ -169,11 +170,22 @@ final class CursorDrivenRowDragController<Payload> {
     /// are observation-only and cannot consume events targeted at other apps, which is why
     /// a tap is required here.
     private func installEscapeInterceptor() {
-        let interceptor = EscapeKeyInterceptor(logPrefix: logPrefix) { [weak self] in
-            self?.cancelDragByUser()
+        let tap = EventTapController(
+            name: "\(logPrefix): Escape",
+            events: [.keyDown],
+            handler: { [weak self] type, event in
+                guard type == .keyDown else { return .pass }
+
+                let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+                guard keyCode == CGKeyCode(kVK_Escape) else { return .pass }
+
+                self?.cancelDragByUser()
+                return .swallow
+            }
+        )
+        if tap.start() {
+            escapeEventTap = tap
         }
-        interceptor.start()
-        escapeInterceptor = interceptor
     }
 
     private func previewTitle(forOptionHeld isOption: Bool, fallback: String) -> String {
@@ -198,8 +210,8 @@ final class CursorDrivenRowDragController<Payload> {
             NSEvent.removeMonitor(monitor)
             flagsLocalMonitor = nil
         }
-        escapeInterceptor?.stop()
-        escapeInterceptor = nil
+        escapeEventTap?.stop()
+        escapeEventTap = nil
     }
 
     deinit {

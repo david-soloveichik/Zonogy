@@ -35,9 +35,6 @@ protocol DockClickInterceptorDelegate: AnyObject {
 /// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy.
 final class DockClickInterceptor {
     private enum Constants {
-        static let eventMask = (1 << CGEventType.leftMouseDown.rawValue)
-            | (1 << CGEventType.leftMouseUp.rawValue)
-            | (1 << CGEventType.leftMouseDragged.rawValue)
         static let dockBundleIdentifier = "com.apple.dock"
         /// Movement threshold in pixels to initiate a Dock drag interception.
         static let dragThreshold: CGFloat = 8.0
@@ -57,8 +54,7 @@ final class DockClickInterceptor {
     /// Cached Dock PID for accessibility queries.
     private var dockPid: pid_t?
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventTap: EventTapController?
 
     /// Tracks a pending click that may be intercepted on mouse-up.
     private var pendingClick: PendingClick?
@@ -119,62 +115,39 @@ final class DockClickInterceptor {
 
         pendingClick = nil
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(Constants.eventMask),
-            callback: DockClickInterceptor.eventCallback,
-            userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        ) else {
-            Logger.debug("DockClickInterceptor: failed to create event tap (missing permission?)")
-            return
+        let tap = EventTapController(
+            name: "DockClickInterceptor",
+            events: [.leftMouseDown, .leftMouseUp, .leftMouseDragged],
+            onDisabled: { [weak self] _ in
+                self?.pendingClick = nil
+            },
+            handler: { [weak self] type, event in
+                self?.processEvent(event, type: type) ?? .pass
+            }
+        )
+        if tap.start() {
+            eventTap = tap
         }
-
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        if let source = runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        Logger.debug("DockClickInterceptor: started")
     }
 
     func stop() {
         pendingClick = nil
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        runLoopSource = nil
+        eventTap?.stop()
         eventTap = nil
         Logger.debug("DockClickInterceptor: stopped")
     }
 
-    private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
-        // Handle rare tap-disable events
-        if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout,
-           let tap = eventTap {
-            pendingClick = nil
-            CGEvent.tapEnable(tap: tap, enable: true)
-            Logger.debug("DockClickInterceptor: re-enabled after timeout")
-            return Unmanaged.passUnretained(event)
-        }
-
+    private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
         // Track drag movement to distinguish clicks from drags
         if type == .leftMouseDragged {
             if var pending = pendingClick {
                 if pending.dragState == .intercepted {
                     delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: event.location)
-                    return nil
+                    return .swallow
                 }
 
                 if pending.dragState == .unhandled || pending.dragState == .cancelled {
-                    return nil
+                    return .swallow
                 }
 
                 let location = event.location
@@ -193,25 +166,25 @@ final class DockClickInterceptor {
                         pending.dragState = .intercepted
                         pendingClick = pending
                         delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: location)
-                        return nil
+                        return .swallow
                     }
 
                     // Can't handle this drag - still swallow it so the Dock doesn't start rearranging.
                     pending.dragState = .unhandled
                     pendingClick = pending
-                    return nil
+                    return .swallow
                 }
 
                 // Swallow small drags so the Dock doesn't start rearranging before we decide it's a drag.
-                return nil
+                return .swallow
             }
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // On mouse-up, intercept if we have a pending click that wasn't a drag
         if type == .leftMouseUp {
             guard let pending = pendingClick else {
-                return Unmanaged.passUnretained(event)
+                return .pass
             }
             pendingClick = nil
 
@@ -220,15 +193,15 @@ final class DockClickInterceptor {
                 // Complete the Dock's click tracking, then end the intercepted drag.
                 postMouseUp(at: pending.downLocation)
                 delegate?.dockClickInterceptorDidEndDrag(self, cursorPoint: event.location)
-                return nil
+                return .swallow
             case .unhandled:
                 // Still complete the Dock's click tracking, but don't trigger any Zonogy action.
                 postMouseUp(at: pending.downLocation)
-                return nil
+                return .swallow
             case .cancelled:
                 // User cancelled mid-drag (Escape). Drop the eventual mouse-up silently — no
                 // synthetic mouse-up to the Dock and no drag-end delegate.
-                return nil
+                return .swallow
             case .none:
                 break
             }
@@ -236,34 +209,34 @@ final class DockClickInterceptor {
             // Fully swallow the click - don't post any events to the Dock.
             // See SPECIFICATION-IMPLEMENTATION.md "Dock click interception activation workaround".
             delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame, dockItemElement: pending.dockItemElement)
-            return nil
+            return .swallow
         }
 
         guard type == .leftMouseDown else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Fast exit: Dock is hidden (autohide)
         guard isDockVisible else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Fast exit: no frame to intercept
         guard let frame = interceptFrame else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Fast exit: click outside the frame (most common case)
         let location = event.location
         guard frame.contains(location) else {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Shift bypasses interception (spec: allow normal Dock behavior)
         // Control bypasses interception (spec: preserve Dock context menus)
         let flags = event.flags
         if flags.contains(.maskShift) || flags.contains(.maskControl) {
-            return Unmanaged.passUnretained(event)
+            return .pass
         }
 
         // Only intercept if the topmost element at this location is a Dock app item.
@@ -276,10 +249,10 @@ final class DockClickInterceptor {
         case .nonDock:
             // Preserve Dock hidden-state bookkeeping when we click inside a stale Dock frame.
             updateDockHiddenStateBookkeeping(at: location)
-            return Unmanaged.passUnretained(event)
+            return .pass
         case .unavailable:
             guard let clickedResult = findClickedAppDockItem(at: location) else {
-                return Unmanaged.passUnretained(event)
+                return .pass
             }
             result = clickedResult
         }
@@ -294,7 +267,7 @@ final class DockClickInterceptor {
         )
 
         // Consume mouse-down so the Dock doesn't start a press-and-hold menu or icon drag.
-        return nil
+        return .swallow
     }
 
     /// Result of finding a clicked app in the Dock.
@@ -499,13 +472,5 @@ final class DockClickInterceptor {
         }
 
         mouseUp.post(tap: .cghidEventTap)
-    }
-
-    private static let eventCallback: CGEventTapCallBack = { proxy, type, cgEvent, userInfo in
-        guard let userInfo else {
-            return Unmanaged.passUnretained(cgEvent)
-        }
-        let interceptor = Unmanaged<DockClickInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
-        return interceptor.processEvent(cgEvent, type: type)
     }
 }
