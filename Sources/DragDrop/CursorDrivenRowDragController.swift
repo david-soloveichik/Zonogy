@@ -24,8 +24,7 @@ final class CursorDrivenRowDragController<Payload> {
     private var dragLocalMonitor: Any?
     private var flagsGlobalMonitor: Any?
     private var flagsLocalMonitor: Any?
-    private var escGlobalMonitor: Any?
-    private var escLocalMonitor: Any?
+    private var escapeInterceptor: EscapeKeyInterceptor?
     private var newWindowAffordance: NewWindowAffordance?
 
     init(
@@ -75,7 +74,7 @@ final class CursorDrivenRowDragController<Payload> {
             installFlagsMonitors()
         }
 
-        installEscMonitors()
+        installEscapeInterceptor()
 
         guard driveViaMouseMonitors else {
             Logger.debug("\(logPrefix): drag session started (externally driven)")
@@ -107,18 +106,24 @@ final class CursorDrivenRowDragController<Payload> {
         onDidEndDrag(payload, cursorPointAX ?? currentCursorAXProvider())
     }
 
-    /// User pressed Esc while a drag was in flight. Tears down preview/monitors and dispatches
-    /// `onDidCancelByUser` so the owning controller can clean up its session state. The user
-    /// may still be holding the mouse button; the owning controller is responsible for
-    /// ensuring that the eventual mouse-up has no effect.
+    /// User pressed Esc while a drag was in flight. Called synchronously from the Escape
+    /// CGEventTap callback. Everything that has to close races against a pending mouse-up
+    /// happens synchronously: `activePayload` is cleared so the NSEvent mouse monitor
+    /// becomes a no-op, the preview is hidden, and `onDidCancelByUser` fires so owners can
+    /// flip their own state (e.g. `DockClickInterceptor.cancelInProgressDrag()`) before
+    /// the eventual mouse-up is delivered. Only monitor/tap teardown is deferred to the
+    /// next main-runloop turn, so we never call `escapeInterceptor.stop()` from inside
+    /// the very CGEventTap callback we are running on.
     func cancelDragByUser() {
         guard let payload = activePayload else { return }
         Logger.debug("\(logPrefix): drag cancelled by user (Escape)")
-        tearDownMonitors()
         activePayload = nil
         newWindowAffordance = nil
         dragPreview.hide()
         onDidCancelByUser?(payload)
+        DispatchQueue.main.async { [weak self] in
+            self?.tearDownMonitors()
+        }
     }
 
     func cancelDrag() {
@@ -159,23 +164,16 @@ final class CursorDrivenRowDragController<Payload> {
         )
     }
 
-    private func installEscMonitors() {
-        escGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            self?.handleKeyDown(event)
+    /// Installs a CGEventTap (Input Monitoring) that swallows Escape while the drag is in
+    /// flight, so the keystroke never reaches the frontmost app. `NSEvent` global monitors
+    /// are observation-only and cannot consume events targeted at other apps, which is why
+    /// a tap is required here.
+    private func installEscapeInterceptor() {
+        let interceptor = EscapeKeyInterceptor(logPrefix: logPrefix) { [weak self] in
+            self?.cancelDragByUser()
         }
-        escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            guard let self else { return event }
-            if event.keyCode == 53 {
-                self.handleKeyDown(event)
-                return nil
-            }
-            return event
-        }
-    }
-
-    private func handleKeyDown(_ event: NSEvent) {
-        guard event.keyCode == 53 else { return }
-        cancelDragByUser()
+        interceptor.start()
+        escapeInterceptor = interceptor
     }
 
     private func previewTitle(forOptionHeld isOption: Bool, fallback: String) -> String {
@@ -200,14 +198,8 @@ final class CursorDrivenRowDragController<Payload> {
             NSEvent.removeMonitor(monitor)
             flagsLocalMonitor = nil
         }
-        if let monitor = escGlobalMonitor {
-            NSEvent.removeMonitor(monitor)
-            escGlobalMonitor = nil
-        }
-        if let monitor = escLocalMonitor {
-            NSEvent.removeMonitor(monitor)
-            escLocalMonitor = nil
-        }
+        escapeInterceptor?.stop()
+        escapeInterceptor = nil
     }
 
     deinit {
