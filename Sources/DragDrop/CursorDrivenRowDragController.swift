@@ -302,7 +302,9 @@ private final class CursorDrivenDragPreview {
         )
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.level = .floating
+        // Sit above Launcher / DockMenu / CmdTab panels (all `.popUpMenu`) so the cursor-following
+        // drag preview is never visually clipped behind them.
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
         window.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
         window.ignoresMouseEvents = true
         window.hasShadow = true

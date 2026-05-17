@@ -139,6 +139,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem, appURL: URL) {
         Logger.debug("DockMenus: drag began for window \(window.title)")
+        launcherController.hide()
         // Begin in window-drag mode; the drop handler checks Option state and may switch
         // to a new-window action using `appURL`.
         _ = beginCursorDrivenWindowDrag(for: window)
@@ -171,6 +172,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
     func dockMenusCoordinatorDidBeginNonRunningAppDrag(_ coordinator: DockMenusCoordinator) {
         Logger.debug("DockMenus: non-running app drag began")
+        launcherController.hide()
         beginCursorDrivenLaunchTargetDrag()
     }
 
