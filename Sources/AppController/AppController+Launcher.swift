@@ -115,6 +115,46 @@ extension AppController {
         return true
     }
 
+    /// Retarget to `destination` as part of a user gesture (placeholder activation, indicator click,
+    /// Control-Command click), then optionally open the Launcher anchored on the new target.
+    /// Programmatic retargets that should not touch the Launcher use `setTargetedZone` or
+    /// `applyTargetedDestination` directly instead.
+    ///
+    /// Order matters: the inherited-click suppression gate must be armed *before* retargeting so a
+    /// synchronous did-change callback observes the armed state, and any `afterRetarget` work runs
+    /// before the Launcher opens so its visual feedback (e.g. border flash) isn't obscured.
+    internal func retargetForUserGesture(
+        _ destination: TargetedZoneManager.TargetedDestination,
+        reason: String,
+        openingLauncherWith trigger: String? = nil,
+        afterRetarget: (() -> Void)? = nil
+    ) {
+        armLauncherClickSuppressionIfNeeded(
+            for: destination,
+            willOpenLauncher: trigger != nil
+        )
+        applyTargetedDestination(destination, reason: reason)
+        afterRetarget?()
+        if let trigger {
+            showLauncherIfAllowed(trigger: trigger)
+        }
+    }
+
+    private func armLauncherClickSuppressionIfNeeded(
+        for destination: TargetedZoneManager.TargetedDestination,
+        willOpenLauncher: Bool
+    ) {
+        let willRetargetVisibleLauncher = launcherController.isActive &&
+            targetedZoneManager.targetedDestination != destination
+        let willOpenHiddenLauncher = willOpenLauncher && !launcherController.isActive
+
+        guard willRetargetVisibleLauncher || willOpenHiddenLauncher else {
+            return
+        }
+
+        launcherController.armInheritedClickSuppression()
+    }
+
     /// Auto-show Launcher if the currently targeted zone is an empty tiled zone.
     /// Called when:
     /// - A tiled zone becomes empty (window closed, minimized, or moved away)

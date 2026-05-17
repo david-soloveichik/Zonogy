@@ -4,21 +4,6 @@ import ApplicationServices
 
 /// Validation retry callbacks and WindowController delegate bridge (manual moves, resizes, closes).
 extension AppController {
-    private func armLauncherClickSuppressionIfNeeded(
-        for destination: TargetedZoneManager.TargetedDestination,
-        willOpenLauncher: Bool
-    ) {
-        let willRetargetVisibleLauncher = launcherController.isActive &&
-            targetedZoneManager.targetedDestination != destination
-        let willOpenHiddenLauncher = willOpenLauncher && !launcherController.isActive
-
-        guard willRetargetVisibleLauncher || willOpenHiddenLauncher else {
-            return
-        }
-
-        launcherController.armInheritedClickSuppression()
-    }
-
     func hasManagedWindows(for pid: pid_t) -> Bool {
         return windowController.allWindows.contains { $0.backing.pid == pid }
     }
@@ -253,41 +238,8 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
-        enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
-        let key = zoneKey(for: screenId, index: zoneIndex)
-        let openLauncher = isDoubleClick && !cmdTabController.isActive
-        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: openLauncher)
-        targetedZoneManager.setTargetedZone(key, reason: "placeholder-activated")
-        flashTargetFeedback(for: key)
-
-        // Promote the floating zone occupant into the activated placeholder's zone if they overlap.
-        // Targeting happens first so that placeWindow sees the zone as targeted and triggers
-        // the normal retarget-after-fill logic per spec.
-        if let occupant = floatingZoneOccupant(on: screenId),
-           let context = screenContexts[screenId],
-           let zone = context.zoneController.zone(at: zoneIndex),
-           isZoneEffectivelyEmpty(zone),
-           let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) {
-            let zoneFrame = context.descriptor.screenToAccessibility(zone.frame)
-            if FloatingZoneOverlapPolicy.overlapsZoneFrame(
-                floatingFrame: occupantFrame,
-                zoneFrame: zoneFrame
-            ) {
-                Logger.debug("Promoting floating zone occupant \(occupant.windowId) into zone \(zoneIndex) on screen \(screenIndex) (placeholder-activated)")
-                // Explicit floating→tile promotion: don't retarget on removal of the floating source.
-                windowPlacementManager.placeWindow(
-                    occupant,
-                    into: .tiled(key),
-                    centerFloatingWindow: true,
-                    reason: "placeholder-activated-promotion",
-                    retargetOnRemoval: false,
-                    forceRetargetAfterFill: false
-                )
-            }
-        }
-        if isDoubleClick && !cmdTabController.isActive {
-            showLauncherIfAllowed(trigger: "placeholder-double-click")
-        }
+        let trigger: String? = (isDoubleClick && !cmdTabController.isActive) ? "placeholder-double-click" : nil
+        activateZoneFromPlaceholder(screenId: screenId, zoneIndex: zoneIndex, launcherTrigger: trigger)
     }
 
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -297,13 +249,56 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder search pill clicked for zone \(zoneIndex) on screen \(screenIndex)")
+        activateZoneFromPlaceholder(screenId: screenId, zoneIndex: zoneIndex, launcherTrigger: "placeholder-search-pill")
+    }
 
-        // Reuse placeholder activation logic for targeting and floating zone overlap promotion
-        placeholderActivated(screenId: screenId, zoneIndex: zoneIndex, isDoubleClick: false)
+    /// Shared activation flow for placeholder mouse-down and placeholder search-pill click:
+    /// retargets the placeholder's zone, flashes the border, promotes an overlapping floating
+    /// occupant, and (if `launcherTrigger` is non-nil) opens the Launcher anchored on the zone.
+    private func activateZoneFromPlaceholder(
+        screenId: CGDirectDisplayID,
+        zoneIndex: Int,
+        launcherTrigger: String?
+    ) {
+        enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
+        let key = zoneKey(for: screenId, index: zoneIndex)
+        retargetForUserGesture(.tiled(key), reason: "placeholder-activated", openingLauncherWith: launcherTrigger) {
+            self.flashTargetFeedback(for: key)
+            // Retargeting happens first so placeWindow sees the zone as targeted and triggers
+            // the normal retarget-after-fill logic per spec.
+            self.promoteOverlappingFloatingOccupantIntoZone(screenId: screenId, zoneIndex: zoneIndex)
+        }
+    }
 
-        // Always show the Launcher when the search pill is clicked
-        armLauncherClickSuppressionIfNeeded(for: .tiled(zoneKey(for: screenId, index: zoneIndex)), willOpenLauncher: true)
-        showLauncherIfAllowed(trigger: "placeholder-search-pill")
+    private func promoteOverlappingFloatingOccupantIntoZone(
+        screenId: CGDirectDisplayID,
+        zoneIndex: Int
+    ) {
+        guard let occupant = floatingZoneOccupant(on: screenId),
+              let context = screenContexts[screenId],
+              let zone = context.zoneController.zone(at: zoneIndex),
+              isZoneEffectivelyEmpty(zone),
+              let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
+            return
+        }
+        let zoneFrame = context.descriptor.screenToAccessibility(zone.frame)
+        guard FloatingZoneOverlapPolicy.overlapsZoneFrame(
+            floatingFrame: occupantFrame,
+            zoneFrame: zoneFrame
+        ) else {
+            return
+        }
+        let screenIndex = screenContextStore.loggingIndex(for: screenId)
+        Logger.debug("Promoting floating zone occupant \(occupant.windowId) into zone \(zoneIndex) on screen \(screenIndex) (placeholder-activated)")
+        // Explicit floating→tile promotion: don't retarget on removal of the floating source.
+        windowPlacementManager.placeWindow(
+            occupant,
+            into: .tiled(zoneKey(for: screenId, index: zoneIndex)),
+            centerFloatingWindow: true,
+            reason: "placeholder-activated-promotion",
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: false
+        )
     }
 
     func zoneIndicatorActivated(_ key: ZoneKey, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
@@ -313,13 +308,8 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
-        let openLauncher = (isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive
-        armLauncherClickSuppressionIfNeeded(for: .tiled(key), willOpenLauncher: openLauncher)
-        targetedZoneManager.setTargetedZone(key, reason: "indicator-clicked")
-
-        if openLauncher {
-            showLauncherIfAllowed(trigger: "indicator-clicked")
-        }
+        let trigger: String? = ((isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive) ? "indicator-clicked" : nil
+        retargetForUserGesture(.tiled(key), reason: "indicator-clicked", openingLauncherWith: trigger)
     }
 
     func floatingZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
@@ -329,13 +319,8 @@ extension AppController {
         }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Floating zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
-        let openLauncher = (isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive
-        armLauncherClickSuppressionIfNeeded(for: .floating(screenId: screenId), willOpenLauncher: openLauncher)
-        targetedZoneManager.setFloatingTarget(on: screenId, reason: "floating-indicator-clicked")
-
-        if openLauncher {
-            showLauncherIfAllowed(trigger: "floating-indicator-clicked")
-        }
+        let trigger: String? = ((isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive) ? "floating-indicator-clicked" : nil
+        retargetForUserGesture(.floating(screenId: screenId), reason: "floating-indicator-clicked", openingLauncherWith: trigger)
     }
 
     // MARK: - AddZoneIndicatorManagerDelegate

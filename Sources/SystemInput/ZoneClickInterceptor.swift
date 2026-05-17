@@ -5,11 +5,14 @@ import ApplicationServices
 /// to the underlying application. The delegate decides, based on current state (modifier
 /// keys, CmdTab visibility, etc), whether a given click should be consumed.
 protocol ZoneClickInterceptorDelegate: AnyObject {
+    /// - Parameter clickCount: WindowServer-tracked click state on this mouse-down (1 for single,
+    ///   2 for second click within the system double-click window at the same location, etc).
     /// - Returns: true if the gesture was handled and the click should be swallowed.
     func zoneClickInterceptor(
         _ interceptor: ZoneClickInterceptor,
         shouldConsumeClickAt location: CGPoint,
-        modifiers: CGEventFlags
+        modifiers: CGEventFlags,
+        clickCount: Int
     ) -> Bool
 }
 
@@ -53,7 +56,13 @@ final class ZoneClickInterceptor {
         }
 
         let location = event.location
-        if delegate.zoneClickInterceptor(self, shouldConsumeClickAt: location, modifiers: event.flags) {
+        let clickCount = Int(event.getIntegerValueField(.mouseEventClickState))
+        if delegate.zoneClickInterceptor(
+            self,
+            shouldConsumeClickAt: location,
+            modifiers: event.flags,
+            clickCount: clickCount
+        ) {
             return .swallow
         }
 

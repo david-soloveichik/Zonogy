@@ -212,7 +212,8 @@ extension AppController {
     func zoneClickInterceptor(
         _ interceptor: ZoneClickInterceptor,
         shouldConsumeClickAt location: CGPoint,
-        modifiers: CGEventFlags
+        modifiers: CGEventFlags,
+        clickCount: Int
     ) -> Bool {
         // Don't intercept clicks when WinShot chooser is active - allow clicks to pass through
         if winShotChooserController.isActive {
@@ -256,8 +257,10 @@ extension AppController {
             return false
         }
 
-        targetedZoneManager.setTargetedZone(key, reason: "control-command-click")
-        flashTargetFeedback(for: key)
+        let trigger: String? = clickCount >= 2 ? "control-command-double-click" : nil
+        retargetForUserGesture(.tiled(key), reason: "control-command-click", openingLauncherWith: trigger) {
+            self.flashTargetFeedback(for: key)
+        }
         return true
     }
 
