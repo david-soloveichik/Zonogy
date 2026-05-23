@@ -818,9 +818,20 @@ extension AppController {
         }
         if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
            placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
+            reconcileCapturedFrontmostWindowIfNeeded(window)
             return
         }
         windowPlacementManager.placeNewWindow(window)
+        reconcileCapturedFrontmostWindowIfNeeded(window)
+    }
+
+    private func reconcileCapturedFrontmostWindowIfNeeded(_ window: ManagedWindow) {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == window.backing.pid else {
+            return
+        }
+
+        setCurrentFrontmostManagedWindowId(window.windowId, reason: "captured-frontmost")
+        refreshResizeHandles()
     }
 
     func windowController(
