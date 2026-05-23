@@ -92,7 +92,7 @@ extension AppController {
         }
 
         if currentFrontmostManagedWindowId == windowId {
-            currentFrontmostManagedWindowId = nil
+            setCurrentFrontmostManagedWindowId(nil, reason: "window-destroyed:\(windowId)")
         }
         // If the window is staged for deferred prune, keep its remembered sizes alive —
         // a false-positive detection followed by restore would otherwise lose user state.
@@ -198,10 +198,11 @@ extension AppController {
         // Track frontmost managed window for CmdTab initial selection and resize-handle
         // overlap avoidance. Ignore stale background-app focus events and tolerate
         // transient AX nil-focus failures for the frontmost app.
-        currentFrontmostManagedWindowId = resolveFrontmostManagedWindowId(
+        let resolvedFrontmostId = resolveFrontmostManagedWindowId(
             pid: pid,
             focusedWindowId: focusedWindowId
         )
+        setCurrentFrontmostManagedWindowId(resolvedFrontmostId, reason: "focus-changed:pid=\(pid)")
 
         // Resize-handle visibility depends on which managed window is active.
         // Refresh on focus changes so the UI updates immediately.
@@ -350,7 +351,7 @@ extension AppController {
         }
         Logger.debug("Window \(windowId) did miniaturize")
         if currentFrontmostManagedWindowId == windowId {
-            currentFrontmostManagedWindowId = nil
+            setCurrentFrontmostManagedWindowId(nil, reason: "window-miniaturize:\(windowId)")
         }
         manualResizeDetachedWindowIds.remove(windowId)
         selfResizeSnapDebouncer.clear(windowId: windowId)

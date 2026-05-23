@@ -113,7 +113,25 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let unmanagedFocusRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by CmdTab to determine initial selection without an AX call.
-    internal var currentFrontmostManagedWindowId: Int?
+    /// All mutations must go through `setCurrentFrontmostManagedWindowId(_:reason:)` so transitions
+    /// are logged — resize-bar visibility depends on this value.
+    internal private(set) var currentFrontmostManagedWindowId: Int?
+
+    /// Updates `currentFrontmostManagedWindowId` and logs each transition with a short reason, so
+    /// we can explain why the resize-handle avoidance frame changed (or was missing) when
+    /// diagnosing bar-overlap bugs.
+    internal func setCurrentFrontmostManagedWindowId(_ newValue: Int?, reason: String) {
+        let oldValue = currentFrontmostManagedWindowId
+        guard oldValue != newValue else { return }
+        currentFrontmostManagedWindowId = newValue
+        let oldDescription = oldValue.map { "window \($0)" } ?? "none"
+        let newDescription = newValue.map { "window \($0)" } ?? "none"
+        Logger.debug("Frontmost managed window: \(oldDescription) -> \(newDescription) (reason: \(reason))")
+    }
+    /// Last logged fingerprint per screen for `refreshResizeHandles`. Refreshes that produce the
+    /// same inputs and per-separator outcomes are suppressed to keep the log readable during
+    /// sync/focus bursts.
+    internal var lastLoggedResizeHandleFingerprint: [CGDirectDisplayID: String] = [:]
     internal var tiledToFloatingDragContexts: [Int: TiledToFloatingDragContext] = [:]
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let floatingIndicatorTracker = EdgeIndicatorTracker()

@@ -95,7 +95,7 @@ extension AppController {
         if focusedManagedWindow != nil {
             exitPinnedResizeBarMode(reason: "managed-window-activation")
         }
-        currentFrontmostManagedWindowId = focusedManagedWindow?.windowId
+        setCurrentFrontmostManagedWindowId(focusedManagedWindow?.windowId, reason: "workspace-activate")
         refreshResizeHandles()
 
         // Record window activity for CmdTab recency tracking.

@@ -223,7 +223,8 @@ extension AppController {
 
     // MARK: - Resize Handles
 
-    private struct FrontmostManagedWindowContext {
+    fileprivate struct FrontmostManagedWindowContext {
+        let windowId: Int
         let zoneKey: ZoneKey
         let frame: CGRect
     }
@@ -294,18 +295,32 @@ extension AppController {
         )
     }
 
-    private func frontmostManagedWindowContext(windowIdOverride: Int? = nil) -> FrontmostManagedWindowContext? {
-        let windowId = windowIdOverride ?? currentFrontmostManagedWindowId
-        guard !zoneResizeDragInProgress,
-              let windowId,
-              let managed = windowController.window(withId: windowId),
-              let zoneKey = zoneKey(forManagedWindow: managed),
-              let descriptor = descriptor(for: zoneKey.screenId) else {
-            return nil
-        }
+    /// Outcome of resolving the frontmost managed window for resize-bar avoidance.
+    /// The `.none` case carries a short reason so the log can explain why no avoidance frame
+    /// was applied (and hence why a bar may have remained visible).
+    fileprivate enum FrontmostManagedWindowResolution {
+        case resolved(FrontmostManagedWindowContext)
+        case none(reason: String)
+    }
 
+    fileprivate func resolveFrontmostManagedWindow(windowIdOverride: Int? = nil) -> FrontmostManagedWindowResolution {
+        if zoneResizeDragInProgress {
+            return .none(reason: "zone-resize-drag-in-progress")
+        }
+        guard let windowId = windowIdOverride ?? currentFrontmostManagedWindowId else {
+            return .none(reason: "no-frontmost-id")
+        }
+        guard let managed = windowController.window(withId: windowId) else {
+            return .none(reason: "window-not-tracked:\(windowId)")
+        }
+        guard let zoneKey = zoneKey(forManagedWindow: managed) else {
+            return .none(reason: "window-not-in-zone:\(windowId)")
+        }
+        guard let descriptor = descriptor(for: zoneKey.screenId) else {
+            return .none(reason: "no-descriptor-for-screen:displayId=\(zoneKey.screenId)")
+        }
         let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: descriptor).standardized
-        return FrontmostManagedWindowContext(zoneKey: zoneKey, frame: frame)
+        return .resolved(FrontmostManagedWindowContext(windowId: windowId, zoneKey: zoneKey, frame: frame))
     }
 
     internal func refreshResizeHandles() {
@@ -316,16 +331,33 @@ extension AppController {
         prunePinnedResizeBarScreens(reason: "refresh")
         var descriptors: [ZoneSeparatorDescriptor] = []
         let activeState = activeFitState
-        let frontmostManagedWindow = frontmostManagedWindowContext(windowIdOverride: frontmostWindowIdOverride)
+        let frontmostResolution = resolveFrontmostManagedWindow(windowIdOverride: frontmostWindowIdOverride)
+        let frontmostManagedWindow: FrontmostManagedWindowContext? = {
+            if case let .resolved(context) = frontmostResolution { return context }
+            return nil
+        }()
+        let frontmostNoneReason: String? = {
+            if case let .none(reason) = frontmostResolution { return reason }
+            return nil
+        }()
         let windowOverlapAllowance: CGFloat = zoneMargin
 
         for (screenId, context) in screenContexts {
+            let screenLabel = screenContextStore.logDescription(for: screenId)
             if isScreenPausedForFullScreen(screenId) {
+                emitResizeHandleLogIfChanged(
+                    screenId: screenId,
+                    lines: ["ResizeBars refresh skipped on \(screenLabel): full-screen-paused"]
+                )
                 continue
             }
             // Unmanaged focus always suppresses resize bars on that screen to avoid overlapping
             // windows we do not control; pinned mode remains armed but does not override this.
             if unmanagedFocusedWindowScreenId == screenId {
+                emitResizeHandleLogIfChanged(
+                    screenId: screenId,
+                    lines: ["ResizeBars refresh skipped on \(screenLabel): unmanaged-window-focused"]
+                )
                 continue
             }
             let pinnedModeActive = isResizeHandlePinnedModeActive(on: screenId)
@@ -387,6 +419,15 @@ extension AppController {
                 ]
             }()
 
+            var logLines: [String] = [
+                "ResizeBars refresh on \(screenLabel): " +
+                "frontmost=\(formatFrontmostForLog(onScreenContext: frontmostManagedWindowOnScreen, global: frontmostManagedWindow, globalNoneReason: frontmostNoneReason, screenId: screenId)); " +
+                "floating=\(formatAvoidFrameForLog(floatingZoneContext?.avoidFrame)); " +
+                "activeFit=\(formatActiveFitForLog(activeFitContext)); " +
+                "pinned=\(pinnedModeActive ? "yes" : "no"); " +
+                "managedAvoid=\(formatManagedContextsForLog(managedContexts))"
+            ]
+
             let separators = context.zoneController.separators()
 
             for sep in separators {
@@ -395,6 +436,8 @@ extension AppController {
                     on: screenId,
                     context: context
                 )
+                let orientationLabel = sep.orientation == .vertical ? "v" : "h"
+                let originalFrame = sep.frame
                 guard let frame = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                     sep,
                     activeFitContext: activeFitContext,
@@ -402,8 +445,21 @@ extension AppController {
                     floatingZoneContext: floatingZoneContext,
                     pinnedContext: pinnedContext
                 ) else {
+                    logLines.append(
+                        "  separator \(orientationLabel)#\(sep.index) @\(formatRectForLog(originalFrame)) -> hidden"
+                    )
                     continue
                 }
+
+                let outcome: String
+                if frame.equalTo(originalFrame.standardized) {
+                    outcome = "kept"
+                } else {
+                    outcome = "clipped to \(formatRectForLog(frame))"
+                }
+                logLines.append(
+                    "  separator \(orientationLabel)#\(sep.index) @\(formatRectForLog(originalFrame)) -> \(outcome)"
+                )
 
                 descriptors.append(ZoneSeparatorDescriptor(
                     screenId: screenId,
@@ -413,8 +469,65 @@ extension AppController {
                     screenCocoaBounds: context.descriptor.cocoaBounds
                 ))
             }
+
+            emitResizeHandleLogIfChanged(screenId: screenId, lines: logLines)
         }
 
         resizeHandleManager.present(over: descriptors)
+    }
+
+    // MARK: - Resize-handle log formatters
+
+    /// Logs the supplied lines only when the per-screen fingerprint changed since the previous refresh.
+    /// Refreshes that produce identical inputs and per-separator outcomes are suppressed so the
+    /// log stays readable during sync/focus bursts.
+    fileprivate func emitResizeHandleLogIfChanged(screenId: CGDirectDisplayID, lines: [String]) {
+        let fingerprint = lines.joined(separator: "\n")
+        if lastLoggedResizeHandleFingerprint[screenId] == fingerprint {
+            return
+        }
+        lastLoggedResizeHandleFingerprint[screenId] = fingerprint
+        for line in lines {
+            Logger.debug(line)
+        }
+    }
+
+    fileprivate func formatRectForLog(_ rect: CGRect) -> String {
+        String(format: "(%.0f,%.0f,%.0f,%.0f)", rect.minX, rect.minY, rect.width, rect.height)
+    }
+
+    fileprivate func formatAvoidFrameForLog(_ rect: CGRect?) -> String {
+        guard let rect else { return "none" }
+        return formatRectForLog(rect)
+    }
+
+    fileprivate func formatActiveFitForLog(_ context: ZoneResizeHandleAvoidanceContext?) -> String {
+        guard let context else { return "none" }
+        return "zone \(context.zoneIndex) @\(formatRectForLog(context.avoidFrame))"
+    }
+
+    fileprivate func formatManagedContextsForLog(_ contexts: [ZoneResizeHandleAvoidanceContext]) -> String {
+        guard !contexts.isEmpty else { return "none" }
+        let pieces = contexts.map { "zone \($0.zoneIndex) @\(formatRectForLog($0.avoidFrame))" }
+        return "[\(pieces.joined(separator: ", "))]"
+    }
+
+    /// Formats the frontmost-managed-window status for the per-screen header log.
+    /// Reports either the on-screen frontmost frame, or — if the globally resolved frontmost is on a
+    /// different screen / unresolved — the reason so we can tell why no managed avoid frame applies here.
+    fileprivate func formatFrontmostForLog(
+        onScreenContext: FrontmostManagedWindowContext?,
+        global: FrontmostManagedWindowContext?,
+        globalNoneReason: String?,
+        screenId: CGDirectDisplayID
+    ) -> String {
+        if let onScreenContext {
+            return "window \(onScreenContext.windowId) @\(formatRectForLog(onScreenContext.frame))"
+        }
+        if let global {
+            let otherLabel = screenContextStore.logDescription(for: global.zoneKey.screenId)
+            return "off-screen(window \(global.windowId) on \(otherLabel))"
+        }
+        return "none(\(globalNoneReason ?? "unknown"))"
     }
 }
