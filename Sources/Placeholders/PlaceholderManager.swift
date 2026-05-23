@@ -55,7 +55,6 @@ let windowCornerRadius: CGFloat = isTahoe ? 24 : 12
 /// Placeholders are visual representations of empty tiling zones.
 final class PlaceholderManager {
     private enum LayerName {
-        static let panelSheen = "placeholder.panel.sheen"
         static let closeButtonBase = "placeholder.close.base"
         static let closeButtonSheen = "placeholder.close.sheen"
         static let closeButtonInnerRing = "placeholder.close.inner-ring"
@@ -185,34 +184,16 @@ final class PlaceholderManager {
     }
 
     private func applyPanelGlassStyle(to layer: CALayer) {
-        layer.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.24).cgColor
+        // Visually transparent, but a tiny alpha is required so the window server
+        // treats the interior as part of the window for click/drag hit-testing.
+        layer.backgroundColor = NSColor.black.withAlphaComponent(1.0 / 255.0).cgColor
         layer.cornerRadius = windowCornerRadius
         layer.borderWidth = 1.5
         layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
-        layer.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
-        layer.shadowOpacity = 1.0
-        layer.shadowRadius = 10
-        layer.shadowOffset = CGSize(width: 0, height: -2)
+        layer.shadowOpacity = 0
         if #available(macOS 10.15, *) {
             layer.cornerCurve = .continuous
         }
-
-        removeSublayers(named: LayerName.panelSheen, from: layer)
-
-        let sheen = CAGradientLayer()
-        sheen.name = LayerName.panelSheen
-        sheen.frame = layer.bounds
-        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        sheen.cornerRadius = layer.cornerRadius
-        sheen.colors = [
-            NSColor.white.withAlphaComponent(0.25).cgColor,
-            NSColor.white.withAlphaComponent(0.07).cgColor,
-            NSColor.clear.cgColor
-        ]
-        sheen.locations = [0.0, 0.25, 1.0]
-        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
-        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
-        layer.insertSublayer(sheen, at: 0)
     }
 
     private func applyCloseButtonGlassStyle(_ button: NSButton, buttonSize: CGFloat) {
