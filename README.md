@@ -2,7 +2,7 @@
 
 Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source (MIT license).
 
-Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is targeted for the next window. Entire arrangements can be snapshotted to switch working contexts, and you can find any window with a keyboard-driven Launcher or hover-over Dock menus.
+Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is targeted for the next window. A keyboard-driven Launcher and hover-over Dock menus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
 
 > Philosophy: An intentional place for every window.
 
@@ -12,7 +12,9 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 
 Zonogy rethinks multiple aspects of the operating system UI, including window management, virtual desktops, application/window launching, and interacting with the Dock.
 
-**Window management:** Tiling window managers promise to tame a cluttered screen but they feel twitchy. Every time you open, close, or minimize a window, the entire layout reflows. Zonogy takes a different approach, allowing you to define zones that persist even when empty, so your layout stays stable. An additional floating zone on each screen lets you float a window above others when you need quick access to a window without disrupting the tiling zones.
+**Window management:** To tame a cluttered screen, Zonogy defines non-overlapping tiling zones each holding a windows. Zones persist even when empty, so your layout stays stable. An additional floating zone on each screen lets you float a window above others when you need quick access to a window without disrupting the tiling zones.
+
+> **Comparison with auto-tiling window managers (e.g., yabai, Amethyst, AeroSpace):** While attempting to solve the same problem, automatic tiling can feel twitchy because every time you open, close, or minimize a window, the entire layout reflows to fill the screen. These tools also force all available space to be filled, even when windows have a natural maximum size. Instead, Zonogy "reserves space" for additional windows.
 
 **Virtual desktops**: Virtual desktops like macOS's built-in Spaces have a limitation that a window can only belong to one space, yet the same window often belongs to more than one task. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows.
 
