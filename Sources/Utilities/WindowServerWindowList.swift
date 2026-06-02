@@ -24,5 +24,30 @@ enum WindowServerWindowList {
 
         return windowNumbers
     }
+
+    /// Returns true when a window with the given owner pid and CG window number is
+    /// currently known to the WindowServer. Uses the same option set as the
+    /// destroyed-window prune (`pruneDestroyedExternalWindows`) so both code paths
+    /// agree on whether a window still exists.
+    static func containsWindow(pid: pid_t, cgWindowId: Int) -> Bool {
+        guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+
+        for windowInfo in windowList {
+            guard let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+                  ownerPID == pid else {
+                continue
+            }
+            if let number = windowInfo[kCGWindowNumber as String] as? Int, number == cgWindowId {
+                return true
+            }
+            if let number = windowInfo[kCGWindowNumber as String] as? NSNumber, number.intValue == cgWindowId {
+                return true
+            }
+        }
+
+        return false
+    }
 }
 

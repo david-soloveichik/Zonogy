@@ -18,6 +18,9 @@ enum GuardrailTests {
         if !MinimizeLoopGuardTests.run() {
             allPassed = false
         }
+        if !SpuriousDestroyPolicyTests.run() {
+            allPassed = false
+        }
         if !WindowPlacementManagerNoOpPlacementTests.run() {
             allPassed = false
         }

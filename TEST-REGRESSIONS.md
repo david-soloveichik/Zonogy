@@ -55,6 +55,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: When a launching app processes its own queue of windows to unminimize, synchronously minimizing the displaced occupant appends it to the back of that queue, where the app re-unminimizes it — infinite minimize/unminimize loop.
   - Think about: A programmatic minimize issued during an app's own unminimize burst can be picked up and undone by the app's pending queue. Sequence or defer such minimizes so they don't feed the burst, and have a fallback that detects the loop and breaks it.
 
+- Bug report: A managed window can briefly lose its zone (placeholder appears, Launcher auto-shows, then both vanish) when its app emits a spurious `AXUIElementDestroyed` while the window stays open — e.g. Finder recycling a window's AX element on clicking to rename a file (likely a Finder bug).
+  - Think about: An `AXUIElementDestroyed` notification only proves the *element* went away, not the window. Cross-check the WindowServer ground truth (`CGWindowListCopyWindowInfo`) and confirm a fresh AX element binds before vacating the zone; rebind the element in place when the window is still present rather than pruning and later restoring.
+
 - Bug report: When a Sticky Resize window is activated in a right-column zone, one focus-related notification can restore its remembered size at the zone origin and ActiveFit can then shift it into reveal mode, but a second focus/main-window notification can move it back to the rest-position origin while ActiveFit still thinks the window is already revealed. The result is that the window stays at the rest position and hangs off-screen even though ActiveFit state says reveal mode is active.
   - Fixed by: Reusing cached ActiveFit reveal state only when the window's actual current frame still matches the stored reveal frame; otherwise ActiveFit reapplies the reveal move instead of returning early.
 

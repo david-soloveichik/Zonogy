@@ -102,6 +102,10 @@ extension WindowController {
         switch notificationName {
         case axDestroyedNotification:
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
+            if handleSpuriousDestroyIfWindowAlive(managed: managed, notificationElement: element) {
+                break
+            }
+
             // Stage before notifying the delegate so deferred-prune-aware cleanup
             // (e.g. remembered-size preservation) can detect the pending entry and
             // avoid dropping state on a spurious AXDestroyed + restore cycle.
@@ -125,6 +129,92 @@ extension WindowController {
         default:
             break
         }
+    }
+
+    /// Handle a possibly-spurious `AXUIElementDestroyed` for a tracked window.
+    ///
+    /// An `AXUIElementDestroyed` notification reports that an *element* went away, not
+    /// necessarily the window. This gathers the facts `SpuriousDestroyPolicy` needs —
+    /// is the window still in the WindowServer, does our current element still resolve,
+    /// and (only if not) can a recycled replacement be found — then applies the policy.
+    /// Returns true when the window is still alive and was kept in place (the caller
+    /// must not prune); false when the caller should proceed with deferred pruning.
+    private func handleSpuriousDestroyIfWindowAlive(
+        managed: ManagedWindow,
+        notificationElement: AXUIElement
+    ) -> Bool {
+        let identifier = managed.externalIdentifier
+        let windowStillListed = WindowServerWindowList.containsWindow(
+            pid: identifier.pid,
+            cgWindowId: identifier.cgWindowId
+        )
+
+        // A truly destroyed element fails `_AXUIElementGetWindow`; a spurious notification
+        // for a still-valid element resolves the same CGWindowID. Checking our current
+        // element first means a purely spurious destroy (same element still works) keeps
+        // the window in place instead of being treated as a recycle or a close.
+        let currentElementResolves = windowStillListed && cgWindowIdWithStatus(
+            for: managed.backing.element,
+            pid: identifier.pid,
+            context: "spurious-destroy-current"
+        ).id.map { Int($0) == identifier.cgWindowId } ?? false
+
+        // Only look for a recycled replacement when our element is dead but the window
+        // remains. (Excluding the dead backing is belt-and-suspenders: a dead element
+        // wouldn't resolve the CGWindowID anyway.)
+        let appElement = accessibilityWatcher.applicationElement(for: identifier.pid)
+        let replacement: AXUIElement? = (windowStillListed && !currentElementResolves)
+            ? liveWindowElement(
+                forPid: identifier.pid,
+                cgWindowId: identifier.cgWindowId,
+                excluding: managed.backing.element,
+                appElement: appElement
+            )
+            : nil
+
+        switch SpuriousDestroyPolicy.resolve(
+            windowStillListed: windowStillListed,
+            currentElementResolves: currentElementResolves,
+            replacementElementAvailable: replacement != nil
+        ) {
+        case .prune:
+            if windowStillListed {
+                Logger.debug(
+                    "AXUIElementDestroyed for window \(managed.windowId): listed in WindowServer but no live element resolved; treating as closed"
+                )
+            }
+            return false
+
+        case .keepCurrentElement:
+            Logger.debug(
+                "Ignoring spurious AXUIElementDestroyed for window \(managed.windowId): current element still valid (CGWindowID \(identifier.cgWindowId))"
+            )
+            dropStaleElementMapping(notificationElement, keeping: managed)
+            return true
+
+        case .rebindToReplacement:
+            guard let replacement else {
+                return false
+            }
+            Logger.debug(
+                "Ignoring spurious AXUIElementDestroyed for window \(managed.windowId): window still present in WindowServer (CGWindowID \(identifier.cgWindowId)); rebinding to recycled element"
+            )
+            rebindElement(for: managed, newElement: replacement, appElement: appElement)
+            dropStaleElementMapping(notificationElement, keeping: managed)
+            return true
+        }
+    }
+
+    /// Drop a stale `externalWindowsByElement` mapping for a (now dead) element when it
+    /// is not the window's current backing, so a later queued notification can't dispatch
+    /// lifecycle handling through it. `managedWindow(matching:)` can re-add such a mapping
+    /// when it resolves a stale duplicate notification via PID + CGWindowID.
+    private func dropStaleElementMapping(_ element: AXUIElement, keeping managed: ManagedWindow) {
+        let staleKey = AccessibilityElementKey(element: element)
+        guard staleKey != AccessibilityElementKey(element: managed.backing.element) else {
+            return
+        }
+        externalWindowsByElement.removeValue(forKey: staleKey)
     }
 
     // MARK: - Notification Handlers

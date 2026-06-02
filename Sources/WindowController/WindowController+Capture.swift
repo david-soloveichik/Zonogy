@@ -283,4 +283,53 @@ extension WindowController {
         Logger.debug("captureWindowIfNeeded: Successfully captured window \(managed.windowId) for pid \(pid)")
         return managed
     }
+
+    /// Enumerate the application's current windows and return a *fresh* AX element
+    /// whose CGWindowID matches `cgWindowId`, skipping `excludedElement` (typically a
+    /// just-destroyed element that may still linger in the enumeration). Returns nil
+    /// when no live element can be resolved right now — i.e. the window is truly gone
+    /// or AX is transiently unavailable. Used to distinguish a real window close from
+    /// an app recycling a live window's AX element.
+    internal func liveWindowElement(
+        forPid pid: pid_t,
+        cgWindowId: Int,
+        excluding excludedElement: AXUIElement,
+        appElement: AXUIElement
+    ) -> AXUIElement? {
+        var windowsObject: CFTypeRef?
+        let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        guard status == .success, let windowsObject else {
+            return nil
+        }
+
+        let excludedKey = AccessibilityElementKey(element: excludedElement)
+
+        func matches(_ element: AXUIElement) -> Bool {
+            guard AccessibilityElementKey(element: element) != excludedKey else {
+                return false
+            }
+            let result = cgWindowIdWithStatus(for: element, pid: pid, context: "spurious-destroy-rebind")
+            guard let resolved = result.id else {
+                return false
+            }
+            return Int(resolved) == cgWindowId
+        }
+
+        if let windowElements = windowsObject as? [AXUIElement] {
+            return windowElements.first(where: matches)
+        }
+
+        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
+            let array = unsafeBitCast(windowsObject, to: CFArray.self)
+            let count = CFArrayGetCount(array)
+            for index in 0..<count {
+                let element = unsafeBitCast(CFArrayGetValueAtIndex(array, index), to: AXUIElement.self)
+                if matches(element) {
+                    return element
+                }
+            }
+        }
+
+        return nil
+    }
 }

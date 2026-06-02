@@ -104,6 +104,8 @@ Zonogy uses five narrowly scoped retry/verification mechanisms to cope with AX t
 
 Some applications can emit `AXWindowCreated` for a window Zonogy already tracks (same PID + `CGWindowID`) (eg Word). In these cases the notification may carry a fresh `AXUIElement` for the same underlying window. Zonogy must treat this as an element-rebind event (update the stored AX element, lookup mapping, and window notification registrations atomically), not as a new-window capture and not as a capture failure.
 
+The same kind of false signal can also surface as an `AXUIElementDestroyed` notification: some applications (e.g. Finder) emit it while the window stays open — sometimes the original element keeps working, sometimes the app recycles in a fresh element. So before acting on `AXUIElementDestroyed` for a tracked window, Zonogy consults the WindowServer (`CGWindowListCopyWindowInfo`) — the ground truth for whether the window still exists. If the window is gone, it proceeds with deferred pruning. If the window is still present, Zonogy keeps it in its zone and makes sure it holds a live AX element: it keeps the element it already has when that element still resolves to the window, and otherwise rebinds to a fresh element the application recycled in. Only when the window appears present but no live element can be bound at all does it fall back to deferred pruning (which still recovers the window if its element reappears on a later capture pass).
+
 ### User vs programmatic move/resize attribution
 
 AX move/resize notifications (`kAXMovedNotification`, `kAXResizedNotification`) do not indicate whether the change was triggered by:
