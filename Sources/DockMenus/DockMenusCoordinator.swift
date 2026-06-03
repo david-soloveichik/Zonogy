@@ -183,6 +183,14 @@ final class DockMenusCoordinator {
         panelController.hide()
     }
 
+    /// Re-establishes the Dock hover observer after the Dock may have rebuilt its accessibility
+    /// hierarchy (wake / display reconfiguration), which can silently stop hover detection.
+    /// See SPECIFICATION-DOCKMENUS.md "Accessibility API Workarounds".
+    func reestablishDockObserver(reason: String) {
+        Logger.debug("DockMenusCoordinator: re-establishing Dock observer (reason: \(reason))")
+        frameMonitor.reestablishObserver(reason: reason)
+    }
+
     // MARK: - Private
 
     private func showDockMenu(for event: DockMenuHoverEvent) {

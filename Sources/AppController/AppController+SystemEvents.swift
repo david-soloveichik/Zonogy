@@ -506,6 +506,12 @@ extension AppController {
             let recaptureReason = includesWake ? "wake" : "screen-change"
             scheduleWindowRecapture(delay: 0.5, reason: recaptureReason)
             scheduleWindowRecapture(delay: 1.5, reason: recaptureReason)
+
+            // The Dock rebuilds its accessibility hierarchy on wake / display reconfiguration, which
+            // can leave Zonogy's cached Dock AX observer bound to a stale element (hover silently
+            // stops producing DockMenus). Re-establish it so hover detection rebinds to the new tree.
+            // See SPECIFICATION-DOCKMENUS.md "Accessibility API Workarounds".
+            dockMenusCoordinator?.reestablishDockObserver(reason: recaptureReason)
         }
     }
 

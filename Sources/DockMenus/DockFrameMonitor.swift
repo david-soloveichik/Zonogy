@@ -50,6 +50,13 @@ final class DockFrameMonitor {
         lastState = nil
     }
 
+    /// Re-discovers and re-attaches the underlying Dock AX observer. Called when the Dock may have
+    /// rebuilt its accessibility hierarchy (wake / display reconfiguration). No-op if monitoring
+    /// isn't active.
+    func reestablishObserver(reason: String) {
+        axNotificationMonitor?.reestablish(reason: reason)
+    }
+
     /// Called by the click interceptor when it clicks in the Dock frame but finds no Dock element.
     /// This indicates the Dock is hidden (autohide).
     func markDockHidden() {

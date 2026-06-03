@@ -165,3 +165,12 @@ Because the Dock may prevent Zonogy from receiving reliable mouse enter/exit eve
 - Treats the DockMenu as "safe" while the cursor is in the DockMenu panel, or in the Dock frame while hovering a running app item
 - When the cursor remains outside the safe region for 200ms, hides the panel
 - Prevents late-show flicker by skipping a debounced show if the cursor is no longer in the Dock when the show fires
+
+### Re-establishing the Observer After Dock Hierarchy Rebuilds
+
+The Dock seems to rebuild its accessibility tree in place (same process) at times. The `AXList` the hover observer is attached to can then go "stale but alive": it still answers position and size and still fires `AXSelectedChildrenChanged`, but reports an empty selection on hover, so hovering Dock icons silently stops producing DockMenus. So Zonogy re-discovers and re-attaches the observer on two signals:
+
+- An observed Dock element reports `AXUIElementDestroyed` (debounced, since these arrive in bursts).
+- A wake or display-topology refresh runs (alongside the window recapture pass).
+
+Each re-establish builds the replacement observer first and adopts it only if it finds a usable `AXList`, so a transient failure during the rebuild leaves the existing observer in place rather than stranding DockMenus with none.

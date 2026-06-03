@@ -69,3 +69,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: DockMenus window rows can stop highlighting on hover even though the app header still highlights.
   - Think about: Tracking areas in shared interaction views should use `.activeAlways` rather than `.activeInKeyWindow`, since the view may be hosted in non-activating panels that never become key.
+
+- Bug report: In some rare circumstances, hovering Dock icons can silently stop showing DockMenus until the feature is toggled off and on.
+  - Think about: The Dock can rebuild its accessibility hierarchy in place, potentially leaving the hover observer attached to a stale AXList element.
