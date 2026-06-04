@@ -119,11 +119,22 @@ extension WindowController {
             case .postRetryOverflow: return "post-retry-overflow"
             }
         }
+
+        /// True when the trigger is the app *rejecting* an AX write (vs. accepting it but
+        /// leaving the frame mismatched, e.g. min/max-size clamping). See `FrameRetryPolicy`.
+        var representsRejectedWrite: Bool {
+            switch self {
+            case .applyFailure, .oppositeOrderApplyFailure:
+                return true
+            case .postApplyFrameReadFailure, .postRetryOverflow:
+                return false
+            }
+        }
     }
 
     /// Apply a desired screen-frame to an AX-managed window, choosing a safe order,
-    /// retrying with the opposite order if needed, and scheduling a delayed retry
-    /// when the actual frame still doesn't match the target.
+    /// retrying with the opposite order if needed, and scheduling a delayed retry when the
+    /// window has not settled (origin off-target, or the app rejected the write).
     internal func applyScreenFrameWithBestEffort(
         windowId: Int,
         element: AXUIElement,
@@ -215,9 +226,9 @@ extension WindowController {
                     actual: final,
                     order: retryOrder
                 )
-                // Only schedule a delayed retry if the origin is still wrong.
-                // Once position is correct, stop — regardless of size differences
-                // (e.g., a min-width window that can't shrink to the zone width).
+                // The opposite-order write was accepted, so a mismatch at a correct origin is
+                // a size constraint (ActiveFit's domain); only retry while the origin is still
+                // wrong. (A rejected write takes the `else` branch below and retries regardless.)
                 if !originsRoughlyEqual(final.origin, targetScreenFrame.origin) {
                     scheduleAccessibilityFrameRetryIfNeeded(
                         windowId: windowId,
@@ -282,11 +293,19 @@ extension WindowController {
             return
         }
 
-        // If the window's origin already matches the target, don't retry — the position
-        // is correct even if the window's size differs (e.g., min-width constraints).
-        if let current = accessibilityFrameForWindow(element: element, on: screen),
-           originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
-            Logger.debug("Skipping frame retry for window \(windowId) - origin already at target")
+        // Don't schedule if the frame has already settled (positioned and the write was
+        // accepted); a rejected write still retries here even at a correct origin.
+        let originAtTarget: Bool
+        if let current = accessibilityFrameForWindow(element: element, on: screen) {
+            originAtTarget = originsRoughlyEqual(current.origin, targetScreenFrame.origin)
+        } else {
+            originAtTarget = false
+        }
+        if FrameRetryPolicy.hasSettled(
+            originAtTarget: originAtTarget,
+            writeAccepted: !trigger.representsRejectedWrite
+        ) {
+            Logger.debug("Skipping frame retry for window \(windowId) - frame settled (origin at target, write accepted)")
             return
         }
 
@@ -398,12 +417,14 @@ extension WindowController {
                 return
             }
 
-            // If the window's origin already matches the target, no further retries needed.
+            // If the window reached the full target frame on its own, nothing's left to
+            // re-apply. We check the whole frame, not just the origin: a chain retrying a
+            // rejected size write has a correct origin but still needs the size to land.
             if let current = self.accessibilityFrameForWindow(element: element, on: screen),
-               self.originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
+               self.framesRoughlyEqual(current, targetScreenFrame) {
                 Logger.debug(
                     "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
-                    "- origin already at target, stopping retries"
+                    "- frame already at target, stopping retries"
                 )
                 self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
                 self.delegate?.frameRetryDidSettle(windowId: windowId)
@@ -436,7 +457,7 @@ extension WindowController {
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger
+                        trigger: trigger, lastWriteAccepted: result.applied
                     )
                     return
                 }
@@ -446,15 +467,18 @@ extension WindowController {
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger
+                        trigger: trigger, lastWriteAccepted: result.applied
                     )
                     return
                 }
 
-                if self.originsRoughlyEqual(final.origin, targetScreenFrame.origin) {
+                if FrameRetryPolicy.hasSettled(
+                    originAtTarget: self.originsRoughlyEqual(final.origin, targetScreenFrame.origin),
+                    writeAccepted: result.applied
+                ) {
                     Logger.debug(
                         "Frame retry \(currentAttempt)/\(delays.count) for window \(windowId) " +
-                        "- origin now at target, stopping retries"
+                        "- frame settled, stopping retries"
                     )
                     self.accessibilityFrameRetryStates.removeValue(forKey: windowId)
                     self.delegate?.frameRetryDidSettle(windowId: windowId)
@@ -470,7 +494,7 @@ extension WindowController {
                     self.scheduleFollowUpRetryIfNeeded(
                         windowId: windowId, element: element,
                         targetScreenFrame: targetScreenFrame, screen: screen,
-                        trigger: trigger
+                        trigger: trigger, lastWriteAccepted: result.applied
                     )
                 }
             }
@@ -488,15 +512,24 @@ extension WindowController {
         element: AXUIElement,
         targetScreenFrame: CGRect,
         screen: ScreenDescriptor,
-        trigger: AccessibilityFrameRetryTrigger
+        trigger: AccessibilityFrameRetryTrigger,
+        lastWriteAccepted: Bool
     ) {
         guard var state = accessibilityFrameRetryStates[windowId] else { return }
 
-        // Stop retrying once the origin matches — position is correct even if the
-        // window's size differs (e.g., a min-width window that can't shrink to zone width).
-        if let current = accessibilityFrameForWindow(element: element, on: screen),
-           originsRoughlyEqual(current.origin, targetScreenFrame.origin) {
-            Logger.debug("Stopping frame retry chain for window \(windowId) - origin now at target")
+        // Settle if positioned and the write was accepted; otherwise schedule the next
+        // attempt. A rejected write retries even at a correct origin.
+        let originAtTarget: Bool
+        if let current = accessibilityFrameForWindow(element: element, on: screen) {
+            originAtTarget = originsRoughlyEqual(current.origin, targetScreenFrame.origin)
+        } else {
+            originAtTarget = false
+        }
+        if FrameRetryPolicy.hasSettled(
+            originAtTarget: originAtTarget,
+            writeAccepted: lastWriteAccepted
+        ) {
+            Logger.debug("Stopping frame retry chain for window \(windowId) - frame settled (origin at target, write accepted)")
             accessibilityFrameRetryStates.removeValue(forKey: windowId)
             delegate?.frameRetryDidSettle(windowId: windowId)
             return

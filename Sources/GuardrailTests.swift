@@ -27,6 +27,9 @@ enum GuardrailTests {
         if !CoordinateConversionTests.run() {
             allPassed = false
         }
+        if !FrameRetryPolicyTests.run() {
+            allPassed = false
+        }
         if !ZoneLayoutTests.run() {
             allPassed = false
         }

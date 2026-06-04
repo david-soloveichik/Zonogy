@@ -19,6 +19,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: A newly created window (eg Chrome) routed into zone 2/3 can enter ActiveFit reveal mode before it resizes to the zone size, leaving it not filling the zone.
   - Think about: Entering reveal mode calls moveWindow which cancels the pending frame retry chain. ActiveFit must skip reveal evaluation when a frame retry is pending and re-evaluate when the retry settles.
 
+- Bug report: A newly created window opened into a tiling zone can keep its opening size instead of filling the zone (eg NordVPN), then only snap to the zone later when an unrelated event triggers a fresh sync.
+  - Think about: An app can reject the initial AX size write (window queried microseconds after creation) while the position write succeeds. Need an appropriate retry mechanism.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the floating zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 
