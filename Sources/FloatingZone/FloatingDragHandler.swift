@@ -190,6 +190,11 @@ final class FloatingDragHandler {
         state != nil
     }
 
+    /// The window currently being dragged in the floating zone, if any.
+    var draggingWindowId: Int? {
+        state?.windowId
+    }
+
     private func tearDownOverlaysIfNeeded(_ current: inout State) {
         if current.isOverlayShowing {
             host?.tearDownFloatingDragOverlays()

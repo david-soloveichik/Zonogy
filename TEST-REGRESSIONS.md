@@ -75,3 +75,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: In some rare circumstances, hovering Dock icons can silently stop showing DockMenus until the feature is toggled off and on.
   - Think about: The Dock can rebuild its accessibility hierarchy in place, potentially leaving the hover observer attached to a stale AXList element.
+
+- Bug report: Dragging a managed window across a screen boundary can make macOS resize the window itself (e.g. clamping an oversized window to fit the display it is crossing into), firing a stream of non-programmatic AXResized events. Handling these as user "manual resize ended" corrupts manual-resize/Sticky-Resize state and thrashes the resize bars for the whole drag.
+  - Think about: During a manual drag the OS can resize the window on its own, not just move it; resize handling should recognize an in-flight drag rather than treat those as a user resize.
+
+- Bug report: A window that disappears mid floating-zone-drag (e.g. a Chrome tab tears out into a new window, or the window is minimized while being dragged) can leave the blue zone overlays stuck on screen until the app restarts, and a stale drag session can hijack the next drag.
+  - Think about: Floating-zone drags and tiled drags keep separate state and overlays, so any path that ends a drag — including the window vanishing mid-drag — must tear down whichever kind is active.

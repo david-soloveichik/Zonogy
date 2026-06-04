@@ -19,6 +19,13 @@ extension AppController {
             // Ensure overlays go away when the dragged window disappears.
             dragDropCoordinator.tearDownDragSession()
         }
+        if floatingDragHandler.draggingWindowId == windowId {
+            // A floating-zone drag uses a separate handler and overlay manager from the
+            // tiled coordinator above, so it needs its own teardown. Without this, a window
+            // that disappears mid floating-drag (e.g. a Chrome tab tears out, or the window
+            // is minimized while being dragged) leaves the blue zone overlays stuck on screen.
+            floatingDragHandler.abortDrag()
+        }
 
         // Capture floating-zone occupancy before any clearing happens, so we can apply
         // the floating-empty retarget rule below after the floating slot is cleared.

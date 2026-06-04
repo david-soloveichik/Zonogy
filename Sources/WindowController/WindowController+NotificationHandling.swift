@@ -373,6 +373,15 @@ extension WindowController {
         guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
             return
         }
+        // While a manual drag is in flight, macOS can resize the window on its own — for
+        // example clamping an oversized window to fit as it crosses between displays. These
+        // are not user edge-drag resizes; treating them as such corrupts manual-resize state
+        // and thrashes the resize bars. The move path already funnels into the drag pipeline
+        // (ensureManualDragBegan); mirror that here by ignoring resizes for the dragged window.
+        guard currentDraggingWindowId != managed.windowId else {
+            Logger.debug("External window \(managed.windowId) resized during active drag; ignoring (OS-driven resize)")
+            return
+        }
         Logger.debug("External window \(managed.windowId) resized (non-programmatic)")
         if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
             delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
