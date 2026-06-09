@@ -166,11 +166,12 @@ Because the Dock may prevent Zonogy from receiving reliable mouse enter/exit eve
 - When the cursor remains outside the safe region for 200ms, hides the panel
 - Prevents late-show flicker by skipping a debounced show if the cursor is no longer in the Dock when the show fires
 
-### Re-establishing the Observer After Dock Hierarchy Rebuilds
+### Re-establishing the Observer After the Dock Rebuilds or Relaunches
 
-The Dock seems to rebuild its accessibility tree in place (same process) at times. The `AXList` the hover observer is attached to can then go "stale but alive": it still answers position and size and still fires `AXSelectedChildrenChanged`, but reports an empty selection on hover, so hovering Dock icons silently stops producing DockMenus. So Zonogy re-discovers and re-attaches the observer on two signals:
+The Dock seems to rebuild its accessibility tree in place (same process) at times. The `AXList` the hover observer is attached to can then go "stale but alive": it still answers position and size and still fires `AXSelectedChildrenChanged`, but reports an empty selection on hover, so hovering Dock icons silently stops producing DockMenus. The Dock process can also exit entirely and relaunch (a crash, or `killall Dock`); because the hover observer is bound to a specific Dock process, a relaunch leaves it bound to a dead process and hover stops working. Zonogy re-discovers and re-attaches the observer on these signals:
 
-- An observed Dock element reports `AXUIElementDestroyed` (debounced, since these arrive in bursts).
+- An observed Dock element reports `AXUIElementDestroyed` (these arrive in bursts and are coalesced into one pass).
+- The bound Dock process exits, detected with a process-exit watch on its pid. (Note: NSWorkspace's launch/terminate notifications are not posted for the Dock.)
 - A wake or display-topology refresh runs (alongside the window recapture pass).
 
-Each re-establish builds the replacement observer first and adopts it only if it finds a usable `AXList`, so a transient failure during the rebuild leaves the existing observer in place rather than stranding DockMenus with none.
+Each re-establish builds the replacement first and swaps only on success, so a transient failure keeps a working observer rather than leaving DockMenus with none — except when the bound Dock process exits, where the old observer is bound to a dead process and is dropped up front. Because a freshly relaunched Dock is often not observable the moment it is detected, an attempt that finds no usable `AXList` retries a bounded number of times before giving up.

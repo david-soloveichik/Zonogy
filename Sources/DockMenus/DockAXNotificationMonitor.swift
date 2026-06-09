@@ -1,7 +1,9 @@
 import AppKit
 import ApplicationServices
 
-/// Observes Dock Accessibility notifications and emits change events without polling.
+/// Observes Dock Accessibility notifications and emits change events without polling. Rebinds the
+/// observer when the Dock rebuilds its accessibility tree in place, and when the Dock process
+/// itself crashes or is relaunched (its observer is bound to a specific Dock pid).
 final class DockAXNotificationMonitor {
     struct Event: Equatable {
         let notification: String
@@ -37,11 +39,26 @@ final class DockAXNotificationMonitor {
     private var observedElements: [AXUIElement] = []
     private var runLoopSource: CFRunLoopSource?
 
-    /// Debounce for re-establishing the observer after the Dock rebuilds its accessibility
-    /// hierarchy. `AXUIElementDestroyed` notifications on observed Dock elements arrive in bursts,
-    /// so we coalesce them into a single re-discovery + re-registration pass.
-    private var reestablishWorkItem: DispatchWorkItem?
-    private static let reestablishDebounceInterval: TimeInterval = 0.5
+    /// True while monitoring is requested (between `start()` and `stop()`), independent of whether
+    /// an observer is currently bound. Gates establish attempts so retries stop after a deliberate
+    /// stop, yet keep running across a Dock relaunch (when no observer is momentarily bound).
+    private var isActive = false
+
+    /// Watches the bound Dock process for exit (a crash, or `killall Dock`), so the pid-bound AX
+    /// observer rebinds to the relaunched Dock. A process-exit source is the only reliable signal
+    /// here: NSWorkspace launch/terminate notifications are not posted for the Dock (a background
+    /// `LSUIElement` agent), and the dead process's AX observer goes silently inert. Recreated by
+    /// `activate` for each newly bound Dock pid; cancelled in `teardownObserver`.
+    private var dockExitSource: DispatchSourceProcess?
+
+    /// Coalesces re-establish triggers and spaces out retries into a single delayed attempt.
+    /// Triggers arrive in bursts (`AXUIElementDestroyed`) or before the Dock is observable (a
+    /// freshly relaunched Dock has not built its accessibility tree yet), so we collapse them into
+    /// one delayed attempt and retry a bounded number of times until the Dock's `AXList` is found.
+    private var establishWorkItem: DispatchWorkItem?
+    private var establishAttemptsRemaining = 0
+    private static let establishRetryInterval: TimeInterval = 0.5
+    private static let maxEstablishAttempts = 8
 
     func start() {
         DispatchQueue.main.async { [weak self] in
@@ -69,7 +86,7 @@ final class DockAXNotificationMonitor {
     /// No-op if monitoring isn't currently active.
     func reestablish(reason: String) {
         DispatchQueue.main.async { [weak self] in
-            self?.performReestablish(reason: reason)
+            self?.beginEstablish(reason: reason, immediate: true)
         }
     }
 
@@ -86,8 +103,8 @@ final class DockAXNotificationMonitor {
 
     private func startOnMain() {
         stopOnMain()
-        guard let installation = buildInstallation() else { return }
-        activate(installation)
+        isActive = true
+        beginEstablish(reason: "start", immediate: true)
     }
 
     /// Builds a fresh Dock observer and registers notifications on it, without yet scheduling its
@@ -164,10 +181,23 @@ final class DockAXNotificationMonitor {
         observedElements = installation.observedElements
         dockPid = installation.dockPid
         CFRunLoopAddSource(CFRunLoopGetMain(), installation.runLoopSource, .defaultMode)
+        watchForDockExit(pid: installation.dockPid)
         Logger.debug("DockAXNotificationMonitor: observing \(observedElements.count) element(s) for \(Self.observedNotifications.count) notification(s)")
     }
 
     private func stopOnMain() {
+        // A deliberate stop ends monitoring: drop the active flag, cancel any pending establish
+        // retry, and tear down the observer (which also cancels the Dock exit watcher).
+        isActive = false
+        establishWorkItem?.cancel()
+        establishWorkItem = nil
+        teardownObserver()
+    }
+
+    /// Removes notification registrations, the run-loop source, and the Dock exit watcher for the
+    /// current observer, if any. Mechanical teardown only — it does not change `isActive` or pending
+    /// retries, so it is safe to call right before swapping in a freshly-built observer.
+    private func teardownObserver() {
         if let observer {
             for element in observedElements {
                 for notification in Self.observedNotifications {
@@ -180,42 +210,98 @@ final class DockAXNotificationMonitor {
             }
         }
 
+        dockExitSource?.cancel()
+        dockExitSource = nil
         observer = nil
         observedElements = []
         runLoopSource = nil
         dockPid = nil
-
-        // A deliberate stop must not be followed by a queued re-establish.
-        reestablishWorkItem?.cancel()
-        reestablishWorkItem = nil
     }
 
-    /// Coalesces bursty `AXUIElementDestroyed` notifications into a single re-establish pass.
-    private func scheduleDebouncedReestablish(reason: String) {
-        reestablishWorkItem?.cancel()
+    /// (Re)binds the observer to the Dock's current accessibility tree, retrying a bounded number
+    /// of times while the Dock is not yet observable (its tree is still being rebuilt, or a crashed
+    /// Dock has not finished relaunching). Builds the replacement first and swaps only on success,
+    /// so a transient failure leaves any existing observer in place rather than stranding DockMenus
+    /// with none. No-op once monitoring has been deliberately stopped.
+    /// - Parameter immediate: run the first attempt synchronously (start / wake / display refresh)
+    ///   rather than after the coalescing delay (bursty `AXUIElementDestroyed` / Dock relaunch).
+    private func beginEstablish(reason: String, immediate: Bool) {
+        guard isActive else {
+            Logger.debug("DockAXNotificationMonitor: skipping establish, not active (reason: \(reason))")
+            return
+        }
+        // This call starts a fresh establish sequence, so supersede any pending attempt — otherwise
+        // a queued retry could fire after an immediate establish succeeds and redundantly rebind.
+        establishWorkItem?.cancel()
+        establishWorkItem = nil
+        establishAttemptsRemaining = Self.maxEstablishAttempts
+        if immediate {
+            attemptEstablish(reason: reason)
+        } else {
+            scheduleEstablishAttempt(reason: reason)
+        }
+    }
+
+    /// Coalesces bursts of triggers (and spaces out retries) into a single delayed attempt.
+    private func scheduleEstablishAttempt(reason: String) {
+        establishWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
-            self?.performReestablish(reason: reason)
+            self?.attemptEstablish(reason: reason)
         }
-        reestablishWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.reestablishDebounceInterval, execute: workItem)
+        establishWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.establishRetryInterval, execute: workItem)
     }
 
-    /// Rebinds the observer to the Dock's current accessibility tree. Builds the replacement first
-    /// and swaps only on success, so a transient failure during wake/display churn leaves the
-    /// existing observer in place rather than stranding DockMenus with none. No-op after a
-    /// deliberate `stop()` (there is then no active observer to refresh).
-    private func performReestablish(reason: String) {
-        guard observer != nil else {
-            Logger.debug("DockAXNotificationMonitor: skipping re-establish, not monitoring (reason: \(reason))")
+    private func attemptEstablish(reason: String) {
+        guard isActive else { return }
+        establishWorkItem = nil
+
+        if let installation = buildInstallation() {
+            teardownObserver()
+            activate(installation)
+            Logger.debug("DockAXNotificationMonitor: established Dock observer (reason: \(reason))")
             return
         }
-        guard let installation = buildInstallation() else {
-            Logger.debug("DockAXNotificationMonitor: re-establish deferred — Dock observer unavailable, keeping existing (reason: \(reason))")
+
+        establishAttemptsRemaining -= 1
+        guard establishAttemptsRemaining > 0 else {
+            Logger.debug("DockAXNotificationMonitor: establish failed — Dock not observable, retries exhausted (reason: \(reason))")
             return
         }
-        Logger.debug("DockAXNotificationMonitor: re-establishing Dock observer (reason: \(reason))")
-        stopOnMain()
-        activate(installation)
+        Logger.debug("DockAXNotificationMonitor: establish deferred — Dock not observable, will retry (reason: \(reason), attempts left: \(establishAttemptsRemaining))")
+        scheduleEstablishAttempt(reason: reason)
+    }
+
+    // MARK: - Dock process lifecycle
+
+    /// Installs a kqueue-backed watcher (`DispatchSourceProcess`) that fires when the bound Dock
+    /// process exits — a crash, or `killall Dock`. This is the reliable signal that the pid the
+    /// observer is bound to has died: NSWorkspace launch/terminate notifications are not posted for
+    /// the Dock (a background `LSUIElement` agent), and the dead process's AX observer simply stops
+    /// delivering callbacks (no `AXUIElementDestroyed` arrives). Runs on the main queue.
+    private func watchForDockExit(pid: pid_t) {
+        let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
+        source.setEventHandler { [weak self] in
+            self?.handleDockExit(pid: pid)
+        }
+        dockExitSource = source
+        source.resume()
+    }
+
+    private func handleDockExit(pid: pid_t) {
+        // Only the currently bound Dock pid should trigger a rebind. The live source's pid always
+        // equals `dockPid`; this guard makes that invariant explicit and ignores any stale exit from
+        // a source we've already replaced, so it can't tear down a freshly-rebound observer.
+        guard pid == dockPid else {
+            Logger.debug("DockAXNotificationMonitor: ignoring stale Dock-exit for pid \(pid) (current dockPid \(dockPid.map { "\($0)" } ?? "nil"))")
+            return
+        }
+        Logger.debug("DockAXNotificationMonitor: Dock process exited (pid \(pid)); re-establishing observer")
+        // The observer (and this exit source) is bound to the now-dead pid; drop both, then rebind
+        // once the relaunched Dock is observable. Retries bridge the gap while launchd respawns the
+        // Dock and it rebuilds its accessibility tree.
+        teardownObserver()
+        beginEstablish(reason: "dock-exited", immediate: false)
     }
 
     private static let axObserverCallback: AXObserverCallback = { _, element, notification, refcon in
@@ -229,7 +315,7 @@ final class DockAXNotificationMonitor {
             // An observed Dock element was torn down — the Dock rebuilt its accessibility hierarchy.
             // Our cached AXList reference is now (or will soon become) stale, so rebind to the new tree.
             Logger.debug("DockAXNotificationMonitor: observed Dock element destroyed; scheduling re-establish")
-            scheduleDebouncedReestablish(reason: "element-destroyed")
+            beginEstablish(reason: "element-destroyed", immediate: false)
         }
 
         var listFrame: CGRect?
