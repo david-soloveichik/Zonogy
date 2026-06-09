@@ -241,6 +241,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var keepLauncherVisibleAcrossTargetNavigation: Bool = false
     /// Active CmdTab temporary-retarget session, if CmdTab opened after changing the target.
     internal var cmdTabRetargetSession: TemporaryRetargetSession?
+    /// The app that was frontmost when the current CmdTab session opened. It is that session's
+    /// single "current app": it both filters app-specific mode and receives the in-CmdTab
+    /// "new window" (Cmd-N) keystroke, so the two can never disagree. Nil while CmdTab is closed.
+    internal var cmdTabCurrentAppPid: pid_t?
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {

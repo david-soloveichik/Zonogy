@@ -29,6 +29,9 @@ protocol CmdTabKeyInterceptorDelegate: AnyObject {
     /// Cancel CmdTab without activation.
     func cmdTabKeyInterceptorCancel(_ interceptor: CmdTabKeyInterceptor)
 
+    /// Forward a "new window" request (Cmd-N) to the current app, then dismiss CmdTab.
+    func cmdTabKeyInterceptorForwardNewWindow(_ interceptor: CmdTabKeyInterceptor)
+
     /// Return false to temporarily disable CmdTab interception (e.g., while recording shortcuts).
     func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool
 }
@@ -42,6 +45,7 @@ final class CmdTabKeyInterceptor {
     private enum Constants {
         static let relevantModifierFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
         static let escapeKeyCode = CGKeyCode(kVK_Escape)
+        static let nKeyCode = CGKeyCode(kVK_ANSI_N)
     }
 
     weak var delegate: CmdTabKeyInterceptorDelegate?
@@ -194,6 +198,23 @@ final class CmdTabKeyInterceptor {
             }
             isEngaged = false
             self.engagedShortcut = nil
+            return .swallow
+        }
+
+        // Forward a "new window" request (Cmd-N) to the current app, then dismiss. The chord's
+        // modifier (Command, by default) is still held, so pressing N alone is already Cmd-N.
+        // Like the cycle key below, swallow N for the whole engaged session — even in the brief
+        // gap before the async show makes the UI visible — so the keystroke can't leak to the app
+        // and double-fire. Engagement is reset only once we actually forward (when visible).
+        if keyCode == Constants.nKeyCode, keyCode != engagedShortcut.keyCode {
+            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.delegate?.cmdTabKeyInterceptorForwardNewWindow(self)
+                }
+                isEngaged = false
+                self.engagedShortcut = nil
+            }
             return .swallow
         }
 

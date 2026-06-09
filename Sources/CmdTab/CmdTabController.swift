@@ -43,6 +43,7 @@ final class CmdTabController {
         case selected(LauncherWindowItem)
         case interrupted
         case dragResolved
+        case openedNewWindow
     }
 
     weak var delegate: CmdTabControllerDelegate?
@@ -189,6 +190,12 @@ final class CmdTabController {
 
     func cancel() {
         completeDismissal(with: .cancelled)
+    }
+
+    /// Dismiss CmdTab because a new window is being opened in the current app. Commits any
+    /// open-time retarget so the new window lands in the targeted zone.
+    func dismissForNewWindow() {
+        completeDismissal(with: .openedNewWindow)
     }
 
     func hideForExternalInterruption() {

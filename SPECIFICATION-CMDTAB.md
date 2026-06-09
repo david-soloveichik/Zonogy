@@ -43,6 +43,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
   - A left-click (with or without Control-Command) inside a tiling zone targets that zone and flashes its border, just like Control-Command-click does normally.
   - A click on the floating-zone indicator targets the floating zone; while CmdTab is visible this never opens the Launcher, even if the floating zone was already targeted. Other Zonogy UI (placeholders, add-zone pill, resize bars) behaves normally.
 - **Dragging a window row out:** Same drag-and-drop behavior as dragging a window row from the Launcher; CmdTab dismisses on drag start. A drop outside any target, or Escape mid-drag, cancels the drag and restores the pre-CmdTab target under the same rules as a CmdTab cancel.
+- **New window in the current app:** Pressing N sends a Command-N keystroke to the current app, which opens a new window. (The activation modifier is still held while CmdTab is visible, so on the default Command-Tab shortcut this is simply Command-N.)
 
 ## Dismissal
 

@@ -80,7 +80,10 @@ extension AppController {
         }
     }
 
-    private func postCmdN(toPid pid: pid_t) {
+    /// Posts a Cmd-N keystroke to `pid` to open a new window. Assumes the target app is already
+    /// active (callers activate it first when needed). Reused by CmdTab's "new window" shortcut,
+    /// which targets the already-frontmost app.
+    func postCmdN(toPid pid: pid_t) {
         guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.virtualKeyN, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.virtualKeyN, keyDown: false) else {
             Logger.debug("NewWindow: Failed to construct Cmd-N CGEvents for pid \(pid)")

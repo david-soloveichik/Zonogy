@@ -4,6 +4,7 @@ import AppKit
 extension AppController: CmdTabControllerDelegate {
     func cmdTabController(_ controller: CmdTabController, didDismiss outcome: CmdTabController.DismissalOutcome) {
         cmdTabKeyInterceptor.resetEngagement()
+        cmdTabCurrentAppPid = nil
 
         switch outcome {
         case .cancelled:
@@ -28,6 +29,10 @@ extension AppController: CmdTabControllerDelegate {
             cmdTabRetargetSession = nil
         case .dragResolved:
             Logger.debug("CmdTab: Drag resolved")
+            cmdTabRetargetSession = nil
+        case .openedNewWindow:
+            Logger.debug("CmdTab: Opened new window in current app")
+            // Opening a new window commits the open-time retarget (the window lands in the target).
             cmdTabRetargetSession = nil
         }
     }
@@ -135,6 +140,12 @@ extension AppController: CmdTabKeyInterceptorDelegate {
             launcherController.hide()
         }
 
+        // Capture the app that is frontmost as the chord is pressed. It is this CmdTab session's
+        // single "current app": it filters app-specific mode and receives the Cmd-N "new window"
+        // shortcut, so the two can never disagree.
+        let currentApp = NSWorkspace.shared.frontmostApplication
+        cmdTabCurrentAppPid = currentApp?.processIdentifier
+
         let initialSelection: CmdTabController.InitialSelection
         switch initialDirection {
         case .next:
@@ -148,13 +159,12 @@ extension AppController: CmdTabKeyInterceptorDelegate {
         case .allWindows:
             shown = cmdTabController.show(initialSelection: initialSelection)
         case .currentAppOnly:
-            guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
-                  let bundleId = frontmostApp.bundleIdentifier else {
+            guard let currentApp, let bundleId = currentApp.bundleIdentifier else {
                 // No frontmost app or no bundle identifier - show empty state
                 shown = cmdTabController.show(initialSelection: initialSelection, appFilter: .noWindows)
                 break
             }
-            let appName = frontmostApp.localizedName ?? bundleId
+            let appName = currentApp.localizedName ?? bundleId
             shown = cmdTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
         }
 
@@ -170,12 +180,14 @@ extension AppController: CmdTabKeyInterceptorDelegate {
         case .allWindows:
             cmdTabController.show(initialSelection: .mostRecent)
         case .currentAppOnly:
-            guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
-                  let bundleId = frontmostApp.bundleIdentifier else {
+            // Reuse the session's captured current app so switching modes targets the same app.
+            guard let pid = cmdTabCurrentAppPid,
+                  let app = NSRunningApplication(processIdentifier: pid),
+                  let bundleId = app.bundleIdentifier else {
                 cmdTabController.show(initialSelection: .mostRecent, appFilter: .noWindows)
                 return
             }
-            let appName = frontmostApp.localizedName ?? bundleId
+            let appName = app.localizedName ?? bundleId
             cmdTabController.show(initialSelection: .mostRecent, appFilter: .app(bundleId: bundleId, name: appName))
         }
     }
@@ -195,6 +207,22 @@ extension AppController: CmdTabKeyInterceptorDelegate {
 
     func cmdTabKeyInterceptorCancel(_ interceptor: CmdTabKeyInterceptor) {
         cmdTabController.cancel()
+    }
+
+    func cmdTabKeyInterceptorForwardNewWindow(_ interceptor: CmdTabKeyInterceptor) {
+        // Target this session's captured current app — the same app whose windows app-specific
+        // mode shows. The CmdTab panel is non-activating, so that app is still frontmost and can
+        // receive the synthesized Cmd-N. Re-validate that it is still alive (and not Zonogy): if it
+        // quit mid-session, cancel so the open-time retarget is restored rather than committed.
+        guard let pid = cmdTabCurrentAppPid, pid != getpid(),
+              let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
+            Logger.debug("CmdTab: New-window request ignored - no live current app to forward Cmd-N to")
+            cmdTabController.cancel()
+            return
+        }
+        Logger.debug("CmdTab: Forwarding Cmd-N to current app pid=\(pid)")
+        cmdTabController.dismissForNewWindow()
+        postCmdN(toPid: pid)
     }
 
     func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool {
