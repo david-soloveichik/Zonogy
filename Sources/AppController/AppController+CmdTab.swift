@@ -86,28 +86,15 @@ extension AppController: CmdTabControllerDelegate {
             let element = window.backing.element
             let pid = window.backing.pid
 
-            // Get title from AX. Read intentionally includes parked (minimized) windows —
-            // CmdTab surfaces them so the user can switch to and unminimize them. Do NOT
-            // gate on `isPlacedInZone`. Cacheable via a future title cache.
-            var titleRef: CFTypeRef?
-            _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
-            var title = (titleRef as? String) ?? ""
-            guard !title.isEmpty else { continue }
-
             // Get bundle identifier
             let app = NSRunningApplication(processIdentifier: pid)
             let bundleId = app?.bundleIdentifier
 
-            // Strip app name suffix (same logic as Launcher)
-            if let appName = app?.localizedName {
-                for separator in [" - ", " – ", " — ", " | "] {
-                    let suffix = separator + appName
-                    if title.hasSuffix(suffix) {
-                        title = String(title.dropLast(suffix.count))
-                        break
-                    }
-                }
-            }
+            // Resolve the display title via the shared switcher resolver (same logic as Launcher).
+            // Intentionally includes parked (minimized) windows — CmdTab surfaces them so the user
+            // can switch to and unminimize them; do NOT gate on `isPlacedInZone`. Empty-title
+            // managed windows fall back to the open document filename, then the app name.
+            let title = SwitcherWindowTitle.resolve(for: element, appName: app?.localizedName)
 
             let item = LauncherWindowItem(
                 title: title,

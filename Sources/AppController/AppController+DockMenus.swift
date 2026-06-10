@@ -88,15 +88,14 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
 
         // Fallback: construct a minimal LauncherWindowItem for drag feedback and placement.
-        // Single AX title read on a cold drag-fallback path. The window may be parked —
-        // do NOT gate on `isPlacedInZone`; the user is initiating a drag and needs a
-        // displayable title.
+        // The window may be parked — do NOT gate on `isPlacedInZone`; the user is initiating a
+        // drag and needs a displayable title. Use the shared resolver so the empty-title fallback
+        // (document filename, then app name) matches the Launcher/DockMenus/CmdTab lists.
         let element = preferredManaged.backing.element
         let pid = preferredManaged.backing.pid
 
-        var titleRef: CFTypeRef?
-        _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
-        let title = (titleRef as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Window"
+        let appName = NSRunningApplication(processIdentifier: pid)?.localizedName
+        let title = SwitcherWindowTitle.resolve(for: element, appName: appName)
 
         return LauncherWindowItem(
             title: title,

@@ -537,7 +537,7 @@ extension AppController: LauncherControllerDelegate {
     /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID
     /// - Otherwise: returns the same window as selecting the app, drilling into window list, and opening
     ///   the first window row (not-in-zone first, then recency)
-    /// - Returns nil if app has no managed windows with titles
+    /// - Returns nil if the app is not running or has no managed windows
     internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
         guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return nil
@@ -545,23 +545,10 @@ extension AppController: LauncherControllerDelegate {
 
         let pid = runningApp.processIdentifier
 
-        // Collect all managed windows for this app (with valid titles)
-        var eligibleWindows: [ManagedWindow] = []
-
-        for window in windowController.allWindows {
-            guard window.backing.pid == pid else {
-                continue
-            }
-
-            // Title read intentionally includes parked (minimized) windows: Launcher's
-            // app-drilldown surfaces them so users can re-activate. Do NOT gate on
-            // `isPlacedInZone` here. If a title cache is added later, read it from cache.
-            var titleRef: CFTypeRef?
-            _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
-            if let title = titleRef as? String, !title.isEmpty {
-                eligibleWindows.append(window)
-            }
-        }
+        // Every managed window for this app is eligible, including parked (minimized) and
+        // empty-title windows. Zonogy manages empty-title windows, so the Dock click action
+        // and the app-row in-zone indicator must resolve them too — matches `windowsForApp`.
+        let eligibleWindows = windowController.allWindows.filter { $0.backing.pid == pid }
 
         guard !eligibleWindows.isEmpty else {
             return nil
@@ -813,27 +800,13 @@ extension AppController: LauncherWindowProvider {
             }
             let element = window.backing.element
 
-            // Get title from AX. Read intentionally includes parked (minimized) windows
-            // since the Launcher and DockMenus surface them. This call also feeds
-            // `dockMenusCoordinator(_, windowsForBundleId:)`, where freshness is
-            // user-visible — if a title cache is added later, that path must refresh
-            // titles each time a DockMenu is shown rather than serve a stale entry.
-            var titleRef: CFTypeRef?
-            _ = AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleRef)
-            var title = (titleRef as? String) ?? ""
-            guard !title.isEmpty else { continue }
-
-            // Strip app name suffix (e.g., " - Safari", " — Finder")
-            // Handles: hyphen (-), en-dash (–), em-dash (—), and pipe (|)
-            if let appName = runningApp.localizedName {
-                for separator in [" - ", " – ", " — ", " | "] {
-                    let suffix = separator + appName
-                    if title.hasSuffix(suffix) {
-                        title = String(title.dropLast(suffix.count))
-                        break
-                    }
-                }
-            }
+            // Resolve the display title via the shared switcher resolver. Intentionally includes
+            // parked (minimized) windows since the Launcher and DockMenus surface them; this also
+            // feeds `dockMenusCoordinator(_, windowsForBundleId:)`, where freshness is user-visible
+            // (if a title cache is added later, that path must refresh per show). Empty-title
+            // managed windows are surfaced too (Zonogy manages them): the resolver falls back to
+            // the open document filename, then the app name.
+            let title = SwitcherWindowTitle.resolve(for: element, appName: runningApp.localizedName)
 
             let item = LauncherWindowItem(
                 title: title,
@@ -856,25 +829,15 @@ extension AppController: LauncherWindowProvider {
         }
 
         let pid = runningApp.processIdentifier
-        var count = 0
 
-        // Use Zonogy's tracked windows as the source of truth
-        for window in windowController.allWindows {
-            guard window.backing.pid == pid else {
-                continue
-            }
-
-            // Title read intentionally includes parked (minimized) windows — they count
-            // for the per-app window count in switcher UIs. Do NOT gate on
-            // `isPlacedInZone`. Cacheable via a future title cache.
-            var titleRef: CFTypeRef?
-            _ = AXCall.copyAttribute(window.backing.element, kAXTitleAttribute as CFString, &titleRef)
-            if let title = titleRef as? String, !title.isEmpty {
+        // Every managed window for the app counts, including parked (minimized) and
+        // empty-title windows — switcher UIs surface them all, so the count must match
+        // `windowsForApp`.
+        return windowController.allWindows.reduce(into: 0) { count, window in
+            if window.backing.pid == pid {
                 count += 1
             }
         }
-
-        return count
     }
 
     func isDefaultWindowInZone(forBundleIdentifier bundleId: String) -> Bool {

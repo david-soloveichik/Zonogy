@@ -138,6 +138,9 @@ enum GuardrailTests {
         if !PreferredWindowSelectionTests.run() {
             allPassed = false
         }
+        if !SwitcherWindowTitleTests.run() {
+            allPassed = false
+        }
         if !WinShotSnapshotOccupancySignatureTests.run() {
             allPassed = false
         }
