@@ -120,6 +120,9 @@ enum GuardrailTests {
         if !ApplicationExceptionPolicyTests.run() {
             allPassed = false
         }
+        if !StandardWindowEligibilityTests.run() {
+            allPassed = false
+        }
         if !ExceptionsPreferencesEntryTests.run() {
             allPassed = false
         }

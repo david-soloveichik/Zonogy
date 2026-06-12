@@ -26,6 +26,7 @@ enum ApplicationExceptionPolicyTests {
                 disableControlCommandMouseGestures: true,
                 treatAXUnknownFullWidthAsFullScreen: true,
                 requireActiveZoomButton: true,
+                manageNonStandardWindows: true,
                 excludedWindowTitles: ["Foo"]
             )
             let override = ApplicationExceptionRule(
@@ -40,6 +41,7 @@ enum ApplicationExceptionPolicyTests {
                 disableControlCommandMouseGestures: nil,
                 treatAXUnknownFullWidthAsFullScreen: false,
                 requireActiveZoomButton: nil,
+                manageNonStandardWindows: false,
                 excludedWindowTitles: ["Bar"]
             )
             let merged = base.merged(with: override)
@@ -55,6 +57,7 @@ enum ApplicationExceptionPolicyTests {
             assert(merged.disableControlCommandMouseGestures == true, "nil override should keep base Control-Command gesture value")
             assert(merged.treatAXUnknownFullWidthAsFullScreen == false, "non-nil override should replace base value")
             assert(merged.requireActiveZoomButton == true, "nil override should keep base value")
+            assert(merged.manageNonStandardWindows == false, "non-nil override should replace base value")
             assert(merged.excludedWindowTitles == ["Bar"], "non-nil override list should replace base list")
         }
 
@@ -66,6 +69,7 @@ enum ApplicationExceptionPolicyTests {
             let bundleD = "com.example.d"
             let bundleE = "com.example.e"
             let bundleF = "com.example.f"
+            let bundleG = "com.example.g"
 
             let rules: [ApplicationExceptionRule] = [
                 ApplicationExceptionRule(bundleIdentifier: bundleA, ignoreActivationPolicy: true),
@@ -75,6 +79,7 @@ enum ApplicationExceptionPolicyTests {
                 ApplicationExceptionRule(bundleIdentifier: bundleD, requireActiveZoomButton: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleE, disableControlCommandMouseGestures: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleF, doNotResizeWidth: true),
+                ApplicationExceptionRule(bundleIdentifier: bundleG, manageNonStandardWindows: true),
             ]
 
             let policy = ApplicationExceptionPolicy(rules: rules)
@@ -92,6 +97,8 @@ enum ApplicationExceptionPolicyTests {
             assert(policy.disablesControlCommandMouseGestures(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default Control-Command mouse gesture preference to false")
             assert(policy.doesNotResizeWidth(forBundleIdentifier: bundleF) == true, "should honor per-bundle width-resize exception")
             assert(policy.doesNotResizeWidth(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default width-resize exception to false")
+            assert(policy.managesNonStandardWindows(forBundleIdentifier: bundleG) == true, "should honor per-bundle non-standard window exception")
+            assert(policy.managesNonStandardWindows(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default non-standard window exception to false")
         }
 
         if allPassed {

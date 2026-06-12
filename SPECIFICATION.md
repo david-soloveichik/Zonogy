@@ -61,7 +61,7 @@ Zonogy has two different ways of referring to a “screen”, and mixing them ca
 
 We manage a window if it passes **all** of the following conditions (see `winmanmon` source code for how it collects this information):
 
-- If the window is unminimized: **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole). (We do not perform this check for minimized windows because some applications report them as AXDialogSubrole; see "Accessibility API Workarounds" below.)
+- **Role: AXWindow** and, if the window is unminimized, **Subrole: AXStandardWindow** (ONLY AXStandardWindow; NOT AXDialogSubrole or any other subrole). (We do not perform the subrole check for minimized windows because some applications report them as AXDialogSubrole; see "Accessibility API Workarounds" below.) Apps whose windows report non-standard roles or subroles can opt in to management via `manageNonStandardWindows` (see Configuration below).
 - **Title: any** (empty titles are allowed by default; apps can opt out via `disallowEmptyTitleWindows`)
 - **isMovable: T** (window position can be modified)
 - **hasZoom: T** (window has a zoom button)
@@ -441,6 +441,7 @@ Fields:
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button.
   - `requireActiveZoomButton` – when `true`, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it. (Has no effect when `ignoreZoomButtonRequirement` is `true` and the window has no zoom button at all.)
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
+  - `manageNonStandardWindows` – when `true`, Zonogy manages this app's windows even when they report a non-standard accessibility role (e.g., `AXUnknown`) or subrole (e.g., `AXDialog`) instead of the usual `AXWindow` / `AXStandardWindow`. The remaining criteria (movable, zoom button, height) still apply. Useful for some Adobe apps.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)

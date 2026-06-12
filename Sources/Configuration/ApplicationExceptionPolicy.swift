@@ -20,6 +20,11 @@ struct ApplicationExceptionRule: Codable {
     let treatAXUnknownFullWidthAsFullScreen: Bool?
     /// When enabled, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it.
     let requireActiveZoomButton: Bool?
+    /// Some apps (e.g., Adobe Premiere Pro) report their windows with a non-standard accessibility
+    /// role (such as `AXUnknown`) and/or subrole (such as `AXDialog`) instead of the standard
+    /// `AXWindow` / `AXStandardWindow`. When enabled, Zonogy relaxes the role and subrole checks so
+    /// these windows can still be managed (the other criteria—movable, zoom, height—still apply).
+    let manageNonStandardWindows: Bool?
     let excludedWindowTitles: [String]?
 
     init(
@@ -34,6 +39,7 @@ struct ApplicationExceptionRule: Codable {
         disableControlCommandMouseGestures: Bool? = nil,
         treatAXUnknownFullWidthAsFullScreen: Bool? = nil,
         requireActiveZoomButton: Bool? = nil,
+        manageNonStandardWindows: Bool? = nil,
         excludedWindowTitles: [String]? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
@@ -47,6 +53,7 @@ struct ApplicationExceptionRule: Codable {
         self.disableControlCommandMouseGestures = disableControlCommandMouseGestures
         self.treatAXUnknownFullWidthAsFullScreen = treatAXUnknownFullWidthAsFullScreen
         self.requireActiveZoomButton = requireActiveZoomButton
+        self.manageNonStandardWindows = manageNonStandardWindows
         self.excludedWindowTitles = excludedWindowTitles
     }
 
@@ -62,6 +69,7 @@ struct ApplicationExceptionRule: Codable {
         if disableControlCommandMouseGestures == true { return true }
         if treatAXUnknownFullWidthAsFullScreen == true { return true }
         if requireActiveZoomButton == true { return true }
+        if manageNonStandardWindows == true { return true }
         if let excludedWindowTitles, !excludedWindowTitles.isEmpty { return true }
         return false
     }
@@ -80,6 +88,7 @@ struct ApplicationExceptionRule: Codable {
             disableControlCommandMouseGestures: override.disableControlCommandMouseGestures ?? disableControlCommandMouseGestures,
             treatAXUnknownFullWidthAsFullScreen: override.treatAXUnknownFullWidthAsFullScreen ?? treatAXUnknownFullWidthAsFullScreen,
             requireActiveZoomButton: override.requireActiveZoomButton ?? requireActiveZoomButton,
+            manageNonStandardWindows: override.manageNonStandardWindows ?? manageNonStandardWindows,
             excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
         )
     }
@@ -163,6 +172,12 @@ struct ApplicationExceptionPolicy {
     /// for Zonogy to manage its windows.
     func requiresActiveZoomButton(forBundleIdentifier bundleIdentifier: String) -> Bool {
         rulesByBundleId[bundleIdentifier]?.requireActiveZoomButton ?? false
+    }
+
+    /// Returns true if Zonogy should manage this app's windows even when they report a
+    /// non-standard accessibility role (e.g., `AXUnknown`) or subrole (e.g., `AXDialog`).
+    func managesNonStandardWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        rulesByBundleId[bundleIdentifier]?.manageNonStandardWindows ?? false
     }
 
     /// Returns the list of window titles to exclude from management for this bundle.

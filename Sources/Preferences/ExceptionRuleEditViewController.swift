@@ -14,6 +14,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var ignoreZoomButtonCheckbox: NSButton!
     private var requireActiveZoomButtonCheckbox: NSButton!
     private var ignoreHeightCheckbox: NSButton!
+    private var manageNonStandardWindowsCheckbox: NSButton!
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
     private var doNotResizeWidthCheckbox: NSButton!
@@ -33,7 +34,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 520))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 550))
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         setupUI(in: containerView)
@@ -243,6 +244,20 @@ final class ExceptionRuleEditViewController: NSViewController {
         ])
         topAnchor = ignoreHeightCheckbox.bottomAnchor
 
+        manageNonStandardWindowsCheckbox = makeCheckbox(
+            title: "Manage non-standard windows",
+            tooltip: "Manage windows even if they report a non-standard accessibility role or subrole (e.g., AXUnknown / AXDialog, as some Adobe apps do)"
+        )
+        container.addSubview(manageNonStandardWindowsCheckbox)
+        exceptionControls.append(manageNonStandardWindowsCheckbox)
+
+        NSLayoutConstraint.activate([
+            manageNonStandardWindowsCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            manageNonStandardWindowsCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            manageNonStandardWindowsCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+        topAnchor = manageNonStandardWindowsCheckbox.bottomAnchor
+
         treatAXUnknownFullWidthAsFullScreenCheckbox = makeCheckbox(
             title: "Treat AXUnknown full-width windows as full-screen",
             tooltip: "Only enable for apps where AXFullScreen is missing/unreliable (e.g., some presentation windows)"
@@ -326,6 +341,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         ignoreZoomButtonCheckbox.state = (originalEntry.rule.ignoreZoomButtonRequirement == true) ? .on : .off
         requireActiveZoomButtonCheckbox.state = (originalEntry.rule.requireActiveZoomButton == true) ? .on : .off
         ignoreHeightCheckbox.state = (originalEntry.rule.ignoreHeightRequirement == true) ? .on : .off
+        manageNonStandardWindowsCheckbox.state = (originalEntry.rule.manageNonStandardWindows == true) ? .on : .off
 
         if let titles = originalEntry.rule.excludedWindowTitles, !titles.isEmpty {
             excludedTitlesField.stringValue = titles.joined(separator: ", ")
@@ -369,6 +385,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             disableControlCommandMouseGestures: disableControlCommandMouseGesturesCheckbox.state == .on ? true : nil,
             treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
             requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,
+            manageNonStandardWindows: manageNonStandardWindowsCheckbox.state == .on ? true : nil,
             excludedWindowTitles: excludedTitles
         )
 

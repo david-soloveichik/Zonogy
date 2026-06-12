@@ -8,6 +8,10 @@
   ],
   "bundleExceptions": [
     {
+      "bundleIdentifier": "com.adobe.PremierePro.26",
+      "manageNonStandardWindows": true
+    },
+    {
       "bundleIdentifier": "com.adobe.illustrator",
       "ignoreZoomButtonRequirement": true
     },

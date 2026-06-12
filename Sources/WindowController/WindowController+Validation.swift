@@ -41,26 +41,48 @@ extension WindowController {
     ) -> Bool {
         let contextPrefix = "isStandardWindow(pid: \(pid), cgWindowId: \(cgWindowId))"
 
+        // Apps with non-standard accessibility (e.g., Adobe Premiere Pro reports its window with an
+        // AXUnknown role and AXDialog subrole) can opt into management via `manageNonStandardWindows`,
+        // which relaxes the role and subrole checks below.
+        let allowsNonStandardWindow: Bool = {
+            guard let app = NSRunningApplication(processIdentifier: pid),
+                  let bundleId = app.bundleIdentifier else { return false }
+            return applicationExceptionPolicy.managesNonStandardWindows(forBundleIdentifier: bundleId)
+        }()
+
         var roleObject: CFTypeRef?
         let roleStatus = AXCall.copyAttribute(element, kAXRoleAttribute as CFString, &roleObject)
-        guard roleStatus == .success, let role = roleObject as? String, role == kAXWindowRole as String else {
-            if roleStatus != .success {
-                Logger.debug("\(contextPrefix): Failed to get role attribute, AX error \(roleStatus.rawValue)")
+        var subroleObject: CFTypeRef?
+        let subroleStatus = AXCall.copyAttribute(element, kAXSubroleAttribute as CFString, &subroleObject)
+        let role = roleObject as? String
+        let subrole = subroleObject as? String
+
+        if let rejection = Self.roleSubroleRejection(
+            roleReadable: roleStatus == .success,
+            role: role,
+            subroleReadable: subroleStatus == .success,
+            subrole: subrole,
+            skipSubroleCheck: skipSubroleCheck,
+            allowsNonStandardWindow: allowsNonStandardWindow
+        ) {
+            switch rejection {
+            case .roleUnreadable:
+                Logger.debug("\(contextPrefix): Role attribute unreadable, AX error \(roleStatus.rawValue)")
+            case .nonStandardRole(let role):
+                Logger.debug("\(contextPrefix): Window has non-standard role: \(role)")
+            case .nonStandardSubrole(let subrole):
+                Logger.debug("\(contextPrefix): Window has non-standard subrole: \(subrole)")
             }
             return false
         }
 
-        var subroleObject: CFTypeRef?
-        let subroleStatus = AXCall.copyAttribute(element, kAXSubroleAttribute as CFString, &subroleObject)
-        if subroleStatus == .success, let subrole = subroleObject as? String {
-            if skipSubroleCheck {
-                Logger.debug("\(contextPrefix): Skipping subrole check for minimized window (subrole: \(subrole))")
-            } else {
-                guard subrole == kAXStandardWindowSubrole as String else {
-                    Logger.debug("\(contextPrefix): Window has non-standard subrole: \(subrole)")
-                    return false
-                }
-            }
+        // Passed the role/subrole gate. Surface diagnostics for the non-standard cases we let through.
+        if let role, role != kAXWindowRole as String {
+            Logger.debug("\(contextPrefix): Accepting non-standard role \(role) because bundle manages non-standard windows")
+        }
+        if let subrole, subrole != kAXStandardWindowSubrole as String {
+            let reason = skipSubroleCheck ? "minimized window" : "bundle manages non-standard windows"
+            Logger.debug("\(contextPrefix): Skipping subrole check for \(reason) (subrole: \(subrole))")
         } else if subroleStatus != .success {
             Logger.debug("\(contextPrefix): Failed to get subrole attribute, AX error \(subroleStatus.rawValue)")
         }
@@ -185,6 +207,43 @@ extension WindowController {
         }
 
         return true
+    }
+
+    /// Why a window fails the role/subrole portion of the standard-window check.
+    enum RoleSubroleRejection: Equatable {
+        case roleUnreadable
+        case nonStandardRole(String)
+        case nonStandardSubrole(String)
+    }
+
+    /// Pure classification of the role/subrole gate in `isStandardWindow`, factored out so the
+    /// branching can be covered by `--self-test`.
+    ///
+    /// A role that cannot be read as a string is always rejected, even for
+    /// `manageNonStandardWindows` bundles (a transient AX failure must not widen the gate).
+    /// `allowsNonStandardWindow` only relaxes a successfully-read non-`AXWindow` role and a
+    /// non-`AXStandardWindow` subrole. Minimized windows skip only the subrole check (some apps
+    /// report `AXDialog` when minimized), never the role check.
+    static func roleSubroleRejection(
+        roleReadable: Bool,
+        role: String?,
+        subroleReadable: Bool,
+        subrole: String?,
+        skipSubroleCheck: Bool,
+        allowsNonStandardWindow: Bool
+    ) -> RoleSubroleRejection? {
+        guard roleReadable, let role else {
+            return .roleUnreadable
+        }
+        if role != kAXWindowRole as String, !allowsNonStandardWindow {
+            return .nonStandardRole(role)
+        }
+        if !skipSubroleCheck, !allowsNonStandardWindow,
+           subroleReadable, let subrole,
+           subrole != kAXStandardWindowSubrole as String {
+            return .nonStandardSubrole(subrole)
+        }
+        return nil
     }
 
     // MARK: - CGWindowID Retrieval

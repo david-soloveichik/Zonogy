@@ -34,6 +34,7 @@ struct ExceptionsPreferencesEntry {
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
         if rule.requireActiveZoomButton == true { parts.append("activeZoom") }
         if rule.ignoreHeightRequirement == true { parts.append("height") }
+        if rule.manageNonStandardWindows == true { parts.append("nonStd") }
         if let titles = rule.excludedWindowTitles, !titles.isEmpty {
             parts.append("excl:\(titles.count)")
         }
