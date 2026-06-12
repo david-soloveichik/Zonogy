@@ -93,7 +93,7 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 
 ## Requirements
 
-- **macOS** — tested on Sequoia 15.7.3 and Tahoe 26.3
+- **macOS** — tested on Sequoia 15.7.3+ and Tahoe 26.3+
 - **Accessibility Permissions** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (CmdTab's Cmd-Tab override, shortcuts, and zone click targeting)
 - **Screen Recording Permissions** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
 - **Automation Permissions** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.

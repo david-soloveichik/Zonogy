@@ -4,7 +4,7 @@ import Foundation
 
 enum LauncherBehaviorPreferencesStore {
     private static let defaultAutoShowForEmptyZones = true
-    private static let defaultShortcutTargetsZoneWithActiveWindow = false
+    private static let defaultShortcutTargetsZoneWithActiveWindow = true
 
     static func loadAutoShowForEmptyZones() -> Bool {
         let defaults = UserDefaults.standard

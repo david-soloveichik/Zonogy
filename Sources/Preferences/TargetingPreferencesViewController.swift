@@ -18,7 +18,7 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(titleLabel)
 
         let headerDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "When all options below are off, Zonogy's targeting is independent of which window is active. Turn one on to make that action target the zone with the active window instead."
+            wrappingLabelWithString: "When all options below are off, Zonogy's targeting is independent of which window is active. Each option makes its action target the zone with the active window instead."
         )
         headerDescriptionLabel.font = NSFont.systemFont(ofSize: 13)
         headerDescriptionLabel.textColor = .secondaryLabelColor
