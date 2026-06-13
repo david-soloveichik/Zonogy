@@ -462,6 +462,10 @@ extension AppController {
         let screens = NSScreen.screens
         let rebuildResult = screenContextStore.rebuild(with: screens)
 
+        // The primary display may have changed size/identity; fan the refreshed value out to every
+        // subsystem that caches it for Cocoa<->Accessibility conversion (see helper below).
+        refreshCachedPrimaryScreenBounds()
+
         if rebuildResult.addedDisplayIds.isEmpty,
            rebuildResult.removedContexts.isEmpty,
            rebuildResult.visibleFrameChangedDisplayIds.isEmpty,
@@ -513,6 +517,20 @@ extension AppController {
             // See SPECIFICATION-DOCKMENUS.md "Accessibility API Workarounds".
             dockMenusCoordinator?.reestablishDockObserver(reason: recaptureReason)
         }
+    }
+
+    /// Refresh every cached primary-display bounds copy from the screen-context store after a
+    /// topology change. The store (refreshed in `ScreenContextStore.rebuild`) is the single source
+    /// of truth; this fans the new value out to subsystems that keep their own cached copy for
+    /// Cocoa<->Accessibility conversion. Centralized so there is exactly one place to update when a
+    /// subsystem starts caching the primary bounds — the primary display's height is the shared
+    /// flip reference for every screen, so a stale copy mis-positions windows on all displays.
+    private func refreshCachedPrimaryScreenBounds() {
+        primaryScreenId = screenContextStore.primaryDisplayId
+        primaryScreenBounds = screenContextStore.primaryScreenBounds
+        windowController.primaryScreenBounds = primaryScreenBounds
+        dockMenusCoordinator?.updatePrimaryScreenBounds(primaryScreenBounds)
+        fullScreenDebugOverlay?.updatePrimaryScreenBounds(primaryScreenBounds)
     }
 
     private func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext]) {

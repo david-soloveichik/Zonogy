@@ -5,11 +5,15 @@ import AppKit
 final class FullScreenDebugOverlayController {
     private static let windowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 100)
 
-    private let primaryScreenBounds: CGRect
+    private var primaryScreenBounds: CGRect
     private var overlayWindows: [CGDirectDisplayID: DebugBorderOverlayWindow] = [:]
 
     init(primaryScreenBounds: CGRect) {
         self.primaryScreenBounds = primaryScreenBounds
+    }
+
+    func updatePrimaryScreenBounds(_ bounds: CGRect) {
+        primaryScreenBounds = bounds
     }
 
     /// Update the overlay for a specific display.

@@ -2,7 +2,7 @@
 import AppKit
 
 final class DockDebugBorderOverlayController {
-    private let primaryScreenBounds: CGRect
+    private var primaryScreenBounds: CGRect
     private let window: DebugBorderOverlayWindow
 
     init(primaryScreenBounds: CGRect) {
@@ -12,6 +12,10 @@ final class DockDebugBorderOverlayController {
             borderWidth: 3.0,
             windowLevel: NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
         )
+    }
+
+    func updatePrimaryScreenBounds(_ bounds: CGRect) {
+        primaryScreenBounds = bounds
     }
 
     func setListFrame(accessibilityFrame: CGRect?) {

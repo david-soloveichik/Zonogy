@@ -22,8 +22,11 @@ final class ScreenContextStore {
 
     private(set) var contexts: [CGDirectDisplayID: ScreenContext] = [:]
     private(set) var order: [CGDirectDisplayID] = []
-    let primaryDisplayId: CGDirectDisplayID
-    let primaryScreenBounds: CGRect
+    /// Identity and bounds of the primary display. Refreshed on every `rebuild` so the
+    /// Cocoa<->Accessibility flip reference tracks resolution changes on the primary display
+    /// (a stale value mis-positions every managed window vertically, on all screens).
+    private(set) var primaryDisplayId: CGDirectDisplayID
+    private(set) var primaryScreenBounds: CGRect
 
     init?(screens: [NSScreen]) {
         guard let primaryScreen = screens.first,
@@ -38,6 +41,15 @@ final class ScreenContextStore {
 
     @discardableResult
     func rebuild(with screens: [NSScreen]) -> RebuildResult {
+        // Refresh the primary display identity/bounds from the current topology before
+        // rebuilding descriptors. Otherwise these stay frozen at the values captured in
+        // `init`, and a primary-display resolution change leaves every screen's
+        // screen->accessibility conversion using a stale flip reference.
+        if let primaryScreen = screens.first,
+           let primaryId = ScreenContextStore.displayId(for: primaryScreen) {
+            primaryDisplayId = primaryId
+            primaryScreenBounds = primaryScreen.frame
+        }
         return rebuild(with: screens, primaryBounds: primaryScreenBounds)
     }
 

@@ -51,8 +51,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
     internal lazy var externalZoneDropInterceptor = ExternalZoneDropInterceptor(host: self)
-    let primaryScreenId: CGDirectDisplayID  // Internal tracking uses stable CGDirectDisplayID
-    internal let primaryScreenBounds: CGRect
+    // Cached primary-display identity/bounds. Refreshed on every screen-topology change from the
+    // screen-context store (the single source of truth) via refreshCachedPrimaryScreenBounds().
+    internal var primaryScreenId: CGDirectDisplayID  // stable CGDirectDisplayID
+    internal var primaryScreenBounds: CGRect
     internal let zoneMargin: CGFloat = 8
     internal let edgeAlignmentTolerance: CGFloat = 0.5
     internal var isSyncingWindows = false

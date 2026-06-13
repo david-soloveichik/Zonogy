@@ -58,7 +58,7 @@ extension AppController {
     private func applyFullScreenDebugOverlayConfiguration(enabled: Bool) {
         if enabled {
             if fullScreenDebugOverlay == nil {
-                fullScreenDebugOverlay = FullScreenDebugOverlayController(primaryScreenBounds: primaryScreenBounds)
+                fullScreenDebugOverlay = FullScreenDebugOverlayController(primaryScreenBounds: screenContextStore.primaryScreenBounds)
             }
             updateAllFullScreenDebugOverlays()
             return

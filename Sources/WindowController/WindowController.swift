@@ -61,7 +61,9 @@ class WindowController {
     internal var currentDraggingWindowId: Int?
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
-    internal let primaryScreenBounds: CGRect
+    /// Primary display bounds for Cocoa<->Accessibility conversion (cursor/drag mapping).
+    /// Refreshed by AppController on screen-topology changes so it tracks resolution changes.
+    internal var primaryScreenBounds: CGRect
     internal var applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
     internal var pendingPrunedWindows = PendingPrunedWindowStore()

@@ -101,13 +101,17 @@ final class DockClickFeedbackOverlay {
         }
     }
 
-    private let primaryScreenBounds: CGRect
+    private var primaryScreenBounds: CGRect
     private let window = OverlayWindow()
     private let rippleView = RippleView(frame: .zero)
 
     init(primaryScreenBounds: CGRect) {
         self.primaryScreenBounds = primaryScreenBounds
         window.contentView = rippleView
+    }
+
+    func updatePrimaryScreenBounds(_ bounds: CGRect) {
+        primaryScreenBounds = bounds
     }
 
     /// Shows a ripple animation centered on the given accessibility frame.

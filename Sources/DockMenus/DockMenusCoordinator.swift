@@ -69,7 +69,9 @@ final class DockMenusCoordinator {
 
     weak var delegate: DockMenusCoordinatorDelegate?
 
-    private let primaryScreenBounds: CGRect
+    // Cached for Cocoa<->Accessibility conversion; refreshed via updatePrimaryScreenBounds when the
+    // primary display changes (the Dock lives on the primary screen, so its resolution matters).
+    private var primaryScreenBounds: CGRect
     private let frameMonitor = DockFrameMonitor()
     private let debugOverlay: DockDebugBorderOverlayController?
     private let clickInterceptor = DockClickInterceptor()
@@ -237,6 +239,15 @@ final class DockMenusCoordinator {
         }
 
         return isCursorInDockFrame(dockFrameAX)
+    }
+
+    /// Refresh the cached primary-display bounds (and forward to overlays) after a topology change
+    /// so Dock hover detection and feedback overlays stay aligned. Driven by AppController's
+    /// centralized refreshCachedPrimaryScreenBounds().
+    func updatePrimaryScreenBounds(_ bounds: CGRect) {
+        primaryScreenBounds = bounds
+        clickFeedback.updatePrimaryScreenBounds(bounds)
+        debugOverlay?.updatePrimaryScreenBounds(bounds)
     }
 
     private func isCursorInDockFrame(_ dockFrameAX: CGRect) -> Bool {
