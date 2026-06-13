@@ -137,7 +137,7 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(autoShowLauncherCheckbox)
         self.autoShowLauncherCheckbox = autoShowLauncherCheckbox
 
-        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, Zonogy can open the Launcher automatically.")
+        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, Launcher opens automatically.")
         autoShowLauncherHintLabel.font = NSFont.systemFont(ofSize: 12)
         autoShowLauncherHintLabel.textColor = .secondaryLabelColor
         autoShowLauncherHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -154,7 +154,7 @@ final class GeneralPreferencesViewController: NSViewController {
         self.stickyResizeCheckbox = stickyResizeCheckbox
 
         let stickyResizeHintLabel = NSTextField(
-            wrappingLabelWithString: "When enabled, manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that screen's tiling geometry changes."
+            wrappingLabelWithString: "Manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that screen's tiling geometry changes."
         )
         stickyResizeHintLabel.font = NSFont.systemFont(ofSize: 12)
         stickyResizeHintLabel.textColor = .secondaryLabelColor

@@ -18,7 +18,7 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(titleLabel)
 
         let headerDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "For some actions, replacing the window you're currently using feels more natural than opening an additional one. With an option below on, your choice replaces that window instead of opening into Zonogy's separate targeted zone. While the Launcher is open, choices always open in its zone instead."
+            wrappingLabelWithString: "For some actions, replacing the window you're currently using feels more natural than opening an additional one. With an option below enabled, your choice replaces that window instead of opening into Zonogy's separate targeted zone."
         )
         headerDescriptionLabel.font = NSFont.systemFont(ofSize: 13)
         headerDescriptionLabel.textColor = .secondaryLabelColor
