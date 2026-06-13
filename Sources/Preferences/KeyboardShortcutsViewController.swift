@@ -40,6 +40,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         tableView.rowHeight = 36
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.selectionHighlightStyle = .none
+        // Let the Action column absorb extra table width so the compact Shortcut column
+        // (which holds the chip + clear/reset buttons) doesn't stretch and leave a void on the right.
+        tableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
 
         // Action column
         let actionColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("action"))
@@ -48,20 +51,13 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         actionColumn.minWidth = 150
         tableView.addTableColumn(actionColumn)
 
-        // Shortcut column
+        // Shortcut column (also hosts the inline clear and reset buttons). Kept compact so it
+        // hugs its content; the Action column takes any extra width (see columnAutoresizingStyle).
         let shortcutColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("shortcut"))
         shortcutColumn.title = "Shortcut"
-        shortcutColumn.width = 150
-        shortcutColumn.minWidth = 100
+        shortcutColumn.width = 160
+        shortcutColumn.minWidth = 160
         tableView.addTableColumn(shortcutColumn)
-
-        // Reset column
-        let resetColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("reset"))
-        resetColumn.title = ""
-        resetColumn.width = 60
-        resetColumn.minWidth = 60
-        resetColumn.maxWidth = 60
-        tableView.addTableColumn(resetColumn)
 
         scrollView.documentView = tableView
         container.addSubview(scrollView)
@@ -102,8 +98,6 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             return makeActionCell(for: action)
         case "shortcut":
             return makeShortcutCell(for: action, row: row)
-        case "reset":
-            return makeResetCell(for: action, row: row)
         default:
             return nil
         }
@@ -135,10 +129,15 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         button.row = row
         button.target = self
         button.buttonAction = #selector(shortcutButtonClicked(_:))
+        button.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        // Yield before the accessory buttons: if a very wide shortcut can't fit alongside them,
+        // the chip compresses rather than pushing × / ↺ out of the cell.
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let shortcut = prefs.shortcut(for: action)
         let isRecording = recordingRow == row
         let isCleared = prefs.isCleared(action)
+        let isAtDefault = shortcut == action.defaultShortcut
 
         if isRecording {
             button.title = "Press shortcut..."
@@ -155,75 +154,89 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             button.title = shortcut?.displayString ?? "None"
             button.bezelStyle = .recessed
             button.bezelColor = nil
-            let isCustom = prefs.isCustomized(action)
-            button.contentTintColor = isCustom ? .labelColor : .secondaryLabelColor
+            button.contentTintColor = isAtDefault ? .secondaryLabelColor : .labelColor
         }
 
-        // Add clear button (x) if shortcut is set
-        let hasShortcut = !isCleared && shortcut != nil
-        if hasShortcut && !isRecording {
-            let clearButton = ClearButton()
-            clearButton.translatesAutoresizingMaskIntoConstraints = false
-            clearButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Clear")
-            clearButton.bezelStyle = .recessed
-            clearButton.isBordered = false
-            clearButton.target = self
-            clearButton.shortcutAction = action
-            clearButton.buttonAction = #selector(clearShortcut(_:))
-            clearButton.contentTintColor = .tertiaryLabelColor
+        cell.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+            button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+        ])
 
-            cell.addSubview(button)
-            cell.addSubview(clearButton)
-
+        // Clear (×) and reset (↺) sit at fixed x slots so they line up into columns across
+        // every row, regardless of each shortcut chip's width. Reset always sits right of ×.
+        // Clear appears only when a shortcut is set; reset only when it differs from its default.
+        // Places an accessory at a fixed slot, with a breakable pin so an unusually wide
+        // shortcut chip pushes it right (past `leftNeighbor`) instead of overlapping.
+        func placeAccessory(_ accessory: NSView, slotX: CGFloat, after leftNeighbor: NSLayoutXAxisAnchor, gap: CGFloat) {
+            cell.addSubview(accessory)
+            let slotPin = accessory.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: slotX)
+            slotPin.priority = .defaultHigh
             NSLayoutConstraint.activate([
-                button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-                button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-
-                clearButton.leadingAnchor.constraint(equalTo: button.trailingAnchor, constant: 2),
-                clearButton.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-                clearButton.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                clearButton.widthAnchor.constraint(equalToConstant: 20),
+                slotPin,
+                accessory.leadingAnchor.constraint(greaterThanOrEqualTo: leftNeighbor, constant: gap),
+                accessory.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -6),
+                accessory.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                accessory.widthAnchor.constraint(equalToConstant: 20),
             ])
-        } else {
-            cell.addSubview(button)
+        }
 
-            NSLayoutConstraint.activate([
-                button.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-                button.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-                button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            ])
+        if !isRecording {
+            var resetLeftNeighbor = button.trailingAnchor
+            var resetGap: CGFloat = 6
+
+            if !isCleared && shortcut != nil {
+                let clearButton = makeAccessoryButton(
+                    symbol: "xmark.circle.fill",
+                    accessibilityDescription: "Clear",
+                    tint: .tertiaryLabelColor,
+                    action: action,
+                    selector: #selector(clearShortcut(_:))
+                )
+                placeAccessory(clearButton, slotX: Self.clearSlotX, after: button.trailingAnchor, gap: 6)
+                resetLeftNeighbor = clearButton.trailingAnchor
+                resetGap = 2
+            }
+
+            if !isAtDefault {
+                let resetButton = makeAccessoryButton(
+                    symbol: "arrow.counterclockwise",
+                    accessibilityDescription: "Reset to Default",
+                    tint: .secondaryLabelColor,
+                    action: action,
+                    selector: #selector(resetSingleShortcut(_:))
+                )
+                placeAccessory(resetButton, slotX: Self.resetSlotX, after: resetLeftNeighbor, gap: resetGap)
+            }
         }
 
         return cell
     }
 
-    private func makeResetCell(for action: KeyboardShortcutPreferences.ShortcutAction, row: Int) -> NSView {
-        let cell = NSTableCellView()
-        let prefs = KeyboardShortcutPreferences.shared
+    /// Fixed x offsets (from the cell's leading edge) where the inline clear/reset buttons align.
+    /// Sized to clear the widest *default* shortcut chip (Show Launcher's ⌃⌘Space) so every default
+    /// row lines up exactly; a wider custom shortcut nudges its buttons right (kept inside the cell
+    /// by the trailing clamp in placeAccessory).
+    private static let clearSlotX: CGFloat = 100
+    private static let resetSlotX: CGFloat = 122
 
-        // Show reset button if shortcut is customized or cleared
-        let isCustom = prefs.isCustomized(action)
-        let isCleared = prefs.isCleared(action)
-
-        if isCustom || isCleared {
-            let button = ResetButton()
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset to Default")
-            button.bezelStyle = .recessed
-            button.isBordered = false
-            button.target = self
-            button.shortcutAction = action
-            button.buttonAction = #selector(resetSingleShortcut(_:))
-
-            cell.addSubview(button)
-
-            NSLayoutConstraint.activate([
-                button.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
-                button.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            ])
-        }
-
-        return cell
+    private func makeAccessoryButton(
+        symbol: String,
+        accessibilityDescription: String,
+        tint: NSColor,
+        action: KeyboardShortcutPreferences.ShortcutAction,
+        selector: Selector
+    ) -> ShortcutAccessoryButton {
+        let button = ShortcutAccessoryButton()
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibilityDescription)
+        button.bezelStyle = .recessed
+        button.isBordered = false
+        button.target = self
+        button.shortcutAction = action
+        button.buttonAction = selector
+        button.contentTintColor = tint
+        return button
     }
 
     // MARK: - Actions
@@ -365,12 +378,12 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         tableView.reloadData()
     }
 
-    @objc private func clearShortcut(_ sender: ClearButton) {
+    @objc private func clearShortcut(_ sender: ShortcutAccessoryButton) {
         KeyboardShortcutPreferences.shared.clearShortcut(for: sender.shortcutAction)
         tableView.reloadData()
     }
 
-    @objc private func resetSingleShortcut(_ sender: ResetButton) {
+    @objc private func resetSingleShortcut(_ sender: ShortcutAccessoryButton) {
         KeyboardShortcutPreferences.shared.resetToDefault(action: sender.shortcutAction)
         tableView.reloadData()
     }
@@ -461,19 +474,8 @@ private class ShortcutButton: NSButton {
     }
 }
 
-private class ClearButton: NSButton {
-    var shortcutAction: KeyboardShortcutPreferences.ShortcutAction!
-    var buttonAction: Selector?
-
-    override func sendAction(_ action: Selector?, to target: Any?) -> Bool {
-        if let buttonAction = buttonAction {
-            return super.sendAction(buttonAction, to: target)
-        }
-        return super.sendAction(action, to: target)
-    }
-}
-
-private class ResetButton: NSButton {
+/// Small borderless icon button (clear/reset) hosted inline in a shortcut row.
+private class ShortcutAccessoryButton: NSButton {
     var shortcutAction: KeyboardShortcutPreferences.ShortcutAction!
     var buttonAction: Selector?
 

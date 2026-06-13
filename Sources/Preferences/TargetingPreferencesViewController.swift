@@ -10,15 +10,15 @@ final class TargetingPreferencesViewController: NSViewController {
     private var cmdTabTargetsActiveWindowHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 380))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 440))
 
-        let titleLabel = NSTextField(labelWithString: "Targeting to active window")
+        let titleLabel = NSTextField(labelWithString: "Replacing active window")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
         let headerDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "When all options below are off, Zonogy's targeting is independent of which window is active. Each option makes its action target the zone with the active window instead."
+            wrappingLabelWithString: "For some actions, replacing the window you're currently using feels more natural than opening an additional one. With an option below on, your choice replaces that window instead of opening into Zonogy's separate targeted zone. While the Launcher is open, choices always open in its zone instead."
         )
         headerDescriptionLabel.font = NSFont.systemFont(ofSize: 13)
         headerDescriptionLabel.textColor = .secondaryLabelColor
@@ -35,7 +35,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
 
         let dockMenusTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When DockMenus places a window without an explicit drag destination, it uses the zone containing the active window, unless Launcher is open."
+            wrappingLabelWithString: "Windows from DockMenus replace the active window in its zone."
         )
         dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -52,8 +52,7 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(launcherShortcutTargetsActiveWindowCheckbox)
         self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
 
-        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "When enabled, the first Launcher shortcut press opens in the active window's zone. Additional presses switch between that zone and the original target. When disabled, the first press opens in the original target instead."
+        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(            wrappingLabelWithString: "The first shortcut press opens the Launcher on the active window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
         )
         launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -71,13 +70,21 @@ final class TargetingPreferencesViewController: NSViewController {
         self.cmdTabTargetsActiveWindowCheckbox = cmdTabTargetsActiveWindowCheckbox
 
         let cmdTabTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Zonogy temporarily targets the zone containing the active window for CmdTab, unless Launcher is open."
+            wrappingLabelWithString: "Windows from CmdTab replace the active window in its zone."
         )
         cmdTabTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         cmdTabTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
         cmdTabTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(cmdTabTargetsActiveWindowHintLabel)
         self.cmdTabTargetsActiveWindowHintLabel = cmdTabTargetsActiveWindowHintLabel
+
+        let draggingNoteLabel = NSTextField(
+            wrappingLabelWithString: "Dragging a window from DockMenus, CmdTab, or the Launcher always lets you place it into the zone you want."
+        )
+        draggingNoteLabel.font = NSFont.systemFont(ofSize: 13)
+        draggingNoteLabel.textColor = .secondaryLabelColor
+        draggingNoteLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(draggingNoteLabel)
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
@@ -107,10 +114,14 @@ final class TargetingPreferencesViewController: NSViewController {
             launcherShortcutTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: launcherShortcutTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
             launcherShortcutTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             launcherShortcutTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            draggingNoteLabel.topAnchor.constraint(equalTo: launcherShortcutTargetsActiveWindowHintLabel.bottomAnchor, constant: 20),
+            draggingNoteLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            draggingNoteLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 380)
+        self.preferredContentSize = NSSize(width: 580, height: 440)
         syncControls()
     }
 
