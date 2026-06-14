@@ -520,17 +520,17 @@ final class PlaceholderContentView: NSView {
         let restingWidth: CGFloat = isTargeted ? 3.5 : 1.5
 
         let colorAnim = CABasicAnimation(keyPath: "borderColor")
-        colorAnim.fromValue = NSColor.systemBlue.withAlphaComponent(0.88).cgColor
+        colorAnim.fromValue = ZoneFlashStyle.color.cgColor
         colorAnim.toValue = restingColor
-        colorAnim.duration = 0.45
-        colorAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        colorAnim.duration = ZoneFlashStyle.duration
+        colorAnim.timingFunction = ZoneFlashStyle.timing
         layer.add(colorAnim, forKey: "borderColorFlash")
 
         let widthAnim = CABasicAnimation(keyPath: "borderWidth")
-        widthAnim.fromValue = CGFloat(5.5)
+        widthAnim.fromValue = ZoneFlashStyle.borderWidth
         widthAnim.toValue = restingWidth
-        widthAnim.duration = 0.45
-        widthAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        widthAnim.duration = ZoneFlashStyle.duration
+        widthAnim.timingFunction = ZoneFlashStyle.timing
         layer.add(widthAnim, forKey: "borderWidthFlash")
     }
 

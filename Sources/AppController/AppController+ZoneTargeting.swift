@@ -319,14 +319,27 @@ extension AppController {
         return false
     }
 
+    /// Flash the targeted zone's border as purely visual confirmation. Deferred to the next runloop
+    /// tick so the work it does — creating the occupied-zone overlay panel, or kicking off the
+    /// placeholder border animation — never delays the target-change logic that triggered it.
+    ///
+    /// Because it's deferred, targeting may have moved on by the time it fires (e.g. a chained
+    /// operation that retargets several times in one turn, like placeholder activation that then
+    /// promotes a floating window into the zone). We re-read live state at fire time: skip unless
+    /// `key` is still the target — so we confirm the final target instead of leaving a stale pulse on
+    /// a zone we already left — then no-op if its zone/placeholder has since vanished.
     func flashTargetFeedback(for key: ZoneKey) {
-        if placeholderCoordinator.hasPlaceholder(for: key) {
-            placeholderCoordinator.flashPlaceholderBorder(for: key)
-        } else if let context = screenContexts[key.screenId],
-                  let zone = context.zoneController.zone(at: key.index) {
-            let screenFrame = frameWithMargin(for: zone, in: context.zoneController)
-            let cocoaFrame = context.descriptor.screenToCocoa(screenFrame)
-            zoneFlashOverlay.flash(at: cocoaFrame)
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.targetedZoneManager.targetedDestination == .tiled(key) else { return }
+            if self.placeholderCoordinator.hasPlaceholder(for: key) {
+                self.placeholderCoordinator.flashPlaceholderBorder(for: key)
+            } else if let context = self.screenContexts[key.screenId],
+                      let zone = context.zoneController.zone(at: key.index) {
+                let screenFrame = self.frameWithMargin(for: zone, in: context.zoneController)
+                let cocoaFrame = context.descriptor.screenToCocoa(screenFrame)
+                self.zoneFlashOverlay.flash(at: cocoaFrame)
+            }
         }
     }
 

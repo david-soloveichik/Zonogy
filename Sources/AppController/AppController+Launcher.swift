@@ -128,10 +128,11 @@ extension AppController {
     /// `applyTargetedDestination` directly instead.
     ///
     /// Order matters: the inherited-click suppression gate must be armed *before* retargeting so a
-    /// synchronous did-change callback observes the armed state, and the border flash happens before
-    /// the Launcher opens so its visual feedback isn't obscured. A real target change flashes via
-    /// `targetedZoneDidChange`; when the gesture re-affirms the already-targeted zone no change fires,
-    /// so flash here too so an explicit gesture always confirms its target (without double-flashing).
+    /// synchronous did-change callback observes the armed state. The flash itself is deferred to the
+    /// next runloop tick (see `flashTargetFeedback`) so it never delays this gesture. A real target
+    /// change flashes via `targetedZoneDidChange`; when the gesture re-affirms the already-targeted
+    /// zone no change fires, so flash here too so an explicit gesture always confirms its target
+    /// (without double-flashing).
     internal func retargetForUserGesture(
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String,

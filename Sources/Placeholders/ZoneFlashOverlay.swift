@@ -2,6 +2,20 @@ import AppKit
 import Foundation
 import QuartzCore
 
+/// Shared visual tokens for the targeted-zone border flash. Used by both the occupied-zone overlay
+/// (`ZoneFlashOverlay`, below) and the empty-zone placeholder border animation
+/// (`PlaceholderContentView.flashBorder`) so the two stay in lockstep.
+enum ZoneFlashStyle {
+    /// Vivid blue the border starts at when the flash fires.
+    static let color = NSColor.systemBlue.withAlphaComponent(0.88)
+    /// Border width the flash starts at before settling back to the resting width.
+    static let borderWidth: CGFloat = 5.5
+    /// How long the flash takes to fade to its resting state.
+    static let duration: CFTimeInterval = 0.45
+    /// Easing shared by both flash animations.
+    static var timing: CAMediaTimingFunction { CAMediaTimingFunction(name: .easeOut) }
+}
+
 /// Briefly flashes a blueish border around a zone frame to confirm a
 /// Control+Command click that targets an occupied zone (where there is no
 /// placeholder to flash).  The overlay fades out automatically and is
@@ -37,8 +51,8 @@ final class ZoneFlashOverlay {
         if let layer = borderView.layer {
             layer.cornerRadius = isTahoe ? 20 : windowCornerRadius
             if #available(macOS 10.15, *) { layer.cornerCurve = .continuous }
-            layer.borderWidth = 5.5
-            layer.borderColor = NSColor.systemBlue.withAlphaComponent(0.88).cgColor
+            layer.borderWidth = ZoneFlashStyle.borderWidth
+            layer.borderColor = ZoneFlashStyle.color.cgColor
             layer.backgroundColor = CGColor.clear
         }
         p.contentView = borderView
@@ -47,8 +61,8 @@ final class ZoneFlashOverlay {
 
         // Fade the entire overlay out after a brief pause.
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.45
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.duration = ZoneFlashStyle.duration
+            ctx.timingFunction = ZoneFlashStyle.timing
             p.animator().alphaValue = 0.0
         }, completionHandler: { [weak self] in
             self?.dismiss()
