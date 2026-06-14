@@ -25,6 +25,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case targetFloatingZone
         case targetTilingZone
         case focusTargetedWindow
+        case toggleTargetZoneWithFocusedWindow
 
         // Window Switchers
         case showLauncher
@@ -55,6 +56,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .targetFloatingZone: return "Target Floating Zone"
             case .targetTilingZone: return "Target Tiling Zone"
             case .focusTargetedWindow: return "Focus Targeted Window"
+            case .toggleTargetZoneWithFocusedWindow: return "Toggle Target Zone w/ Focused Window"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
             case .showCmdTab: return "CmdTab Window Switcher"
@@ -100,6 +102,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
             case .focusTargetedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
+            case .toggleTargetZoneWithFocusedWindow:
+                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
@@ -124,8 +128,10 @@ final class KeyboardShortcutPreferences: ObservableObject {
         var clearedActions: [String]
     }
 
-    /// Actions that are disabled by default (no shortcut assigned out of the box)
-    private static let defaultClearedActions: Set<ShortcutAction> = []
+    /// Actions that are disabled by default (no shortcut assigned out of the box).
+    /// "Focus Targeted Window" is unbound by default; Control-Command-Return is the default for
+    /// "Toggle Target Zone w/ Focused Window" instead.
+    private static let defaultClearedActions: Set<ShortcutAction> = [.focusTargetedWindow]
 
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []

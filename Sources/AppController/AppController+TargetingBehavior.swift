@@ -76,6 +76,56 @@ extension AppController {
         )
     }
 
+    /// "Toggle Target Zone w/ Focused Window" shortcut: if the zone holding the focused window is not
+    /// targeted, target it; if it is already targeted, advance off it using the standard fill-priority
+    /// (lowest-index empty tiling zone on the same screen, then another screen, then the floating zone).
+    /// Resolves the focused window even while the Launcher/CmdTab chooser is open. No-op when no managed
+    /// window is focused in a zone.
+    internal func toggleTargetZoneWithFocusedWindow() {
+        let action = FocusedWindowToggleTargetPolicy.resolve(
+            focusedWindowDestination: resolvedFocusedWindowZoneDestination(),
+            currentTarget: targetedZoneManager.targetedDestination
+        )
+        let reason = "shortcut-toggle-target-focused-window"
+        switch action {
+        case .none:
+            Logger.debug("Toggle target zone w/ focused window: no focused managed window in a zone")
+        case .target(let destination):
+            Logger.debug("Toggle target zone w/ focused window: targeting focused window's zone")
+            applyTargetedDestination(destination, reason: reason)
+        case .advance(let from):
+            Logger.debug("Toggle target zone w/ focused window: focused window's zone already targeted; advancing")
+            advanceTargetOffFocusedWindowZone(from, reason: reason)
+        }
+    }
+
+    /// Resolves the destination (tiling or floating zone) of the currently focused managed window,
+    /// or nil if there is no focused managed window assigned to a zone.
+    internal func resolvedFocusedWindowZoneDestination() -> TargetedZoneManager.TargetedDestination? {
+        currentActiveManagedWindowForTriggeredTargeting().flatMap { targetedDestination(for: $0) }
+    }
+
+    private func advanceTargetOffFocusedWindowZone(
+        _ destination: TargetedZoneManager.TargetedDestination,
+        reason: String
+    ) {
+        switch destination {
+        case .tiled(let key):
+            // The focused window's zone is occupied, so this mirrors the standard retarget-after-fill.
+            targetedZoneManager.retargetAfterFillingZone(key, reason: reason)
+        case .floating(let screenId):
+            // Advancing off a floating zone prefers an empty tiling zone (same screen, then another).
+            // When none exists, preferredRetargetDestination returns this same floating zone, so
+            // applying it is a no-op: we deliberately stay put rather than hop to another screen's
+            // floating zone — the focused window doesn't move, so that would just oscillate the target.
+            if let next = targetedZoneManager.preferredRetargetDestination(preferredSameScreenId: screenId) {
+                applyTargetedDestination(next, reason: reason)
+            } else {
+                targetedZoneManager.ensureTargetedZone(reason: reason)
+            }
+        }
+    }
+
     internal func currentActiveManagedWindowForTriggeredTargeting() -> ManagedWindow? {
         guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
             return nil

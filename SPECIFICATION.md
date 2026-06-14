@@ -168,7 +168,8 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 - Control-Cmd-UpArrow: switch from the targeted floating zone to a tiling zone on the same screen (prefer empty zone with lowest index, or filled zone with highest index if no empty zone exists). Does nothing if a floating zone is not targeted.
 - Control-Cmd-LeftArrow: navigate left. If floating zone is targeted, target the floating zone on the screen to the left. If tiling zone is targeted, target the zone with lower index on same screen, or wrap to the last zone on the previous screen.
 - Control-Cmd-RightArrow: navigate right. If floating zone is targeted, target the floating zone on the screen to the right. If tiling zone is targeted, target the zone with higher index on same screen, or wrap to the first zone on the next screen.
-- Control-Cmd-Return: if the currently targeted zone (tiling or floating) contains a managed window, make that window frontmost.
+- Control-Cmd-Return: Toggle Target Zone with Focused Window. If the zone holding the focused window is not the current target, target that zone (a tiling zone, or the floating zone if the focused window is floating). If it is already the target, advance the target off it using the same priority applied after a window fills the targeted zone. This works even while the Launcher or CmdTab chooser is open, and does nothing when no managed window is focused in a zone.
+- [No default shortcut]: If the currently targeted zone (tiling or floating) contains a managed window, make that window frontmost.
 
 ### Floating Zone Behavior
 

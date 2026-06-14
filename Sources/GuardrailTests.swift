@@ -93,6 +93,9 @@ enum GuardrailTests {
         if !ActiveWindowTargetResolverTests.run() {
             allPassed = false
         }
+        if !FocusedWindowToggleTargetPolicyTests.run() {
+            allPassed = false
+        }
         if !TemporaryRetargetSessionTests.run() {
             allPassed = false
         }

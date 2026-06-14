@@ -50,6 +50,8 @@ extension AppController {
             Logger.debug("Hotkey show launcher triggered")
         case .focusTargetedWindow:
             Logger.debug("Hotkey focus targeted window triggered")
+        case .toggleTargetZoneWithFocusedWindow:
+            Logger.debug("Hotkey toggle target zone w/ focused window triggered")
         }
         triggerShortcut(action)
     }

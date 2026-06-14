@@ -596,6 +596,12 @@ final class LauncherController {
                 return true
 
             case 36:  // Return/Enter
+                // Let Command/Control-modified Return fall through to global shortcuts (e.g. "Toggle
+                // Target Zone w/ Focused Window") instead of being consumed as a list selection.
+                // Plain Return still selects; Option-Return still opens a new window.
+                if !event.modifierFlags.intersection([.command, .control]).isEmpty {
+                    return false
+                }
                 switch model.mode {
                 case .appList:
                     if let url = model.recordAndGetSelectedItem() {

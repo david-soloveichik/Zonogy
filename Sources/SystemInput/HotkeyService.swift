@@ -20,6 +20,7 @@ final class HotkeyService {
         case showWinShotChooser = 14
         case showLauncher = 15
         case focusTargetedWindow = 16
+        case toggleTargetZoneWithFocusedWindow = 18
 
         /// Maps to the corresponding preferences action
         var preferencesAction: KeyboardShortcutPreferences.ShortcutAction? {
@@ -32,6 +33,7 @@ final class HotkeyService {
             case .targetFloatingZone: return .targetFloatingZone
             case .targetTilingZone: return .targetTilingZone
             case .focusTargetedWindow: return .focusTargetedWindow
+            case .toggleTargetZoneWithFocusedWindow: return .toggleTargetZoneWithFocusedWindow
             case .navigateLeft: return .navigateLeft
             case .navigateRight: return .navigateRight
             case .clearOrResetZonesAtCursor: return .clearOrResetZonesAtCursor
