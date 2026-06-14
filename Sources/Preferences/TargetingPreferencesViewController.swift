@@ -12,7 +12,7 @@ final class TargetingPreferencesViewController: NSViewController {
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 440))
 
-        let titleLabel = NSTextField(labelWithString: "Replacing active window")
+        let titleLabel = NSTextField(labelWithString: "Replacing focused window")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
@@ -26,7 +26,7 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(headerDescriptionLabel)
 
         let dockMenusTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "DockMenus targets zone with active window",
+            checkboxWithTitle: "DockMenus targets zone with focused window",
             target: self,
             action: #selector(dockMenusTargetsActiveWindowToggled(_:))
         )
@@ -35,7 +35,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
 
         let dockMenusTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Windows from DockMenus replace the active window in its zone."
+            wrappingLabelWithString: "Windows from DockMenus replace the focused window in its zone."
         )
         dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -44,7 +44,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.dockMenusTargetsActiveWindowHintLabel = dockMenusTargetsActiveWindowHintLabel
 
         let launcherShortcutTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "Launcher keyboard shortcut targets zone with active window",
+            checkboxWithTitle: "Launcher keyboard shortcut targets zone with focused window",
             target: self,
             action: #selector(launcherShortcutTargetsActiveWindowToggled(_:))
         )
@@ -52,7 +52,7 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(launcherShortcutTargetsActiveWindowCheckbox)
         self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
 
-        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(            wrappingLabelWithString: "The first shortcut press opens the Launcher on the active window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
+        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(            wrappingLabelWithString: "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
         )
         launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -61,7 +61,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.launcherShortcutTargetsActiveWindowHintLabel = launcherShortcutTargetsActiveWindowHintLabel
 
         let cmdTabTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "CmdTab targets zone with active window",
+            checkboxWithTitle: "CmdTab targets zone with focused window",
             target: self,
             action: #selector(cmdTabTargetsActiveWindowToggled(_:))
         )
@@ -70,7 +70,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.cmdTabTargetsActiveWindowCheckbox = cmdTabTargetsActiveWindowCheckbox
 
         let cmdTabTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Windows from CmdTab replace the active window in its zone."
+            wrappingLabelWithString: "Windows from CmdTab replace the focused window in its zone."
         )
         cmdTabTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         cmdTabTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor

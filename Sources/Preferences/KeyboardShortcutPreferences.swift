@@ -47,7 +47,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .clearOrResetZones: return "Clear/Reset Zones (Active Screen)"
             case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Screen)"
             // Window Actions
-            case .minimizeActiveWindow: return "Minimize Active Window"
+            case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
             // Target Navigation
             case .navigateLeft: return "Navigate Left"
