@@ -9,8 +9,8 @@ final class HotkeyService {
         case collapseToOneZone = 17
         case captureTimeTravelLogs = 3
         case clearOrResetZones = 5
-        case targetFloatingZone = 6
-        case targetTilingZone = 7
+        case navigateDown = 6
+        case navigateUp = 7
         case navigateLeft = 8
         case navigateRight = 9
         case clearOrResetZonesAtCursor = 10
@@ -30,8 +30,8 @@ final class HotkeyService {
             case .collapseToOneZone: return .collapseToOneZone
             case .captureTimeTravelLogs: return .captureTimeTravelLogs
             case .clearOrResetZones: return .clearOrResetZones
-            case .targetFloatingZone: return .targetFloatingZone
-            case .targetTilingZone: return .targetTilingZone
+            case .navigateDown: return .navigateDown
+            case .navigateUp: return .navigateUp
             case .focusTargetedWindow: return .focusTargetedWindow
             case .toggleTargetZoneWithFocusedWindow: return .toggleTargetZoneWithFocusedWindow
             case .navigateLeft: return .navigateLeft

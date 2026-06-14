@@ -30,10 +30,10 @@ extension AppController {
             Logger.debug("Hotkey clear or reset zones triggered")
         case .clearOrResetZonesAtCursor:
             Logger.debug("Hotkey clear or reset zones at cursor triggered")
-        case .targetFloatingZone:
-            Logger.debug("Hotkey target floating zone triggered")
-        case .targetTilingZone:
-            Logger.debug("Hotkey target tiling zone triggered")
+        case .navigateDown:
+            Logger.debug("Hotkey navigate down triggered")
+        case .navigateUp:
+            Logger.debug("Hotkey navigate up triggered")
         case .navigateLeft:
             Logger.debug("Hotkey navigate left triggered")
         case .navigateRight:

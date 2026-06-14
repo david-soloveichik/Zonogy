@@ -87,6 +87,9 @@ enum GuardrailTests {
         if !TargetedZoneManagerTests.run() {
             allPassed = false
         }
+        if !DirectionalZoneNavigationTests.run() {
+            allPassed = false
+        }
         if !ActiveWindowTriggeredTargetPolicyTests.run() {
             allPassed = false
         }

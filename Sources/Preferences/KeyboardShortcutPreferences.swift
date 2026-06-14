@@ -20,10 +20,10 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case minimizeWindowOrRemoveZoneAtCursor
 
         // Target Navigation
+        case navigateUp
+        case navigateDown
         case navigateLeft
         case navigateRight
-        case targetFloatingZone
-        case targetTilingZone
         case focusTargetedWindow
         case toggleTargetZoneWithFocusedWindow
 
@@ -51,10 +51,10 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
             // Target Navigation
+            case .navigateUp: return "Navigate Up"
+            case .navigateDown: return "Navigate Down"
             case .navigateLeft: return "Navigate Left"
             case .navigateRight: return "Navigate Right"
-            case .targetFloatingZone: return "Target Floating Zone"
-            case .targetTilingZone: return "Target Tiling Zone"
             case .focusTargetedWindow: return "Focus Targeted Window"
             case .toggleTargetZoneWithFocusedWindow: return "Toggle Target Zone w/ Focused Window"
             // Window Switchers
@@ -92,14 +92,14 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrl)
             // Target Navigation
+            case .navigateUp:
+                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
+            case .navigateDown:
+                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
             case .navigateLeft:
                 return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
             case .navigateRight:
                 return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
-            case .targetFloatingZone:
-                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
-            case .targetTilingZone:
-                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
             case .focusTargetedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .toggleTargetZoneWithFocusedWindow:

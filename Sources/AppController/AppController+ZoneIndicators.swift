@@ -184,7 +184,8 @@ extension AppController {
         return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
     }
 
-    private func floatingIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
+    /// Canonical Cocoa and global (accessibility-coordinate) frames of a screen's floating-zone bar.
+    internal func floatingIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.visibleScreenBounds.standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil

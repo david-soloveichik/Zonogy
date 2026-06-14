@@ -33,6 +33,10 @@ Implementation notes:
 - Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
 - Define occlusion as: at least one in-front occupied tiling zone's frame intersects the floating window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
 
+## Arrow-Key Target Navigation Geometry
+
+Control-Command + arrow keys pick the next target geometrically, via the pure, self-tested `DirectionalZoneNavigation` selector. `navigableZones()` lays out every targetable zone — tiling zones plus each screen's floating zone (at its bottom-edge bar) — as rectangles on one global plane, skipping full-screen-paused screens. The selector picks the nearest zone in the pressed direction that overlaps the current one on the crosswise (perpendicular) axis, breaking ties by same-screen, then alignment, then lower index (tiling before floating); if nothing overlaps crosswise (e.g., a diagonal display) it falls back to the nearest zone in that direction so all stay reachable. The same-screen tie-break is what places the floating bar one Down below the lowest tiling zone, ahead of the screen below.
+
 ## Displacement Minimization Strategy
 
 When a placement displaces an existing zone occupant, Zonogy picks one of two ways to minimize the displaced window:

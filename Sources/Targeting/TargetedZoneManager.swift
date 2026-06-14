@@ -358,7 +358,10 @@ class TargetedZoneManager {
         delegate?.screenOrder.firstIndex(of: screenId) ?? Int.max
     }
 
-    private func isScreenTargetable(_ screenId: CGDirectDisplayID) -> Bool {
+    /// Whether a screen may currently hold the target. Paused (full-screen) screens are not
+    /// targetable, except the fallback screen when every screen is full-screen. Also used by
+    /// arrow-key navigation so its reachable-zone set matches the rest of targeting.
+    func isScreenTargetable(_ screenId: CGDirectDisplayID) -> Bool {
         guard let delegate else { return false }
         guard delegate.screenContexts[screenId] != nil else { return false }
 

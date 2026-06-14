@@ -19,14 +19,14 @@ extension AppController {
                 self.clearOrResetZones()
             case .clearOrResetZonesAtCursor:
                 self.clearOrResetZonesAtCursor()
-            case .targetFloatingZone:
-                self.targetFloatingZone()
-            case .targetTilingZone:
-                self.targetTilingZone()
+            case .navigateUp:
+                self.navigateTarget(.up)
+            case .navigateDown:
+                self.navigateTarget(.down)
             case .navigateLeft:
-                self.navigateLeft()
+                self.navigateTarget(.left)
             case .navigateRight:
-                self.navigateRight()
+                self.navigateTarget(.right)
             case .focusTargetedWindow:
                 self.focusTargetedWindow()
             case .toggleTargetZoneWithFocusedWindow:
