@@ -44,12 +44,16 @@ extension AppController {
         // so they do not apply stale geometry.
         windowController.cancelAllAccessibilityFrameRetries()
         clearRememberedManualResizeSizes(on: screenId, reason: "zone-added")
-        targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
-        if promoteFloatingOccupant {
-            promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
+        // Creating a zone targets the new zone, but that retarget should not flash the border: the
+        // new placeholder appears at the same moment, and an added flash looks wrong on creation.
+        withTargetChangeFlashSuppressed {
+            targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
+            if promoteFloatingOccupant {
+                promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
+            }
+            syncWindowsToZones()
+            activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         }
-        syncWindowsToZones()
-        activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         if announce {
             print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
         }

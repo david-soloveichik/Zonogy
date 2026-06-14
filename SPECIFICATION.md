@@ -139,7 +139,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Floating zone indicator UI:** Each screen renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the screen bottom so edge clicks hit it. If that floating zone is targeted, the indicator is highlighted.
 
-**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones show a transient border overlay over the zone frame. Explicit gestures (Control-Command-click, clicking a placeholder, or picking a zone in CmdTab) flash even when re-selecting the already-targeted zone.
+**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones show a transient border overlay over the zone frame. Explicit gestures (Control-Command-click, clicking a placeholder, or picking a zone in CmdTab) flash even when re-selecting the already-targeted zone. Creating a tiling zone does not flash, even though the new zone becomes targeted.
 
 **Indicator click behavior:**
 

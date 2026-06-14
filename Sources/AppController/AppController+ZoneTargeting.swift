@@ -330,4 +330,14 @@ extension AppController {
         }
     }
 
+    /// Runs `body` with the target-change border flash suppressed, restoring the prior state after.
+    /// Used for operations whose retarget should not flash — e.g. creating a zone targets the new
+    /// zone, but the appearing placeholder already draws the eye, so an extra flash looks wrong.
+    func withTargetChangeFlashSuppressed(_ body: () -> Void) {
+        let previous = suppressTargetChangeFlash
+        suppressTargetChangeFlash = true
+        defer { suppressTargetChangeFlash = previous }
+        body()
+    }
+
 }

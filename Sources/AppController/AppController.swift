@@ -79,6 +79,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// False while `init` seeds windows and sets the initial target; true once startup completes.
     /// Gates the target-change border flash so launching the app doesn't flash while zones are seeded.
     internal var hasCompletedInitialStartup = false
+    /// When true, target changes do not flash the zone border. Scoped via `withTargetChangeFlashSuppressed`
+    /// around operations (e.g. creating a zone) whose retarget should not draw a flash.
+    internal var suppressTargetChangeFlash = false
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator

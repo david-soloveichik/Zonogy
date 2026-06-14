@@ -12,8 +12,9 @@ extension AppController {
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
         // Whenever the targeted tiling zone changes for any reason, flash its border to confirm the
         // new target — the same feedback as a Control-Command click. Tiling zones only (floating
-        // zones have no border to flash). Suppressed during startup so seeding zones doesn't flash.
-        if hasCompletedInitialStartup, case .tiled(let key) = newDestination {
+        // zones have no border to flash). Suppressed during startup (seeding) and while a caller has
+        // opted out via `withTargetChangeFlashSuppressed` (e.g. creating a zone).
+        if hasCompletedInitialStartup, !suppressTargetChangeFlash, case .tiled(let key) = newDestination {
             flashTargetFeedback(for: key)
         }
         refreshCmdTabForCurrentTargetAfterTopologyChange(newDestination: newDestination)
