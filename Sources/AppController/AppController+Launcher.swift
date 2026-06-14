@@ -10,6 +10,12 @@ extension AppController {
     /// floating targets and dismisses on occupied tiling targets; CmdTab re-centers on any target
     /// (empty or occupied) and dismisses only when the target screen enters full-screen pause.
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
+        // Whenever the targeted tiling zone changes for any reason, flash its border to confirm the
+        // new target — the same feedback as a Control-Command click. Tiling zones only (floating
+        // zones have no border to flash). Suppressed during startup so seeding zones doesn't flash.
+        if hasCompletedInitialStartup, case .tiled(let key) = newDestination {
+            flashTargetFeedback(for: key)
+        }
         refreshCmdTabForCurrentTargetAfterTopologyChange(newDestination: newDestination)
         refreshLauncherForCurrentTargetAfterTopologyChange(newDestination: newDestination)
     }
@@ -121,19 +127,25 @@ extension AppController {
     /// `applyTargetedDestination` directly instead.
     ///
     /// Order matters: the inherited-click suppression gate must be armed *before* retargeting so a
-    /// synchronous did-change callback observes the armed state, and any `afterRetarget` work runs
-    /// before the Launcher opens so its visual feedback (e.g. border flash) isn't obscured.
+    /// synchronous did-change callback observes the armed state, and the border flash happens before
+    /// the Launcher opens so its visual feedback isn't obscured. A real target change flashes via
+    /// `targetedZoneDidChange`; when the gesture re-affirms the already-targeted zone no change fires,
+    /// so flash here too so an explicit gesture always confirms its target (without double-flashing).
     internal func retargetForUserGesture(
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String,
         openingLauncherWith trigger: String? = nil,
         afterRetarget: (() -> Void)? = nil
     ) {
+        let wasAlreadyTargeted = targetedZoneManager.targetedDestination == destination
         armLauncherClickSuppressionIfNeeded(
             for: destination,
             willOpenLauncher: trigger != nil
         )
         applyTargetedDestination(destination, reason: reason)
+        if wasAlreadyTargeted, case .tiled(let key) = destination {
+            flashTargetFeedback(for: key)
+        }
         afterRetarget?()
         if let trigger {
             showLauncherIfAllowed(trigger: trigger)

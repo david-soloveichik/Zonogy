@@ -265,9 +265,8 @@ extension AppController {
         }
 
         let trigger: String? = clickCount >= 2 ? "control-command-double-click" : nil
-        retargetForUserGesture(.tiled(key), reason: "control-command-click", openingLauncherWith: trigger) {
-            self.flashTargetFeedback(for: key)
-        }
+        // The border flash is driven by the retarget itself (see `retargetForUserGesture`).
+        retargetForUserGesture(.tiled(key), reason: "control-command-click", openingLauncherWith: trigger)
         return true
     }
 
@@ -283,8 +282,13 @@ extension AppController {
         }
 
         if let key = zoneKey(containingScreenPoint: location) {
+            // A real change flashes via `targetedZoneDidChange`; flash here only when re-affirming the
+            // already-targeted zone so the click is still confirmed without double-flashing.
+            let wasAlreadyTargeted = targetedZoneManager.targetedDestination == .tiled(key)
             targetedZoneManager.setTargetedZone(key, reason: "cmdtab-click-retarget")
-            flashTargetFeedback(for: key)
+            if wasAlreadyTargeted {
+                flashTargetFeedback(for: key)
+            }
             return true
         }
 

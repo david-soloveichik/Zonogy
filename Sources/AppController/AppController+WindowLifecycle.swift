@@ -264,7 +264,7 @@ extension AppController {
         enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
         let key = zoneKey(for: screenId, index: zoneIndex)
         retargetForUserGesture(.tiled(key), reason: "placeholder-activated", openingLauncherWith: launcherTrigger) {
-            self.flashTargetFeedback(for: key)
+            // The border flash is driven by the retarget itself (see `retargetForUserGesture`).
             // Retargeting happens first so placeWindow sees the zone as targeted and triggers
             // the normal retarget-after-fill logic per spec.
             self.promoteOverlappingFloatingOccupantIntoZone(screenId: screenId, zoneIndex: zoneIndex)

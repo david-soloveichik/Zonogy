@@ -139,6 +139,8 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Floating zone indicator UI:** Each screen renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the screen bottom so edge clicks hit it. If that floating zone is targeted, the indicator is highlighted.
 
+**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones show a transient border overlay over the zone frame. Explicit gestures (Control-Command-click, clicking a placeholder, or picking a zone in CmdTab) flash even when re-selecting the already-targeted zone.
+
 **Indicator click behavior:**
 
 - Tiling zone indicator (shown only on the targeted tiling zone): clicking or double-clicking opens the Launcher.
@@ -147,7 +149,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 **Target selection:**
 
 - Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher.
-- Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone; the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. A brief bluish border flash provides additional visual confirmation: for empty zones the placeholder border pulses; for occupied zones a transient border overlay appears over the zone frame. Exception: if the topmost window under the click belongs to an app with `disableControlCommandMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
+- Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableControlCommandMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
 - Whenever a window is placed into the targeted tiling zone: retarget using this priority:

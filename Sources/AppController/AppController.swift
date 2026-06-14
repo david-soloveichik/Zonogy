@@ -76,6 +76,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Cleared when the drag ends.
     internal var liveResizePreviousFrames: [Int: CGRect] = [:]
     internal var lastActiveApplicationPid: pid_t?
+    /// False while `init` seeds windows and sets the initial target; true once startup completes.
+    /// Gates the target-change border flash so launching the app doesn't flash while zones are seeded.
+    internal var hasCompletedInitialStartup = false
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator
@@ -400,6 +403,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             targetedZoneManager.setFloatingTarget(on: primaryScreenId, reason: "startup-all-zones-filled")
         }
         refreshIndicators()
+
+        // Startup seeding and initial targeting are complete; allow target-change border flashes now.
+        hasCompletedInitialStartup = true
 
         // Watch app install roots and refresh launcher cache when installations change.
         launcherInstallWatchService.start()
