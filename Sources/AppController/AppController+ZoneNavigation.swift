@@ -297,7 +297,7 @@ extension AppController {
     /// direction. Every tiling zone and each screen's floating zone is treated as a rectangle on
     /// one global plane; the selection itself lives in `DirectionalZoneNavigation`.
     internal func navigateTarget(_ direction: ZoneNavigationDirection) {
-        performTargetNavigationShortcut {
+        performTargetChangeKeepingLauncherVisible {
             applyDirectionalNavigation(direction)
         }
     }
@@ -369,13 +369,14 @@ extension AppController {
         return zones
     }
 
-    /// Wrap a target-navigation keyboard shortcut so a visible Launcher follows the new
-    /// target instead of dismissing on occupied tiling zones, and a closed Launcher
-    /// stays closed (no auto-show is triggered along the navigation path).
-    private func performTargetNavigationShortcut(_ block: () -> Void) {
-        let wasLauncherActive = launcherController.isActive
-        keepLauncherVisibleAcrossTargetNavigation = wasLauncherActive
-        defer { keepLauncherVisibleAcrossTargetNavigation = false }
+    /// Wrap a target-changing keyboard shortcut so a visible Launcher follows the new target
+    /// instead of dismissing on occupied tiling zones, and a closed Launcher stays closed (no
+    /// auto-show is triggered). Used by directional navigation and "Toggle Target Zone w/ Focused
+    /// Window".
+    internal func performTargetChangeKeepingLauncherVisible(_ block: () -> Void) {
+        let previous = keepLauncherVisibleAcrossTargetNavigation
+        keepLauncherVisibleAcrossTargetNavigation = launcherController.isActive
+        defer { keepLauncherVisibleAcrossTargetNavigation = previous }
         block()
     }
 

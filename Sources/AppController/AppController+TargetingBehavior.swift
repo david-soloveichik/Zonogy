@@ -87,15 +87,20 @@ extension AppController {
             currentTarget: targetedZoneManager.targetedDestination
         )
         let reason = "shortcut-toggle-target-focused-window"
-        switch action {
-        case .none:
-            Logger.debug("Toggle target zone w/ focused window: no focused managed window in a zone")
-        case .target(let destination):
-            Logger.debug("Toggle target zone w/ focused window: targeting focused window's zone")
-            applyTargetedDestination(destination, reason: reason)
-        case .advance(let from):
-            Logger.debug("Toggle target zone w/ focused window: focused window's zone already targeted; advancing")
-            advanceTargetOffFocusedWindowZone(from, reason: reason)
+        // Like directional navigation (and CmdTab), keep a visible Launcher anchored to the new target
+        // rather than dismissing it when the focused window's zone is occupied — this is explicit
+        // retargeting, not a window landing in a zone.
+        performTargetChangeKeepingLauncherVisible {
+            switch action {
+            case .none:
+                Logger.debug("Toggle target zone w/ focused window: no focused managed window in a zone")
+            case .target(let destination):
+                Logger.debug("Toggle target zone w/ focused window: targeting focused window's zone")
+                applyTargetedDestination(destination, reason: reason)
+            case .advance(let from):
+                Logger.debug("Toggle target zone w/ focused window: focused window's zone already targeted; advancing")
+                advanceTargetOffFocusedWindowZone(from, reason: reason)
+            }
         }
     }
 
