@@ -33,7 +33,7 @@ The launcher dismisses when user:
 - Presses Escape
 - Activates an item (Enter on selection or double-click)
 - Completes a row drag-and-drop
-- If repeated Launcher shortcut presses established the toggle behavior above, then explicit cancelation (Escape, outside click, or a cancelled row drag) restores the originally targeted destination only if the current shortcut-owned target is still the current target. If the user changes the target again while Launcher remains open, cancelation no longer restores the older target. A successful row drag-and-drop counts as completion rather than cancelation and does not restore the older target.
+- **Target restoration:** A retarget made while the Launcher is open — pressing the Launcher shortcut again, or the "Toggle Target Zone with Focused Window" shortcut — is tentative. It commits if you activate an item, complete a row drag, or move the target yourself (e.g. arrow navigation); otherwise, cancelling (Escape, outside click, or a cancelled row drag) restores the target the Launcher started with.
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
 So the launcher automatically dismisses when:

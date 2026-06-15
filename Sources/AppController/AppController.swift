@@ -247,6 +247,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// retarget keeps an already-visible Launcher anchored to the new target, even when that target is
     /// an occupied tiling zone, rather than dismissing it. Restored after the retarget is processed.
     internal var keepLauncherVisibleAcrossTargetNavigation: Bool = false
+    /// True only while a tentative in-chooser retarget (the "Toggle Target Zone w/ Focused Window"
+    /// shortcut) is being applied. Suppresses the chooser-session invalidation in the refresh paths so
+    /// the session survives to be rebound and restored on cancel, instead of being committed like an
+    /// ordinary navigation/external retarget.
+    internal var isApplyingTentativeChooserRetarget = false
     /// Active CmdTab temporary-retarget session, if CmdTab opened after changing the target.
     internal var cmdTabRetargetSession: TemporaryRetargetSession?
     /// The app that was frontmost when the current CmdTab session opened. It is that session's

@@ -87,10 +87,10 @@ extension AppController {
             currentTarget: targetedZoneManager.targetedDestination
         )
         let reason = "shortcut-toggle-target-focused-window"
-        // Like directional navigation (and CmdTab), keep a visible Launcher anchored to the new target
-        // rather than dismissing it when the focused window's zone is occupied — this is explicit
-        // retargeting, not a window landing in a zone.
-        performTargetChangeKeepingLauncherVisible {
+        // The toggle is a tentative in-chooser retarget: keep a visible Launcher/CmdTab anchored to the
+        // new target (don't dismiss on an occupied zone), and remember the pre-toggle target so the
+        // chooser restores it on cancel (or, for CmdTab, on choosing an already-open window).
+        performTentativeChooserRetarget {
             switch action {
             case .none:
                 Logger.debug("Toggle target zone w/ focused window: no focused managed window in a zone")
@@ -101,6 +101,40 @@ extension AppController {
                 Logger.debug("Toggle target zone w/ focused window: focused window's zone already targeted; advancing")
                 advanceTargetOffFocusedWindowZone(from, reason: reason)
             }
+        }
+    }
+
+    /// Runs a tentative in-chooser retarget `block`: keeps a visible Launcher/CmdTab following the new
+    /// target, and (re)binds the active chooser's retarget session so cancelling restores the
+    /// pre-retarget target. Outside a chooser it just performs the retarget.
+    private func performTentativeChooserRetarget(_ block: () -> Void) {
+        // Capture the pre-retarget target as the session baseline so cancel can restore it. Only
+        // create a session if the chooser doesn't already have one (e.g. from the "target zone with
+        // active window" option, whose original target we must preserve).
+        if let baseline = targetedZoneManager.targetedDestination {
+            if launcherController.isActive, launcherRetargetSession == nil {
+                launcherRetargetSession = TemporaryRetargetSession(originalTarget: baseline, temporaryTarget: baseline)
+            }
+            if cmdTabController.isActive, cmdTabRetargetSession == nil {
+                cmdTabRetargetSession = TemporaryRetargetSession(originalTarget: baseline, temporaryTarget: baseline)
+            }
+        }
+
+        // Suppress the refresh-path session invalidation for this retarget so the session is rebound
+        // (below) rather than committed; ordinary navigation/external retargets still invalidate it.
+        let wasApplyingTentative = isApplyingTentativeChooserRetarget
+        isApplyingTentativeChooserRetarget = true
+        performTargetChangeKeepingLauncherVisible(block)
+        isApplyingTentativeChooserRetarget = wasApplyingTentative
+
+        // Rebind the active chooser's session to the new target (preserving its original) so the
+        // restore-on-cancel check recognizes this as the session's current target.
+        guard let current = targetedZoneManager.targetedDestination else { return }
+        if let session = launcherRetargetSession {
+            launcherRetargetSession = TemporaryRetargetSession(originalTarget: session.originalTarget, temporaryTarget: current)
+        }
+        if let session = cmdTabRetargetSession {
+            cmdTabRetargetSession = TemporaryRetargetSession(originalTarget: session.originalTarget, temporaryTarget: current)
         }
     }
 

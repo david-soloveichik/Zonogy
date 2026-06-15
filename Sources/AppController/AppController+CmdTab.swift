@@ -230,6 +230,15 @@ extension AppController {
         }
 
         let effectiveDestination = newDestination ?? targetedZoneManager.targetedDestination
+
+        // Commit the chooser's retarget on a non-tentative target change (e.g. arrow navigation) by
+        // dropping the session; a tentative in-chooser retarget (the toggle) keeps it for rebinding.
+        if !isApplyingTentativeChooserRetarget,
+           let session = cmdTabRetargetSession,
+           effectiveDestination != session.temporaryTarget {
+            cmdTabRetargetSession = nil
+        }
+
         guard let effectiveDestination else {
             cmdTabController.hideForExternalInterruption()
             Logger.debug("CmdTab: Hidden because target cleared")

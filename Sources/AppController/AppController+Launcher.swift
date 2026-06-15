@@ -58,7 +58,12 @@ extension AppController {
         }
 
         let effectiveDestination = newDestination ?? targetedZoneManager.targetedDestination
-        if let session = launcherRetargetSession,
+
+        // A non-tentative target change (arrow navigation, external placement) commits the chooser's
+        // retarget by dropping its session; a tentative in-chooser retarget (the toggle) sets
+        // `isApplyingTentativeChooserRetarget` so the session survives, to be rebound and restored on cancel.
+        if !isApplyingTentativeChooserRetarget,
+           let session = launcherRetargetSession,
            effectiveDestination != session.temporaryTarget {
             launcherRetargetSession = nil
         }
