@@ -35,7 +35,7 @@ Implementation notes:
 
 ## Arrow-Key Target Navigation Geometry
 
-Control-Command + arrow keys pick the next target geometrically, via the pure, self-tested `DirectionalZoneNavigation` selector. `navigableZones()` lays out every targetable zone — tiling zones plus each screen's floating zone (at its bottom-edge bar) — as rectangles on one global plane, skipping full-screen-paused screens. The selector picks the nearest zone in the pressed direction that overlaps the current one on the crosswise (perpendicular) axis, breaking ties by same-screen, then alignment, then lower index (tiling before floating); if nothing overlaps crosswise (e.g., a diagonal display) it falls back to the nearest zone in that direction so all stay reachable. The same-screen tie-break is what places the floating bar one Down below the lowest tiling zone, ahead of the screen below.
+Control-Command + arrow keys use the pure `DirectionalZoneNavigation` selector over rectangles from `navigableZones()`: all tiling zones plus each screen's floating-zone bar, excluding full-screen-paused screens. Left and Right stay in the current layer (tiling-to-tiling or floating-to-floating); Up and Down can switch layers. Among eligible zones, the selector prefers the nearest crosswise-overlapping zone in the pressed direction, falls back to center distance for diagonal displays, and breaks ties by same screen, alignment, then lower index (tiling before floating).
 
 ## Displacement Minimization Strategy
 

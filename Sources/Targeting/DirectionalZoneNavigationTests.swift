@@ -67,10 +67,13 @@ enum DirectionalZoneNavigationTests {
             // Left/Right across the column boundary.
             assertNext(zones, from: tiling1, .right, equals: tiling2, "single: right zone1→zone2")
             assertNext(zones, from: tiling2, .left, equals: tiling1, "single: left zone2→zone1")
+            assertNext(zones, from: tiling3, .left, equals: tiling1, "single: left zone3→zone1")
             // Edges of the lone screen stop (no wrap).
             assertNext(zones, from: tiling2, .right, equals: nil, "single: right zone2→edge")
             assertNext(zones, from: tiling1, .left, equals: nil, "single: left zone1→edge")
             assertNext(zones, from: tiling2, .up, equals: nil, "single: up zone2→edge")
+            assertNext(zones, from: floatingA, .left, equals: nil, "single: left floating→edge")
+            assertNext(zones, from: floatingA, .right, equals: nil, "single: right floating→edge")
             assertNext(zones, from: floatingA, .down, equals: nil, "single: down floating→edge")
         }
 
@@ -80,6 +83,7 @@ enum DirectionalZoneNavigationTests {
                 + standardScreen(screenB, originX: 1500, originY: 0)
             let bTiling1 = NavigableZoneIdentifier.tiling(screenId: screenB, index: 1)
             let bTiling2 = NavigableZoneIdentifier.tiling(screenId: screenB, index: 2)
+            let floatingB = NavigableZoneIdentifier.floating(screenId: screenB)
             // Same-screen neighbor wins over the next display.
             assertNext(zones, from: tiling1, .right, equals: tiling2, "horizontal: right stays on A (zone1→zone2)")
             // Leaving A's right column lands on B's nearest (left) column.
@@ -88,6 +92,9 @@ enum DirectionalZoneNavigationTests {
             // And back the other way.
             assertNext(zones, from: bTiling1, .left, equals: tiling2, "horizontal: left B.zone1→A.zone2")
             assertNext(zones, from: bTiling1, .right, equals: bTiling2, "horizontal: right stays on B (zone1→zone2)")
+            // Horizontal floating-zone navigation stays in the floating layer.
+            assertNext(zones, from: floatingA, .right, equals: floatingB, "horizontal: right A.floating→B.floating")
+            assertNext(zones, from: floatingB, .left, equals: floatingA, "horizontal: left B.floating→A.floating")
         }
 
         // MARK: Two screens stacked vertically (B directly below A).

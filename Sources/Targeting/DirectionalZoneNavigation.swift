@@ -4,8 +4,9 @@ import CoreGraphics
 ///
 /// Every targetable zone — the tiling zones on every screen plus each screen's floating zone —
 /// is treated as a rectangle on one shared global plane. An arrow press moves the target to the
-/// nearest zone in that physical direction. This file is deterministic and OS-free so it is
-/// covered by `--self-test`.
+/// nearest zone in that physical direction. Left and Right stay within the current layer (tiling
+/// or floating); only Up and Down cross between the two. This file is deterministic and OS-free so
+/// it is covered by `--self-test`.
 
 /// The four arrow directions used for target navigation.
 enum ZoneNavigationDirection {
@@ -26,6 +27,11 @@ enum NavigableZoneIdentifier: Equatable {
         case let .tiling(screenId, _): return screenId
         case let .floating(screenId): return screenId
         }
+    }
+
+    fileprivate var isFloating: Bool {
+        if case .floating = self { return true }
+        return false
     }
 
     /// Stable ordering used only to break exact geometric ties: prefer a tiling zone over the
@@ -53,7 +59,8 @@ enum DirectionalZoneNavigation {
     private static let overlapTolerance: CGFloat = 1.0
 
     /// Returns the zone to target when pressing `direction` from `current`, or `nil` to stay put
-    /// (nothing lies in that direction — the edge of the whole display arrangement).
+    /// (no eligible zone lies in that direction). For Left and Right only same-layer zones are
+    /// eligible (tiling↔tiling, floating↔floating); Up and Down consider both layers.
     static func nextZone(
         from current: NavigableZoneIdentifier,
         direction: ZoneNavigationDirection,
@@ -111,7 +118,11 @@ enum DirectionalZoneNavigation {
             id.screenId == sourceScreen ? 0 : 1
         }
 
-        let ahead = zones.filter { $0.id != current && isAhead($0.frame) }
+        func isEligible(_ id: NavigableZoneIdentifier) -> Bool {
+            isVertical || id.isFloating == current.isFloating
+        }
+
+        let ahead = zones.filter { $0.id != current && isAhead($0.frame) && isEligible($0.id) }
         if ahead.isEmpty {
             return nil
         }
