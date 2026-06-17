@@ -10,12 +10,13 @@ extension AppController {
     /// floating targets and dismisses on occupied tiling targets; CmdTab re-centers on any target
     /// (empty or occupied) and dismisses only when the target screen enters full-screen pause.
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
-        // Whenever the targeted tiling zone changes for any reason, flash its border to confirm the
-        // new target — the same feedback as a Control-Command click. Tiling zones only (floating
-        // zones have no border to flash). Suppressed during startup (seeding) and while a caller has
-        // opted out via `withTargetChangeFlashSuppressed` (e.g. creating a zone).
-        if hasCompletedInitialStartup, !suppressTargetChangeFlash, case .tiled(let key) = newDestination {
-            flashTargetFeedback(for: key)
+        // Whenever the target changes for any reason, confirm the new target with a brief animation —
+        // the same feedback as a Control-Command click. Tiling zones flash their border; the floating
+        // zone has no border, so its bottom-edge indicator briefly enlarges instead. Suppressed during
+        // startup (seeding) and while a caller has opted out via `withTargetChangeFlashSuppressed`
+        // (e.g. creating a zone).
+        if hasCompletedInitialStartup, !suppressTargetChangeFlash {
+            flashCurrentTargetFeedback()
         }
         refreshCmdTabForCurrentTargetAfterTopologyChange(newDestination: newDestination)
         refreshLauncherForCurrentTargetAfterTopologyChange(newDestination: newDestination)
@@ -133,11 +134,12 @@ extension AppController {
     /// `applyTargetedDestination` directly instead.
     ///
     /// Order matters: the inherited-click suppression gate must be armed *before* retargeting so a
-    /// synchronous did-change callback observes the armed state. The flash itself is deferred to the
-    /// next runloop tick (see `flashTargetFeedback`) so it never delays this gesture. A real target
-    /// change flashes via `targetedZoneDidChange`; when the gesture re-affirms the already-targeted
-    /// zone no change fires, so flash here too so an explicit gesture always confirms its target
-    /// (without double-flashing).
+    /// synchronous did-change callback observes the armed state. The confirmation itself is deferred
+    /// to the next runloop tick (see `flashTargetFeedback`/`pulseFloatingTargetFeedback`) so it never
+    /// delays this gesture. A real target change confirms via `targetedZoneDidChange` (a tiling-zone
+    /// border flash or a floating-zone indicator pulse); when the gesture re-affirms the already-
+    /// targeted zone no change fires, so re-fire the matching confirmation here too — so an explicit
+    /// gesture always confirms its target (without double-firing).
     internal func retargetForUserGesture(
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String,
@@ -150,8 +152,13 @@ extension AppController {
             willOpenLauncher: trigger != nil
         )
         applyTargetedDestination(destination, reason: reason)
-        if wasAlreadyTargeted, case .tiled(let key) = destination {
-            flashTargetFeedback(for: key)
+        if wasAlreadyTargeted {
+            switch destination {
+            case .tiled(let key):
+                flashTargetFeedback(for: key)
+            case .floating(let screenId):
+                pulseFloatingTargetFeedback(for: screenId)
+            }
         }
         afterRetarget?()
         if let trigger {

@@ -343,6 +343,33 @@ extension AppController {
         }
     }
 
+    /// Pop the floating-zone indicator when its zone becomes the target — the floating-zone analog of
+    /// `flashTargetFeedback`. Deferred to the next runloop tick for the same reasons: it runs after
+    /// the synchronous indicator refresh that resets the pill to its resting frame, and re-reads live
+    /// state so we only pop when this floating zone is still the final target.
+    func pulseFloatingTargetFeedback(for screenId: CGDirectDisplayID) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.targetedZoneManager.targetedDestination == .floating(screenId: screenId) else { return }
+            self.floatingIndicatorManager.pulseTargeted(screenId: screenId)
+        }
+    }
+
+    /// Confirm the currently targeted zone with its target-change animation — a tiling-zone border
+    /// flash or a floating-zone indicator pulse. Used by `targetedZoneDidChange` on a real change, and
+    /// by operations like zone removal that must confirm the resulting target even when its identity
+    /// is unchanged (and so fired no change event). Callers apply the usual startup/suppression gate.
+    func flashCurrentTargetFeedback() {
+        switch targetedZoneManager.targetedDestination {
+        case .tiled(let key):
+            flashTargetFeedback(for: key)
+        case .floating(let screenId):
+            pulseFloatingTargetFeedback(for: screenId)
+        case nil:
+            break
+        }
+    }
+
     /// Runs `body` with the target-change border flash suppressed, restoring the prior state after.
     /// Used for operations whose retarget should not flash — e.g. creating a zone targets the new
     /// zone, but the appearing placeholder already draws the eye, so an extra flash looks wrong.

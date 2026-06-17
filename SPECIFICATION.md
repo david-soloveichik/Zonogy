@@ -137,9 +137,9 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone.
 
-**Floating zone indicator UI:** Each screen renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the screen bottom so edge clicks hit it. If that floating zone is targeted, the indicator is highlighted.
+**Floating zone indicator UI:** Each screen renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the screen bottom so edge clicks hit it. If that floating zone is targeted, the indicator is highlighted. When a floating zone becomes targeted (or an explicit gesture re-selects the already-targeted floating zone), its indicator briefly flashes (enlarges and settles back to confirm the target). This is the floating-zone counterpart to the tiling-zone target change flash.
 
-**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones show a transient border overlay over the zone frame. Explicit gestures (Control-Command-click, clicking a placeholder, or picking a zone in CmdTab) flash even when re-selecting the already-targeted zone. Creating a tiling zone does not flash, even though the new zone becomes targeted.
+**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones show a transient border overlay over the zone frame. Explicit gestures (Control-Command-click, clicking a placeholder, or picking a zone in CmdTab) flash even when re-selecting the already-targeted zone. Removing a zone likewise confirms the surviving target with a flash. Creating a tiling zone does not flash, even though the new zone becomes targeted.
 
 **Indicator click behavior:**
 

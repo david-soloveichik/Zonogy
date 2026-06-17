@@ -14,6 +14,18 @@ protocol FloatingZoneIndicatorManagerDelegate: AnyObject {
     func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem])
 }
 
+/// Sizing and timing for the brief "pop" when a floating zone becomes targeted. The floating zone
+/// has no border to flash, so its bottom-edge pill momentarily enlarges instead — the floating-zone
+/// analog of the tiling-zone border flash.
+private enum FloatingIndicatorPulse {
+    /// Peak height the pill jumps to before settling back to its resting thickness.
+    static let peakThickness: CGFloat = 20
+    /// How much wider the pill grows at the peak, centered on its resting midpoint.
+    static let widthScale: CGFloat = 1.08
+    /// How long the pill takes to settle from the peak back to its resting frame.
+    static let duration: CFTimeInterval = 0.32
+}
+
 final class FloatingZoneIndicatorManager {
     private final class IndicatorWindow: NSPanel {
         init(frame: NSRect) {
@@ -295,6 +307,11 @@ final class FloatingZoneIndicatorManager {
     weak var delegate: FloatingZoneIndicatorManagerDelegate?
     private var handles: [CGDirectDisplayID: IndicatorHandle] = [:]
     private var dragHighlightedScreenId: CGDirectDisplayID?
+    /// Screens whose pill is mid-pulse, keyed by a generation counter. While a screen is pulsing,
+    /// `applyIndicatorFrame` leaves its frame alone so the frequent indicator refreshes (which call
+    /// `applyIndicatorFrame(animated: false)`) don't snap the pill back and cut the pop short. The
+    /// generation lets a newer pulse supersede an older one without the older's completion settling.
+    private var pulseGenerations: [CGDirectDisplayID: Int] = [:]
 
     func present(over descriptors: [FloatingZoneIndicatorDescriptor]) {
         var pendingRemoval = Set(handles.keys)
@@ -341,6 +358,7 @@ final class FloatingZoneIndicatorManager {
 
         for key in pendingRemoval {
             if let handle = handles.removeValue(forKey: key) {
+                pulseGenerations[key] = nil
                 handle.window.orderOut(nil)
                 handle.window.close()
             }
@@ -353,7 +371,62 @@ final class FloatingZoneIndicatorManager {
             handle.window.close()
         }
         handles.removeAll()
+        pulseGenerations.removeAll()
         dragHighlightedScreenId = nil
+    }
+
+    /// The frame the pill settles to for its current interaction state: hover/drag grow its
+    /// thickness, otherwise it rests at its base frame. The pulse animation reads this to know
+    /// where to land.
+    private func restingFrame(for handle: IndicatorHandle) -> CGRect {
+        var frame = handle.baseFrame
+        let thickness = handle.view.desiredThickness()
+        if thickness > EdgeIndicatorPillSizing.baseThickness {
+            frame.size.height = thickness
+        }
+        return frame
+    }
+
+    /// Briefly "pops" the floating-zone pill larger when its zone becomes targeted, then settles it
+    /// back to the resting frame — the floating-zone analog of the tiling-zone border flash. The
+    /// pill jumps to the enlarged size immediately (anchored to the screen bottom, centered on its
+    /// resting midpoint) and animates back down, mirroring how the flash starts thick and thins out.
+    func pulseTargeted(screenId: CGDirectDisplayID) {
+        guard let handle = handles[screenId] else {
+            return
+        }
+
+        let generation = (pulseGenerations[screenId] ?? 0) + 1
+        pulseGenerations[screenId] = generation
+
+        let resting = restingFrame(for: handle)
+        let poppedWidth = resting.width * FloatingIndicatorPulse.widthScale
+        let popped = CGRect(
+            x: resting.midX - poppedWidth / 2,
+            y: resting.origin.y,
+            width: poppedWidth,
+            height: FloatingIndicatorPulse.peakThickness
+        ).standardized
+
+        // Float above neighboring windows for the pop so it reads clearly, then animate back down.
+        handle.window.level = .statusBar
+        handle.window.orderFrontRegardless()
+        handle.window.setFrame(popped, display: true)
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = FloatingIndicatorPulse.duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            handle.window.animator().setFrame(resting, display: true)
+        }, completionHandler: { [weak self] in
+            guard let self,
+                  self.pulseGenerations[screenId] == generation else {
+                // A newer pulse (or teardown) superseded this one; let it own the frame.
+                return
+            }
+            self.pulseGenerations[screenId] = nil
+            // Settle into whatever the current interaction state dictates now the pop is done.
+            self.applyIndicatorFrame(for: screenId, animated: false)
+        })
     }
 
     private func applyIndicatorFrame(for screenId: CGDirectDisplayID, animated: Bool) {
@@ -361,13 +434,13 @@ final class FloatingZoneIndicatorManager {
             return
         }
 
-        let thickness = handle.view.desiredThickness()
-        let shouldFloatOnTop = thickness > EdgeIndicatorPillSizing.baseThickness
-
-        var targetFrame = handle.baseFrame
-        if shouldFloatOnTop {
-            targetFrame.size.height = thickness
+        // A pulse owns the frame for its whole duration; don't let a refresh snap it back mid-pop.
+        if pulseGenerations[screenId] != nil {
+            return
         }
+
+        let targetFrame = restingFrame(for: handle)
+        let shouldFloatOnTop = targetFrame.height > EdgeIndicatorPillSizing.baseThickness
 
         let targetLevel: NSWindow.Level = shouldFloatOnTop ? .statusBar : .floating
         if handle.window.level != targetLevel {

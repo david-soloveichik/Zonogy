@@ -131,6 +131,7 @@ extension AppController {
         windowController.cancelAllAccessibilityFrameRetries()
 
         let currentTarget = targetedZoneKey
+        let destinationBefore = targetedZoneManager.targetedDestination
         var pendingDestination: TargetedZoneManager.TargetedDestination?
         if let currentTarget, currentTarget.screenId == screenId {
             if currentTarget.index == index {
@@ -172,6 +173,19 @@ extension AppController {
 
         if pendingDestination == nil {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")
+        }
+
+        // The standard target-change flash (via `targetedZoneDidChange`) already confirms every
+        // removal that moves the target. Cover the one case it cannot see — a target that survived on
+        // this screen with its index unchanged (e.g. removing a higher-index zone) — by confirming it
+        // explicitly here, so a removal's confirmation is symmetric regardless of reindexing. Mirrors
+        // the re-affirm flash in `retargetForUserGesture`; a same-screen survivor fires no change
+        // event, so this never double-flashes with the standard one.
+        let targetSurvivedInPlace = targetedZoneManager.targetedDestination == destinationBefore
+        let targetOnRemovalScreen = destinationBefore.flatMap { self.screenId(for: $0) } == screenId
+        if hasCompletedInitialStartup, !suppressTargetChangeFlash,
+           targetSurvivedInPlace, targetOnRemovalScreen {
+            flashCurrentTargetFeedback()
         }
 
         if announce {

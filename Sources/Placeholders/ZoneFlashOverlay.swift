@@ -9,7 +9,7 @@ enum ZoneFlashStyle {
     /// Vivid blue the border starts at when the flash fires.
     static let color = NSColor.systemBlue.withAlphaComponent(0.88)
     /// Border width the flash starts at before settling back to the resting width.
-    static let borderWidth: CGFloat = 5.5
+    static let borderWidth: CGFloat = 9.0
     /// How long the flash takes to fade to its resting state.
     static let duration: CFTimeInterval = 0.45
     /// Easing shared by both flash animations.
