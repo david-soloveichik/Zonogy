@@ -59,13 +59,22 @@ final class ZoneFlashOverlay {
         p.orderFront(nil)
         self.panel = p
 
-        // Fade the entire overlay out after a brief pause.
+        // Fade the entire overlay out after a brief pause, then tear down *this* panel. We capture
+        // `p` directly rather than calling `dismiss()` (which acts on `self.panel`): a newer flash
+        // may have already replaced `self.panel`, and dismissing that would cut the newer flash
+        // short. This happens during rapid target changes — e.g. holding/tapping the keyboard
+        // navigation shortcut faster than the fade duration — where each flash's completion would
+        // otherwise dismiss the next flash's panel right after it appears.
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = ZoneFlashStyle.duration
             ctx.timingFunction = ZoneFlashStyle.timing
             p.animator().alphaValue = 0.0
         }, completionHandler: { [weak self] in
-            self?.dismiss()
+            p.orderOut(nil)
+            p.close()
+            if self?.panel === p {
+                self?.panel = nil
+            }
         })
     }
 
