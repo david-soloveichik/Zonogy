@@ -98,6 +98,7 @@ extension AppController {
     internal func refreshIndicators() {
         refreshZoneIndicators()
         placeholderCoordinator.setTargetedZone(targetedZoneKey)
+        refreshOccupiedZoneTargetBorder()
 
         // Refresh add-zone indicators
         var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []
@@ -159,6 +160,34 @@ extension AppController {
             floatingIndicatorManager.tearDown()
         } else {
             floatingIndicatorManager.present(over: floatingDescriptors)
+        }
+    }
+
+    /// Cocoa frame of the targeted tiling zone *when it is occupied* and on a live (non-paused) screen —
+    /// the region the persistent occupied-zone border (and its target-change pulse) should cover.
+    /// Returns nil when the target is empty, suppressed, floating, paused, or absent; those cases are
+    /// highlighted by the placeholder (or not at all), never by this overlay. Single source of truth so
+    /// the border's resting visibility and its flash never disagree about what counts as "occupied"
+    /// (e.g. an UnderCovers empty zone has no placeholder yet must not get an occupied border).
+    internal func targetedOccupiedZoneBorderFrame() -> CGRect? {
+        guard let key = targetedZoneKey,
+              !isScreenPausedForFullScreen(key.screenId),
+              let context = screenContexts[key.screenId],
+              let zone = context.zoneController.zone(at: key.index),
+              zone.occupantWindowId != nil else {
+            return nil
+        }
+        return context.descriptor.screenToCocoa(frameWithMargin(for: zone, in: context.zoneController))
+    }
+
+    /// Show the persistent target border over the targeted tiling zone when it is occupied (the
+    /// occupied-zone analog of the highlighted placeholder border drawn for a targeted empty zone),
+    /// otherwise hide it. Empty targeted zones are highlighted by their placeholder instead.
+    internal func refreshOccupiedZoneTargetBorder() {
+        if let cocoaFrame = targetedOccupiedZoneBorderFrame() {
+            occupiedZoneTargetOverlay.show(at: cocoaFrame)
+        } else {
+            occupiedZoneTargetOverlay.hide()
         }
     }
 

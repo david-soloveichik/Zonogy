@@ -275,7 +275,7 @@ extension AppController {
         // If the click lands on any of our own windows, let AppKit route it to that window
         // and do nothing here. Interactive zone UI (CmdTab rows, placeholder surface and its
         // ×/⌄ button, indicators, resize bars) dispatches its own mouseDown; passive overlays
-        // (flash overlay, passive drag overlays) simply absorb the click. Either way,
+        // (occupied-zone target border, passive drag overlays) simply absorb the click. Either way,
         // retargeting or dismissing from here would fight that dispatch.
         if clickLandsOnOwnWindow(at: location) {
             return false
@@ -334,11 +334,10 @@ extension AppController {
                   self.targetedZoneManager.targetedDestination == .tiled(key) else { return }
             if self.placeholderCoordinator.hasPlaceholder(for: key) {
                 self.placeholderCoordinator.flashPlaceholderBorder(for: key)
-            } else if let context = self.screenContexts[key.screenId],
-                      let zone = context.zoneController.zone(at: key.index) {
-                let screenFrame = self.frameWithMargin(for: zone, in: context.zoneController)
-                let cocoaFrame = context.descriptor.screenToCocoa(screenFrame)
-                self.zoneFlashOverlay.flash(at: cocoaFrame)
+            } else if let cocoaFrame = self.targetedOccupiedZoneBorderFrame() {
+                // Only an *occupied* targeted zone gets the border flash. A placeholder-less empty zone
+                // (e.g. UnderCovers) returns nil here, so we don't strand a persistent border over it.
+                self.occupiedZoneTargetOverlay.flash(at: cocoaFrame)
             }
         }
     }

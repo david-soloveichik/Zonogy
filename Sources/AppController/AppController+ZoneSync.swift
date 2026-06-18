@@ -395,6 +395,9 @@ extension AppController {
         // layout — pick a valid targeted zone if needed and refresh all on‑screen adornments.
         if case .liveResize(let screenId) = mode {
             refreshZoneIndicators(forScreens: Set([screenId]))
+            // Keep the occupied-zone target border tracking the live geometry, just as Phase 4 above
+            // repositions placeholders for empty zones; otherwise the border lags behind the window.
+            refreshOccupiedZoneTargetBorder()
             if launcherController.isActive, targetedScreenId() == screenId {
                 launcherController.repositionIfNeeded()
             }

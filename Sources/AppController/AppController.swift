@@ -85,7 +85,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator
-    internal let zoneFlashOverlay = ZoneFlashOverlay()
+    internal let occupiedZoneTargetOverlay = OccupiedZoneTargetOverlay()
     internal let indicatorManager = ZoneIndicatorManager()
     internal let floatingIndicatorManager = FloatingZoneIndicatorManager()
     internal let addZoneIndicatorManager = AddZoneIndicatorManager()
@@ -429,6 +429,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         indicatorManager.tearDown()
         floatingIndicatorManager.tearDown()
         addZoneIndicatorManager.tearDown()
+        occupiedZoneTargetOverlay.hide()
         placeholderExternalDragOverlayManager.tearDown()
         menuBarManager.tearDown()
     }
