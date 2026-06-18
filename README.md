@@ -88,6 +88,8 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Control-Cmd-Arrows` | Change target zone with arrow keys |
+| `Control-Cmd-\` | Toggle target zone with focused window |
+| `Control-Cmd-Return` | Focus the targeted zone's window |
 | `Control-Cmd-Space` | Open Launcher in targeted zone |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
 

@@ -77,14 +77,18 @@ extension AppController {
     }
 
     /// "Toggle Target Zone w/ Focused Window" shortcut: if the zone holding the focused window is not
-    /// targeted, target it; if it is already targeted, advance off it using the standard fill-priority
-    /// (lowest-index empty tiling zone on the same screen, then another screen, then the floating zone).
-    /// Resolves the focused window even while the Launcher/CmdTab chooser is open. No-op when no managed
-    /// window is focused in a zone.
+    /// targeted, target it. Otherwise advance off the currently targeted zone using the standard
+    /// fill-priority (lowest-index empty tiling zone on the same screen, then another screen, then the
+    /// floating zone) — this covers both the focused window already sitting in the target and no
+    /// managed window being focused in a zone while the target is occupied. Does nothing when nothing
+    /// is focused in a zone and the target is empty. Resolves the focused window even while the
+    /// Launcher/CmdTab chooser is open.
     internal func toggleTargetZoneWithFocusedWindow() {
+        let currentTarget = targetedZoneManager.targetedDestination
         let action = FocusedWindowToggleTargetPolicy.resolve(
             focusedWindowDestination: resolvedFocusedWindowZoneDestination(),
-            currentTarget: targetedZoneManager.targetedDestination
+            currentTarget: currentTarget,
+            currentTargetIsOccupied: currentTarget.map { isDestinationOccupied($0) } ?? false
         )
         let reason = "shortcut-toggle-target-focused-window"
         // The toggle is a tentative in-chooser retarget: keep a visible Launcher/CmdTab anchored to the
@@ -93,13 +97,13 @@ extension AppController {
         performTentativeChooserRetarget {
             switch action {
             case .none:
-                Logger.debug("Toggle target zone w/ focused window: no focused managed window in a zone")
+                Logger.debug("Toggle target zone w/ focused window: nothing focused in a zone and targeted zone empty; no-op")
             case .target(let destination):
                 Logger.debug("Toggle target zone w/ focused window: targeting focused window's zone")
                 applyTargetedDestination(destination, reason: reason)
             case .advance(let from):
-                Logger.debug("Toggle target zone w/ focused window: focused window's zone already targeted; advancing")
-                advanceTargetOffFocusedWindowZone(from, reason: reason)
+                Logger.debug("Toggle target zone w/ focused window: targeted zone occupied; advancing off it")
+                advanceTargetOffZone(from, reason: reason)
             }
         }
     }
@@ -144,19 +148,29 @@ extension AppController {
         currentActiveManagedWindowForTriggeredTargeting().flatMap { targetedDestination(for: $0) }
     }
 
-    private func advanceTargetOffFocusedWindowZone(
+    /// Whether the given targeted destination currently holds a managed window.
+    private func isDestinationOccupied(_ destination: TargetedZoneManager.TargetedDestination) -> Bool {
+        switch destination {
+        case .tiled(let key):
+            return screenContexts[key.screenId]?.zoneController.zone(at: key.index)?.occupantWindowId != nil
+        case .floating(let screenId):
+            return floatingZoneOccupant(on: screenId) != nil
+        }
+    }
+
+    private func advanceTargetOffZone(
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String
     ) {
         switch destination {
         case .tiled(let key):
-            // The focused window's zone is occupied, so this mirrors the standard retarget-after-fill.
+            // The targeted zone is occupied, so this mirrors the standard retarget-after-fill.
             targetedZoneManager.retargetAfterFillingZone(key, reason: reason)
         case .floating(let screenId):
             // Advancing off a floating zone prefers an empty tiling zone (same screen, then another).
             // When none exists, preferredRetargetDestination returns this same floating zone, so
             // applying it is a no-op: we deliberately stay put rather than hop to another screen's
-            // floating zone — the focused window doesn't move, so that would just oscillate the target.
+            // floating zone — no window moves, so that would just oscillate the target.
             if let next = targetedZoneManager.preferredRetargetDestination(preferredSameScreenId: screenId) {
                 applyTargetedDestination(next, reason: reason)
             } else {

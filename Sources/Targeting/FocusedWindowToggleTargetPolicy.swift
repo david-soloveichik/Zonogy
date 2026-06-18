@@ -2,29 +2,36 @@ import CoreGraphics
 
 /// Pure decision logic for the "Toggle Target Zone w/ Focused Window" shortcut.
 ///
-/// Given the zone occupied by the focused window and the current target, decide whether to target
-/// the focused window's zone, advance off it (when it is already targeted), or do nothing. Advancing
-/// itself follows the standard fill-priority and is performed by `TargetedZoneManager`.
+/// Given the zone holding the focused window, the current target, and whether that target is
+/// occupied, decide whether to target the focused window's zone, advance off the current target, or
+/// do nothing. Advancing itself follows the standard fill-priority and is performed by
+/// `TargetedZoneManager`.
 enum FocusedWindowToggleTargetPolicy {
     enum Action: Equatable {
-        /// No focused managed window assigned to a zone: do nothing.
+        /// Nothing to do (no focused window to target and the current target is empty).
         case none
         /// Target the focused window's zone (it is not currently targeted).
         case target(TargetedZoneManager.TargetedDestination)
-        /// The focused window's zone is already targeted: advance off it per standard rules.
+        /// Advance the target off the currently targeted zone per standard rules. Triggered when the
+        /// focused window already sits in the target, or when no window is focused in a zone but the
+        /// target is occupied.
         case advance(from: TargetedZoneManager.TargetedDestination)
     }
 
     static func resolve(
         focusedWindowDestination: TargetedZoneManager.TargetedDestination?,
-        currentTarget: TargetedZoneManager.TargetedDestination?
+        currentTarget: TargetedZoneManager.TargetedDestination?,
+        currentTargetIsOccupied: Bool
     ) -> Action {
-        guard let focusedWindowDestination else {
-            return .none
+        // A managed window focused in a zone other than the current target moves the target there.
+        if let focusedWindowDestination, focusedWindowDestination != currentTarget {
+            return .target(focusedWindowDestination)
         }
-        if currentTarget == focusedWindowDestination {
-            return .advance(from: focusedWindowDestination)
+        // Otherwise (focused window already in the target, or nothing focused in a zone) advance off
+        // the current target, but only when it actually holds a window.
+        if let currentTarget, currentTargetIsOccupied {
+            return .advance(from: currentTarget)
         }
-        return .target(focusedWindowDestination)
+        return .none
     }
 }

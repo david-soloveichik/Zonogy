@@ -103,7 +103,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .focusTargetedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .toggleTargetZoneWithFocusedWindow:
-                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
@@ -129,9 +129,9 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     /// Actions that are disabled by default (no shortcut assigned out of the box).
-    /// "Focus Targeted Window" is unbound by default; Control-Command-Return is the default for
-    /// "Toggle Target Zone w/ Focused Window" instead.
-    private static let defaultClearedActions: Set<ShortcutAction> = [.focusTargetedWindow]
+    /// All actions have a default shortcut out of the box: "Focus Targeted Window" defaults to
+    /// Control-Command-Return and "Toggle Target Zone w/ Focused Window" to Control-Command-\.
+    private static let defaultClearedActions: Set<ShortcutAction> = []
 
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []
