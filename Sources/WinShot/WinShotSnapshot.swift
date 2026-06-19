@@ -30,7 +30,7 @@ struct WinShotSnapshot {
     let activeWindowId: Int?
 
     /// Low-resolution screenshot. Populated asynchronously after creation: the snapshot is created
-    /// with `nil` and filled in once the ScreenCaptureKit capture completes (see WinShotManager).
+    /// with `nil` and filled in once the composited capture completes (see WinShotManager).
     var thumbnail: NSImage?
 
     /// Returns all window IDs in this snapshot (zones + floating zone)

@@ -361,7 +361,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.windowPlacementManager.delegate = self
         self.dragDropCoordinator.delegate = self
         self.menuBarManager.delegate = self
-        // Refresh an open chooser once a snapshot's async ScreenCaptureKit thumbnail lands.
+        // Refresh an open chooser once a snapshot's async composited thumbnail lands.
         self.winShotManager.onThumbnailReady = { [weak self] screenId, _ in
             self?.refreshWinShotChooserIfNeeded(for: screenId)
         }

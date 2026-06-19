@@ -56,6 +56,9 @@ final class WinShotManager {
         var zoneFrames: [Int: CGRect] = [:]
         var zoneAssignments: [Int: WindowIdentity] = [:]
         var windowFrames: [Int: CGRect] = [:]
+        // Per-window placements + empty-zone rects feed the composited thumbnail (see captureThumbnail).
+        var tiledPlacements: [WinShotThumbnailComposer.Placement] = []
+        var emptyZoneRects: [CGRect] = []
 
         for zone in zones {
             zoneFrames[zone.index] = zone.frame
@@ -66,6 +69,14 @@ final class WinShotManager {
                 // Capture the window's actual frame in screen coordinates for potential future use.
                 let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)
                 windowFrames[zone.index] = frame
+                tiledPlacements.append(
+                    WinShotThumbnailComposer.Placement(
+                        cgWindowId: CGWindowID(managed.backing.cgWindowId),
+                        destRect: zone.frame
+                    )
+                )
+            } else {
+                emptyZoneRects.append(zone.frame)
             }
         }
 
@@ -81,6 +92,17 @@ final class WinShotManager {
             floatingIdentity = nil
             floatingFrame = nil
         }
+
+        // Placement for the floating occupant (drawn on top at its actual frame; skipped if unknown).
+        let floatingPlacement: WinShotThumbnailComposer.Placement? = {
+            guard let floatingOccupant = floatingZoneOccupant, let frame = floatingFrame else {
+                return nil
+            }
+            return WinShotThumbnailComposer.Placement(
+                cgWindowId: CGWindowID(floatingOccupant.backing.cgWindowId),
+                destRect: frame
+            )
+        }()
 
         // Check eligibility: must have at least one non-placeholder window
         let hasWindows = !zoneAssignments.isEmpty || floatingIdentity != nil
@@ -109,8 +131,8 @@ final class WinShotManager {
             rememberedSizesByWindowId: rememberedStickyResizeSizesByWindowId
         )
 
-        // Create snapshot. The thumbnail is captured asynchronously (ScreenCaptureKit) and filled in
-        // once it arrives — see captureThumbnail(forSnapshot:on:notifiesReady:) below.
+        // Create snapshot. The thumbnail is composited asynchronously from per-window captures and
+        // filled in once it arrives — see captureThumbnail(...) below.
         let snapshot = WinShotSnapshot(
             id: replacedSnapshotId ?? UUID(),
             screenId: screenId,
@@ -129,11 +151,15 @@ final class WinShotManager {
         // Store snapshot
         addSnapshot(snapshot, for: screenId)
 
-        // Kick off the asynchronous screenshot capture now that the snapshot is stored.
+        // Kick off the asynchronous per-window capture + composite now that the snapshot is stored.
         captureThumbnail(
             forSnapshot: snapshot.id,
             createdAt: snapshot.createdAt,
             on: screenId,
+            displaySize: screenDescriptor.cocoaBounds.size,
+            tiled: tiledPlacements,
+            floating: floatingPlacement,
+            emptyZoneRects: emptyZoneRects,
             notifiesReady: notifiesThumbnailReady
         )
 
@@ -251,15 +277,20 @@ final class WinShotManager {
         return nil
     }
 
-    /// Asynchronously capture a thumbnail (via ScreenCaptureKit) for a freshly created snapshot and
-    /// fill it in when it arrives. `notifiesReady` gates `onThumbnailReady` so silent captures don't
-    /// disturb an open chooser even once their image lands. `createdAt` identifies this exact snapshot
-    /// instance: a same-occupancy capture reuses the id but gets a fresh `createdAt`, so a stale
-    /// in-flight capture is dropped (it neither clobbers the newer thumbnail nor refreshes the chooser).
+    /// Asynchronously build the composited thumbnail (per-window captures placed at their zone rects)
+    /// for a freshly created snapshot and fill it in when it arrives. `notifiesReady`
+    /// gates `onThumbnailReady` so silent captures don't disturb an open chooser even once their image
+    /// lands. `createdAt` identifies this exact snapshot instance: a same-occupancy capture reuses the id
+    /// but gets a fresh `createdAt`, so a stale in-flight capture is dropped (it neither clobbers the
+    /// newer thumbnail nor refreshes the chooser).
     private func captureThumbnail(
         forSnapshot id: UUID,
         createdAt: Date,
         on screenId: CGDirectDisplayID,
+        displaySize: CGSize,
+        tiled: [WinShotThumbnailComposer.Placement],
+        floating: WinShotThumbnailComposer.Placement?,
+        emptyZoneRects: [CGRect],
         notifiesReady: Bool
     ) {
         let signpostState = ZonogySignposts.pointsOfInterest.beginInterval(
@@ -267,15 +298,20 @@ final class WinShotManager {
             "screenId=\(screenId)"
         )
 
-        WinShotScreenCapturer.captureDisplayImage(displayId: screenId) { [weak self] cgImage in
+        WinShotThumbnailComposer.composeThumbnail(
+            displaySize: displaySize,
+            tiled: tiled,
+            floating: floating,
+            emptyZoneRects: emptyZoneRects,
+            targetHeight: Self.thumbnailHeight
+        ) { [weak self] thumbnail in
             // Delivered on the main queue.
             ZonogySignposts.pointsOfInterest.endInterval("WinShotCaptureThumbnail", signpostState)
 
-            guard let self, let cgImage else {
+            guard let self, let thumbnail else {
                 return
             }
 
-            let thumbnail = Self.makeThumbnail(from: cgImage)
             // Apply only if this exact snapshot instance is still stored. Drops captures whose snapshot
             // was trimmed/deleted, or superseded by a newer same-id capture (fresh createdAt).
             guard self.setThumbnail(thumbnail, forSnapshot: id, createdAt: createdAt, on: screenId) else {
@@ -303,27 +339,5 @@ final class WinShotManager {
         }
         snapshots[screenId]?[index].thumbnail = thumbnail
         return true
-    }
-
-    /// Downscale a captured display image to a low-resolution thumbnail (for memory efficiency).
-    private static func makeThumbnail(from cgImage: CGImage) -> NSImage {
-        let fullSize = NSSize(width: cgImage.width, height: cgImage.height)
-        let fullImage = NSImage(cgImage: cgImage, size: fullSize)
-
-        let scale = thumbnailHeight / CGFloat(cgImage.height)
-        let targetWidth = CGFloat(cgImage.width) * scale
-        let targetSize = NSSize(width: targetWidth, height: thumbnailHeight)
-
-        let thumbnail = NSImage(size: targetSize)
-        thumbnail.lockFocus()
-        fullImage.draw(
-            in: NSRect(origin: .zero, size: targetSize),
-            from: NSRect(origin: .zero, size: fullSize),
-            operation: .copy,
-            fraction: 1.0
-        )
-        thumbnail.unlockFocus()
-
-        return thumbnail
     }
 }

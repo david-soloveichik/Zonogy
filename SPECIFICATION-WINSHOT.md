@@ -6,7 +6,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 - Explicitly created with the Control-Cmd-/ (default) shortcut on the active screen.
 - Automatically created according to the auto-save mode set in Preferences (see **Automatic Snapshots** below).
-- Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, Sticky Resize remembered sizes (if any), and a low-resolution screenshot. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
+- Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, Sticky Resize remembered sizes (if any), and a low-resolution thumbnail. The thumbnail is an abstract composite — each window in the snapshot is captured individually and drawn at its zone position on a plain background, with no desktop, other windows, or Zonogy interface shown. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
 - Snapshots are screen-specific (cannot restore across screens).
 - Max snapshots per screen is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
