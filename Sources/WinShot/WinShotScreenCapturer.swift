@@ -2,6 +2,7 @@
 /// Replaces the deprecated CGDisplayCreateImage path with Apple's supported, more
 /// energy-efficient capture API. Stateless; results are delivered on the main queue.
 import CoreGraphics
+import Foundation
 import ScreenCaptureKit
 
 enum WinShotScreenCapturer {
@@ -16,7 +17,8 @@ enum WinShotScreenCapturer {
         // form (the bare `getShareableContent` is async-only as `.current`). The flags only affect the
         // returned window list, which we don't use — we capture the whole display below.
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { content, error in
-            guard let display = content?.displays.first(where: { $0.displayID == displayId }) else {
+            guard let content,
+                  let display = content.displays.first(where: { $0.displayID == displayId }) else {
                 DispatchQueue.main.async {
                     Logger.debug(
                         "WinShot: No SCDisplay for \(ScreenContextStore.logDescription(for: displayId)): "
@@ -27,10 +29,19 @@ enum WinShotScreenCapturer {
                 return
             }
 
-            // Capture the full display (no excluded windows), matching CGDisplayCreateImage. Sizing the
-            // output to the display's point dimensions keeps the capture cheap — it is downscaled to a
-            // small thumbnail anyway. Hide the cursor so it isn't baked into the thumbnail.
-            let filter = SCContentFilter(display: display, excludingWindows: [])
+            // Exclude Zonogy's own windows (placeholders, target indicators, edge pills, overlays, the
+            // chooser, etc.) so the thumbnail shows the managed-window arrangement rather than Zonogy's
+            // chrome. If Zonogy has no on-screen windows this list is empty and the full display is
+            // captured. Sizing the output to the display's point dimensions keeps the capture cheap — it
+            // is downscaled to a small thumbnail anyway. Hide the cursor so it isn't baked into the image.
+            let ownApplications = content.applications.filter {
+                $0.processID == ProcessInfo.processInfo.processIdentifier
+            }
+            let filter = SCContentFilter(
+                display: display,
+                excludingApplications: ownApplications,
+                exceptingWindows: []
+            )
             let configuration = SCStreamConfiguration()
             configuration.width = display.width
             configuration.height = display.height
