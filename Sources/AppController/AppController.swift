@@ -146,6 +146,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let menuBarManager = MenuBarManager()
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
+    internal let winShotOccupancyAutoSaveScheduler = WinShotOccupancyAutoSaveScheduler()
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
         controller.delegate = self

@@ -410,6 +410,9 @@ extension AppController {
         // Refresh Launcher's zone-derived row data; it's snapshotted at open time
         // and would otherwise stay stale after the optimistic auto-show.
         launcherController.refreshZoneDerivedDataIfActive()
+
+        // Occupancy is now settled for this pass: feed it to the WinShot auto-save settle timer.
+        evaluateWinShotOccupancyAutoSave()
     }
 
     func requestSync() {

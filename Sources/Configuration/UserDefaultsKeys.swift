@@ -25,6 +25,7 @@ enum UserDefaultsKeys {
 
     // MARK: - WinShot
     static let winShotEnabled = "Zonogy.winShot.enabled"
-    static let winShotAutoSaveSnapshots = "Zonogy.winShot.autoSaveSnapshots"
+    static let winShotAutoSaveMode = "Zonogy.winShot.autoSaveMode"
+    static let winShotOccupancySettleDelaySeconds = "Zonogy.winShot.occupancySettleDelaySeconds"
     static let winShotMaxSnapshotsStored = "Zonogy.winShot.maxSnapshotsStored"
 }

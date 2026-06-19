@@ -117,7 +117,7 @@ A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The 
 
 Each screen with fewer than 3 tiling zones also displays an add-zone indicator: a vertical pill (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a tiling zone to that screen.
 
-Pressing Control-Cmd-Escape clears all zones on the active screen and empties the floating zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen. (With WinShot auto-save snapshots enabled, the pre-clear arrangement is captured first when managed windows are present. See [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md).)
+Pressing Control-Cmd-Escape clears all zones on the active screen and empties the floating zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen. (When WinShot auto-save is on in either mode, the pre-clear arrangement is captured first when managed windows are present. See [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md).)
 
 Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the screen currently holding the mouse pointer.
 

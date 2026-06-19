@@ -90,9 +90,13 @@ final class WinShotManager {
             tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
             floatingZoneWindowId: floatingIdentity?.windowId
         )
-        if let existingId = findSnapshotWithSameOccupancySignature(occupancySignature, on: screenId) {
-            Logger.debug("WinShot: Replacing existing snapshot \(existingId) with same occupancy signature")
-            deleteSnapshot(existingId)
+        // Reuse the replaced snapshot's ID for a same-occupancy capture, so identity stays stable across
+        // refreshes — e.g. a silent background re-capture won't invalidate an ID an open chooser is
+        // currently displaying.
+        let replacedSnapshotId = findSnapshotWithSameOccupancySignature(occupancySignature, on: screenId)
+        if let replacedSnapshotId {
+            Logger.debug("WinShot: Replacing existing snapshot \(replacedSnapshotId) with same occupancy signature")
+            deleteSnapshot(replacedSnapshotId)
         }
 
         // Capture screenshot
@@ -105,7 +109,7 @@ final class WinShotManager {
 
         // Create snapshot
         let snapshot = WinShotSnapshot(
-            id: UUID(),
+            id: replacedSnapshotId ?? UUID(),
             screenId: screenId,
             createdAt: Date(),
             zoneCount: zoneCount,

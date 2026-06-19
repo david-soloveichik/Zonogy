@@ -1,6 +1,6 @@
 import Foundation
 
-/// Guardrail tests for WinShot preferences normalization logic.
+/// Guardrail tests for WinShot preferences (auto-save mode, settle delay, snapshot-limit clamping).
 enum WinShotPreferencesStoreTests {
     @discardableResult
     static func run() -> Bool {
@@ -14,43 +14,79 @@ enum WinShotPreferencesStoreTests {
         }
 
         let defaults = UserDefaults.standard
-        let autoSaveKey = UserDefaultsKeys.winShotAutoSaveSnapshots
-        let legacyAutoSaveKey = "Zonogy.winShot.autoSaveOnZoneOccupancyChange"
-        let previousAutoSaveValue = defaults.object(forKey: autoSaveKey)
-        let previousLegacyAutoSaveValue = defaults.object(forKey: legacyAutoSaveKey)
+        let modeKey = UserDefaultsKeys.winShotAutoSaveMode
+        let delayKey = UserDefaultsKeys.winShotOccupancySettleDelaySeconds
+        let previousMode = defaults.object(forKey: modeKey)
+        let previousDelay = defaults.object(forKey: delayKey)
         defer {
-            if let previousAutoSaveValue {
-                defaults.set(previousAutoSaveValue, forKey: autoSaveKey)
+            if let previousMode {
+                defaults.set(previousMode, forKey: modeKey)
             } else {
-                defaults.removeObject(forKey: autoSaveKey)
+                defaults.removeObject(forKey: modeKey)
             }
-            if let previousLegacyAutoSaveValue {
-                defaults.set(previousLegacyAutoSaveValue, forKey: legacyAutoSaveKey)
+            if let previousDelay {
+                defaults.set(previousDelay, forKey: delayKey)
             } else {
-                defaults.removeObject(forKey: legacyAutoSaveKey)
+                defaults.removeObject(forKey: delayKey)
             }
         }
 
-        defaults.removeObject(forKey: autoSaveKey)
-        defaults.removeObject(forKey: legacyAutoSaveKey)
+        // MARK: Auto-save mode
+        defaults.removeObject(forKey: modeKey)
         assert(
-            WinShotPreferencesStore.loadAutoSaveSnapshots(),
-            "auto-save snapshots should default to enabled when unset"
+            WinShotPreferencesStore.loadAutoSaveMode() == .off,
+            "auto-save mode should default to off when unset"
         )
 
-        WinShotPreferencesStore.saveAutoSaveSnapshots(false)
+        WinShotPreferencesStore.saveAutoSaveMode(.onEveryOccupancyChange)
         assert(
-            !WinShotPreferencesStore.loadAutoSaveSnapshots(),
-            "saved auto-save snapshots setting should be read back"
+            WinShotPreferencesStore.loadAutoSaveMode() == .onEveryOccupancyChange,
+            "saved auto-save mode should be read back"
         )
 
-        defaults.removeObject(forKey: autoSaveKey)
-        defaults.set(false, forKey: legacyAutoSaveKey)
+        WinShotPreferencesStore.saveAutoSaveMode(.off)
         assert(
-            WinShotPreferencesStore.loadAutoSaveSnapshots(),
-            "legacy auto-save keys should be ignored"
+            WinShotPreferencesStore.loadAutoSaveMode() == .off,
+            "off mode should be read back"
         )
 
+        defaults.set(999, forKey: modeKey)
+        assert(
+            WinShotPreferencesStore.loadAutoSaveMode() == .off,
+            "unrecognized raw mode should fall back to the default"
+        )
+
+        // MARK: Settle delay
+        defaults.removeObject(forKey: delayKey)
+        assert(
+            WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
+                == WinShotPreferencesStore.defaultOccupancySettleDelaySeconds,
+            "settle delay should default when unset"
+        )
+
+        assert(
+            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(0)
+                == WinShotPreferencesStore.minOccupancySettleDelaySeconds,
+            "settle delay below minimum should clamp to min"
+        )
+        assert(
+            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(9999)
+                == WinShotPreferencesStore.maxOccupancySettleDelaySeconds,
+            "settle delay above maximum should clamp to max"
+        )
+        assert(
+            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(7) == 7,
+            "in-range settle delay should be preserved"
+        )
+
+        WinShotPreferencesStore.saveOccupancySettleDelaySeconds(9999)
+        assert(
+            WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
+                == WinShotPreferencesStore.maxOccupancySettleDelaySeconds,
+            "saved settle delay should be normalized on read-back"
+        )
+
+        // MARK: Max snapshots clamping
         assert(
             WinShotPreferencesStore.normalizedMaxSnapshotsStored(
                 WinShotPreferencesStore.minSnapshotsStored - 5

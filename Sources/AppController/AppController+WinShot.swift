@@ -8,8 +8,22 @@ extension AppController {
         WinShotPreferencesStore.loadEnabled()
     }
 
-    internal var isWinShotAutoSaveSnapshotsEnabled: Bool {
-        WinShotPreferencesStore.loadAutoSaveSnapshots()
+    internal var winShotAutoSaveMode: WinShotAutoSaveMode {
+        WinShotPreferencesStore.loadAutoSaveMode()
+    }
+
+    /// True when an explicit pre-clear/pre-switch capture should run (any non-off mode).
+    internal var isWinShotPreClearAutoSaveEnabled: Bool {
+        isWinShotEnabled && winShotAutoSaveMode != .off
+    }
+
+    /// True when arrangements should be auto-saved once they persist for the settle delay.
+    internal var isWinShotOccupancyChangeAutoSaveEnabled: Bool {
+        isWinShotEnabled && winShotAutoSaveMode == .onEveryOccupancyChange
+    }
+
+    internal var winShotOccupancySettleDelaySeconds: Int {
+        WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
     }
 
     internal var winShotMaxSnapshotsStoredInSettings: Int {
@@ -19,11 +33,24 @@ extension AppController {
     internal func setWinShotEnabledFromSettings(_ enabled: Bool) {
         Logger.debug("WinShot: settings updated enabled=\(enabled)")
         WinShotPreferencesStore.saveEnabled(enabled)
+        // Enabling/disabling WinShot can turn occupancy tracking on or off.
+        evaluateWinShotOccupancyAutoSave()
     }
 
-    internal func setWinShotAutoSaveSnapshotsEnabledFromSettings(_ enabled: Bool) {
-        Logger.debug("WinShot: settings updated autoSaveSnapshots=\(enabled)")
-        WinShotPreferencesStore.saveAutoSaveSnapshots(enabled)
+    internal func setWinShotAutoSaveModeFromSettings(_ mode: WinShotAutoSaveMode) {
+        Logger.debug("WinShot: settings updated autoSaveMode=\(mode.rawValue)")
+        WinShotPreferencesStore.saveAutoSaveMode(mode)
+        // Re-arm or tear down occupancy tracking to match the new mode immediately.
+        evaluateWinShotOccupancyAutoSave()
+    }
+
+    internal func setWinShotOccupancySettleDelayFromSettings(_ seconds: Int) {
+        let normalized = WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(seconds)
+        Logger.debug("WinShot: settings updated occupancySettleDelaySeconds=\(normalized)")
+        WinShotPreferencesStore.saveOccupancySettleDelaySeconds(normalized)
+        // Restart pending settle countdowns so the new delay takes effect right away.
+        winShotOccupancyAutoSaveScheduler.reset()
+        evaluateWinShotOccupancyAutoSave()
     }
 
     internal func setWinShotMaxSnapshotsStoredFromSettings(_ value: Int) {
@@ -51,7 +78,7 @@ extension AppController {
 
     /// Auto-save a pre-clear snapshot when the screen currently has managed windows.
     internal func autoSavePreClearWinShotSnapshotIfNeeded(on screenId: CGDirectDisplayID, clearReason: String) {
-        guard isWinShotEnabled, isWinShotAutoSaveSnapshotsEnabled else {
+        guard isWinShotPreClearAutoSaveEnabled else {
             return
         }
 
@@ -69,9 +96,15 @@ extension AppController {
         createWinShotSnapshot(on: screenId, reason: "clear-zones-\(clearReason)")
     }
 
-    /// Create a WinShot snapshot for the specified screen if eligible
+    /// Create a WinShot snapshot for the specified screen if eligible.
+    /// Pass `refreshChooser: false` for silent background captures (e.g. occupancy-settled) that
+    /// should not visibly update an already-open chooser.
     @discardableResult
-    internal func createWinShotSnapshot(on screenId: CGDirectDisplayID, reason: String) -> WinShotSnapshot? {
+    internal func createWinShotSnapshot(
+        on screenId: CGDirectDisplayID,
+        reason: String,
+        refreshChooser: Bool = true
+    ) -> WinShotSnapshot? {
         guard let context = screenContexts[screenId] else {
             Logger.debug("WinShot: Cannot create snapshot - no context for \(screenContextStore.logDescription(for: screenId))")
             return nil
@@ -96,8 +129,8 @@ extension AppController {
             reason: reason
         )
 
-        // Refresh the WinShot chooser if it's open for this screen
-        if snapshot != nil {
+        // Refresh the WinShot chooser if it's open for this screen (skipped for silent captures).
+        if snapshot != nil, refreshChooser {
             refreshWinShotChooserIfNeeded(for: screenId)
         }
 
@@ -120,6 +153,11 @@ extension AppController {
         }
 
         let screenId = activeScreenId()
+
+        // In occupancy-change mode, capture the current arrangement now so it's in the chooser from the
+        // start. (Background settle captures keep running but don't refresh an already-open chooser.)
+        captureWinShotSnapshotForChooserOpenIfNeeded(on: screenId)
+
         let snapshots = winShotManager.snapshots(for: screenId)
 
         guard !snapshots.isEmpty else {
@@ -418,6 +456,11 @@ extension AppController {
         }
 
         Logger.debug("WinShot: Snapshot restoration complete")
+
+        // The floating-zone occupant is assigned after the sync above, so that sync's occupancy
+        // evaluation only saw the transient pre-floating arrangement. Re-evaluate now that the final
+        // arrangement is in place, so the settle timer arms for it rather than the mid-restore state.
+        evaluateWinShotOccupancyAutoSave()
     }
 
     /// Prepare a zone restoration work item (does all prep work, returns nil if window not found)
@@ -584,7 +627,7 @@ extension AppController {
         return windows
     }
 
-    private func currentSnapshotOccupancySignature(on screenId: CGDirectDisplayID) -> WinShotSnapshotOccupancySignature? {
+    internal func currentSnapshotOccupancySignature(on screenId: CGDirectDisplayID) -> WinShotSnapshotOccupancySignature? {
         guard let context = screenContexts[screenId] else {
             return nil
         }
