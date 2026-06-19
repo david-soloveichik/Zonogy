@@ -1,4 +1,6 @@
-/// Horizontal strip view containing WinShot snapshot thumbnails
+/// Horizontal strip view containing WinShot snapshot thumbnails.
+/// Thumbnails are newest-first (left), separated by log-scaled gaps that
+/// convey the time elapsed between consecutive snapshots.
 import AppKit
 
 protocol WinShotChooserViewDelegate: AnyObject {
@@ -11,18 +13,13 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     private var thumbnailViews: [WinShotThumbnailView] = []
     private var selectedIndex: Int = 0
-    private var hoveredSnapshotId: UUID?
-    private var timelineView: WinShotTimelineView?
     private let scrollView: NSScrollView
     private let containerView: NSView
 
     private static let padding: CGFloat = 20
-    private static let spacing: CGFloat = 16
-    private static let minVisibleTileCount = 1
-    private static let fallbackVisibleTileCount = 5
     private static let maxScreenWidthFraction: CGFloat = 0.9
     private static let minimumWindowWidth: CGFloat = 300
-    
+
     override init(frame frameRect: NSRect) {
         scrollView = NSScrollView()
         containerView = NSView()
@@ -60,52 +57,34 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Configure the view with snapshots, selecting the first one by default
+    /// Configure the view with snapshots (newest-first), selecting the first one by default.
     func configure(with snapshots: [WinShotSnapshot]) {
         // Remove existing content views.
         containerView.subviews.forEach { $0.removeFromSuperview() }
         thumbnailViews.removeAll()
-        hoveredSnapshotId = nil
-        timelineView = nil
 
         containerView.wantsLayer = true
 
-        // Calculate total content width for centering
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        let totalContentWidth = CGFloat(snapshots.count) * thumbnailSize.width +
-                                CGFloat(max(0, snapshots.count - 1)) * Self.spacing
+        let leadingGaps = WinShotGapLayout.leadingGaps(createdAt: snapshots.map(\.createdAt))
 
-        // Create new thumbnail views centered in container
-        var timelineEntries: [WinShotTimelineView.Entry] = []
+        // Lay thumbnails out left-to-right, inserting each snapshot's leading gap
+        // (the log-scaled time delta to the previous, newer snapshot) before it.
         var xOffset: CGFloat = 0
+        for (index, snapshot) in snapshots.enumerated() {
+            xOffset += leadingGaps[index]
 
-        for snapshot in snapshots {
             let thumbnailView = WinShotThumbnailView(snapshot: snapshot)
             thumbnailView.delegate = self
             thumbnailView.frame.origin = NSPoint(x: xOffset, y: 0)
             thumbnailViews.append(thumbnailView)
-
-            timelineEntries.append(
-                WinShotTimelineView.Entry(
-                    createdAt: snapshot.createdAt,
-                    tileCenterX: xOffset + (thumbnailSize.width / 2)
-                )
-            )
-            xOffset += thumbnailSize.width + Self.spacing
-        }
-
-        let contentHeight = thumbnailSize.height + WinShotTimelineView.verticalSpaceAboveThumbnails
-        let timelineView = WinShotTimelineView(frame: NSRect(x: 0, y: 0, width: totalContentWidth, height: contentHeight))
-        timelineView.configure(entries: timelineEntries)
-        containerView.addSubview(timelineView)
-        self.timelineView = timelineView
-
-        for thumbnailView in thumbnailViews {
             containerView.addSubview(thumbnailView)
+
+            xOffset += thumbnailSize.width
         }
 
-        // Container matches content size exactly; scroll view will center it
-        containerView.frame = NSRect(x: 0, y: 0, width: totalContentWidth, height: contentHeight)
+        // Container matches content size exactly; scroll view will center it.
+        containerView.frame = NSRect(x: 0, y: 0, width: xOffset, height: thumbnailSize.height)
 
         // Select first item
         selectedIndex = 0
@@ -139,6 +118,11 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         return thumbnailViews[selectedIndex].snapshotId
     }
 
+    /// Index of the currently selected thumbnail, or nil when there are none.
+    var selectedThumbnailIndex: Int? {
+        thumbnailViews.isEmpty ? nil : selectedIndex
+    }
+
     /// Returns the number of snapshots
     var snapshotCount: Int {
         thumbnailViews.count
@@ -148,15 +132,16 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         for (index, view) in thumbnailViews.enumerated() {
             view.isSelected = (index == selectedIndex)
         }
-        timelineView?.setSelectedIndex(selectedIndex)
 
         guard selectedIndex < thumbnailViews.count else { return }
 
-        // Scroll to make selected view visible when content is wider than
-        // the viewport. When content is smaller, the centering clip view
-        // keeps it visually centered.
+        // Scroll the selected thumbnail into view when content is wider than
+        // the viewport. Calling scrollToVisible on the thumbnail (a document-view
+        // subview) scrolls its enclosing clip view in the correct coordinate space;
+        // it is a no-op when the content already fits, so the centering clip view
+        // keeps a small set visually centered.
         let selectedView = thumbnailViews[selectedIndex]
-        scrollView.contentView.scrollToVisible(selectedView.frame)
+        selectedView.scrollToVisible(selectedView.bounds)
     }
 
     // MARK: - WinShotThumbnailViewDelegate
@@ -169,65 +154,31 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         delegate?.chooserView(self, didSelect: snapshotId)
     }
 
-    func thumbnailView(_ view: WinShotThumbnailView, didBeginHover snapshotId: UUID) {
-        hoveredSnapshotId = snapshotId
-        timelineView?.setHoveredIndex(indexForSnapshotId(snapshotId))
-    }
-
-    func thumbnailView(_ view: WinShotThumbnailView, didEndHover snapshotId: UUID) {
-        guard hoveredSnapshotId == snapshotId else {
-            return
-        }
-
-        hoveredSnapshotId = nil
-        timelineView?.setHoveredIndex(nil)
-    }
-
-    private func indexForSnapshotId(_ snapshotId: UUID) -> Int? {
-        thumbnailViews.firstIndex(where: { $0.snapshotId == snapshotId })
-    }
-
-    /// Calculate the preferred window size for displaying snapshots on the given screen.
+    /// Calculate the preferred window size for displaying the given snapshots on a screen.
+    /// Width fits the gap-spaced content, capped to a fraction of the screen (the strip
+    /// scrolls beyond that); height holds a single row of thumbnails.
     static func preferredWindowSize(
-        for snapshotCount: Int,
-        screenVisibleWidth: CGFloat,
-        maxSnapshotsStored: Int
+        for snapshots: [WinShotSnapshot],
+        screenVisibleWidth: CGFloat
     ) -> NSSize {
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        let visibleCount = visibleTileCount(
-            for: snapshotCount,
-            screenVisibleWidth: screenVisibleWidth,
-            maxSnapshotsStored: maxSnapshotsStored
+        let leadingGaps = WinShotGapLayout.leadingGaps(createdAt: snapshots.map(\.createdAt))
+        let contentWidth = WinShotGapLayout.contentWidth(
+            tileWidth: thumbnailSize.width,
+            leadingGaps: leadingGaps
         )
-        let contentWidth = CGFloat(visibleCount) * thumbnailSize.width +
-                           CGFloat(max(0, visibleCount - 1)) * spacing +
-                           padding * 2
-        let contentHeight = thumbnailSize.height + WinShotTimelineView.verticalSpaceAboveThumbnails + padding * 2
 
-        return NSSize(width: max(contentWidth, minimumWindowWidth), height: contentHeight)
-    }
-
-    static func visibleTileCount(
-        for snapshotCount: Int,
-        screenVisibleWidth: CGFloat,
-        maxSnapshotsStored: Int
-    ) -> Int {
-        let cappedSnapshotCount = max(0, min(snapshotCount, maxSnapshotsStored))
-        guard cappedSnapshotCount > 0 else {
-            return 0
+        let desiredWidth = contentWidth + padding * 2
+        let cappedWidth: CGFloat
+        if screenVisibleWidth > 0 {
+            let maxWidth = max(screenVisibleWidth * maxScreenWidthFraction, minimumWindowWidth)
+            cappedWidth = min(desiredWidth, maxWidth)
+        } else {
+            cappedWidth = desiredWidth
         }
 
-        if screenVisibleWidth <= 0 {
-            return min(cappedSnapshotCount, fallbackVisibleTileCount)
-        }
-
-        let widthBudget = max(screenVisibleWidth * maxScreenWidthFraction, minimumWindowWidth)
-        let thumbnailSize = WinShotThumbnailView.preferredSize
-        let perTileWidth = thumbnailSize.width + spacing
-        let fitFloat = (widthBudget - (padding * 2) + spacing) / perTileWidth
-        let fitCount = Int(floor(fitFloat))
-        let widthLimitedCount = max(minVisibleTileCount, fitCount)
-
-        return min(cappedSnapshotCount, widthLimitedCount)
+        let width = max(cappedWidth, minimumWindowWidth)
+        let height = thumbnailSize.height + padding * 2
+        return NSSize(width: width, height: height)
     }
 }

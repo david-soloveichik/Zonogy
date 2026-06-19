@@ -35,9 +35,8 @@ Opening the chooser captures the current arrangement immediately, and a snapshot
 - Escape key or click outside to cancel.
 - Release Control-Cmd to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
 - Red "x" button on each snapshot allows deletion (appears on hover).
-- The chooser window width scales with screen width; the number of thumbnails visible without scrolling increases on wider screens, but never exceeds the WinShot "max snapshots stored" setting.
-- The chooser renders a horizontal timeline rail above thumbnails. Each snapshot has a timeline point whose x-position reflects its `createdAt` timestamp (most recent on the left), so visible gaps on the rail represent time gaps.
-- Thumbnail tiles remain evenly spaced. Each timeline point connects to its corresponding thumbnail with an orthogonal arrow path (down, then horizontal, then down); horizontal segments are staggered onto nearby lanes to avoid connector crossings whenever possible. Hovering or selecting a thumbnail highlights that snapshot's connector and timeline point.
+- Thumbnails sit in a single horizontal row, most recent on the left. The gap between two consecutive thumbnails encodes the time elapsed between those snapshots. Spacing is relative to the whole set: intervals are scaled logarithmically — shortest tight, longest wide — so differences stay visible whether the set spans seconds or days. (Roughly even spacing stays uniformly tight; gaps open only where intervals genuinely differ.)
+- The chooser window fits the gap-spaced thumbnails up to a fraction of the screen width, so wider screens show more at once; when the strip is wider than that, the chooser scrolls to keep the selected thumbnail visible.
 
 ## Snapshot Restoration
 

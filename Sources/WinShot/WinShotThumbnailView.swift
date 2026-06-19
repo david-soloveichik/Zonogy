@@ -4,8 +4,6 @@ import AppKit
 protocol WinShotThumbnailViewDelegate: AnyObject {
     func thumbnailView(_ view: WinShotThumbnailView, didRequestDelete snapshotId: UUID)
     func thumbnailView(_ view: WinShotThumbnailView, didClickToSelect snapshotId: UUID)
-    func thumbnailView(_ view: WinShotThumbnailView, didBeginHover snapshotId: UUID)
-    func thumbnailView(_ view: WinShotThumbnailView, didEndHover snapshotId: UUID)
 }
 
 final class WinShotThumbnailView: NSView {
@@ -125,12 +123,10 @@ final class WinShotThumbnailView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         deleteButton.isHidden = false
-        delegate?.thumbnailView(self, didBeginHover: snapshotId)
     }
 
     override func mouseExited(with event: NSEvent) {
         deleteButton.isHidden = true
-        delegate?.thumbnailView(self, didEndHover: snapshotId)
     }
 
     override func mouseUp(with event: NSEvent) {

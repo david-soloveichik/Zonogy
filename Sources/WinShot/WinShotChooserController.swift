@@ -50,12 +50,10 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         self.chooserView = chooserView
 
         // Size window based on content
-        let maxSnapshotsStored = WinShotPreferencesStore.loadMaxSnapshotsStored()
         let screenVisibleWidth = visibleFrameWidth(for: screenId)
         let windowSize = WinShotChooserView.preferredWindowSize(
-            for: snapshots.count,
-            screenVisibleWidth: screenVisibleWidth,
-            maxSnapshotsStored: maxSnapshotsStored
+            for: snapshots,
+            screenVisibleWidth: screenVisibleWidth
         )
         window?.setContentSize(windowSize)
         chooserView.frame = NSRect(origin: .zero, size: windowSize)
@@ -121,25 +119,27 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             return
         }
 
-        // Preserve the currently selected snapshot ID if it still exists
+        // Capture the selection before configure() resets it to 0, then restore it:
+        // follow the same snapshot if it survived, otherwise hold the same strip
+        // position (clamped) rather than jumping to the newest.
         let previousSelectedId = chooserView?.selectedSnapshotId
+        let previousSelectedIndex = chooserView?.selectedThumbnailIndex
 
-        // Reconfigure the view
         chooserView?.configure(with: snapshots)
 
-        // Try to restore selection to the same snapshot, or stay at current index
-        if let previousId = previousSelectedId,
-           let newIndex = snapshots.firstIndex(where: { $0.id == previousId }) {
-            chooserView?.selectIndex(newIndex)
+        if let restoredIndex = WinShotChooserSelectionRestorePolicy.restoredSelectionIndex(
+            previousSelectedId: previousSelectedId,
+            previousSelectedIndex: previousSelectedIndex,
+            newSnapshotIds: snapshots.map(\.id)
+        ) {
+            chooserView?.selectIndex(restoredIndex)
         }
 
-        // Resize window if snapshot count changed significantly
-        let maxSnapshotsStored = WinShotPreferencesStore.loadMaxSnapshotsStored()
+        // Resize window to fit the updated snapshot set
         let screenVisibleWidth = visibleFrameWidth(for: screenId)
         let windowSize = WinShotChooserView.preferredWindowSize(
-            for: snapshots.count,
-            screenVisibleWidth: screenVisibleWidth,
-            maxSnapshotsStored: maxSnapshotsStored
+            for: snapshots,
+            screenVisibleWidth: screenVisibleWidth
         )
         window?.setContentSize(windowSize)
         chooserView?.frame = NSRect(origin: .zero, size: windowSize)
