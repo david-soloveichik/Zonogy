@@ -10,6 +10,12 @@ final class LauncherInstallWatchService {
     private var stream: FSEventStreamRef?
     private var watchedRootPaths: [String] = []
     private var pendingReloadWorkItem: DispatchWorkItem?
+    // Coalesced FS-event stats for the in-flight debounce window, logged once when the reload fires
+    // so large directory copies don't flood the debug log with per-batch chatter.
+    private var pendingBatchCount = 0
+    private var pendingEventCount = 0
+    private var pendingFlagLabels: Set<String> = []
+    private var pendingSamplePath: String?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var isStarted = false
     var reloadHandler: (() -> Void)?
@@ -33,6 +39,7 @@ final class LauncherInstallWatchService {
 
         pendingReloadWorkItem?.cancel()
         pendingReloadWorkItem = nil
+        resetPendingBatchStats()
         removeWorkspaceObservers()
         tearDownStream()
 
@@ -177,7 +184,12 @@ final class LauncherInstallWatchService {
         if droppedEvents { flagLabels.append("events-dropped") }
         let flagSummary = flagLabels.isEmpty ? "none" : flagLabels.joined(separator: ",")
 
-        Logger.debug("LauncherInstallWatchService: Received \(eventCount) fs event(s), flags=\(flagSummary), sample=\(samplePath)")
+        // Coalesce per-batch details; they are logged once when the debounced reload fires.
+        pendingBatchCount += 1
+        pendingEventCount += eventCount
+        pendingFlagLabels.formUnion(flagLabels)
+        pendingSamplePath = samplePath
+
         ZonogySignposts.pointsOfInterest.emitEvent(
             "LauncherInstallWatchFSEvents",
             "count=\(eventCount) flags=\(flagSummary, privacy: .public)"
@@ -186,11 +198,10 @@ final class LauncherInstallWatchService {
         if rootChanged || droppedEvents {
             refreshWatchedRoots(reason: "fsevents-\(flagSummary)")
         }
-        scheduleDebouncedReload(reason: "fsevents-\(flagSummary)")
+        scheduleDebouncedReload(reason: "fsevents")
     }
 
     private func scheduleDebouncedReload(reason: String) {
-        let hadPendingReload = pendingReloadWorkItem != nil
         pendingReloadWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
@@ -202,7 +213,8 @@ final class LauncherInstallWatchService {
             defer {
                 ZonogySignposts.pointsOfInterest.endInterval("LauncherInstallWatchReload", signpostState)
             }
-            Logger.debug("LauncherInstallWatchService: Debounced reload triggered (\(reason))")
+            self.logCoalescedReload(reason: reason)
+            self.resetPendingBatchStats()
             if let reloadHandler = self.reloadHandler {
                 reloadHandler()
             } else {
@@ -213,12 +225,27 @@ final class LauncherInstallWatchService {
         }
         pendingReloadWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + reloadDebounceSeconds, execute: workItem)
+    }
 
-        if hadPendingReload {
-            Logger.debug("LauncherInstallWatchService: Reset reload debounce timer (\(reason))")
-        } else {
-            Logger.debug("LauncherInstallWatchService: Scheduled reload in \(reloadDebounceSeconds)s (\(reason))")
+    private func logCoalescedReload(reason: String) {
+        guard pendingBatchCount > 0 else {
+            Logger.debug("LauncherInstallWatchService: Debounced reload triggered (\(reason))")
+            return
         }
+
+        let flagSummary = pendingFlagLabels.isEmpty ? "none" : pendingFlagLabels.sorted().joined(separator: ",")
+        let sample = pendingSamplePath ?? "<unknown>"
+        Logger.debug(
+            "LauncherInstallWatchService: Debounced reload (\(reason)) after \(pendingBatchCount) fs batch(es), "
+                + "\(pendingEventCount) event(s), flags=\(flagSummary), sample=\(sample)"
+        )
+    }
+
+    private func resetPendingBatchStats() {
+        pendingBatchCount = 0
+        pendingEventCount = 0
+        pendingFlagLabels.removeAll()
+        pendingSamplePath = nil
     }
 
     private static let streamCallback: FSEventStreamCallback = { _, info, numEvents, eventPathsPointer, eventFlagsPointer, _ in
