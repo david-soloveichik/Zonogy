@@ -33,9 +33,12 @@ Implementation notes:
 - Trigger the occlusion check after the deferred-minimization debounce (~150ms) so window z-order has time to settle after activation/focus changes.
 - Define occlusion as: at least one in-front occupied tiling zone's frame intersects the floating window’s bounds by more than a tiny threshold; ignore small overlaps (e.g., window shadows) to avoid false positives. Do not use the tiling window’s current bounds for this test, so ActiveFit reveal mode or other temporary drift outside the zone frame does not change the occlusion region.
 
-## Arrow-Key Target Navigation Geometry
+## Directional Navigation Geometry
 
-Control-Command + arrow keys use the pure `DirectionalZoneNavigation` selector over rectangles from `navigableZones()`: all tiling zones plus each screen's floating-zone bar, excluding full-screen-paused screens. Left and Right stay in the current layer (tiling-to-tiling or floating-to-floating); Up and Down can switch layers. Among eligible zones, the selector prefers the nearest crosswise-overlapping zone in the pressed direction, falls back to center distance for diagonal displays, and breaks ties by same screen, alignment, then lower index (tiling before floating).
+Both Control-Command directional gestures share one pure geometric selector, `DirectionalRectNavigation`: given a source rectangle and a direction, it returns the nearest rectangle ahead, preferring a neighbor that overlaps the source along the perpendicular edge and falling back to center distance so diagonally-placed displays stay reachable.
+
+- **Target navigation** (Vim keys K/J/H/L) selects over the zones — every tiling zone plus each screen's floating-zone bar. Left and Right stay within one layer (tiling-to-tiling or floating-to-floating); Up and Down cross between tiling and floating.
+- **Window focus navigation** (arrow keys) selects over the actual rectangles of the windows in filled zones, with no layer restriction. It starts from the focused window, or from the targeted zone (marking that zone's occupant, or moving from the zone's rectangle when it is empty). Because the marked window is focused when the modifier is released, the gesture runs through a keyboard event tap rather than an ordinary hotkey — and the four directions therefore share one modifier.
 
 ## Displacement Minimization Strategy
 

@@ -1,4 +1,5 @@
 /// Model for keyboard shortcut configuration
+import CoreGraphics
 import Foundation
 import Carbon
 
@@ -9,6 +10,16 @@ struct KeyboardShortcut: Codable, Equatable {
 
     /// Carbon modifier flags for the shortcut
     var carbonModifiers: UInt32 { modifiers }
+
+    /// The shortcut's modifiers expressed as `CGEventFlags`, for matching against CGEventTap events.
+    var cgEventFlags: CGEventFlags {
+        var flags: CGEventFlags = []
+        if modifiers & UInt32(cmdKey) != 0 { flags.insert(.maskCommand) }
+        if modifiers & UInt32(controlKey) != 0 { flags.insert(.maskControl) }
+        if modifiers & UInt32(optionKey) != 0 { flags.insert(.maskAlternate) }
+        if modifiers & UInt32(shiftKey) != 0 { flags.insert(.maskShift) }
+        return flags
+    }
 
     /// Human-readable representation of the shortcut
     var displayString: String {

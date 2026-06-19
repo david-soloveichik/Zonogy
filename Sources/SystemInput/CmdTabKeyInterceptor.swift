@@ -269,7 +269,7 @@ final class CmdTabKeyInterceptor {
             return nil
         }
 
-        let requiredModifiers = cgEventFlags(fromCarbonModifiers: shortcut.modifiers)
+        let requiredModifiers = shortcut.cgEventFlags
         let shiftIsRequired = requiredModifiers.contains(.maskShift)
 
         return ShortcutInfo(
@@ -284,7 +284,7 @@ final class CmdTabKeyInterceptor {
             return nil
         }
 
-        let requiredModifiers = cgEventFlags(fromCarbonModifiers: shortcut.modifiers)
+        let requiredModifiers = shortcut.cgEventFlags
         let shiftIsRequired = requiredModifiers.contains(.maskShift)
 
         return ShortcutInfo(
@@ -320,15 +320,6 @@ final class CmdTabKeyInterceptor {
             return .previous
         }
         return .next
-    }
-
-    private func cgEventFlags(fromCarbonModifiers modifiers: UInt32) -> CGEventFlags {
-        var flags: CGEventFlags = []
-        if modifiers & UInt32(cmdKey) != 0 { flags.insert(.maskCommand) }
-        if modifiers & UInt32(controlKey) != 0 { flags.insert(.maskControl) }
-        if modifiers & UInt32(optionKey) != 0 { flags.insert(.maskAlternate) }
-        if modifiers & UInt32(shiftKey) != 0 { flags.insert(.maskShift) }
-        return flags
     }
 
     deinit {

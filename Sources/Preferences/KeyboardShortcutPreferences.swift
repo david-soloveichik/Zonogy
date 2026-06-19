@@ -27,6 +27,12 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case focusTargetedWindow
         case toggleTargetZoneWithFocusedWindow
 
+        // Window Focus Navigation (these four share one modifier; see sharedModifierActionGroups)
+        case focusWindowUp
+        case focusWindowDown
+        case focusWindowLeft
+        case focusWindowRight
+
         // Window Switchers
         case showLauncher
         case showCmdTab
@@ -51,12 +57,17 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
             // Target Navigation
-            case .navigateUp: return "Navigate Up"
-            case .navigateDown: return "Navigate Down"
-            case .navigateLeft: return "Navigate Left"
-            case .navigateRight: return "Navigate Right"
+            case .navigateUp: return "Target Zone Up"
+            case .navigateDown: return "Target Zone Down"
+            case .navigateLeft: return "Target Zone Left"
+            case .navigateRight: return "Target Zone Right"
             case .focusTargetedWindow: return "Focus Targeted Window"
             case .toggleTargetZoneWithFocusedWindow: return "Toggle Target Zone w/ Focused Window"
+            // Window Focus Navigation
+            case .focusWindowUp: return "Focus Window Up"
+            case .focusWindowDown: return "Focus Window Down"
+            case .focusWindowLeft: return "Focus Window Left"
+            case .focusWindowRight: return "Focus Window Right"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
             case .showCmdTab: return "CmdTab Window Switcher"
@@ -91,19 +102,28 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdOnly)
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrl)
-            // Target Navigation
+            // Target Navigation (Vim direction keys: H/J/K/L = left/down/up/right)
             case .navigateUp:
-                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_K), modifiers: cmdCtrl)
             case .navigateDown:
-                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_J), modifiers: cmdCtrl)
             case .navigateLeft:
-                return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: cmdCtrl)
             case .navigateRight:
-                return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
+                return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_L), modifiers: cmdCtrl)
             case .focusTargetedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .toggleTargetZoneWithFocusedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
+            // Window Focus Navigation (arrow keys; all four share one modifier)
+            case .focusWindowUp:
+                return KeyboardShortcut(keyCode: UInt32(kVK_UpArrow), modifiers: cmdCtrl)
+            case .focusWindowDown:
+                return KeyboardShortcut(keyCode: UInt32(kVK_DownArrow), modifiers: cmdCtrl)
+            case .focusWindowLeft:
+                return KeyboardShortcut(keyCode: UInt32(kVK_LeftArrow), modifiers: cmdCtrl)
+            case .focusWindowRight:
+                return KeyboardShortcut(keyCode: UInt32(kVK_RightArrow), modifiers: cmdCtrl)
             // Window Switchers
             case .showLauncher:
                 return KeyboardShortcut(keyCode: UInt32(kVK_Space), modifiers: cmdCtrl)
@@ -133,6 +153,14 @@ final class KeyboardShortcutPreferences: ObservableObject {
     /// Control-Command-Return and "Toggle Target Zone w/ Focused Window" to Control-Command-\.
     private static let defaultClearedActions: Set<ShortcutAction> = []
 
+    /// Groups of actions that must share a single modifier combination. The four window-focus
+    /// directions are linked because that gesture focuses on modifier release, which a per-direction
+    /// modifier could never detect. Editing one direction's modifier propagates it to the others
+    /// (each keeps its own key).
+    private static let sharedModifierActionGroups: [[ShortcutAction]] = [
+        [.focusWindowUp, .focusWindowDown, .focusWindowLeft, .focusWindowRight],
+    ]
+
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []
     private let preferencesURL: URL
@@ -161,6 +189,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
     func setShortcut(_ shortcut: KeyboardShortcut, for action: ShortcutAction) {
         clearedActions.remove(action)
         shortcuts[action] = shortcut
+        enforceSharedModifiers(anchoredBy: action)
         saveShortcuts()
         onShortcutsChanged?()
     }
@@ -180,8 +209,27 @@ final class KeyboardShortcutPreferences: ObservableObject {
         } else {
             clearedActions.remove(action)
         }
+        enforceSharedModifiers(anchoredBy: action)
         saveShortcuts()
         onShortcutsChanged?()
+    }
+
+    /// Keep every member of `action`'s shared-modifier group on the same modifiers (preserving each
+    /// member's key), so editing or resetting one window-focus direction re-syncs the others. No-op
+    /// for ungrouped actions or when the anchor itself has no shortcut.
+    private func enforceSharedModifiers(anchoredBy action: ShortcutAction) {
+        guard let group = Self.sharedModifierActionGroups.first(where: { $0.contains(action) }),
+              let modifiers = shortcut(for: action)?.modifiers else {
+            return
+        }
+        for member in group where member != action {
+            guard !clearedActions.contains(member) else { continue }
+            let keyCode = (shortcuts[member] ?? member.defaultShortcut).keyCode
+            let updated = KeyboardShortcut(keyCode: keyCode, modifiers: modifiers)
+            if shortcuts[member] != updated {
+                shortcuts[member] = updated
+            }
+        }
     }
 
     func resetAllToDefaults() {

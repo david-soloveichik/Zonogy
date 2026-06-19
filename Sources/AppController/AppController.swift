@@ -47,6 +47,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()
     internal let cmdTabKeyInterceptor = CmdTabKeyInterceptor()
+    internal let windowFocusNavigationInterceptor = WindowFocusNavigationInterceptor()
+    internal let windowFocusDotOverlay = WindowFocusDotOverlay()
+    /// Live state for an in-progress Control-Command window-focus gesture, or nil when idle.
+    internal var windowFocusNavigationState: WindowFocusNavigationState?
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
@@ -376,6 +380,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         zoneClickInterceptor.start(delegate: self)
         externalZoneDropInterceptor.start()
         cmdTabKeyInterceptor.start(delegate: self)
+        windowFocusNavigationInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
@@ -424,6 +429,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         NotificationCenter.default.removeObserver(self)
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
+        windowFocusNavigationInterceptor.stop()
+        windowFocusDotOverlay.hide()
         systemEventMonitor.stop()
         displayMonitor.stop()
         zoneClickInterceptor.stop()

@@ -164,10 +164,16 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Target navigation shortcuts:**
 
-- Control-Command with an arrow key (Up, Down, Left, or Right) moves the target to the nearest zone in that physical direction. Left and Right move only among tiling zones (when a tiling zone is targeted) or only among floating zones (when a floating zone is targeted). Up and Down move among all zones and are the way to switch between tiling and floating. Each zone is placed by its true on-screen rectangle; the floating zone sits at the location of its bottom-edge bar.
+- Control-Command with a Vim direction key (K, J, H, or L for up, down, left, right) moves the target to the nearest zone in that physical direction. Left and Right move only among tiling zones (when a tiling zone is targeted) or only among floating zones (when a floating zone is targeted). Up and Down move among all zones and are the way to switch between tiling and floating. Each zone is placed by its true on-screen rectangle; the floating zone sits at the location of its bottom-edge bar.
 - If no zone lies in the pressed direction the target does not change. Zones on a screen that is paused for a full-screen window are not targetable and are skipped. (See [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md) for the precise candidate-selection and tie-breaking rules.)
 - Control-Cmd-[backslash]: Toggle Target Zone with Focused Window. If a managed window is focused in a zone that is not the current target, target that zone. Otherwise, if the currently targeted zone holds a window, advance the target off it using the same priority applied after a window fills the targeted zone; if the targeted zone is empty, do nothing. It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
 - Control-Cmd-Return: If the currently targeted zone (tiling or floating) contains a managed window, make that window frontmost.
+
+### Window Focus Navigation
+
+Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to refocus a window. Each press marks the window nearest in that direction with a large translucent blue dot; releasing Control-Command focuses that window, and Escape cancels.
+
+The dot moves over the windows in filled zones (the tiling-zone occupants plus each screen's floating-zone window) by their actual on-screen positions, starting from the focused window or, when none is focused, the targeted zone.
 
 ### Floating Zone Behavior
 

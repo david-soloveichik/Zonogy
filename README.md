@@ -87,7 +87,8 @@ Filling the targeted tiling zone advances to the next empty tiling zone, or the 
 | `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
-| `Control-Cmd-Arrows` | Change target zone with arrow keys |
+| `Control-Cmd-H/J/K/L` | Change target zone (Vim keys: left/down/up/right) |
+| `Control-Cmd-Arrows` (hold) | Focus a window: arrows move a dot across windows, release to focus |
 | `Control-Cmd-\` | Toggle target zone with focused window |
 | `Control-Cmd-Return` | Focus the targeted zone's window |
 | `Control-Cmd-Space` | Open Launcher in targeted zone |
