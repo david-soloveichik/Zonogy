@@ -51,7 +51,7 @@ struct CmdTabView: View {
                         }
                         .padding(.horizontal, 8)
                     }
-                    .onChange(of: model.selectedIndex) { newIndex in
+                    .onChange(of: model.selectedIndex) { _, newIndex in
                         withAnimation(.easeInOut(duration: 0.15)) {
                             proxy.scrollTo(newIndex, anchor: nil)
                         }

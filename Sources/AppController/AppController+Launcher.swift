@@ -474,7 +474,7 @@ extension AppController: LauncherControllerDelegate {
 
         // Activate the application
         if let app = NSRunningApplication(processIdentifier: window.pid) {
-            app.activate(options: [.activateIgnoringOtherApps])
+            app.activate()
         }
 
         Logger.debug("Launcher: Focused window via accessibility (not yet managed by Zonogy)")
@@ -614,7 +614,7 @@ extension AppController: LauncherControllerDelegate {
             return
         }
 
-        app.activate(options: [.activateIgnoringOtherApps])
+        app.activate()
         Logger.debug("Launcher: Activated app \(bundleIdentifier)")
     }
 

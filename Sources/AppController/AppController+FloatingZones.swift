@@ -202,7 +202,7 @@ extension AppController {
 
         // Workaround: without this, the window may appear behind tiled windows.
         // See SPECIFICATION-IMPLEMENTATION.md "Floating zone activation workaround".
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         scheduleWindowRaise(
             pid: pid,
             element: element,

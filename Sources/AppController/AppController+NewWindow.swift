@@ -24,7 +24,7 @@ extension AppController {
             // back to a short delay so the keystroke lands after the app is ready.
             let pid = runningApp.processIdentifier
             let wasAlreadyActive = runningApp.isActive
-            runningApp.activate(options: [.activateIgnoringOtherApps])
+            runningApp.activate()
             if wasAlreadyActive {
                 postCmdN(toPid: pid)
             } else {

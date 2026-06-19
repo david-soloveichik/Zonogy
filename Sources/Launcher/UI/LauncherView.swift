@@ -89,7 +89,7 @@ struct LauncherView: View {
                 isSearchFocused = true
             }
         }
-        .onChange(of: model.focusSearchFieldToken) { _ in
+        .onChange(of: model.focusSearchFieldToken) { _, _ in
             DispatchQueue.main.async {
                 isSearchFocused = true
             }

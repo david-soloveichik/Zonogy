@@ -84,6 +84,6 @@ final class PreferencesWindowController: NSWindowController {
 
     func showWindow() {
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 }

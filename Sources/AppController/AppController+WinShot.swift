@@ -126,7 +126,8 @@ extension AppController {
             floatingZoneOccupant: floatingOccupant,
             rememberedStickyResizeSizesByWindowId: rememberedManualResizeSizesByWindowId,
             activeWindowId: activeWindowId,
-            reason: reason
+            reason: reason,
+            notifiesThumbnailReady: refreshChooser
         )
 
         // Refresh the WinShot chooser if it's open for this screen (skipped for silent captures).

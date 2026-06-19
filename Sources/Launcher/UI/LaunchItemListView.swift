@@ -131,7 +131,7 @@ struct LaunchItemListView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
-            .onChange(of: selectedItemURL) { newValue in
+            .onChange(of: selectedItemURL) { _, newValue in
                 guard let newValue else { return }
                 if skipNextScrollToSelected {
                     skipNextScrollToSelected = false

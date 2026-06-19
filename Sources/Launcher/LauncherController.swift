@@ -350,7 +350,7 @@ final class LauncherController {
         // focus with just makeKeyAndOrderFront. We need to also activate the app.
         // NSApp.activate is asynchronous, so we must defer makeKeyAndOrderFront until
         // the next run loop iteration when the app will be active.
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         DispatchQueue.main.async { [weak self] in
             guard let self, self.isActive, let window = self.window else { return }

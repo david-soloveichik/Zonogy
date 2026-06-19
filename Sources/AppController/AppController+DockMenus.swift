@@ -130,7 +130,7 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
         // Activate the app without targeting a specific window
         if let app = ApplicationIdentity.runningApplication(bundleIdentifier: bundleId) {
-            app.activate(options: [.activateIgnoringOtherApps])
+            app.activate()
         }
     }
 

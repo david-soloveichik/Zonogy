@@ -80,7 +80,7 @@ struct WindowItemListView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
-            .onChange(of: selectedWindowId) { newValue in
+            .onChange(of: selectedWindowId) { _, newValue in
                 if skipNextScrollToSelected {
                     skipNextScrollToSelected = false
                     return
