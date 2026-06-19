@@ -11,12 +11,15 @@ enum WinShotThumbnailComposer {
         let destRect: CGRect
     }
 
-    // Visual constants (canvas space).
-    private static let backgroundColor = NSColor(white: 0.12, alpha: 1.0)
-    private static let emptyZoneStrokeColor = NSColor(white: 0.34, alpha: 1.0)
-    private static let missingWindowFillColor = NSColor(white: 0.24, alpha: 1.0)
-    private static let cornerRadius: CGFloat = 2.0
-    private static let tileInset: CGFloat = 1.5  // gap so adjacent tiles read as separate
+    // Visual constants (canvas space). Colors sampled from the desired mockup: a light warm-gray
+    // canvas, light-blue empty-zone tiles, and a medium-blue tile border.
+    private static let backgroundColor = NSColor(calibratedRed: 0.96, green: 0.96, blue: 0.94, alpha: 1.0)
+    private static let emptyZoneFillColor = NSColor(calibratedRed: 0.87, green: 0.90, blue: 0.96, alpha: 1.0)
+    private static let zoneBorderColor = NSColor(calibratedRed: 0.39, green: 0.54, blue: 0.83, alpha: 1.0)
+    private static let missingWindowFillColor = NSColor(white: 0.82, alpha: 1.0)
+    private static let cornerRadius: CGFloat = 4.0
+    private static let borderWidth: CGFloat = 1.5
+    private static let tileInset: CGFloat = 2.0  // gap so adjacent tiles read as separate
 
     /// Off-main queue for the (synchronous) window-server captures, so they never stall the caller.
     private static let captureQueue = DispatchQueue(label: "com.dsemeas.zonogy.winshot.thumbnail", qos: .utility)
@@ -90,19 +93,19 @@ enum WinShotThumbnailComposer {
         defer { image.unlockFocus() }
         NSGraphicsContext.current?.imageInterpolation = .high
 
-        // Background.
+        // Background (light gray).
         backgroundColor.setFill()
         NSRect(origin: .zero, size: canvasSize).fill()
 
-        // Empty-zone outlines.
-        emptyZoneStrokeColor.setStroke()
+        // Empty zones: light-blue filled, bordered tiles.
         for rect in emptyZoneRects {
-            let outline = NSBezierPath(roundedRect: canvasRect(rect), xRadius: cornerRadius, yRadius: cornerRadius)
-            outline.lineWidth = 1.0
-            outline.stroke()
+            let tile = NSBezierPath(roundedRect: canvasRect(rect), xRadius: cornerRadius, yRadius: cornerRadius)
+            emptyZoneFillColor.setFill()
+            tile.fill()
+            strokeBorder(tile)
         }
 
-        // Tiled windows, then the floating window on top.
+        // Occupied tiled windows, then the floating window on top.
         for placement in tiled {
             draw(placement: placement, captured: capturedImages[placement.cgWindowId], in: canvasRect(placement.destRect))
         }
@@ -113,36 +116,43 @@ enum WinShotThumbnailComposer {
         return image
     }
 
-    /// Draw one window into `rect` (aspect-fill, anchored top-left, clipped to the rounded rect), or a
-    /// flat placeholder block when the window couldn't be captured.
+    /// Draw one occupied zone tile into `rect`: the window image (aspect-fill, anchored top-left,
+    /// clipped to the rounded rect) or a flat placeholder block when the window couldn't be captured —
+    /// always framed with the zone border so it matches the empty-zone tiles.
     private static func draw(placement: Placement, captured: CGImage?, in rect: CGRect) {
         guard rect.width > 0, rect.height > 0 else { return }
+        let tile = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
 
-        guard let captured else {
+        if let captured, captured.width > 0, captured.height > 0 {
+            let imageWidth = CGFloat(captured.width)
+            let imageHeight = CGFloat(captured.height)
+            // Aspect-fill: scale to cover the rect; anchor the image's top-left to the rect's top-left so
+            // the top-left of the window shows and any overflow is cropped (mirrors a window in its zone).
+            let fillScale = max(rect.width / imageWidth, rect.height / imageHeight)
+            let drawnSize = CGSize(width: imageWidth * fillScale, height: imageHeight * fillScale)
+            let drawRect = CGRect(
+                x: rect.minX,
+                y: rect.maxY - drawnSize.height,
+                width: drawnSize.width,
+                height: drawnSize.height
+            )
+            NSGraphicsContext.saveGraphicsState()
+            tile.addClip()
+            NSImage(cgImage: captured, size: NSSize(width: imageWidth, height: imageHeight))
+                .draw(in: drawRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            // Window exists but couldn't be captured: neutral placeholder block.
             missingWindowFillColor.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
-            return
+            tile.fill()
         }
 
-        let imageWidth = CGFloat(captured.width)
-        let imageHeight = CGFloat(captured.height)
-        guard imageWidth > 0, imageHeight > 0 else { return }
+        strokeBorder(tile)
+    }
 
-        // Aspect-fill: scale to cover the rect; anchor the image's top-left to the rect's top-left so the
-        // top-left of the window shows and any overflow is cropped (mirrors a window tiled into its zone).
-        let fillScale = max(rect.width / imageWidth, rect.height / imageHeight)
-        let drawnSize = CGSize(width: imageWidth * fillScale, height: imageHeight * fillScale)
-        let drawRect = CGRect(
-            x: rect.minX,
-            y: rect.maxY - drawnSize.height,
-            width: drawnSize.width,
-            height: drawnSize.height
-        )
-
-        NSGraphicsContext.saveGraphicsState()
-        NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).addClip()
-        NSImage(cgImage: captured, size: NSSize(width: imageWidth, height: imageHeight))
-            .draw(in: drawRect, from: .zero, operation: .sourceOver, fraction: 1.0)
-        NSGraphicsContext.restoreGraphicsState()
+    private static func strokeBorder(_ tile: NSBezierPath) {
+        zoneBorderColor.setStroke()
+        tile.lineWidth = borderWidth
+        tile.stroke()
     }
 }
