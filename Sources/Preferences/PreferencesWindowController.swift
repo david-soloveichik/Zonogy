@@ -4,6 +4,10 @@ import AppKit
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
+    /// Stable tag so other subsystems can recognize the Preferences window (e.g. to suppress
+    /// zone resize bars while it is focused) without forcing this singleton to instantiate.
+    static let windowIdentifier = NSUserInterfaceItemIdentifier("ZonogyPreferences")
+
     private var tabViewController: NSTabViewController?
 
     private init() {
@@ -14,6 +18,7 @@ final class PreferencesWindowController: NSWindowController {
             defer: false
         )
         window.title = "Zonogy Preferences"
+        window.identifier = Self.windowIdentifier
         window.level = .floating
         window.center()
 

@@ -1,19 +1,41 @@
-/// Persists CmdTab behavior preferences using UserDefaults.
+/// The CmdTab active-window targeting mode and its UserDefaults persistence.
 
 import Foundation
 
-enum CmdTabBehaviorPreferencesStore {
-    private static let defaultTargetsZoneWithActiveWindow = true
+/// Which CmdTab shortcuts retarget to the zone holding the active window before opening.
+/// Each mode is a superset of the previous one.
+enum CmdTabActiveWindowTargetingMode: Int, CaseIterable {
+    /// Neither shortcut retargets; CmdTab always opens on the standard target.
+    case off = 0
+    /// Only the current-app shortcut (Cmd-`) retargets; all-windows (Cmd-Tab) uses the standard target.
+    case currentAppOnly = 1
+    /// Both the all-windows (Cmd-Tab) and current-app (Cmd-`) shortcuts retarget.
+    case allWindows = 2
 
-    static func loadTargetsZoneWithActiveWindow() -> Bool {
-        let defaults = UserDefaults.standard
-        if defaults.object(forKey: UserDefaultsKeys.cmdTabTargetsZoneWithActiveWindow) == nil {
-            return defaultTargetsZoneWithActiveWindow
+    /// Whether active-window retargeting applies for a CmdTab session opened in the given mode.
+    func appliesRetargeting(in mode: CmdTabMode) -> Bool {
+        switch self {
+        case .off: return false
+        case .currentAppOnly: return mode == .currentAppOnly
+        case .allWindows: return true
         }
-        return defaults.bool(forKey: UserDefaultsKeys.cmdTabTargetsZoneWithActiveWindow)
+    }
+}
+
+enum CmdTabBehaviorPreferencesStore {
+    /// Retargeting is off by default.
+    static let defaultTargetingMode: CmdTabActiveWindowTargetingMode = .off
+
+    /// Returns the targeting mode, falling back to the default when unset or invalid.
+    static func loadTargetingMode() -> CmdTabActiveWindowTargetingMode {
+        guard UserDefaults.standard.object(forKey: UserDefaultsKeys.cmdTabActiveWindowTargetingMode) != nil else {
+            return defaultTargetingMode
+        }
+        let raw = UserDefaults.standard.integer(forKey: UserDefaultsKeys.cmdTabActiveWindowTargetingMode)
+        return CmdTabActiveWindowTargetingMode(rawValue: raw) ?? defaultTargetingMode
     }
 
-    static func saveTargetsZoneWithActiveWindow(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.cmdTabTargetsZoneWithActiveWindow)
+    static func saveTargetingMode(_ mode: CmdTabActiveWindowTargetingMode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.cmdTabActiveWindowTargetingMode)
     }
 }

@@ -178,8 +178,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var stickyResizeEnabled: Bool
     /// True when DockMenus should use the active window's zone for placement-oriented actions.
     internal var dockMenusTargetsZoneWithActiveWindowEnabled: Bool
-    /// True when CmdTab should temporarily retarget to the active window's zone before opening.
-    internal var cmdTabTargetsZoneWithActiveWindowEnabled: Bool
+    /// Which CmdTab shortcuts temporarily retarget to the active window's zone before opening.
+    internal var cmdTabActiveWindowTargetingMode: CmdTabActiveWindowTargetingMode
     /// True when the Launcher keyboard shortcut should retarget to the active window's zone before opening.
     internal var launcherShortcutTargetsZoneWithActiveWindowEnabled: Bool
     internal var dockMenusCoordinator: DockMenusCoordinator?
@@ -311,7 +311,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()
         self.stickyResizeEnabled = StickyResizePreferencesStore.loadEnabled()
         self.dockMenusTargetsZoneWithActiveWindowEnabled = DockMenusBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow()
-        self.cmdTabTargetsZoneWithActiveWindowEnabled = CmdTabBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow()
+        self.cmdTabActiveWindowTargetingMode = CmdTabBehaviorPreferencesStore.loadTargetingMode()
         self.launcherShortcutTargetsZoneWithActiveWindowEnabled = LauncherBehaviorPreferencesStore.loadShortcutTargetsZoneWithActiveWindow()
 
         let screens = NSScreen.screens
@@ -348,6 +348,22 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             self,
             selector: #selector(handleExceptionsConfigurationDidChange),
             name: .exceptionsConfigurationDidChange,
+            object: nil
+        )
+
+        // Recompute resize-bar suppression when our Preferences window gains/loses key status.
+        // Activation notifications only fire on app switches; these catch intra-Zonogy focus
+        // moves (e.g. the Launcher opening over Preferences) so suppression never lingers.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            name: NSWindow.didResignKeyNotification,
             object: nil
         )
 
@@ -414,6 +430,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.windowController.applicationExceptionPolicy = newConfig.applicationExceptionPolicy
         Logger.debug("Reloaded configuration: \(newConfig.ignoredBundleIdentifiers.count) ignored bundles, \(newConfig.deriveBundleIdFromPathForProcesses.count) bundle-derived processes")
         reloadLauncherItems()
+    }
+
+    @objc private func handlePreferencesWindowKeyStateChange(_ notification: Notification) {
+        guard (notification.object as? NSWindow)?.identifier == PreferencesWindowController.windowIdentifier else {
+            return
+        }
+        // Defer to the next runloop tick so the key-window transition has settled before we
+        // recompute. Mid-transition (e.g. a Launcher/CmdTab panel taking key over Preferences)
+        // `NSApp.keyWindow` can momentarily be nil; recomputing then would read the stale
+        // mainWindow fallback and keep suppression, and the panel's own key notification is
+        // filtered out here. Reading after the tick sees the true new key window.
+        DispatchQueue.main.async { [weak self] in
+            self?.updateUnmanagedFocusState()
+        }
     }
 
     @objc private func handleExceptionsConfigurationDidChange() {

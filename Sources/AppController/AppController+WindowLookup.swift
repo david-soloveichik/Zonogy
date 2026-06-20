@@ -67,6 +67,10 @@ extension AppController {
         case managedUnknown
         case unmanaged(screenId: CGDirectDisplayID, pid: pid_t, focusedElement: AXUIElement, reason: String)
         case unresolved(pid: pid_t, focusedElement: AXUIElement?, reason: String)
+        /// One of Zonogy's own content windows (currently only Preferences) is focused.
+        /// Suppresses resize bars on that screen like unmanaged focus, but carries no AX
+        /// element and skips the external-app machinery (full-screen pause repair, retries).
+        case ownContentWindow(screenId: CGDirectDisplayID)
     }
 
     /// Resolves whether frontmost focus is managed, confirmed unmanaged, or unresolved.
@@ -78,7 +82,7 @@ extension AppController {
 
         let pid = frontmostApp.processIdentifier
         guard pid != getpid() else {
-            return .managedUnknown
+            return resolveOwnAppFocusState()
         }
 
         let appElement = windowController.accessibilityWatcher.applicationElement(for: pid)
@@ -130,6 +134,46 @@ extension AppController {
             focusedElement: focusedWindow,
             reason: "fails-non-windowid-management-criteria"
         )
+    }
+
+    /// When Zonogy itself is frontmost, only its Preferences window suppresses zone resize bars.
+    /// Every other Zonogy-owned window (Launcher, placeholders, indicators, the resize bars
+    /// themselves, etc.) leaves the bars unaffected. Resolved synchronously from AppKit — no AX
+    /// round trip and no retry confirmation needed.
+    private func resolveOwnAppFocusState() -> UnmanagedFocusResolution {
+        guard let preferencesWindow = focusedPreferencesWindow(),
+              let screen = preferencesWindow.screen,
+              let screenId = ScreenContextStore.displayId(for: screen) else {
+            return .managedUnknown
+        }
+        return .ownContentWindow(screenId: screenId)
+    }
+
+    /// The Preferences window if it is currently Zonogy's focused content window, else nil.
+    /// Preferences counts as focused when it — or one of its sheets (Add App, edit rule,
+    /// open/save panels) — holds key. Other Zonogy panels that can take key without becoming
+    /// main (Launcher, CmdTab) deliberately do not qualify, even when shown over Preferences.
+    private func focusedPreferencesWindow() -> NSWindow? {
+        let identifier = PreferencesWindowController.windowIdentifier
+
+        // Walk the key window up its sheet-parent chain so a Preferences sheet resolves to
+        // Preferences, while a key Launcher/CmdTab panel does not.
+        var candidate = NSApp.keyWindow
+        while let window = candidate {
+            if window.identifier == identifier {
+                return window
+            }
+            candidate = window.sheetParent
+        }
+
+        // Activation-race fallback: keyWindow can briefly be nil before the titled Preferences
+        // window settles as key, by which point mainWindow is already set. Only consulted when
+        // there is no key window, so a key Launcher/CmdTab panel never reaches here.
+        if NSApp.keyWindow == nil, let mainWindow = NSApp.mainWindow, mainWindow.identifier == identifier {
+            return mainWindow
+        }
+
+        return nil
     }
 
     private func screenId(forWindowElement windowElement: AXUIElement) -> CGDirectDisplayID? {

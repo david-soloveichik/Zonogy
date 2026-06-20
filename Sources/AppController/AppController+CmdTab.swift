@@ -120,7 +120,7 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool {
         // Resolve temporary retargeting before hiding Launcher. While Launcher is visible, it is
         // already anchored to the current target, so that target should remain authoritative.
-        beginCmdTabRetargetSessionIfNeeded(reason: "cmdtab-open")
+        beginCmdTabRetargetSessionIfNeeded(mode: mode, reason: "cmdtab-open")
 
         // Dismiss Launcher if active to avoid overlapping overlays.
         if launcherController.isActive {
@@ -258,10 +258,10 @@ extension AppController {
 }
 
 private extension AppController {
-    func beginCmdTabRetargetSessionIfNeeded(reason: String) {
+    func beginCmdTabRetargetSessionIfNeeded(mode: CmdTabMode, reason: String) {
         cmdTabRetargetSession = nil
 
-        guard cmdTabTargetsZoneWithActiveWindowEnabled,
+        guard cmdTabActiveWindowTargetingMode.appliesRetargeting(in: mode),
               let temporaryTarget = resolvedTriggeredTargetUsingActiveWindow(),
               temporaryTarget != targetedZoneManager.targetedDestination else {
             return

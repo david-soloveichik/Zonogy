@@ -3,7 +3,7 @@
 import Foundation
 
 enum DockMenusBehaviorPreferencesStore {
-    private static let defaultTargetsZoneWithActiveWindow = true
+    private static let defaultTargetsZoneWithActiveWindow = false
 
     static func loadTargetsZoneWithActiveWindow() -> Bool {
         let defaults = UserDefaults.standard
