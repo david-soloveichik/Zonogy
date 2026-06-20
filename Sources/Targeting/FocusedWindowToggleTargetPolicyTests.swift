@@ -40,34 +40,45 @@ enum FocusedWindowToggleTargetPolicyTests {
             "nil focused window with nil target should resolve to .none"
         )
 
-        // Focused window's zone not currently targeted -> target it (target occupancy is irrelevant).
+        // A filled tiling target always advances off itself, regardless of focus.
         assert(
-            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone2, currentTarget: zone1, currentTargetIsOccupied: true) == .target(zone2),
-            "focused tiled zone different from target should resolve to .target"
+            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone2, currentTarget: zone1, currentTargetIsOccupied: true) == .advance(from: zone1),
+            "occupied tiled target with a different focused tiled zone should resolve to .advance"
         )
+        assert(
+            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: floating1, currentTarget: zone1, currentTargetIsOccupied: true) == .advance(from: zone1),
+            "occupied tiled target with a focused floating zone should resolve to .advance"
+        )
+        assert(
+            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone2, currentTarget: zone2, currentTargetIsOccupied: true) == .advance(from: zone2),
+            "focused tiled zone equal to (occupied) target should resolve to .advance"
+        )
+
+        // Focus-follow applies only when the target is not a filled tiling zone: an empty tiling target,
+        // a floating target, or no target each let the focused window's zone become the target.
         assert(
             FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone1, currentTarget: nil, currentTargetIsOccupied: false) == .target(zone1),
             "focused tiled zone with no current target should resolve to .target"
         )
         assert(
             FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: floating1, currentTarget: zone1, currentTargetIsOccupied: false) == .target(floating1),
-            "focused floating zone different from target should resolve to .target"
+            "focused floating zone with an empty tiled target should resolve to .target"
+        )
+        // The advance-regardless rule is tiling-only: an occupied floating target still follows focus.
+        assert(
+            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone1, currentTarget: floating1, currentTargetIsOccupied: true) == .target(zone1),
+            "focused tiled zone with an occupied floating target should resolve to .target"
+        )
+        // Same screen but different zone index is not "already targeted" (empty target so no advance).
+        assert(
+            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone1, currentTarget: zone2, currentTargetIsOccupied: false) == .target(zone1),
+            "different zone index on same screen (empty target) should resolve to .target"
         )
 
-        // Focused window's zone already targeted (so occupied) -> advance off it.
-        assert(
-            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone2, currentTarget: zone2, currentTargetIsOccupied: true) == .advance(from: zone2),
-            "focused tiled zone equal to target should resolve to .advance"
-        )
+        // Focused window's zone already targeted (so occupied) -> advance off it (floating case).
         assert(
             FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: floating1, currentTarget: floating1, currentTargetIsOccupied: true) == .advance(from: floating1),
             "focused floating zone equal to target should resolve to .advance"
-        )
-
-        // Same screen but different zone index is not "already targeted".
-        assert(
-            FocusedWindowToggleTargetPolicy.resolve(focusedWindowDestination: zone1, currentTarget: zone2, currentTargetIsOccupied: true) == .target(zone1),
-            "different zone index on same screen should resolve to .target"
         )
         // Floating zones on different screens are distinct destinations.
         assert(
