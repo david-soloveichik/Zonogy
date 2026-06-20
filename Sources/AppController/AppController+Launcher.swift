@@ -133,6 +133,10 @@ extension AppController {
     /// Programmatic retargets that should not touch the Launcher use `setTargetedZone` or
     /// `applyTargetedDestination` directly instead.
     ///
+    /// A double-click arrives as two gestures: the first flashes the target, the second opens the
+    /// Launcher. Passing `flashTarget: false` on that second gesture confirms the target only once
+    /// (it suppresses both the change-driven flash and the re-affirm flash below).
+    ///
     /// Order matters: the inherited-click suppression gate must be armed *before* retargeting so a
     /// synchronous did-change callback observes the armed state. The confirmation itself is deferred
     /// to the next runloop tick (see `flashTargetFeedback`/`pulseFloatingTargetFeedback`) so it never
@@ -144,7 +148,23 @@ extension AppController {
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String,
         openingLauncherWith trigger: String? = nil,
+        flashTarget: Bool = true,
         afterRetarget: (() -> Void)? = nil
+    ) {
+        guard flashTarget else {
+            withTargetChangeFlashSuppressed {
+                applyUserGestureRetarget(destination, reason: reason, openingLauncherWith: trigger, afterRetarget: afterRetarget)
+            }
+            return
+        }
+        applyUserGestureRetarget(destination, reason: reason, openingLauncherWith: trigger, afterRetarget: afterRetarget)
+    }
+
+    private func applyUserGestureRetarget(
+        _ destination: TargetedZoneManager.TargetedDestination,
+        reason: String,
+        openingLauncherWith trigger: String?,
+        afterRetarget: (() -> Void)?
     ) {
         let wasAlreadyTargeted = targetedZoneManager.targetedDestination == destination
         armLauncherClickSuppressionIfNeeded(
@@ -152,7 +172,9 @@ extension AppController {
             willOpenLauncher: trigger != nil
         )
         applyTargetedDestination(destination, reason: reason)
-        if wasAlreadyTargeted {
+        // Re-affirming the already-targeted zone fires no change event, so flash here to confirm the
+        // gesture — unless flashes are suppressed (e.g. the second click of a double-click).
+        if wasAlreadyTargeted, !suppressTargetChangeFlash {
             switch destination {
             case .tiled(let key):
                 flashTargetFeedback(for: key)

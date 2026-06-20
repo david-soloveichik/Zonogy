@@ -240,7 +240,9 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Placeholder activated for zone \(zoneIndex) on screen \(screenIndex) (doubleClick: \(isDoubleClick))")
         let trigger: String? = (isDoubleClick && !cmdTabController.isActive) ? "placeholder-double-click" : nil
-        activateZoneFromPlaceholder(screenId: screenId, zoneIndex: zoneIndex, launcherTrigger: trigger)
+        // A double-click's first click already flashed; its second click opens the Launcher without
+        // re-flashing so the placeholder border confirms the target only once.
+        activateZoneFromPlaceholder(screenId: screenId, zoneIndex: zoneIndex, launcherTrigger: trigger, flashTarget: !isDoubleClick)
     }
 
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int) {
@@ -259,11 +261,12 @@ extension AppController {
     private func activateZoneFromPlaceholder(
         screenId: CGDirectDisplayID,
         zoneIndex: Int,
-        launcherTrigger: String?
+        launcherTrigger: String?,
+        flashTarget: Bool = true
     ) {
         enterPinnedResizeBarMode(on: screenId, reason: "placeholder-activated")
         let key = zoneKey(for: screenId, index: zoneIndex)
-        retargetForUserGesture(.tiled(key), reason: "placeholder-activated", openingLauncherWith: launcherTrigger) {
+        retargetForUserGesture(.tiled(key), reason: "placeholder-activated", openingLauncherWith: launcherTrigger, flashTarget: flashTarget) {
             // The border flash is driven by the retarget itself (see `retargetForUserGesture`).
             // Retargeting happens first so placeWindow sees the zone as targeted and triggers
             // the normal retarget-after-fill logic per spec.
@@ -310,7 +313,7 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
         Logger.debug("Zone indicator activated for zone \(key.index) on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         let trigger: String? = ((isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive) ? "indicator-clicked" : nil
-        retargetForUserGesture(.tiled(key), reason: "indicator-clicked", openingLauncherWith: trigger)
+        retargetForUserGesture(.tiled(key), reason: "indicator-clicked", openingLauncherWith: trigger, flashTarget: !isDoubleClick)
     }
 
     func floatingZoneIndicatorActivated(screenId: CGDirectDisplayID, wasAlreadyTargeted: Bool, isDoubleClick: Bool) {
@@ -321,7 +324,7 @@ extension AppController {
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug("Floating zone indicator activated on screen \(screenIndex) (wasAlreadyTargeted: \(wasAlreadyTargeted), isDoubleClick: \(isDoubleClick))")
         let trigger: String? = ((isDoubleClick || wasAlreadyTargeted) && !cmdTabController.isActive) ? "floating-indicator-clicked" : nil
-        retargetForUserGesture(.floating(screenId: screenId), reason: "floating-indicator-clicked", openingLauncherWith: trigger)
+        retargetForUserGesture(.floating(screenId: screenId), reason: "floating-indicator-clicked", openingLauncherWith: trigger, flashTarget: !isDoubleClick)
     }
 
     // MARK: - AddZoneIndicatorManagerDelegate

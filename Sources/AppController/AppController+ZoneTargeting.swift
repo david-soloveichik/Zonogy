@@ -265,8 +265,9 @@ extension AppController {
         }
 
         let trigger: String? = clickCount >= 2 ? "control-command-double-click" : nil
-        // The border flash is driven by the retarget itself (see `retargetForUserGesture`).
-        retargetForUserGesture(.tiled(key), reason: "control-command-click", openingLauncherWith: trigger)
+        // The border flash is driven by the retarget itself (see `retargetForUserGesture`). The
+        // second click of a double-click skips the flash so the gesture confirms the target once.
+        retargetForUserGesture(.tiled(key), reason: "control-command-click", openingLauncherWith: trigger, flashTarget: clickCount < 2)
         return true
     }
 
