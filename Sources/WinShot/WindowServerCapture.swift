@@ -43,8 +43,10 @@ private func CGSHWCaptureWindowList(
 ) -> Unmanaged<CFArray>?
 
 enum WindowServerCapture {
-    /// Capture a single window's image by CGWindowID, including minimized / off-screen windows.
-    /// Synchronous; returns nil if the window can't be captured (e.g. it no longer exists).
+    /// Capture a single window's image by CGWindowID, including settled minimized / off-screen windows.
+    /// Synchronous; returns nil if the window can't be captured — it no longer exists, or it is
+    /// momentarily uncapturable mid-minimize (the genie animation transiently clears the backing store).
+    /// The mid-minimize case succeeds again once the window settles, so callers should retry.
     static func captureWindowImage(cgWindowId: CGWindowID) -> CGImage? {
         var windowId = cgWindowId
         // CGSHWCaptureWindowList only honors the first id in the list, so capture one window at a time.
