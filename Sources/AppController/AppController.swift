@@ -351,6 +351,22 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
+        // Recompute resize-bar suppression when our Preferences window gains/loses key status.
+        // Activation notifications only fire on app switches; these catch intra-Zonogy focus
+        // moves (e.g. the Launcher opening over Preferences) so suppression never lingers.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
+
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
         self.placeholderManager.delegate = self
@@ -414,6 +430,20 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.windowController.applicationExceptionPolicy = newConfig.applicationExceptionPolicy
         Logger.debug("Reloaded configuration: \(newConfig.ignoredBundleIdentifiers.count) ignored bundles, \(newConfig.deriveBundleIdFromPathForProcesses.count) bundle-derived processes")
         reloadLauncherItems()
+    }
+
+    @objc private func handlePreferencesWindowKeyStateChange(_ notification: Notification) {
+        guard (notification.object as? NSWindow)?.identifier == PreferencesWindowController.windowIdentifier else {
+            return
+        }
+        // Defer to the next runloop tick so the key-window transition has settled before we
+        // recompute. Mid-transition (e.g. a Launcher/CmdTab panel taking key over Preferences)
+        // `NSApp.keyWindow` can momentarily be nil; recomputing then would read the stale
+        // mainWindow fallback and keep suppression, and the panel's own key notification is
+        // filtered out here. Reading after the tick sees the true new key window.
+        DispatchQueue.main.async { [weak self] in
+            self?.updateUnmanagedFocusState()
+        }
     }
 
     @objc private func handleExceptionsConfigurationDidChange() {
