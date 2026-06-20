@@ -76,13 +76,8 @@ extension AppController {
         )
     }
 
-    /// "Toggle Target Zone w/ Focused Window" shortcut: if the zone holding the focused window is not
-    /// targeted, target it. Otherwise advance off the currently targeted zone using the standard
-    /// fill-priority (lowest-index empty tiling zone on the same screen, then another screen, then the
-    /// floating zone) — this covers both the focused window already sitting in the target and no
-    /// managed window being focused in a zone while the target is occupied. Does nothing when nothing
-    /// is focused in a zone and the target is empty. Resolves the focused window even while the
-    /// Launcher/CmdTab chooser is open.
+    /// "Toggle Target Zone w/ Focused Window" shortcut. See `FocusedWindowToggleTargetPolicy` for the
+    /// decision logic. Works while the Launcher/CmdTab chooser is open (tentative retarget).
     internal func toggleTargetZoneWithFocusedWindow() {
         let currentTarget = targetedZoneManager.targetedDestination
         let action = FocusedWindowToggleTargetPolicy.resolve(
