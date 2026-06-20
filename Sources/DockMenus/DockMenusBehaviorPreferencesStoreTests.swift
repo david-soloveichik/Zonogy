@@ -26,8 +26,8 @@ enum DockMenusBehaviorPreferencesStoreTests {
 
         defaults.removeObject(forKey: key)
         assert(
-            DockMenusBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow(),
-            "DockMenus targeting should default to enabled when unset"
+            !DockMenusBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow(),
+            "DockMenus targeting should default to disabled when unset"
         )
 
         DockMenusBehaviorPreferencesStore.saveTargetsZoneWithActiveWindow(true)

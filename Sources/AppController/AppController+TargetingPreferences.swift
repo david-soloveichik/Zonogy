@@ -11,8 +11,8 @@ extension AppController {
         dockMenusTargetsZoneWithActiveWindowEnabled
     }
 
-    internal var isCmdTabTargetsZoneWithActiveWindowEnabledInSettings: Bool {
-        cmdTabTargetsZoneWithActiveWindowEnabled
+    internal var cmdTabActiveWindowTargetingModeInSettings: CmdTabActiveWindowTargetingMode {
+        cmdTabActiveWindowTargetingMode
     }
 
     internal func setDockMenusTargetsZoneWithActiveWindowEnabledFromSettings(_ enabled: Bool) {
@@ -27,9 +27,9 @@ extension AppController {
         LauncherBehaviorPreferencesStore.saveShortcutTargetsZoneWithActiveWindow(enabled)
     }
 
-    internal func setCmdTabTargetsZoneWithActiveWindowEnabledFromSettings(_ enabled: Bool) {
-        Logger.debug("CmdTab: settings updated targetsZoneWithActiveWindow=\(enabled)")
-        cmdTabTargetsZoneWithActiveWindowEnabled = enabled
-        CmdTabBehaviorPreferencesStore.saveTargetsZoneWithActiveWindow(enabled)
+    internal func setCmdTabActiveWindowTargetingModeFromSettings(_ mode: CmdTabActiveWindowTargetingMode) {
+        Logger.debug("CmdTab: settings updated activeWindowTargetingMode=\(mode.rawValue)")
+        cmdTabActiveWindowTargetingMode = mode
+        CmdTabBehaviorPreferencesStore.saveTargetingMode(mode)
     }
 }

@@ -6,11 +6,30 @@ final class TargetingPreferencesViewController: NSViewController {
     private var launcherShortcutTargetsActiveWindowHintLabel: NSTextField?
     private var dockMenusTargetsActiveWindowCheckbox: NSButton?
     private var dockMenusTargetsActiveWindowHintLabel: NSTextField?
-    private var cmdTabTargetsActiveWindowCheckbox: NSButton?
-    private var cmdTabTargetsActiveWindowHintLabel: NSTextField?
+    private var cmdTabTargetingPopup: NSPopUpButton?
+    private var cmdTabTargetingHintLabel: NSTextField?
+
+    private static func title(for mode: CmdTabActiveWindowTargetingMode) -> String {
+        switch mode {
+        case .off: return "Off"
+        case .currentAppOnly: return "Current app only (⌘`)"
+        case .allWindows: return "All windows too (⌘⇥)"
+        }
+    }
+
+    private static func hint(for mode: CmdTabActiveWindowTargetingMode) -> String {
+        switch mode {
+        case .off:
+            return "CmdTab always opens on Zonogy's separate targeted zone."
+        case .currentAppOnly:
+            return "Switching within the current app (⌘`) replaces the focused window in its zone. Switching among all windows (⌘⇥) uses the standard target."
+        case .allWindows:
+            return "Both all-windows (⌘⇥) and current-app (⌘`) switching replace the focused window in its zone."
+        }
+    }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 440))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 470))
 
         let titleLabel = NSTextField(labelWithString: "Replacing focused window")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -43,6 +62,29 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(dockMenusTargetsActiveWindowHintLabel)
         self.dockMenusTargetsActiveWindowHintLabel = dockMenusTargetsActiveWindowHintLabel
 
+        let cmdTabTargetingLabel = NSTextField(labelWithString: "CmdTab targets zone with focused window:")
+        cmdTabTargetingLabel.font = NSFont.systemFont(ofSize: 13)
+        cmdTabTargetingLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(cmdTabTargetingLabel)
+
+        let cmdTabTargetingPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        cmdTabTargetingPopup.translatesAutoresizingMaskIntoConstraints = false
+        cmdTabTargetingPopup.target = self
+        cmdTabTargetingPopup.action = #selector(cmdTabTargetingModeChanged(_:))
+        for mode in CmdTabActiveWindowTargetingMode.allCases {
+            cmdTabTargetingPopup.addItem(withTitle: Self.title(for: mode))
+            cmdTabTargetingPopup.lastItem?.tag = mode.rawValue
+        }
+        containerView.addSubview(cmdTabTargetingPopup)
+        self.cmdTabTargetingPopup = cmdTabTargetingPopup
+
+        let cmdTabTargetingHintLabel = NSTextField(wrappingLabelWithString: "")
+        cmdTabTargetingHintLabel.font = NSFont.systemFont(ofSize: 12)
+        cmdTabTargetingHintLabel.textColor = .secondaryLabelColor
+        cmdTabTargetingHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(cmdTabTargetingHintLabel)
+        self.cmdTabTargetingHintLabel = cmdTabTargetingHintLabel
+
         let launcherShortcutTargetsActiveWindowCheckbox = NSButton(
             checkboxWithTitle: "Launcher keyboard shortcut targets zone with focused window",
             target: self,
@@ -59,24 +101,6 @@ final class TargetingPreferencesViewController: NSViewController {
         launcherShortcutTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(launcherShortcutTargetsActiveWindowHintLabel)
         self.launcherShortcutTargetsActiveWindowHintLabel = launcherShortcutTargetsActiveWindowHintLabel
-
-        let cmdTabTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "CmdTab targets zone with focused window",
-            target: self,
-            action: #selector(cmdTabTargetsActiveWindowToggled(_:))
-        )
-        cmdTabTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(cmdTabTargetsActiveWindowCheckbox)
-        self.cmdTabTargetsActiveWindowCheckbox = cmdTabTargetsActiveWindowCheckbox
-
-        let cmdTabTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Windows from CmdTab replace the focused window in its zone."
-        )
-        cmdTabTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
-        cmdTabTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
-        cmdTabTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(cmdTabTargetsActiveWindowHintLabel)
-        self.cmdTabTargetsActiveWindowHintLabel = cmdTabTargetsActiveWindowHintLabel
 
         let draggingNoteLabel = NSTextField(
             wrappingLabelWithString: "Dragging a window from DockMenus, CmdTab, or the Launcher always lets you place it into the zone you want."
@@ -101,14 +125,16 @@ final class TargetingPreferencesViewController: NSViewController {
             dockMenusTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            cmdTabTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowHintLabel.bottomAnchor, constant: 18),
-            cmdTabTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            cmdTabTargetingPopup.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowHintLabel.bottomAnchor, constant: 16),
+            cmdTabTargetingPopup.leadingAnchor.constraint(equalTo: cmdTabTargetingLabel.trailingAnchor, constant: 8),
+            cmdTabTargetingLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            cmdTabTargetingLabel.centerYAnchor.constraint(equalTo: cmdTabTargetingPopup.centerYAnchor),
 
-            cmdTabTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: cmdTabTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
-            cmdTabTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            cmdTabTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            cmdTabTargetingHintLabel.topAnchor.constraint(equalTo: cmdTabTargetingPopup.bottomAnchor, constant: 6),
+            cmdTabTargetingHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            cmdTabTargetingHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            launcherShortcutTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: cmdTabTargetsActiveWindowHintLabel.bottomAnchor, constant: 18),
+            launcherShortcutTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: cmdTabTargetingHintLabel.bottomAnchor, constant: 18),
             launcherShortcutTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             launcherShortcutTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: launcherShortcutTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
@@ -121,7 +147,7 @@ final class TargetingPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 440)
+        self.preferredContentSize = NSSize(width: 580, height: 470)
         syncControls()
     }
 
@@ -137,16 +163,16 @@ final class TargetingPreferencesViewController: NSViewController {
         syncDockMenusTargetsActiveWindowCheckbox()
     }
 
-    @objc private func cmdTabTargetsActiveWindowToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setCmdTabTargetsZoneWithActiveWindowEnabledFromSettings(enabled)
-        syncCmdTabTargetsActiveWindowCheckbox()
+    @objc private func cmdTabTargetingModeChanged(_ sender: NSPopUpButton) {
+        let mode = CmdTabActiveWindowTargetingMode(rawValue: sender.selectedTag()) ?? CmdTabBehaviorPreferencesStore.defaultTargetingMode
+        AppController.shared.setCmdTabActiveWindowTargetingModeFromSettings(mode)
+        syncCmdTabTargetingControls()
     }
 
     private func syncControls() {
         syncLauncherShortcutTargetsActiveWindowCheckbox()
         syncDockMenusTargetsActiveWindowCheckbox()
-        syncCmdTabTargetsActiveWindowCheckbox()
+        syncCmdTabTargetingControls()
     }
 
     private func syncLauncherShortcutTargetsActiveWindowCheckbox() {
@@ -159,8 +185,9 @@ final class TargetingPreferencesViewController: NSViewController {
         dockMenusTargetsActiveWindowCheckbox?.state = enabled ? .on : .off
     }
 
-    private func syncCmdTabTargetsActiveWindowCheckbox() {
-        let enabled = AppController.shared.isCmdTabTargetsZoneWithActiveWindowEnabledInSettings
-        cmdTabTargetsActiveWindowCheckbox?.state = enabled ? .on : .off
+    private func syncCmdTabTargetingControls() {
+        let mode = AppController.shared.cmdTabActiveWindowTargetingModeInSettings
+        cmdTabTargetingPopup?.selectItem(withTag: mode.rawValue)
+        cmdTabTargetingHintLabel?.stringValue = Self.hint(for: mode)
     }
 }

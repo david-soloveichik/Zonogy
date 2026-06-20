@@ -8,7 +8,7 @@ enum UserDefaultsKeys {
     static let dockMenusTargetsZoneWithActiveWindow = "Zonogy.dockMenus.targetsZoneWithActiveWindow"
 
     // MARK: - CmdTab
-    static let cmdTabTargetsZoneWithActiveWindow = "Zonogy.cmdTab.targetsZoneWithActiveWindow"
+    static let cmdTabActiveWindowTargetingMode = "Zonogy.cmdTab.activeWindowTargetingMode"
 
     // MARK: - General
     static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
