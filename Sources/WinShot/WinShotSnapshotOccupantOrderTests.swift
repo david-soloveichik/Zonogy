@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Guardrail tests for the snapshot occupant ordering that drives the chooser app-icon row.
+/// Guardrail tests for the tiling-zone occupant ordering that drives the chooser's top app-icon row.
 enum WinShotSnapshotOccupantOrderTests {
     @discardableResult
     static func run() -> Bool {
@@ -41,17 +41,18 @@ enum WinShotSnapshotOccupantOrderTests {
             )
         }
 
-        // Tiling zones in ascending index order, floating-zone occupant appended last.
-        assert(snapshot(zones: [3: 30, 1: 10, 2: 20], floating: 99).occupantsByZoneOrder.map(\.windowId) == [10, 20, 30, 99],
-               "tiling zones ascending by index, floating occupant last")
+        // Tiling zones in ascending index order; the floating-zone occupant is excluded (it is shown
+        // on a separate row).
+        assert(snapshot(zones: [3: 30, 1: 10, 2: 20], floating: 99).tilingOccupantsByZoneOrder.map(\.windowId) == [10, 20, 30],
+               "tiling zones ascending by index, floating occupant excluded")
 
-        // No floating occupant: tiling zones only.
-        assert(snapshot(zones: [2: 20, 1: 10], floating: nil).occupantsByZoneOrder.map(\.windowId) == [10, 20],
-               "no floating occupant yields tiling zones only")
+        // No floating occupant: tiling zones in ascending order.
+        assert(snapshot(zones: [2: 20, 1: 10], floating: nil).tilingOccupantsByZoneOrder.map(\.windowId) == [10, 20],
+               "tiling zones ascending by index")
 
-        // Floating-only snapshot yields just the floating occupant.
-        assert(snapshot(zones: [:], floating: 99).occupantsByZoneOrder.map(\.windowId) == [99],
-               "floating-only snapshot yields the floating occupant")
+        // Floating-only snapshot has no tiling occupants.
+        assert(snapshot(zones: [:], floating: 99).tilingOccupantsByZoneOrder.isEmpty,
+               "floating-only snapshot has no tiling occupants")
 
         if allPassed {
             print("WinShotSnapshotOccupantOrderTests: all tests passed")

@@ -58,15 +58,11 @@ struct WinShotSnapshot {
         return ids
     }
 
-    /// Occupant window identities in icon-row order: tiling zones by ascending index, then the
-    /// floating-zone occupant (if any). Drives the app-icon strip under each chooser thumbnail
-    /// (one entry per occupied zone, so two windows of the same app appear twice).
-    var occupantsByZoneOrder: [WindowIdentity] {
-        var ordered = zoneAssignments.sorted { $0.key < $1.key }.map(\.value)
-        if let floatingZoneOccupant {
-            ordered.append(floatingZoneOccupant)
-        }
-        return ordered
+    /// Tiling-zone occupant window identities ordered by ascending zone index. Drives the top row of
+    /// the app-icon strip under each chooser thumbnail (one entry per occupied tiling zone, so two
+    /// windows of the same app appear twice). The floating-zone occupant is shown on a separate row.
+    var tilingOccupantsByZoneOrder: [WindowIdentity] {
+        zoneAssignments.sorted { $0.key < $1.key }.map(\.value)
     }
 
     /// Check if this snapshot contains a specific window identity

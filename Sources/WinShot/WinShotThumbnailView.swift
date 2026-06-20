@@ -14,7 +14,8 @@ final class WinShotThumbnailView: NSView {
     private let imageContainerView: NSView  // Container for clipping
     private let deleteButton: NSButton
     private let selectionBorder: CALayer
-    private let iconStackView: NSStackView  // Centered row of app icons below the image
+    private let tilingIconRow: NSStackView    // Top row: one icon per occupied tiling zone
+    private let floatingIconRow: NSStackView  // Bottom row: the floating-zone window's icon, if any
     private static let selectionColor = NSColor(calibratedRed: 0.15, green: 0.35, blue: 0.85, alpha: 1.0)
 
     var isSelected: Bool = false {
@@ -25,14 +26,16 @@ final class WinShotThumbnailView: NSView {
 
     private static let imageSize = NSSize(width: 160, height: 100)
     private static let borderGap: CGFloat = 6  // Gap between image and selection border
-    private static let iconSize: CGFloat = 16
-    private static let iconSpacing: CGFloat = 4
-    private static let iconRowTopGap: CGFloat = 4     // Between the image tile and the app-icon row
-    private static let iconRowBottomPad: CGFloat = 4  // Between the app-icon row and the view bottom
+    private static let iconSize: CGFloat = 19
+    private static let iconSpacing: CGFloat = 4       // Between icons within a row
+    private static let iconRowTopGap: CGFloat = 4     // Between the image tile and the first icon row
+    private static let iconRowSpacing: CGFloat = 4    // Between the tiling row and the floating row
+    private static let iconRowBottomPad: CGFloat = 4  // Between the floating row and the view bottom
     private static let thumbnailSize = NSSize(
         width: imageSize.width + borderGap * 2,
-        // Image tile (image + selection-border gap) above a centered row of app icons.
-        height: imageSize.height + borderGap * 2 + iconRowTopGap + iconSize + iconRowBottomPad
+        // Image tile (image + selection-border gap) above two centered app-icon rows: tiling zones,
+        // then the floating-zone window.
+        height: imageSize.height + borderGap * 2 + iconRowTopGap + iconSize + iconRowSpacing + iconSize + iconRowBottomPad
     )
     private static let imageCornerRadius: CGFloat = 8
     private static let borderCornerRadius: CGFloat = 12  // Slightly larger for the outer border
@@ -70,15 +73,11 @@ final class WinShotThumbnailView: NSView {
         selectionBorder.cornerRadius = Self.borderCornerRadius
         selectionBorder.isHidden = true
 
-        // Build the app-icon row: one icon per occupied zone (tiling zones ascending, then the
-        // floating-zone window).
-        iconStackView = NSStackView()
-        iconStackView.orientation = .horizontal
-        iconStackView.spacing = Self.iconSpacing
-        iconStackView.alignment = .centerY
-        for identity in snapshot.occupantsByZoneOrder {
-            iconStackView.addArrangedSubview(Self.makeIconView(for: identity))
-        }
+        // Build the two app-icon rows: tiling-zone windows (ascending zone index) on top, the
+        // floating-zone window (if any) below. Both rows reserve their height so all thumbnails stay
+        // the same size whether or not a floating window is present.
+        tilingIconRow = Self.makeIconRow(for: snapshot.tilingOccupantsByZoneOrder)
+        floatingIconRow = Self.makeIconRow(for: [snapshot.floatingZoneOccupant].compactMap { $0 })
 
         super.init(frame: NSRect(origin: .zero, size: Self.thumbnailSize))
 
@@ -91,17 +90,21 @@ final class WinShotThumbnailView: NSView {
         // Add subviews
         addSubview(imageContainerView)
         addSubview(deleteButton)
-        addSubview(iconStackView)
+        addSubview(tilingIconRow)
+        addSubview(floatingIconRow)
 
         // Add selection border on top
         layer?.addSublayer(selectionBorder)
         selectionBorder.zPosition = 100
 
-        // Setup constraints - image container is inset by borderGap (left/right/top); the app-icon
-        // row sits centered below it, pinned to the view's bottom.
+        // Setup constraints - image container is inset by borderGap (left/right/top); the two app-icon
+        // rows sit centered below it, the floating row pinned to the view's bottom and the tiling row
+        // just above it. Both rows keep a fixed height so the layout is identical with or without a
+        // floating window.
         imageContainerView.translatesAutoresizingMaskIntoConstraints = false
         deleteButton.translatesAutoresizingMaskIntoConstraints = false
-        iconStackView.translatesAutoresizingMaskIntoConstraints = false
+        tilingIconRow.translatesAutoresizingMaskIntoConstraints = false
+        floatingIconRow.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
             imageContainerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.borderGap),
@@ -114,9 +117,13 @@ final class WinShotThumbnailView: NSView {
             deleteButton.widthAnchor.constraint(equalToConstant: Self.deleteButtonSize),
             deleteButton.heightAnchor.constraint(equalToConstant: Self.deleteButtonSize),
 
-            iconStackView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            iconStackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.iconRowBottomPad),
-            iconStackView.heightAnchor.constraint(equalToConstant: Self.iconSize),
+            tilingIconRow.centerXAnchor.constraint(equalTo: centerXAnchor),
+            tilingIconRow.bottomAnchor.constraint(equalTo: floatingIconRow.topAnchor, constant: -Self.iconRowSpacing),
+            tilingIconRow.heightAnchor.constraint(equalToConstant: Self.iconSize),
+
+            floatingIconRow.centerXAnchor.constraint(equalTo: centerXAnchor),
+            floatingIconRow.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.iconRowBottomPad),
+            floatingIconRow.heightAnchor.constraint(equalToConstant: Self.iconSize),
         ])
 
         deleteButton.target = self
@@ -142,6 +149,19 @@ final class WinShotThumbnailView: NSView {
         selectionBorder.frame = imageContainerView.frame.insetBy(dx: -Self.borderGap, dy: -Self.borderGap)
         // Update image layer to fill the container
         imageLayer.frame = imageContainerView.bounds
+    }
+
+    /// Builds a centered horizontal row of app icons for the given occupants (may be empty; the row
+    /// still reserves its height via constraints so thumbnail sizes stay uniform).
+    private static func makeIconRow(for identities: [WindowIdentity]) -> NSStackView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = iconSpacing
+        row.alignment = .centerY
+        for identity in identities {
+            row.addArrangedSubview(makeIconView(for: identity))
+        }
+        return row
     }
 
     /// Builds a small app-icon view for a snapshot occupant. Prefers the running application's icon

@@ -36,7 +36,7 @@ Opening the chooser captures the current arrangement immediately, and a snapshot
 - Release Control-Cmd to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
 - Red "x" button on each snapshot allows deletion (appears on hover).
 - Thumbnails sit in a single horizontal row, most recent on the left. Each thumbnail is placed by when its arrangement was last on screen (not when it was first set up). The currently live arrangement counts as on screen up to the present. The gap between two consecutive thumbnails encodes the time elapsed between those last-on-screen moments. Spacing is relative to the whole set: intervals are scaled logarithmically — shortest tight, longest wide — so differences stay visible whether the set spans seconds or days. (Roughly even spacing stays uniformly tight; gaps open only where intervals genuinely differ.)
-- Under each thumbnail, a centered row shows the application icon of each window in the snapshot, ordered by tiling zone (ascending) followed by the floating-zone window. There is one icon per occupied zone, so two windows of the same application appear as two icons.
+- Under each thumbnail, two centered rows of application icons describe the snapshot: the top row shows one icon per occupied tiling zone, ordered by zone index, and the bottom row shows the floating-zone window's icon, if any.
 - The chooser window fits the gap-spaced thumbnails up to a fraction of the screen width, so wider screens show more at once; when the strip is wider than that, the chooser scrolls to keep the selected thumbnail visible.
 
 ## Snapshot Restoration
