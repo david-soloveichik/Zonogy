@@ -33,19 +33,19 @@ enum WinShotGapLayoutTests {
         }
 
         // Degenerate inputs.
-        assert(WinShotGapLayout.leadingGaps(createdAt: [], config: config).isEmpty,
+        assert(WinShotGapLayout.leadingGaps(times: [], config: config).isEmpty,
                "empty input yields empty gaps")
-        assert(WinShotGapLayout.leadingGaps(createdAt: [base], config: config) == [0],
+        assert(WinShotGapLayout.leadingGaps(times: [base], config: config) == [0],
                "single snapshot yields a single zero gap")
 
         // Two snapshots: a lone interval has no spread, so it collapses to minGap.
-        let two = WinShotGapLayout.leadingGaps(createdAt: timestamps(fromDeltas: [3_600]), config: config)
+        let two = WinShotGapLayout.leadingGaps(times: timestamps(fromDeltas: [3_600]), config: config)
         assert(two.count == 2 && two[0] == 0 && near(two[1], minGap),
                "two snapshots yield [0, minGap]")
 
         // Increasing intervals: first thumbnail 0, shortest -> minGap, longest -> maxGap,
         // middle strictly between, strictly monotonic.
-        let inc = WinShotGapLayout.leadingGaps(createdAt: timestamps(fromDeltas: [10, 100, 1_000]), config: config)
+        let inc = WinShotGapLayout.leadingGaps(times: timestamps(fromDeltas: [10, 100, 1_000]), config: config)
         assert(inc.count == 4 && inc[0] == 0, "one leading gap per snapshot, first is zero")
         assert(near(inc[1], minGap), "shortest interval maps to minGap")
         assert(near(inc[3], maxGap), "longest interval maps to maxGap")
@@ -55,7 +55,7 @@ enum WinShotGapLayoutTests {
         // Adaptivity: a tightly-clustered set (all within ~1 decade) still spans the full
         // visual range — this is the whole point of normalizing per set.
         let clustered = WinShotGapLayout.leadingGaps(
-            createdAt: timestamps(fromDeltas: [20, 35, 50, 80, 150]), config: config
+            times: timestamps(fromDeltas: [20, 35, 50, 80, 150]), config: config
         )
         let clusteredGaps = Array(clustered.dropFirst())
         assert(near(clusteredGaps.min() ?? 0, minGap), "clustered set's shortest gap reaches minGap")
@@ -64,7 +64,7 @@ enum WinShotGapLayoutTests {
         // The same shape regardless of absolute magnitude: scale every delta by 100x and the
         // spread still fills the range (depends on ratios, not absolute seconds).
         let clusteredScaled = WinShotGapLayout.leadingGaps(
-            createdAt: timestamps(fromDeltas: [2_000, 3_500, 5_000, 8_000, 15_000]), config: config
+            times: timestamps(fromDeltas: [2_000, 3_500, 5_000, 8_000, 15_000]), config: config
         )
         let scaledGaps = Array(clusteredScaled.dropFirst())
         assert(near(scaledGaps.min() ?? 0, minGap) && near(scaledGaps.max() ?? 0, maxGap),
@@ -72,7 +72,7 @@ enum WinShotGapLayoutTests {
 
         // Near-equal intervals are damped (the min-span floor), not exaggerated to maxGap.
         let nearEqual = WinShotGapLayout.leadingGaps(
-            createdAt: timestamps(fromDeltas: [40, 42, 44, 41, 43]), config: config
+            times: timestamps(fromDeltas: [40, 42, 44, 41, 43]), config: config
         )
         let nearEqualGaps = Array(nearEqual.dropFirst())
         assert((nearEqualGaps.max() ?? maxGap) < minGap + 0.5 * (maxGap - minGap),
@@ -80,9 +80,9 @@ enum WinShotGapLayoutTests {
         assert((nearEqualGaps.min() ?? 0) >= minGap - 0.5, "all gaps stay at or above minGap")
 
         // Order-agnostic: reversing display order produces the same set of nonzero gaps.
-        let forward = WinShotGapLayout.leadingGaps(createdAt: timestamps(fromDeltas: [10, 100, 1_000]), config: config)
+        let forward = WinShotGapLayout.leadingGaps(times: timestamps(fromDeltas: [10, 100, 1_000]), config: config)
         let reversed = WinShotGapLayout.leadingGaps(
-            createdAt: Array(timestamps(fromDeltas: [10, 100, 1_000]).reversed()), config: config
+            times: Array(timestamps(fromDeltas: [10, 100, 1_000]).reversed()), config: config
         )
         assert(Array(forward.dropFirst()).sorted() == Array(reversed.dropFirst()).sorted(),
                "sort direction does not change the multiset of gaps")

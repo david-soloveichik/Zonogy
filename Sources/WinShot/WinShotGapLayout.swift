@@ -41,13 +41,13 @@ enum WinShotGapLayout {
     /// near-equal (log-spread below minSpanDecades) the gaps stay near minGap instead of
     /// filling the range. The interval magnitude is used, so the spacing is identical
     /// regardless of sort direction (a gap means "time between these two adjacent snapshots").
-    static func leadingGaps(createdAt: [Date], config: Config = .default) -> [CGFloat] {
-        guard !createdAt.isEmpty else { return [] }
-        guard createdAt.count > 1 else { return [0] }
+    static func leadingGaps(times: [Date], config: Config = .default) -> [CGFloat] {
+        guard !times.isEmpty else { return [] }
+        guard times.count > 1 else { return [0] }
 
         let reference = max(config.referenceInterval, .leastNonzeroMagnitude)
-        let transformed: [CGFloat] = (1..<createdAt.count).map { index in
-            let delta = abs(createdAt[index - 1].timeIntervalSince(createdAt[index]))
+        let transformed: [CGFloat] = (1..<times.count).map { index in
+            let delta = abs(times[index - 1].timeIntervalSince(times[index]))
             return CGFloat(log10(1 + max(0, delta) / reference))
         }
 
@@ -58,7 +58,7 @@ enum WinShotGapLayout {
         let visualSpan = config.maxGap - config.minGap
 
         var gaps: [CGFloat] = [0]
-        gaps.reserveCapacity(createdAt.count)
+        gaps.reserveCapacity(times.count)
         for value in transformed {
             let normalized = min(max((value - minTransformed) / denominator, 0), 1)
             gaps.append(config.minGap + normalized * visualSpan)

@@ -174,6 +174,9 @@ enum GuardrailTests {
         if !WinShotOccupancyAutoSavePlanTests.run() {
             allPassed = false
         }
+        if !WinShotLastActivePolicyTests.run() {
+            allPassed = false
+        }
         if !WinShotGapLayoutTests.run() {
             allPassed = false
         }

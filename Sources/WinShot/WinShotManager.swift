@@ -117,6 +117,17 @@ final class WinShotManager {
             tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
             floatingZoneWindowId: floatingIdentity?.windowId
         )
+        // If a *different* arrangement was live at the front of this screen's list until now, it has
+        // just been superseded, so its on-screen life ends at this capture's timestamp (applied after
+        // insertion below). Resolved before any same-signature replacement deletion so the lookup sees
+        // the pre-capture front. The policy ignores a same-signature refresh (e.g. the chooser-open
+        // recapture of the current arrangement, which supersedes nothing) and a stale front snapshot
+        // left behind when the live arrangement's snapshot was removed (e.g. a window in it closed).
+        let supersededSnapshotId = WinShotLastActivePolicy.supersededSnapshotId(
+            inNewestFirst: snapshots[screenId] ?? [],
+            newSignature: occupancySignature
+        )
+
         // Reuse the replaced snapshot's ID for a same-occupancy capture, so identity stays stable across
         // refreshes — e.g. a silent background re-capture won't invalidate an ID an open chooser is
         // currently displaying.
@@ -133,10 +144,12 @@ final class WinShotManager {
 
         // Create snapshot. The thumbnail is composited asynchronously from per-window captures and
         // filled in once it arrives — see captureThumbnail(...) below.
+        let createdAt = Date()
         let snapshot = WinShotSnapshot(
             id: replacedSnapshotId ?? UUID(),
             screenId: screenId,
-            createdAt: Date(),
+            createdAt: createdAt,
+            lastActiveAt: createdAt,
             zoneCount: zoneCount,
             zoneFrames: zoneFrames,
             windowFrames: windowFrames,
@@ -150,6 +163,12 @@ final class WinShotManager {
 
         // Store snapshot
         addSnapshot(snapshot, for: screenId)
+
+        // The superseded arrangement was live right up until this capture, so advance its
+        // last-on-screen time. Done after insertion so the lookup sees the final list.
+        if let supersededSnapshotId {
+            setLastActiveAt(createdAt, forSnapshot: supersededSnapshotId, on: screenId)
+        }
 
         // Kick off the asynchronous per-window capture + composite now that the snapshot is stored.
         captureThumbnail(
@@ -322,6 +341,15 @@ final class WinShotManager {
                 self.onThumbnailReady?(screenId, id)
             }
         }
+    }
+
+    /// Advance a stored snapshot's `lastActiveAt` (its last-on-screen time). No-op if the snapshot
+    /// is no longer stored (e.g. trimmed away in this same capture).
+    private func setLastActiveAt(_ date: Date, forSnapshot id: UUID, on screenId: CGDirectDisplayID) {
+        guard let index = snapshots[screenId]?.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        snapshots[screenId]?[index].lastActiveAt = date
     }
 
     /// Update a stored snapshot's thumbnail in place, matching by id *and* `createdAt` so a stale

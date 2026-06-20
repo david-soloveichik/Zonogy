@@ -66,7 +66,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         containerView.wantsLayer = true
 
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        let leadingGaps = WinShotGapLayout.leadingGaps(createdAt: snapshots.map(\.createdAt))
+        let leadingGaps = WinShotGapLayout.leadingGaps(times: snapshots.map(\.lastActiveAt))
 
         // Lay thumbnails out left-to-right, inserting each snapshot's leading gap
         // (the log-scaled time delta to the previous, newer snapshot) before it.
@@ -162,7 +162,7 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
         screenVisibleWidth: CGFloat
     ) -> NSSize {
         let thumbnailSize = WinShotThumbnailView.preferredSize
-        let leadingGaps = WinShotGapLayout.leadingGaps(createdAt: snapshots.map(\.createdAt))
+        let leadingGaps = WinShotGapLayout.leadingGaps(times: snapshots.map(\.lastActiveAt))
         let contentWidth = WinShotGapLayout.contentWidth(
             tileWidth: thumbnailSize.width,
             leadingGaps: leadingGaps

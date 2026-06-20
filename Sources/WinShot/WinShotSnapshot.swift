@@ -6,6 +6,13 @@ struct WinShotSnapshot {
     let screenId: CGDirectDisplayID
     let createdAt: Date
 
+    /// The most recent time this arrangement was the live on-screen layout. Starts equal to
+    /// `createdAt` and advances to the capture time of whatever *different* arrangement next
+    /// supersedes it (maintained in WinShotManager). The chooser spaces its timeline by this, not
+    /// by `createdAt`, so an arrangement that stayed on screen a long time sits near the front
+    /// (when it was last used) instead of back when it was first established.
+    var lastActiveAt: Date
+
     /// Zone configuration at snapshot time
     let zoneCount: Int
     let zoneFrames: [Int: CGRect]  // zoneIndex -> frame
@@ -32,6 +39,15 @@ struct WinShotSnapshot {
     /// Low-resolution screenshot. Populated asynchronously after creation: the snapshot is created
     /// with `nil` and filled in once the composited capture completes (see WinShotManager).
     var thumbnail: NSImage?
+
+    /// True once this snapshot has been superseded by a later capture — its `lastActiveAt` has been
+    /// advanced past `createdAt`. While false, the snapshot still represents the arrangement that was
+    /// live up to the present (it sits at the front of its screen's list). Used to avoid re-stamping a
+    /// stale snapshot that merely floated to the front after the live arrangement's snapshot was
+    /// removed (e.g. a window in it closed).
+    var hasBeenSuperseded: Bool {
+        lastActiveAt != createdAt
+    }
 
     /// Returns all window IDs in this snapshot (zones + floating zone)
     var allWindowIds: Set<Int> {
