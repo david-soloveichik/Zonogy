@@ -177,6 +177,9 @@ enum GuardrailTests {
         if !WinShotLastActivePolicyTests.run() {
             allPassed = false
         }
+        if !WinShotSnapshotOccupantOrderTests.run() {
+            allPassed = false
+        }
         if !WinShotGapLayoutTests.run() {
             allPassed = false
         }

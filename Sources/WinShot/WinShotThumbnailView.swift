@@ -14,6 +14,7 @@ final class WinShotThumbnailView: NSView {
     private let imageContainerView: NSView  // Container for clipping
     private let deleteButton: NSButton
     private let selectionBorder: CALayer
+    private let iconStackView: NSStackView  // Centered row of app icons below the image
     private static let selectionColor = NSColor(calibratedRed: 0.15, green: 0.35, blue: 0.85, alpha: 1.0)
 
     var isSelected: Bool = false {
@@ -24,9 +25,14 @@ final class WinShotThumbnailView: NSView {
 
     private static let imageSize = NSSize(width: 160, height: 100)
     private static let borderGap: CGFloat = 6  // Gap between image and selection border
+    private static let iconSize: CGFloat = 16
+    private static let iconSpacing: CGFloat = 4
+    private static let iconRowTopGap: CGFloat = 4     // Between the image tile and the app-icon row
+    private static let iconRowBottomPad: CGFloat = 4  // Between the app-icon row and the view bottom
     private static let thumbnailSize = NSSize(
         width: imageSize.width + borderGap * 2,
-        height: imageSize.height + borderGap * 2
+        // Image tile (image + selection-border gap) above a centered row of app icons.
+        height: imageSize.height + borderGap * 2 + iconRowTopGap + iconSize + iconRowBottomPad
     )
     private static let imageCornerRadius: CGFloat = 8
     private static let borderCornerRadius: CGFloat = 12  // Slightly larger for the outer border
@@ -64,6 +70,16 @@ final class WinShotThumbnailView: NSView {
         selectionBorder.cornerRadius = Self.borderCornerRadius
         selectionBorder.isHidden = true
 
+        // Build the app-icon row: one icon per occupied zone (tiling zones ascending, then the
+        // floating-zone window).
+        iconStackView = NSStackView()
+        iconStackView.orientation = .horizontal
+        iconStackView.spacing = Self.iconSpacing
+        iconStackView.alignment = .centerY
+        for identity in snapshot.occupantsByZoneOrder {
+            iconStackView.addArrangedSubview(Self.makeIconView(for: identity))
+        }
+
         super.init(frame: NSRect(origin: .zero, size: Self.thumbnailSize))
 
         wantsLayer = true
@@ -75,25 +91,32 @@ final class WinShotThumbnailView: NSView {
         // Add subviews
         addSubview(imageContainerView)
         addSubview(deleteButton)
+        addSubview(iconStackView)
 
         // Add selection border on top
         layer?.addSublayer(selectionBorder)
         selectionBorder.zPosition = 100
 
-        // Setup constraints - image container is inset by borderGap on all sides
+        // Setup constraints - image container is inset by borderGap (left/right/top); the app-icon
+        // row sits centered below it, pinned to the view's bottom.
         imageContainerView.translatesAutoresizingMaskIntoConstraints = false
         deleteButton.translatesAutoresizingMaskIntoConstraints = false
+        iconStackView.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
             imageContainerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.borderGap),
             imageContainerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.borderGap),
             imageContainerView.topAnchor.constraint(equalTo: topAnchor, constant: Self.borderGap),
-            imageContainerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.borderGap),
+            imageContainerView.heightAnchor.constraint(equalToConstant: Self.imageSize.height),
 
             deleteButton.topAnchor.constraint(equalTo: imageContainerView.topAnchor, constant: 4),
             deleteButton.leadingAnchor.constraint(equalTo: imageContainerView.leadingAnchor, constant: 4),
             deleteButton.widthAnchor.constraint(equalToConstant: Self.deleteButtonSize),
             deleteButton.heightAnchor.constraint(equalToConstant: Self.deleteButtonSize),
+
+            iconStackView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            iconStackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.iconRowBottomPad),
+            iconStackView.heightAnchor.constraint(equalToConstant: Self.iconSize),
         ])
 
         deleteButton.target = self
@@ -115,10 +138,30 @@ final class WinShotThumbnailView: NSView {
 
     override func layout() {
         super.layout()
-        // Position selection border at the full bounds (outside the image)
-        selectionBorder.frame = bounds
+        // Wrap the selection border around the image tile only (not the app-icon row below it).
+        selectionBorder.frame = imageContainerView.frame.insetBy(dx: -Self.borderGap, dy: -Self.borderGap)
         // Update image layer to fill the container
         imageLayer.frame = imageContainerView.bounds
+    }
+
+    /// Builds a small app-icon view for a snapshot occupant. Prefers the running application's icon
+    /// (snapshots normally reference running apps, since a snapshot is removed when any of its windows
+    /// closes), and falls back to a generic placeholder when the bundle id is missing or the app
+    /// isn't currently found.
+    private static func makeIconView(for identity: WindowIdentity) -> NSImageView {
+        let runningApp = identity.bundleIdentifier.flatMap(ApplicationIdentity.runningApplication(bundleIdentifier:))
+        let icon = runningApp?.icon
+            ?? NSImage(systemSymbolName: "app", accessibilityDescription: "Application")
+            ?? NSImage()
+        let imageView = NSImageView(image: icon)
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.toolTip = runningApp?.localizedName ?? identity.bundleIdentifier ?? identity.windowTitle
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            imageView.widthAnchor.constraint(equalToConstant: Self.iconSize),
+            imageView.heightAnchor.constraint(equalToConstant: Self.iconSize),
+        ])
+        return imageView
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -129,13 +172,20 @@ final class WinShotThumbnailView: NSView {
         deleteButton.isHidden = true
     }
 
-    override func mouseUp(with event: NSEvent) {
-        // Check if click was on the delete button area - if so, ignore (button handles it)
-        let locationInView = convert(event.locationInWindow, from: nil)
-        if deleteButton.frame.contains(locationInView) {
-            return
+    /// Route clicks anywhere on the cell (the image or the app-icon row below it) to the thumbnail
+    /// itself so a click selects/restores the snapshot; only the delete button stays independently
+    /// interactive. Without this, a click on an icon could be swallowed by the NSImageView (an
+    /// NSControl subclass) instead of reaching `mouseUp`.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else {
+            return nil  // Outside the view's bounds — don't claim the click.
         }
-        // Click on thumbnail - request selection/restore
+        return hit === deleteButton ? deleteButton : self
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        // hitTest routes delete-button clicks to the button, so any mouseUp reaching the thumbnail is
+        // a click on the cell: request selection/restore.
         delegate?.thumbnailView(self, didClickToSelect: snapshotId)
     }
 
