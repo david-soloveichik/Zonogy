@@ -25,41 +25,6 @@ final class TargetingPreferencesViewController: NSViewController {
         headerDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(headerDescriptionLabel)
 
-        let dockMenusTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "DockMenus targets zone with focused window",
-            target: self,
-            action: #selector(dockMenusTargetsActiveWindowToggled(_:))
-        )
-        dockMenusTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockMenusTargetsActiveWindowCheckbox)
-        self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
-
-        let dockMenusTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "Windows from DockMenus replace the focused window in its zone."
-        )
-        dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
-        dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
-        dockMenusTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockMenusTargetsActiveWindowHintLabel)
-        self.dockMenusTargetsActiveWindowHintLabel = dockMenusTargetsActiveWindowHintLabel
-
-        let launcherShortcutTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "Launcher keyboard shortcut targets zone with focused window",
-            target: self,
-            action: #selector(launcherShortcutTargetsActiveWindowToggled(_:))
-        )
-        launcherShortcutTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(launcherShortcutTargetsActiveWindowCheckbox)
-        self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
-
-        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(            wrappingLabelWithString: "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
-        )
-        launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
-        launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
-        launcherShortcutTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(launcherShortcutTargetsActiveWindowHintLabel)
-        self.launcherShortcutTargetsActiveWindowHintLabel = launcherShortcutTargetsActiveWindowHintLabel
-
         let cmdTabTargetsActiveWindowCheckbox = NSButton(
             checkboxWithTitle: "CmdTab targets zone with focused window",
             target: self,
@@ -78,6 +43,41 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(cmdTabTargetsActiveWindowHintLabel)
         self.cmdTabTargetsActiveWindowHintLabel = cmdTabTargetsActiveWindowHintLabel
 
+        let launcherShortcutTargetsActiveWindowCheckbox = NSButton(
+            checkboxWithTitle: "Launcher keyboard shortcut targets zone with focused window",
+            target: self,
+            action: #selector(launcherShortcutTargetsActiveWindowToggled(_:))
+        )
+        launcherShortcutTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(launcherShortcutTargetsActiveWindowCheckbox)
+        self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
+
+        let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(            wrappingLabelWithString: "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
+        )
+        launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
+        launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
+        launcherShortcutTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(launcherShortcutTargetsActiveWindowHintLabel)
+        self.launcherShortcutTargetsActiveWindowHintLabel = launcherShortcutTargetsActiveWindowHintLabel
+
+        let dockMenusTargetsActiveWindowCheckbox = NSButton(
+            checkboxWithTitle: "DockMenus targets zone with focused window",
+            target: self,
+            action: #selector(dockMenusTargetsActiveWindowToggled(_:))
+        )
+        dockMenusTargetsActiveWindowCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(dockMenusTargetsActiveWindowCheckbox)
+        self.dockMenusTargetsActiveWindowCheckbox = dockMenusTargetsActiveWindowCheckbox
+
+        let dockMenusTargetsActiveWindowHintLabel = NSTextField(
+            wrappingLabelWithString: "Windows from DockMenus replace the focused window in its zone."
+        )
+        dockMenusTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
+        dockMenusTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
+        dockMenusTargetsActiveWindowHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(dockMenusTargetsActiveWindowHintLabel)
+        self.dockMenusTargetsActiveWindowHintLabel = dockMenusTargetsActiveWindowHintLabel
+
         let draggingNoteLabel = NSTextField(
             wrappingLabelWithString: "Dragging a window from DockMenus, CmdTab, or the Launcher always lets you place it into the zone you want."
         )
@@ -94,14 +94,7 @@ final class TargetingPreferencesViewController: NSViewController {
             headerDescriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             headerDescriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: headerDescriptionLabel.bottomAnchor, constant: 18),
-            dockMenusTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            dockMenusTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
-            dockMenusTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            dockMenusTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            cmdTabTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowHintLabel.bottomAnchor, constant: 18),
+            cmdTabTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: headerDescriptionLabel.bottomAnchor, constant: 18),
             cmdTabTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             cmdTabTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: cmdTabTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
@@ -115,7 +108,14 @@ final class TargetingPreferencesViewController: NSViewController {
             launcherShortcutTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             launcherShortcutTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            draggingNoteLabel.topAnchor.constraint(equalTo: launcherShortcutTargetsActiveWindowHintLabel.bottomAnchor, constant: 20),
+            dockMenusTargetsActiveWindowCheckbox.topAnchor.constraint(equalTo: launcherShortcutTargetsActiveWindowHintLabel.bottomAnchor, constant: 18),
+            dockMenusTargetsActiveWindowCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            dockMenusTargetsActiveWindowHintLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowCheckbox.bottomAnchor, constant: 6),
+            dockMenusTargetsActiveWindowHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            dockMenusTargetsActiveWindowHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            draggingNoteLabel.topAnchor.constraint(equalTo: dockMenusTargetsActiveWindowHintLabel.bottomAnchor, constant: 20),
             draggingNoteLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             draggingNoteLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
         ])
