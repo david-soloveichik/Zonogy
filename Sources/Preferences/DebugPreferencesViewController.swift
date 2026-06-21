@@ -76,7 +76,7 @@ final class DebugPreferencesViewController: NSViewController {
         self.disablePrePositionCheckbox = disablePrePositionCheckbox
 
         let disablePrePositionHintLabel = NSTextField(
-            wrappingLabelWithString: "When on, Zonogy skips moving a minimized window to its target frame before unminimizing; the window is positioned only after it is restored."
+            wrappingLabelWithString: "When on, Zonogy skips moving a minimized window to its destination frame before unminimizing; the window is positioned only after it is restored."
         )
         disablePrePositionHintLabel.font = NSFont.systemFont(ofSize: 12)
         disablePrePositionHintLabel.textColor = .secondaryLabelColor

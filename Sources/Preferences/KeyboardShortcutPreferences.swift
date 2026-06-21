@@ -57,12 +57,12 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
             // Target Navigation
-            case .navigateUp: return "Target Zone Up"
-            case .navigateDown: return "Target Zone Down"
-            case .navigateLeft: return "Target Zone Left"
-            case .navigateRight: return "Target Zone Right"
-            case .focusTargetedWindow: return "Focus Targeted Window"
-            case .toggleTargetZoneWithFocusedWindow: return "Toggle Target Zone w/ Focused Window"
+            case .navigateUp: return "Destination Up"
+            case .navigateDown: return "Destination Down"
+            case .navigateLeft: return "Destination Left"
+            case .navigateRight: return "Destination Right"
+            case .focusTargetedWindow: return "Focus Destination Window"
+            case .toggleTargetZoneWithFocusedWindow: return "Toggle Destination w/ Focused Window"
             // Window Focus Navigation
             case .focusWindowUp: return "Focus Window Up"
             case .focusWindowDown: return "Focus Window Down"
@@ -149,8 +149,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     /// Actions that are disabled by default (no shortcut assigned out of the box).
-    /// All actions have a default shortcut out of the box: "Focus Targeted Window" defaults to
-    /// Control-Command-Return and "Toggle Target Zone w/ Focused Window" to Control-Command-\.
+    /// All actions have a default shortcut out of the box: "Focus Destination Window" defaults to
+    /// Control-Command-Return and "Toggle Destination w/ Focused Window" to Control-Command-\.
     private static let defaultClearedActions: Set<ShortcutAction> = []
 
     /// Groups of actions that must share a single modifier combination. The four window-focus

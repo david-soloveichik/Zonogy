@@ -20,9 +20,9 @@ final class TargetingPreferencesViewController: NSViewController {
     private static func hint(for mode: CmdTabActiveWindowTargetingMode) -> String {
         switch mode {
         case .off:
-            return "CmdTab always opens on Zonogy's separate targeted zone."
+            return "CmdTab always opens on Zonogy's separate destination zone."
         case .currentAppOnly:
-            return "Switching within the current app (⌘`) replaces the focused window in its zone. Switching among all windows (⌘⇥) uses the standard target."
+            return "Switching within the current app (⌘`) replaces the focused window in its zone. Switching among all windows (⌘⇥) uses the standard destination."
         case .allWindows:
             return "Both all-windows (⌘⇥) and current-app (⌘`) switching replace the focused window in its zone."
         }
@@ -37,14 +37,14 @@ final class TargetingPreferencesViewController: NSViewController {
         containerView.addSubview(titleLabel)
 
         let headerDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "For some actions, replacing the window you're currently using feels more natural than opening an additional one. With an option below enabled, your choice replaces that window instead of opening into Zonogy's separate targeted zone."
+            wrappingLabelWithString: "For some actions, replacing the window you're currently using feels more natural than opening an additional one. With an option below enabled, your choice replaces that window instead of opening into Zonogy's separate destination zone."
         )
         headerDescriptionLabel.font = NSFont.systemFont(ofSize: 13)
         headerDescriptionLabel.textColor = .secondaryLabelColor
         headerDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(headerDescriptionLabel)
 
-        let cmdTabTargetingLabel = NSTextField(labelWithString: "CmdTab targets zone with focused window:")
+        let cmdTabTargetingLabel = NSTextField(labelWithString: "CmdTab replaces focused window:")
         cmdTabTargetingLabel.font = NSFont.systemFont(ofSize: 13)
         cmdTabTargetingLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(cmdTabTargetingLabel)
@@ -68,7 +68,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.cmdTabTargetingHintLabel = cmdTabTargetingHintLabel
 
         let launcherShortcutTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "Launcher keyboard shortcut targets zone with focused window",
+            checkboxWithTitle: "Launcher keyboard shortcut replaces focused window",
             target: self,
             action: #selector(launcherShortcutTargetsActiveWindowToggled(_:))
         )
@@ -77,7 +77,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.launcherShortcutTargetsActiveWindowCheckbox = launcherShortcutTargetsActiveWindowCheckbox
 
         let launcherShortcutTargetsActiveWindowHintLabel = NSTextField(
-            wrappingLabelWithString: "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original target. When off, the first press uses the original target."
+            wrappingLabelWithString: "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original destination. When off, the first press uses the original destination."
         )
         launcherShortcutTargetsActiveWindowHintLabel.font = NSFont.systemFont(ofSize: 12)
         launcherShortcutTargetsActiveWindowHintLabel.textColor = .secondaryLabelColor
@@ -86,7 +86,7 @@ final class TargetingPreferencesViewController: NSViewController {
         self.launcherShortcutTargetsActiveWindowHintLabel = launcherShortcutTargetsActiveWindowHintLabel
 
         let dockMenusTargetsActiveWindowCheckbox = NSButton(
-            checkboxWithTitle: "DockMenus targets zone with focused window",
+            checkboxWithTitle: "DockMenus replaces focused window",
             target: self,
             action: #selector(dockMenusTargetsActiveWindowToggled(_:))
         )
