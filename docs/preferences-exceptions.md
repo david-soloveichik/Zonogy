@@ -35,7 +35,7 @@ Double-clicking a row opens the editor sheet for that app:
 ### Other
 
 - **Prefer app's main window.** Some apps have logically one main window (e.g., Mail.app) plus various secondary ones. By default Launcher and DockMenus activate the app's most-recently-used window; this option instead tries to pick the main window (by the heuristic of choosing the lowest internal window ID).
-- **Disable Control-Command mouse gestures.** Zonogy normally intercepts Control-Command clicks for zone targeting, and Control-Command drags for moving windows between tiled and floating zones. For apps that use Control-Command for their own gestures, this option lets the app receive them instead.
+- **Disable Control-Command mouse gestures.** Zonogy normally intercepts Control-Command clicks for setting the destination zone, and Control-Command drags for moving windows between tiled and floating zones. For apps that use Control-Command for their own gestures, this option lets the app receive them instead.
 - **Excluded window titles.** Comma-separated list of exact titles to ignore from this app.
 
 ## Editing config.json directly

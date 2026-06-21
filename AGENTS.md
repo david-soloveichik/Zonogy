@@ -1,7 +1,6 @@
 # Rules for AI Agents working on Zonogy
 
 - Agent should not read or modify files in ./PLANNING/ unless explicitly told to.
-- Unless otherwise told, Agent should read README.md and SPECIFICATION.md files since they give the big-picture perspective on the project.
 - The desired specification is in SPECIFICATION.md. If told to _implement the updated specification_, Agent should use `git diff SPECIFICATION.md` to see uncommitted changes and implement only those changes. (Ignoring minor formatting changes in SPECIFICATION.md file.) Afterward, if Agent noticed errors in the updates to the specification, it should tell the user what they are and offer to fix them.
 - IMPORTANT: When Agent is asked to commit, the commit message should identify the Agent (eg claude or codex) at the end.
 - After making changes to code files, the Agent should rebuild the tool to make sure that there are no errors, and to make sure that the user can easily execute the new version.
