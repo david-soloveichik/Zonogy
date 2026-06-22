@@ -51,7 +51,7 @@ final class PreferencesWindowController: NSWindowController {
         // Keyboard Shortcuts tab
         let shortcutsVC = KeyboardShortcutsViewController()
         let shortcutsItem = NSTabViewItem(viewController: shortcutsVC)
-        shortcutsItem.label = "Keyboard Shortcuts"
+        shortcutsItem.label = "Shortcuts"
         shortcutsItem.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Shortcuts")
         tabVC.addTabViewItem(shortcutsItem)
 
@@ -65,14 +65,14 @@ final class PreferencesWindowController: NSWindowController {
         // Launcher tab
         let launcherVC = LauncherPreferencesViewController()
         let launcherItem = NSTabViewItem(viewController: launcherVC)
-        launcherItem.label = "Launcher Items"
+        launcherItem.label = "Launcher"
         launcherItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Launcher")
         tabVC.addTabViewItem(launcherItem)
 
         // WinShot Snapshots tab
         let winShotVC = WinShotSnapshotsPreferencesViewController()
         let winShotItem = NSTabViewItem(viewController: winShotVC)
-        winShotItem.label = "WinShot Snapshots"
+        winShotItem.label = "WinShot"
         winShotItem.image = NSImage(systemSymbolName: "camera", accessibilityDescription: "WinShot Snapshots")
         tabVC.addTabViewItem(winShotItem)
 
