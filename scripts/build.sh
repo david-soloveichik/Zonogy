@@ -30,6 +30,25 @@ cp "$PROJECT_DIR/.build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
 # Copy Info.plist
 cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/"
 
+# Stamp the build number (git commit count) and short hash into the bundle's
+# Info.plist. Shown as "Version 1.0 (805 · ef8f4d6)" in Preferences and logs.
+# A trailing "+" on the hash marks a build from a dirty working tree. Stamping
+# happens before code signing so signatures cover the final plist.
+PLIST="$APP_BUNDLE/Contents/Info.plist"
+GIT_COUNT="$(git -C "$PROJECT_DIR" rev-list --count HEAD 2>/dev/null || true)"
+GIT_SHA="$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+if [ -n "$GIT_SHA" ] && [ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]; then
+    GIT_SHA="${GIT_SHA}+"
+fi
+if [ -n "$GIT_COUNT" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GIT_COUNT" "$PLIST"
+fi
+if [ -n "$GIT_SHA" ]; then
+    /usr/libexec/PlistBuddy -c "Add :ZonogyGitHash string $GIT_SHA" "$PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Set :ZonogyGitHash $GIT_SHA" "$PLIST"
+fi
+echo "Stamped build: ${GIT_COUNT:-?} · ${GIT_SHA:-?}"
+
 # Copy resources
 cp "$PROJECT_DIR/Resources/defaults.json" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/Resources/icon_menubar.svg" "$APP_BUNDLE/Contents/Resources/"
