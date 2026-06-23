@@ -1156,6 +1156,16 @@ extension AppController {
             return
         }
 
+        // ActiveFit owns a window's frame while it is revealed, so — like the Sticky Resize restore
+        // and zone sync paths — leave revealed windows alone here instead of snapping them to the
+        // zone frame. Moving one would desync its actual position from ActiveFit's cached reveal
+        // state (the window would sit at rest while resize-bar avoidance and frame-retry suppression
+        // still key off the reveal frame). ActiveFit returns it to rest when focus next moves to
+        // another managed window (it deliberately keeps reveal on focus to an unmanaged window).
+        if activeFitState?.windowId == windowId {
+            return
+        }
+
         defer { manualResizeDetachedWindowIds.remove(windowId) }
 
         guard let managed = windowController.window(withId: windowId),
