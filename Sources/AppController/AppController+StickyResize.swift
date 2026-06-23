@@ -120,6 +120,15 @@ extension AppController {
         zoneIndex: Int,
         reason: String
     ) -> Bool {
+        // While ActiveFit has this window in reveal mode it owns the frame (and already applies the
+        // remembered sticky size as its reveal candidate). Restoring the rest frame here only undoes
+        // the reveal, and ActiveFit — which runs right after on every focus change — shifts it back;
+        // a burst of focus/main-window notifications turns that round-trip into visible thrashing.
+        if activeFitState?.windowId == managed.windowId {
+            Logger.debug("StickyResize: skipping restore for window \(managed.windowId); ActiveFit owns reveal frame")
+            return false
+        }
+
         guard let context = screenContexts[screenId],
               let descriptor = descriptor(for: screenId),
               let zone = context.zoneController.zone(at: zoneIndex) else {
