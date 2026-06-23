@@ -76,7 +76,7 @@ extension AppController {
 
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?) {
         guard PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
-            isControlCommandHeld: shouldApplyControlCommandExternalDragGestures(),
+            gestureModifiersHeld: shouldApplyGestureModifierExternalDrag(),
             isLeftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
             hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
         ),
@@ -99,7 +99,7 @@ extension AppController {
         placeholderExternalDragOverlayTeardownWorkItem?.cancel()
         placeholderExternalDragOverlayTeardownWorkItem = nil
 
-        guard !shouldApplyControlCommandExternalDragGestures() else {
+        guard !shouldApplyGestureModifierExternalDrag() else {
             tearDownPlaceholderExternalDragOverlay()
             return
         }

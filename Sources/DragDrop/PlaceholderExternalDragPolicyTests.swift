@@ -15,7 +15,7 @@ enum PlaceholderExternalDragPolicyTests {
 
         assert(
             !PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
-                isControlCommandHeld: false,
+                gestureModifiersHeld: false,
                 isLeftMouseButtonDown: true,
                 hasObservedRealPlaceholderExternalDrag: false
             ),
@@ -24,7 +24,7 @@ enum PlaceholderExternalDragPolicyTests {
 
         assert(
             PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
-                isControlCommandHeld: false,
+                gestureModifiersHeld: false,
                 isLeftMouseButtonDown: true,
                 hasObservedRealPlaceholderExternalDrag: true
             ),
@@ -33,16 +33,16 @@ enum PlaceholderExternalDragPolicyTests {
 
         assert(
             !PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
-                isControlCommandHeld: true,
+                gestureModifiersHeld: true,
                 isLeftMouseButtonDown: true,
                 hasObservedRealPlaceholderExternalDrag: true
             ),
-            "expected resume overlay to stay hidden while Control-Command interception is active"
+            "expected resume overlay to stay hidden while gesture-modifier interception is active"
         )
 
         assert(
             PlaceholderExternalDragPolicy.shouldPromotePlaceholderToInterceptedOverlay(
-                isControlCommandHeld: true,
+                gestureModifiersHeld: true,
                 hasObservedRealPlaceholderExternalDrag: true
             ),
             "expected placeholder promotion to intercepted overlay once a real placeholder drag is observed"
@@ -50,7 +50,7 @@ enum PlaceholderExternalDragPolicyTests {
 
         assert(
             !PlaceholderExternalDragPolicy.shouldPromotePlaceholderToInterceptedOverlay(
-                isControlCommandHeld: true,
+                gestureModifiersHeld: true,
                 hasObservedRealPlaceholderExternalDrag: false
             ),
             "expected placeholder promotion to be rejected for stale pasteboard-only gestures"

@@ -13,6 +13,9 @@ enum UserDefaultsKeys {
     // MARK: - General
     static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
 
+    // MARK: - Mouse Gestures
+    static let mouseGestureModifiers = "Zonogy.mouseGestures.modifiers"
+
     // MARK: - Debug
     static let debugLogToFile = "Zonogy.debug.logToFile"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"

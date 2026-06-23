@@ -18,7 +18,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     private var disallowEmptyTitleCheckbox: NSButton!
     private var snapToZoneCheckbox: NSButton!
     private var doNotResizeWidthCheckbox: NSButton!
-    private var disableControlCommandMouseGesturesCheckbox: NSButton!
+    private var disableMouseGesturesCheckbox: NSButton!
     private var treatAXUnknownFullWidthAsFullScreenCheckbox: NSButton!
     private var excludedTitlesLabel: NSTextField!
     private var excludedTitlesField: NSTextField!
@@ -160,19 +160,19 @@ final class ExceptionRuleEditViewController: NSViewController {
         ])
         topAnchor = doNotResizeWidthCheckbox.bottomAnchor
 
-        disableControlCommandMouseGesturesCheckbox = makeCheckbox(
-            title: "Disable Control-Command mouse gestures",
-            tooltip: "Let this app receive Control-Command clicks and drags instead of Zonogy's mouse-gesture overrides"
+        disableMouseGesturesCheckbox = makeCheckbox(
+            title: "Disable mouse gestures",
+            tooltip: "Let this app receive the gesture-modifier clicks and drags instead of Zonogy's mouse-gesture overrides"
         )
-        container.addSubview(disableControlCommandMouseGesturesCheckbox)
-        exceptionControls.append(disableControlCommandMouseGesturesCheckbox)
+        container.addSubview(disableMouseGesturesCheckbox)
+        exceptionControls.append(disableMouseGesturesCheckbox)
 
         NSLayoutConstraint.activate([
-            disableControlCommandMouseGesturesCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            disableControlCommandMouseGesturesCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            disableControlCommandMouseGesturesCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            disableMouseGesturesCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            disableMouseGesturesCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            disableMouseGesturesCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
-        topAnchor = disableControlCommandMouseGesturesCheckbox.bottomAnchor
+        topAnchor = disableMouseGesturesCheckbox.bottomAnchor
 
         disallowEmptyTitleCheckbox = makeCheckbox(
             title: "Disallow empty title windows",
@@ -334,7 +334,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         hasMainWindowCheckbox.state = (originalEntry.rule.hasMainWindow == true) ? .on : .off
         snapToZoneCheckbox.state = (originalEntry.rule.snapToZoneOnSelfResize == true) ? .on : .off
         doNotResizeWidthCheckbox.state = (originalEntry.rule.doNotResizeWidth == true) ? .on : .off
-        disableControlCommandMouseGesturesCheckbox.state = (originalEntry.rule.disableControlCommandMouseGestures == true) ? .on : .off
+        disableMouseGesturesCheckbox.state = (originalEntry.rule.disableMouseGestures == true) ? .on : .off
         treatAXUnknownFullWidthAsFullScreenCheckbox.state = (originalEntry.rule.treatAXUnknownFullWidthAsFullScreen == true) ? .on : .off
         disallowEmptyTitleCheckbox.state = (originalEntry.rule.disallowEmptyTitleWindows == true) ? .on : .off
         ignoreActivationPolicyCheckbox.state = (originalEntry.rule.ignoreActivationPolicy == true) ? .on : .off
@@ -382,7 +382,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
             snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
             doNotResizeWidth: doNotResizeWidthCheckbox.state == .on ? true : nil,
-            disableControlCommandMouseGestures: disableControlCommandMouseGesturesCheckbox.state == .on ? true : nil,
+            disableMouseGestures: disableMouseGesturesCheckbox.state == .on ? true : nil,
             treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
             requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,
             manageNonStandardWindows: manageNonStandardWindowsCheckbox.state == .on ? true : nil,

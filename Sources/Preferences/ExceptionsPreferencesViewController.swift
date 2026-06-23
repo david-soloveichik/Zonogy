@@ -36,8 +36,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let explanationText = """
         Zonogy manages windows that have: a standard window role, a zoom button, \
         height ≥ 250px, and are movable. Use this list to create exceptions for \
-        specific apps that need different management, different Control-Command \
-        mouse behavior, or should be ignored entirely.
+        specific apps that need different management, different mouse-gesture \
+        behavior, or should be ignored entirely.
         """
         explanationLabel = NSTextField(wrappingLabelWithString: explanationText)
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false

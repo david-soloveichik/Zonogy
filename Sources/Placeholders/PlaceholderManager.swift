@@ -513,7 +513,7 @@ final class PlaceholderContentView: NSView {
     }
 
     /// Flashes a vivid blue border that animates to the resting state, providing
-    /// immediate visual feedback for a Control+Command click.
+    /// immediate visual feedback for a gesture-modifier click.
     func flashBorder() {
         guard let layer = layer else { return }
         let restingColor = isTargeted ? targetedBorderColor : normalBorderColor

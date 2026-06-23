@@ -1,6 +1,6 @@
 import AppKit
 
-/// Bridges Control-Command external drags over tiling windows and placeholders into zone placeholder behavior.
+/// Bridges gesture-modifier external drags over tiling windows and placeholders into zone placeholder behavior.
 extension AppController {
     var isManagedWindowDragInProgress: Bool {
         dragDropCoordinator.isDragging || floatingDragHandler.isActive
@@ -22,7 +22,7 @@ extension AppController {
         guard let emptyZoneKey = resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
               placeholderCoordinator.hasPlaceholder(for: emptyZoneKey),
               PlaceholderExternalDragPolicy.shouldPromotePlaceholderToInterceptedOverlay(
-                isControlCommandHeld: shouldApplyControlCommandExternalDragGestures(),
+                gestureModifiersHeld: shouldApplyGestureModifierExternalDrag(),
                 hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
               ) else {
             return false
@@ -82,7 +82,7 @@ extension AppController {
 
 extension AppController {
     func dragOverlayManager(_ manager: DragOverlayManager, shouldAcceptExternalDropFor key: ZoneKey) -> Bool {
-        guard shouldApplyControlCommandExternalDragGestures(),
+        guard shouldApplyGestureModifierExternalDrag(),
               !isManagedWindowDragInProgress,
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint = currentCursorAccessibilityPoint(),

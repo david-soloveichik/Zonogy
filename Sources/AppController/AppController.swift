@@ -104,7 +104,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// This avoids treating stale `.drag` pasteboard contents as a live drag.
     internal var hasObservedRealPlaceholderExternalDragThisGesture = false
     /// Captured bundle identifier for the app that started the current external drag gesture.
-    internal var controlCommandExternalDragSourceBundleIdentifier: String?
+    internal var externalDragSourceBundleIdentifier: String?
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
     internal let minimizeLoopGuard = MinimizeLoopGuard()

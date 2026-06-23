@@ -59,7 +59,7 @@ final class PlaceholderWindow {
         contentView?.isTargeted = targeted
     }
 
-    /// Flash a vivid blue border to confirm a Control+Command-click targeting gesture.
+    /// Flash a vivid blue border to confirm a gesture-modifier click targeting gesture.
     func flashBorder() {
         contentView?.flashBorder()
     }

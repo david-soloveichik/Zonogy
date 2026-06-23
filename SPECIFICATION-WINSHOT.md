@@ -30,10 +30,10 @@ Opening the chooser captures the current arrangement immediately, and a snapshot
 
 ## Chooser Window
 
-- Control-Cmd-Tab shows a floating horizontal strip chooser (like Command-Tab) on the active screen.
-- Hold Control-Cmd and repeatedly press Tab/Shift-Tab to cycle through snapshots in forward or reverse order (respectively).
+- The "Show WinShot Switcher" shortcut (default Control-Cmd-Tab) shows a floating horizontal strip chooser (like Command-Tab) on the active screen.
+- Hold the shortcut's modifiers and repeatedly press its key to cycle forward through snapshots; add Shift to cycle in reverse. (If the configured shortcut already includes Shift, reverse cycling is unavailable.)
 - Escape key or click outside to cancel.
-- Release Control-Cmd to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
+- Release the shortcut's modifiers to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
 - Red "x" button on each snapshot allows deletion (appears on hover).
 - Thumbnails sit in a single horizontal row, most recent on the left. Each thumbnail is placed by when its arrangement was last on screen (not when it was first set up). The currently live arrangement counts as on screen up to the present. The gap between two consecutive thumbnails encodes the time elapsed between those last-on-screen moments. Spacing is relative to the whole set: intervals are scaled logarithmically — shortest tight, longest wide — so differences stay visible whether the set spans seconds or days. (Roughly even spacing stays uniformly tight; gaps open only where intervals genuinely differ.)
 - Under each thumbnail, two centered rows of application icons describe the snapshot: the top row shows one icon per occupied tiling zone, ordered by zone index, and the bottom row shows the floating-zone window's icon, if any.

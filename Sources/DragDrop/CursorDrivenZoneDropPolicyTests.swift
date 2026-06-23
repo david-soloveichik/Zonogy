@@ -21,37 +21,37 @@ enum CursorDrivenZoneDropPolicyTests {
             CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
                 hoveredZoneKey: emptyZone,
                 hoveredZoneIsEmpty: true,
-                isControlCommandHeld: false,
-                policy: .emptyZonesOnlyUnlessControlCommand
+                gestureModifiersHeld: false,
+                policy: .emptyZonesOnlyUnlessGestureModifiers
             ) == emptyZone,
-            "expected empty zones to remain draggable without Control-Command"
+            "expected empty zones to remain draggable without the gesture modifiers"
         )
 
         assert(
             CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
                 hoveredZoneKey: occupiedZone,
                 hoveredZoneIsEmpty: false,
-                isControlCommandHeld: false,
-                policy: .emptyZonesOnlyUnlessControlCommand
+                gestureModifiersHeld: false,
+                policy: .emptyZonesOnlyUnlessGestureModifiers
             ) == nil,
-            "expected occupied zones to stay unhighlighted without Control-Command"
+            "expected occupied zones to stay unhighlighted without the gesture modifiers"
         )
 
         assert(
             CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
                 hoveredZoneKey: occupiedZone,
                 hoveredZoneIsEmpty: false,
-                isControlCommandHeld: true,
-                policy: .emptyZonesOnlyUnlessControlCommand
+                gestureModifiersHeld: true,
+                policy: .emptyZonesOnlyUnlessGestureModifiers
             ) == occupiedZone,
-            "expected occupied zones to become valid when Control-Command is held"
+            "expected occupied zones to become valid when the gesture modifiers are held"
         )
 
         assert(
             CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
                 hoveredZoneKey: occupiedZone,
                 hoveredZoneIsEmpty: false,
-                isControlCommandHeld: false,
+                gestureModifiersHeld: false,
                 policy: .allZones
             ) == occupiedZone,
             "expected unrestricted drags to keep occupied-zone hover"

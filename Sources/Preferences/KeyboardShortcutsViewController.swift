@@ -7,6 +7,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     private var tableView: NSTableView!
     private var scrollView: NSScrollView!
     private var resetAllButton: NSButton!
+    private var mouseModifiersButton: NSButton!
     private let actions = KeyboardShortcutPreferences.ShortcutAction.allCases
     private var recordingRow: Int?
     private var recordingInterceptor: ShortcutRecordingInterceptor?
@@ -23,6 +24,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 
         setupTableView(in: containerView)
         setupResetButton(in: containerView)
+        setupMouseModifiersButton(in: containerView)
 
         self.view = containerView
         self.preferredContentSize = NSSize(width: 580, height: 525)
@@ -79,6 +81,20 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         NSLayoutConstraint.activate([
             resetAllButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
             resetAllButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+    }
+
+    /// Button (bottom-left) opening the editor for the mouse-gesture modifiers — the keyboard
+    /// modifiers that activate Zonogy's click/drag gestures, which aren't part of the table above.
+    private func setupMouseModifiersButton(in container: NSView) {
+        mouseModifiersButton = NSButton(title: "Mouse Modifiers…", target: self, action: #selector(editMouseModifiers))
+        mouseModifiersButton.translatesAutoresizingMaskIntoConstraints = false
+        mouseModifiersButton.bezelStyle = .rounded
+        container.addSubview(mouseModifiersButton)
+
+        NSLayoutConstraint.activate([
+            mouseModifiersButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
+            mouseModifiersButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
         ])
     }
 
@@ -326,13 +342,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         if modifiers.contains(.maskAlternate) { carbonModifiers |= UInt32(optionKey) }
         if modifiers.contains(.maskShift) { carbonModifiers |= UInt32(shiftKey) }
 
-        // Require at least one modifier (except for function keys)
-        let functionKeyCodes: Set<Int> = [
-            kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6,
-            kVK_F7, kVK_F8, kVK_F9, kVK_F10, kVK_F11, kVK_F12
-        ]
-        let isFunctionKey = functionKeyCodes.contains(Int(keyCode))
-        if carbonModifiers == 0 && !isFunctionKey {
+        // A modifier-free key is accepted only for non-hold-to-commit actions and only for function
+        // keys. Shared with the load path via ShortcutAction.accepts.
+        guard action.accepts(keyCode: Int(keyCode), modifiers: carbonModifiers) else {
             return
         }
 
@@ -386,6 +398,14 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     @objc private func resetSingleShortcut(_ sender: ShortcutAccessoryButton) {
         KeyboardShortcutPreferences.shared.resetToDefault(action: sender.shortcutAction)
         tableView.reloadData()
+    }
+
+    @objc private func editMouseModifiers() {
+        let modifiersVC = MouseGestureModifierViewController()
+        modifiersVC.onSave = { modifiers in
+            MouseGestureModifierPreferences.shared.update(modifiers)
+        }
+        presentAsSheet(modifiersVC)
     }
 
     @objc private func resetAllShortcuts() {

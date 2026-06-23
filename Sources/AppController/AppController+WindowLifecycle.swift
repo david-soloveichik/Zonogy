@@ -554,7 +554,7 @@ extension AppController {
 
         let isFloating = isWindowInFloatingZone(windowId)
 
-        if isFloating && !isControlCommandModifierHeld {
+        if isFloating && !areGestureModifiersHeld {
             let floatingScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
             floatingDragHandler.beginDrag(windowId: windowId, originScreenId: floatingScreenId)
             Logger.debug("Floating floating zone drag began for window \(windowId)")
@@ -601,7 +601,7 @@ extension AppController {
         }
         let result = dragDropCoordinator.endDragSession(windowId: windowId, finalFrame: finalFrame)
 
-        // Re-check after zone-drag teardown: releasing Control-Command on the same
+        // Re-check after zone-drag teardown: releasing the gesture modifiers on the same
         // mouse-up can resume a floating drag inside `endDragSession`.
         if finishFloatingDragIfActive(windowId: windowId, finalFrame: finalFrame) {
             return
@@ -620,7 +620,7 @@ extension AppController {
            !result.didResolveDrop {
             if result.originatedFromFloating {
                 // Floating-originated drag cancelled (e.g., dropped over empty zone with
-                // Control-Command held). Re-establish as a normal floating drop so
+                // the gesture modifiers held). Re-establish as a normal floating drop so
                 // cross-screen swaps work correctly instead of minimizing occupants.
                 if !isWindowInFloatingZone(windowId) {
                     // Mid-drag promotion cleared the floating zone; reassign to origin first.
@@ -737,7 +737,7 @@ extension AppController {
         }
         clearManagedWindowZone(managed)
         // `clearManagedWindowZone` drops ActiveFit suppression. Restore it so
-        // releasing Control-Command mid-drag cannot trigger a reveal/rest move
+        // releasing the gesture modifiers mid-drag cannot trigger a reveal/rest move
         // while we are still dragging the window.
         activeFitSuspendForDrag(windowId: windowId)
 
@@ -759,7 +759,7 @@ extension AppController {
             windowId: windowId,
             originScreenId: destinationScreenId,
             originZoneKey: originZoneKey,
-            requiresControlCommand: true
+            requiresGestureModifiers: true
         )
         floatingDragHandler.updateDrag(frame: frame)
 

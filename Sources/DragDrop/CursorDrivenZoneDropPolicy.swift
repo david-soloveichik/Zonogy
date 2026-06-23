@@ -3,12 +3,12 @@ import CoreGraphics
 /// Pure policy for which tiling zones may highlight and accept cursor-driven drops.
 enum CursorDrivenZoneDropPolicy {
     case allZones
-    case emptyZonesOnlyUnlessControlCommand
+    case emptyZonesOnlyUnlessGestureModifiers
 
     static func effectiveTilingZoneHover(
         hoveredZoneKey: ZoneKey?,
         hoveredZoneIsEmpty: Bool?,
-        isControlCommandHeld: Bool,
+        gestureModifiersHeld: Bool,
         policy: CursorDrivenZoneDropPolicy
     ) -> ZoneKey? {
         guard let hoveredZoneKey,
@@ -19,8 +19,8 @@ enum CursorDrivenZoneDropPolicy {
         switch policy {
         case .allZones:
             return hoveredZoneKey
-        case .emptyZonesOnlyUnlessControlCommand:
-            if hoveredZoneIsEmpty || isControlCommandHeld {
+        case .emptyZonesOnlyUnlessGestureModifiers:
+            if hoveredZoneIsEmpty || gestureModifiersHeld {
                 return hoveredZoneKey
             }
             return nil

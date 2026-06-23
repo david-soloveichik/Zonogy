@@ -138,6 +138,12 @@ enum GuardrailTests {
         if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }
+        if !MouseGestureModifierPreferencesTests.run() {
+            allPassed = false
+        }
+        if !ShortcutActionModifierRequirementTests.run() {
+            allPassed = false
+        }
         if !DockMenusBehaviorPreferencesStoreTests.run() {
             allPassed = false
         }
@@ -163,6 +169,9 @@ enum GuardrailTests {
             allPassed = false
         }
         if !WinShotChooserInitialSelectionPolicyTests.run() {
+            allPassed = false
+        }
+        if !WinShotChooserCyclePolicyTests.run() {
             allPassed = false
         }
         if !WinShotChooserSelectionRestorePolicyTests.run() {

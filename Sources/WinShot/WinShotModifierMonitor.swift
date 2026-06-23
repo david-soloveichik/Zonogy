@@ -3,7 +3,7 @@ import AppKit
 import Carbon
 
 protocol WinShotModifierMonitorDelegate: AnyObject {
-    /// Called when the required modifier keys (Control-Command) are released
+    /// Called when any of the chooser's required modifier keys are released
     func winShotModifierMonitorDidReleaseModifiers(_ monitor: WinShotModifierMonitor)
 }
 
@@ -14,8 +14,15 @@ final class WinShotModifierMonitor {
     private var localMonitor: Any?
     private(set) var isActive = false
 
-    /// Start monitoring for modifier key releases
-    func start() {
+    /// Modifiers that must stay held to keep the chooser open; releasing any of them confirms the
+    /// selection. Derived from the configured "Show WinShot Switcher" shortcut.
+    private var requiredModifiers: NSEvent.ModifierFlags = [.control, .command]
+
+    /// Start monitoring for modifier key releases.
+    /// - Parameter requiredModifiers: the modifier combination whose release confirms the selection.
+    func start(requiredModifiers: NSEvent.ModifierFlags) {
+        self.requiredModifiers = requiredModifiers
+
         guard !isActive else { return }
 
         // Monitor flagsChanged events globally (when our app is not focused)
@@ -52,12 +59,9 @@ final class WinShotModifierMonitor {
     private func handleFlagsChanged(_ event: NSEvent) {
         let current = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        // Check if required modifiers (Control-Command) were released
-        let hasControl = current.contains(.control)
-        let hasCommand = current.contains(.command)
-
-        if !hasControl || !hasCommand {
-            Logger.debug("WinShot: Modifier release detected (control: \(hasControl), command: \(hasCommand))")
+        // Confirm the selection once any required modifier is released.
+        if !current.contains(requiredModifiers) {
+            Logger.debug("WinShot: Modifier release detected (held: \(current.rawValue), required: \(requiredModifiers.rawValue))")
             delegate?.winShotModifierMonitorDidReleaseModifiers(self)
         }
     }

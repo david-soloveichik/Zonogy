@@ -74,6 +74,8 @@ Every managed window (from other applications) receives a sequential `windowId` 
 
 ## User Interactions
 
+> Note: For simplicity, this specification refers to keyboard shortcuts and mouse-gesture modifiers by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
+
 ### Tiling Layout and Spacing
 
 Tiling zones have indexes (1, 2, 3). When tiling zones are added or removed on a screen, remaining zones reindex sequentially and the tiling zones on that screen are re-tiled to split the screen as follows:
@@ -149,7 +151,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 **Target selection:**
 
 - Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher.
-- Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableControlCommandMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
+- Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
 - Whenever a window is placed into the targeted tiling zone: retarget using this priority:
@@ -255,7 +257,7 @@ Placeholder windows and the add-zone indicator accept external drops so the user
 
 Dragging external content over an empty-zone placeholder shows the same full-screen blue zone-overlay UI used for tiled-window drags, with that placeholder's zone highlighted.
 
-Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-screen zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableControlCommandMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
+Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-screen zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
 
 **Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone, targets the lowest-index empty tiling zone on that screen, and then opens the file the same way.
 
@@ -453,7 +455,7 @@ Fields:
   - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)
   - `doNotResizeWidth` – when `true`, Zonogy preserves the window's current width during zone-aligned moves/resizes instead of attempting to apply the zone width. Height and position still update normally.
-  - `disableControlCommandMouseGestures` – when `true`, Zonogy does not consume that app's Control-Command click targeting or Control-Command external-drag promotion/interception; the app receives those gestures normally instead.
+  - `disableMouseGestures` – when `true`, Zonogy does not consume that app's gesture-modifier (default Control-Command) click targeting or external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
 
 For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, title, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

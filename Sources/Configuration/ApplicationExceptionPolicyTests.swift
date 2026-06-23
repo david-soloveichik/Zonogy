@@ -23,7 +23,7 @@ enum ApplicationExceptionPolicyTests {
                 hasMainWindow: true,
                 snapToZoneOnSelfResize: nil,
                 doNotResizeWidth: true,
-                disableControlCommandMouseGestures: true,
+                disableMouseGestures: true,
                 treatAXUnknownFullWidthAsFullScreen: true,
                 requireActiveZoomButton: true,
                 manageNonStandardWindows: true,
@@ -38,7 +38,7 @@ enum ApplicationExceptionPolicyTests {
                 hasMainWindow: nil,
                 snapToZoneOnSelfResize: true,
                 doNotResizeWidth: nil,
-                disableControlCommandMouseGestures: nil,
+                disableMouseGestures: nil,
                 treatAXUnknownFullWidthAsFullScreen: false,
                 requireActiveZoomButton: nil,
                 manageNonStandardWindows: false,
@@ -54,7 +54,7 @@ enum ApplicationExceptionPolicyTests {
             assert(merged.hasMainWindow == true, "nil override should keep base value")
             assert(merged.snapToZoneOnSelfResize == true, "non-nil override should replace base value")
             assert(merged.doNotResizeWidth == true, "nil override should keep base width-resize preference")
-            assert(merged.disableControlCommandMouseGestures == true, "nil override should keep base Control-Command gesture value")
+            assert(merged.disableMouseGestures == true, "nil override should keep base mouse-gesture value")
             assert(merged.treatAXUnknownFullWidthAsFullScreen == false, "non-nil override should replace base value")
             assert(merged.requireActiveZoomButton == true, "nil override should keep base value")
             assert(merged.manageNonStandardWindows == false, "non-nil override should replace base value")
@@ -77,7 +77,7 @@ enum ApplicationExceptionPolicyTests {
                 ApplicationExceptionRule(bundleIdentifier: bundleB, disallowEmptyTitleWindows: true, excludedWindowTitles: ["Hidden"]),
                 ApplicationExceptionRule(bundleIdentifier: bundleC, treatAXUnknownFullWidthAsFullScreen: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleD, requireActiveZoomButton: true),
-                ApplicationExceptionRule(bundleIdentifier: bundleE, disableControlCommandMouseGestures: true),
+                ApplicationExceptionRule(bundleIdentifier: bundleE, disableMouseGestures: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleF, doNotResizeWidth: true),
                 ApplicationExceptionRule(bundleIdentifier: bundleG, manageNonStandardWindows: true),
             ]
@@ -93,8 +93,8 @@ enum ApplicationExceptionPolicyTests {
             assert(policy.treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default AXUnknown full-screen preference to false")
             assert(policy.requiresActiveZoomButton(forBundleIdentifier: bundleD) == true, "should honor per-bundle requireActiveZoomButton preference")
             assert(policy.requiresActiveZoomButton(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default requireActiveZoomButton to false")
-            assert(policy.disablesControlCommandMouseGestures(forBundleIdentifier: bundleE) == true, "should honor per-bundle Control-Command mouse gesture preference")
-            assert(policy.disablesControlCommandMouseGestures(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default Control-Command mouse gesture preference to false")
+            assert(policy.disablesMouseGestures(forBundleIdentifier: bundleE) == true, "should honor per-bundle mouse-gesture preference")
+            assert(policy.disablesMouseGestures(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default mouse-gesture preference to false")
             assert(policy.doesNotResizeWidth(forBundleIdentifier: bundleF) == true, "should honor per-bundle width-resize exception")
             assert(policy.doesNotResizeWidth(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default width-resize exception to false")
             assert(policy.managesNonStandardWindows(forBundleIdentifier: bundleG) == true, "should honor per-bundle non-standard window exception")

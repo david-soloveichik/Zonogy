@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// Handles drag behavior for windows in the floating zone.
 protocol FloatingDragHandlerHost: AnyObject {
-    var isControlCommandModifierHeld: Bool { get }
+    var areGestureModifiersHeld: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
     func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
@@ -37,7 +37,7 @@ final class FloatingDragHandler {
         let windowId: Int
         let originScreenId: CGDirectDisplayID?
         let originZoneKey: ZoneKey?
-        let requiresControlCommand: Bool
+        let requiresGestureModifiers: Bool
         var hoveredAddZoneScreenId: CGDirectDisplayID?
         var hoveredFloatingScreenId: CGDirectDisplayID?
         var hoveredEmptyZoneKey: ZoneKey?
@@ -56,13 +56,13 @@ final class FloatingDragHandler {
         windowId: Int,
         originScreenId: CGDirectDisplayID?,
         originZoneKey: ZoneKey? = nil,
-        requiresControlCommand: Bool = false
+        requiresGestureModifiers: Bool = false
     ) {
         state = State(
             windowId: windowId,
             originScreenId: originScreenId,
             originZoneKey: originZoneKey,
-            requiresControlCommand: requiresControlCommand,
+            requiresGestureModifiers: requiresGestureModifiers,
             hoveredAddZoneScreenId: nil,
             hoveredFloatingScreenId: nil,
             lastCursorPoint: nil
@@ -74,8 +74,8 @@ final class FloatingDragHandler {
             return
         }
 
-        if current.requiresControlCommand {
-            if !host.isControlCommandModifierHeld {
+        if current.requiresGestureModifiers {
+            if !host.areGestureModifiersHeld {
                 tearDownOverlaysIfNeeded(&current)
                 state = nil
                 host.revertFloatingDragToTiled(
@@ -86,7 +86,7 @@ final class FloatingDragHandler {
                 )
                 return
             }
-        } else if host.isControlCommandModifierHeld {
+        } else if host.areGestureModifiersHeld {
             tearDownOverlaysIfNeeded(&current)
             host.promoteFloatingDragToZone(windowId: current.windowId, frame: frame, originScreenId: current.originScreenId)
             state = nil
@@ -100,7 +100,7 @@ final class FloatingDragHandler {
         let floatingTarget = host.resolveFloatingDropTarget(cursorPoint: cursorPoint)
 
         // Auto-promote to zone overlay when cursor is over an empty tiling zone
-        if !current.requiresControlCommand {
+        if !current.requiresGestureModifiers {
             let emptyZone = EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: host.resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
                 hoveredAddZoneScreenId: addZoneTarget,
@@ -144,7 +144,7 @@ final class FloatingDragHandler {
         switch EdgePillDragPolicy.dropDecision(
             hoveredAddZoneScreenId: current.hoveredAddZoneScreenId,
             hoveredFloatingScreenId: current.hoveredFloatingScreenId,
-            hoveredZoneKey: host.isControlCommandModifierHeld ? nil : current.hoveredEmptyZoneKey
+            hoveredZoneKey: host.areGestureModifiersHeld ? nil : current.hoveredEmptyZoneKey
         ) {
         case .addZone(let screenId):
             host.finalizeFloatingDrop(

@@ -234,8 +234,8 @@ extension AppController {
             return handleClickWhileCmdTabVisible(at: location)
         }
 
-        // Not in CmdTab mode: only Control+Command-click is used for targeting.
-        guard modifiers.contains([.maskCommand, .maskControl]) else {
+        // Not in CmdTab mode: only a gesture-modifier click (Control-Command by default) targets.
+        guard modifiers.contains(MouseGestureModifierPreferences.shared.modifiers.cgEventFlags) else {
             return false
         }
 
@@ -256,7 +256,7 @@ extension AppController {
             }
         }
 
-        if shouldPassThroughControlCommandClick(at: location) {
+        if shouldPassThroughGestureModifierClick(at: location) {
             return false
         }
 

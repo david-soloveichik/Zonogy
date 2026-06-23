@@ -82,7 +82,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
 
     // Floating zone placement
     func dropWindowIntoFloatingZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
-    var isControlCommandModifierHeld: Bool { get }
+    var areGestureModifiersHeld: Bool { get }
     func resumeFloatingDrag(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
     func promoteTiledDragToFloating(
         windowId: Int,
@@ -325,7 +325,7 @@ class DragDropCoordinator {
                 handleDropCancellation(session: session)
             }
         case .zone(let targetKey):
-            // Control-Command floating drags skip empty zones as drop targets
+            // gesture-modifier floating drags skip empty zones as drop targets
             if session.originatedFromFloating,
                let context = delegate.screenContexts[targetKey.screenId],
                let zone = context.zoneController.zone(at: targetKey.index),
@@ -454,7 +454,7 @@ class DragDropCoordinator {
         // Floating drag resumption only applies to real (non-cursor-driven) floating-origin drags.
         if let windowId, session.originatedFromFloating, !session.isCursorDriven,
            let delegate = delegate,
-           !delegate.isControlCommandModifierHeld {
+           !delegate.areGestureModifiersHeld {
             dragOverlayManager.tearDown()
             dragSession = nil
             cursorPointOverrideAX = nil
@@ -473,7 +473,7 @@ class DragDropCoordinator {
             hoveredAddZoneScreenId: addZoneScreenId,
             hoveredFloatingScreenId: floatingScreenId
         )
-        // Control-Command floating drags skip empty zones as drop targets
+        // gesture-modifier floating drags skip empty zones as drop targets
         if session.originatedFromFloating, let key = targetKey {
             if let context = delegate?.screenContexts[key.screenId],
                let zone = context.zoneController.zone(at: key.index),
@@ -484,7 +484,7 @@ class DragDropCoordinator {
         // Tiled-to-floating promotion only applies to real (non-cursor-driven) tiled drags.
         if let windowId, !session.originatedFromFloating, !session.isCursorDriven,
            let delegate,
-           delegate.isControlCommandModifierHeld {
+           delegate.areGestureModifiersHeld {
             // Clear drag session BEFORE promotion so any follow-up sync runs without stale drag state.
             let preferredFloatingScreenId = floatingScreenId
                 ?? session.hoveredFloatingScreenId
@@ -503,7 +503,7 @@ class DragDropCoordinator {
                 preferredFloatingScreenId: preferredFloatingScreenId
             )
             if !promoted {
-                Logger.debug("Control-Command drag promotion failed for window \(windowId)")
+                Logger.debug("gesture-modifier drag promotion failed for window \(windowId)")
             }
             return
         }
@@ -550,11 +550,11 @@ class DragDropCoordinator {
         }
 
         let hoveredZoneIsEmpty = isZoneEmpty(hoveredZoneKey)
-        let isControlCommandHeld = delegate?.isControlCommandModifierHeld ?? false
+        let gestureModifiersHeld = delegate?.areGestureModifiersHeld ?? false
         return CursorDrivenZoneDropPolicy.effectiveTilingZoneHover(
             hoveredZoneKey: hoveredZoneKey,
             hoveredZoneIsEmpty: hoveredZoneIsEmpty,
-            isControlCommandHeld: isControlCommandHeld,
+            gestureModifiersHeld: gestureModifiersHeld,
             policy: policy
         )
     }

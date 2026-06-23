@@ -141,6 +141,41 @@ final class KeyboardShortcutPreferences: ObservableObject {
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Z), modifiers: cmdCtrl)
             }
         }
+
+        /// Actions that engage on a chord and commit when the modifiers are released (CmdTab, the
+        /// WinShot switcher, and Window-Focus navigation). They require at least one modifier — a
+        /// modifier-free key has no release to detect — so a bare function key isn't accepted as a
+        /// binding for these.
+        var requiresModifier: Bool {
+            switch self {
+            case .showCmdTab, .showCmdTabCurrentApp,
+                 .showWinShotChooser,
+                 .focusWindowUp, .focusWindowDown, .focusWindowLeft, .focusWindowRight:
+                return true
+            default:
+                return false
+            }
+        }
+
+        /// Key codes for the function keys (F1–F12), which may be bound without a modifier — except
+        /// for `requiresModifier` actions (see `accepts`).
+        static let functionKeyCodes: Set<Int> = [
+            kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6,
+            kVK_F7, kVK_F8, kVK_F9, kVK_F10, kVK_F11, kVK_F12,
+        ]
+
+        /// The Carbon modifier bits Zonogy recognizes — the only ones the runtime release monitors
+        /// map (see `KeyboardShortcut.cgEventFlags` / `nsEventModifierFlags`).
+        static let recognizedModifierMask = UInt32(cmdKey | controlKey | optionKey | shiftKey)
+
+        /// Whether `keyCode` + Carbon `modifiers` is an acceptable binding for this action. Shared by
+        /// the shortcut recorder and the load path so a stored or hand-edited shortcut can't leave a
+        /// hold-to-commit action with no modifier to release. Only recognized modifier bits count, so
+        /// stray/unmapped bits (e.g. caps-lock) don't masquerade as a real modifier.
+        func accepts(keyCode: Int, modifiers: UInt32) -> Bool {
+            if modifiers & Self.recognizedModifierMask != 0 { return true }
+            return Self.functionKeyCodes.contains(keyCode) && !requiresModifier
+        }
     }
 
     private struct StoredPreferences: Codable {
@@ -268,9 +303,14 @@ final class KeyboardShortcutPreferences: ObservableObject {
         }
 
         for (key, shortcut) in stored.shortcuts {
-            if let action = ShortcutAction(rawValue: key) {
-                shortcuts[action] = shortcut
+            guard let action = ShortcutAction(rawValue: key) else { continue }
+            // Drop a stored/hand-edited binding that's invalid for this action (e.g. a modifier-free
+            // key on a hold-to-commit action), so it falls back to the action's default.
+            guard action.accepts(keyCode: Int(shortcut.keyCode), modifiers: shortcut.modifiers) else {
+                Logger.debug("Ignoring invalid stored shortcut for \(action.rawValue): no modifier for a hold-to-commit action")
+                continue
             }
+            shortcuts[action] = shortcut
         }
 
         for key in stored.clearedActions {

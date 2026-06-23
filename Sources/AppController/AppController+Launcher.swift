@@ -11,7 +11,7 @@ extension AppController {
     /// (empty or occupied) and dismisses only when the target screen enters full-screen pause.
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?) {
         // Whenever the target changes for any reason, confirm the new target with a brief animation —
-        // the same feedback as a Control-Command click. Tiling zones flash their border; the floating
+        // the same feedback as a gesture-modifier click. Tiling zones flash their border; the floating
         // zone has no border, so its bottom-edge indicator briefly enlarges instead. Suppressed during
         // startup (seeding) and while a caller has opted out via `withTargetChangeFlashSuppressed`
         // (e.g. creating a zone).
@@ -129,7 +129,7 @@ extension AppController {
     }
 
     /// Retarget to `destination` as part of a user gesture (placeholder activation, indicator click,
-    /// Control-Command click), then optionally open the Launcher anchored on the new target.
+    /// gesture-modifier click), then optionally open the Launcher anchored on the new target.
     /// Programmatic retargets that should not touch the Launcher use `setTargetedZone` or
     /// `applyTargetedDestination` directly instead.
     ///
@@ -382,7 +382,7 @@ extension AppController: LauncherControllerDelegate {
             Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
             return payload
         case .launchableItem:
-            beginCursorDrivenLaunchTargetDrag(zoneDropPolicy: .emptyZonesOnlyUnlessControlCommand)
+            beginCursorDrivenLaunchTargetDrag(zoneDropPolicy: .emptyZonesOnlyUnlessGestureModifiers)
             Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
             return payload
         }

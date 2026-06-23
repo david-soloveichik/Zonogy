@@ -28,7 +28,7 @@ struct ExceptionsPreferencesEntry {
         if rule.hasMainWindow == true { parts.append("preferMain") }
         if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
         if rule.doNotResizeWidth == true { parts.append("keepWidth") }
-        if rule.disableControlCommandMouseGestures == true { parts.append("noCtrlCmd") }
+        if rule.disableMouseGestures == true { parts.append("noMouseGestures") }
         if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
         if rule.ignoreActivationPolicy == true { parts.append("activation") }
         if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }

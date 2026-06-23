@@ -1,11 +1,11 @@
 import AppKit
 
-/// Tracks Control-Command external drags over managed tiling zones and presents zone overlays.
+/// Tracks gesture-modifier external drags over managed tiling zones and presents zone overlays.
 protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDelegate {
     var isManagedWindowDragInProgress: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
     func noteExternalDragSourceBundleIdentifierIfNeeded()
-    func shouldApplyControlCommandExternalDragGestures() -> Bool
+    func shouldApplyGestureModifierExternalDrag() -> Bool
     func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool
     func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey?
     func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
@@ -86,8 +86,7 @@ final class ExternalZoneDropInterceptor {
         guard let host,
               !host.isManagedWindowDragInProgress,
               MouseButtons.isLeftMouseButtonDown(),
-              NSEvent.modifierFlags.contains(.command),
-              NSEvent.modifierFlags.contains(.control),
+              NSEvent.modifierFlags.contains(MouseGestureModifierPreferences.shared.modifiers.nsEventFlags),
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint else {
             tearDownOverlays()
@@ -96,7 +95,7 @@ final class ExternalZoneDropInterceptor {
         }
 
         host.noteExternalDragSourceBundleIdentifierIfNeeded()
-        guard host.shouldApplyControlCommandExternalDragGestures() else {
+        guard host.shouldApplyGestureModifierExternalDrag() else {
             tearDownOverlays()
             host.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
             return

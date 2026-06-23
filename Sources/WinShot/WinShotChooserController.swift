@@ -25,6 +25,10 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     private(set) var isActive = false
     private(set) var currentScreenId: CGDirectDisplayID?
 
+    /// The "Show WinShot Switcher" shortcut captured when the chooser opened, so cycling and
+    /// confirm-on-release follow whatever the user configured (not a hardwired Control-Command-Tab).
+    private var engagedShortcut: (keyCode: UInt16, modifiers: NSEvent.ModifierFlags)?
+
     init() {
         modifierMonitor.delegate = self
     }
@@ -71,10 +75,19 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         window?.centerOnScreen(screenId)
         window?.makeKeyAndOrderFront(nil)
 
+        // Capture the configured shortcut so cycling and confirm-on-release use its key/modifiers.
+        // If the action has been cleared there's no shortcut to drive them — the chooser can still
+        // be dismissed by clicking a snapshot or pressing Escape. (Not reachable today: the chooser
+        // only opens via the hotkey, which isn't registered while the action is cleared.)
+        let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showWinShotChooser)
+        engagedShortcut = shortcut.map { (keyCode: UInt16($0.keyCode), modifiers: $0.nsEventModifierFlags) }
+
         // Start monitors
         startKeyMonitor()
         startClickMonitor()
-        modifierMonitor.start()
+        if let shortcut {
+            modifierMonitor.start(requiredModifiers: shortcut.nsEventModifierFlags)
+        }
 
         isActive = true
         Logger.debug("WinShot: Chooser opened with \(snapshots.count) snapshot(s)")
@@ -91,6 +104,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
         isActive = false
         currentScreenId = nil
+        engagedShortcut = nil
         Logger.debug("WinShot: Chooser closed")
     }
 
@@ -169,7 +183,6 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         let keyCode = event.keyCode
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let hasControlCommand = flags.contains(.control) && flags.contains(.command)
 
         // Escape to cancel
         if keyCode == UInt16(kVK_Escape) {
@@ -177,12 +190,20 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             return nil
         }
 
-        // Tab to cycle (while holding Control-Command)
-        if keyCode == UInt16(kVK_Tab) && hasControlCommand {
-            if flags.contains(.shift) {
-                cyclePrevious()
-            } else {
+        // Cycle on the configured shortcut key while its modifiers are held (Shift reverses,
+        // unless the shortcut itself includes Shift — see WinShotChooserCyclePolicy).
+        if let engaged = engagedShortcut,
+           let direction = WinShotChooserCyclePolicy.cycleDirection(
+               pressedKeyCode: keyCode,
+               heldModifiers: flags,
+               shortcutKeyCode: engaged.keyCode,
+               shortcutModifiers: engaged.modifiers
+           ) {
+            switch direction {
+            case .next:
                 cycleNext()
+            case .previous:
+                cyclePrevious()
             }
             return nil
         }

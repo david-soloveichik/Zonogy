@@ -1,4 +1,5 @@
 /// Model for keyboard shortcut configuration
+import AppKit
 import CoreGraphics
 import Foundation
 import Carbon
@@ -18,6 +19,17 @@ struct KeyboardShortcut: Codable, Equatable {
         if modifiers & UInt32(controlKey) != 0 { flags.insert(.maskControl) }
         if modifiers & UInt32(optionKey) != 0 { flags.insert(.maskAlternate) }
         if modifiers & UInt32(shiftKey) != 0 { flags.insert(.maskShift) }
+        return flags
+    }
+
+    /// The shortcut's modifiers expressed as `NSEvent.ModifierFlags`, for matching against
+    /// `NSEvent.modifierFlags` (e.g. the WinShot chooser's key/modifier monitors).
+    var nsEventModifierFlags: NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if modifiers & UInt32(cmdKey) != 0 { flags.insert(.command) }
+        if modifiers & UInt32(controlKey) != 0 { flags.insert(.control) }
+        if modifiers & UInt32(optionKey) != 0 { flags.insert(.option) }
+        if modifiers & UInt32(shiftKey) != 0 { flags.insert(.shift) }
         return flags
     }
 
