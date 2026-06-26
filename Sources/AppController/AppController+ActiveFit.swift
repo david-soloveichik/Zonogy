@@ -432,7 +432,7 @@ extension AppController {
 
     /// Returns true when the window is participating in the managed layout — either as a tiled
     /// zone occupant (including placeholders) or as the occupant of a floating zone.
-    private func isLayoutManagedWindow(_ managed: ManagedWindow) -> Bool {
+    internal func isLayoutManagedWindow(_ managed: ManagedWindow) -> Bool {
         if managed.zoneIndex != nil {
             return true
         }
