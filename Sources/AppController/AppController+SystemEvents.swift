@@ -70,7 +70,6 @@ extension AppController {
         }
         if let previousPid = lastActiveApplicationPid {
             _ = validationRetryManager.validateWindowsForApplication(pid: previousPid, trigger: .workspaceActivationPreviousApp)
-            handleManualResizeFocusChange(pid: previousPid, focusedWindowId: nil)
         }
         if let application {
             lastActiveApplicationPid = application.processIdentifier
@@ -86,10 +85,7 @@ extension AppController {
             }
             return windowController.focusedWindowIfTracked(pid: pid)
         }()
-        if let applicationPid = application?.processIdentifier,
-           let focusedManagedWindow {
-            handleManualResizeFocusChange(pid: applicationPid, focusedWindowId: focusedManagedWindow.windowId)
-        }
+        handleManualResizeActivationCandidate(pid: application?.processIdentifier)
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
         handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
         updateUnmanagedFocusState()

@@ -185,7 +185,7 @@ extension AppController {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .focusChanged)
-        handleManualResizeFocusChange(pid: pid, focusedWindowId: focusedWindowId)
+        handleManualResizeFocusChange(pid: pid)
         handleActiveFitFocusChange(pid: pid)
         handleFloatingZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
 
@@ -1104,51 +1104,74 @@ extension AppController {
 // MARK: - Manual resize snapback
 
 extension AppController {
-    internal func handleManualResizeFocusChange(pid: pid_t, focusedWindowId: Int?) {
-        guard !manualResizeDetachedWindowIds.isEmpty ||
-                (stickyResizeEnabled && focusedWindowId != nil) else {
+    /// Entry point for NSWorkspace app activations (the activated app may be nil).
+    internal func handleManualResizeActivationCandidate(pid: pid_t?) {
+        guard let pid else {
+            // No frontmost application: mirror ActiveFit and return every detached window to its zone.
+            snapManuallyResizedWindowsBackToZone(reason: "workspace-no-application")
+            return
+        }
+        handleManualResizeFocusChange(pid: pid)
+    }
+
+    /// Decides what happens to manually-resized (detached) windows when focus moves. This mirrors
+    /// ActiveFit's reveal-exit policy so the two features stay consistent: a managed layout window
+    /// becoming active returns the others to their zone frame; focus on an unmanaged/untracked
+    /// window leaves detached windows at their custom size; Zonogy itself activating snaps them back.
+    internal func handleManualResizeFocusChange(pid: pid_t) {
+        guard !manualResizeDetachedWindowIds.isEmpty || stickyResizeEnabled else {
             return
         }
 
+        // Zonogy itself became active (placeholder click, Launcher, etc.): like ActiveFit's
+        // focus-self exit, return every detached window to its zone frame.
+        guard pid != getpid() else {
+            snapManuallyResizedWindowsBackToZone(reason: "focus-self")
+            return
+        }
+
+        // Focus moved to a window Zonogy does not lay out (unmanaged or untracked): like ActiveFit
+        // reveal mode, leave detached windows at their custom size so glancing at another app does
+        // not disturb them.
+        guard let focused = windowController.focusedWindowIfTracked(pid: pid),
+              isLayoutManagedWindow(focused) else {
+            return
+        }
+
+        // A managed layout window became active: snap every other detached window back to its zone
+        // frame, keeping the now-active window at its custom size.
         let candidateIds = manualResizeDetachedWindowIds
-        Logger.debug("Manual resize focus change for pid \(pid) (focusedWindowId: \(focusedWindowId.map(String.init) ?? "nil"), candidates: \(candidateIds.count))")
-        for windowId in candidateIds {
-            guard let managed = windowController.window(withId: windowId) else {
-                manualResizeDetachedWindowIds.remove(windowId)
-                continue
-            }
-
-            guard managed.backing.pid == pid else {
-                continue
-            }
-
-            if let focusedWindowId, focusedWindowId == windowId {
-                // Keep the active window at its custom size until it later loses focus.
-                continue
-            }
-
+        Logger.debug("Manual resize focus change for pid \(pid) (focused: \(focused.windowId), candidates: \(candidateIds.count))")
+        for windowId in candidateIds where windowId != focused.windowId {
             snapManuallyResizedWindowBackToZoneIfNeeded(windowId: windowId, reason: "focus-change")
         }
 
+        // Sticky Resize: restore the now-active window's remembered manual size.
         guard stickyResizeEnabled,
-              let focusedWindowId,
-              let managed = windowController.window(withId: focusedWindowId),
-              managed.backing.pid == pid,
-              let zoneIndex = managed.zoneIndex else {
+              let zoneIndex = focused.zoneIndex else {
             return
         }
 
-        let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
+        let screenId = focused.screenDisplayId ?? detectScreenId(for: focused)
         guard let screenId else {
             return
         }
 
         _ = restoreStickyResizeFrameIfNeeded(
-            for: managed,
+            for: focused,
             screenId: screenId,
             zoneIndex: zoneIndex,
             reason: "focus-change"
         )
+    }
+
+    /// Returns every currently detached window to its zone frame (used when no managed window is
+    /// taking focus, e.g. Zonogy itself activating or no frontmost application).
+    private func snapManuallyResizedWindowsBackToZone(reason: String) {
+        let candidateIds = manualResizeDetachedWindowIds
+        for windowId in candidateIds {
+            snapManuallyResizedWindowBackToZoneIfNeeded(windowId: windowId, reason: reason)
+        }
     }
 
     private func snapManuallyResizedWindowBackToZoneIfNeeded(windowId: Int, reason: String) {
