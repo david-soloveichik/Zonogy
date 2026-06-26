@@ -354,29 +354,34 @@ extension WindowController {
                 continue
             }
 
-            let candidateFrame: CGRect
-            let candidateFrameSource: String
-            if let liveFrame = WindowServerWindowList.frame(
+            // A placed window that still exposes a live WindowServer frame is a genuinely separate
+            // live window, not a switched-away tab. On a real tab switch the old tab's WindowServer
+            // frame is withdrawn before the new tab's is exposed (verified across TextEdit/Terminal/
+            // Finder via the same notifications we observe), so the switched-away tab has no live
+            // frame by the time we get here. Matching a still-live window would be a false positive
+            // (two distinct windows that merely share a frame), so only a window whose live frame is
+            // gone — read from its Accessibility frame — is an eligible replacement target.
+            if WindowServerWindowList.frame(
                 for: managed.backing.cgWindowId,
                 ownerPid: managed.backing.pid
-            ) {
-                candidateFrame = liveFrame
-                candidateFrameSource = "live WindowServer frame"
-            } else {
-                let fallbackFrame = managed.actualFrame
-                guard fallbackFrame.width > 0, fallbackFrame.height > 0 else {
-                    Logger.debug(
-                        "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); live WindowServer frame unavailable and ManagedWindow.actualFrame unavailable"
-                    )
-                    continue
-                }
-
-                candidateFrame = fallbackFrame
-                candidateFrameSource = "ManagedWindow.actualFrame fallback"
+            ) != nil {
                 Logger.debug(
-                    "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) using ManagedWindow.actualFrame fallback because live WindowServer frame is unavailable: \(candidateFrame)"
+                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); still exposes a live WindowServer frame, so it is a separate live window, not a switched-away tab"
                 )
+                continue
             }
+
+            let candidateFrame = managed.actualFrame
+            guard candidateFrame.width > 0, candidateFrame.height > 0 else {
+                Logger.debug(
+                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); no live WindowServer frame and ManagedWindow.actualFrame unavailable"
+                )
+                continue
+            }
+            let candidateFrameSource = "ManagedWindow.actualFrame (live WindowServer frame withdrawn)"
+            Logger.debug(
+                "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) eligible via \(candidateFrameSource): \(candidateFrame)"
+            )
 
             let coincides = NativeTabReplacementPolicy.framesCoincide(incomingFrame, candidateFrame)
             let deltaDescription = nativeTabFrameDeltaDescription(incomingFrame: incomingFrame, candidateFrame: candidateFrame)

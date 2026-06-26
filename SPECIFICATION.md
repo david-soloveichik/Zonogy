@@ -78,10 +78,10 @@ Native macOS tabs can appear through Accessibility as separate windows with diff
 
 - When we detect an eligible, unminimized window that is not placed in any zone:
   - Wait until the WindowServer exposes a live frame for its `CGWindowID`.
-  - Compare that frame against live WindowServer frames for placed managed windows from the same process, falling back to the managed window's current Accessibility frame.
+  - Among placed managed windows from the same process, consider only those whose own `CGWindowID` no longer has a live WindowServer frame, and compare the new frame against each such window's current Accessibility frame. (On a real tab switch the previous tab's WindowServer frame is withdrawn before the new tab's appears, so a placed window that still has a live frame is a genuinely separate window—not the tab being switched away—and is skipped. This avoids a false match between two distinct windows that merely share a frame.)
   - If the x-position, y-position, and width coincide within normal rounding tolerance, and height differs by at most 50 pixels, reuse the existing placed managed window's `windowId` and zone assignment while replacing its backing AX element and `CGWindowID` with the candidate window. (This replacement does not place the candidate through the normal new-window path, so no retargeting, etc.)
 
-- When a managed window in a zone is closed: We look for a surviving window of the same process whose live frame still coincides (using the same tolerance) with the managed window's remembered frame. ("Remembered frame" because the closed `CGWindowID` might not have a frame any more in CG or AX.) If such a window is found, we rebind the managed window to it, keeping its `windowId` and zone, instead of treating the window as closed. If none is found, the window is removed from its zone as usual.
+- When a managed window in a zone is closed: We look for a window of the same process whose live frame still coincides (using the same tolerance) with the managed window's remembered frame. ("Remembered frame" because the closed `CGWindowID` might not have a frame any more in CG or AX.) If such a window is found, we rebind the managed window to it, keeping its `windowId` and zone, instead of treating the window as closed. If none is found, the window is removed from its zone as usual.
 
 ## User Interactions
 
