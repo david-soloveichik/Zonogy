@@ -74,12 +74,14 @@ Every managed window (from other applications) receives a sequential `windowId` 
 
 ### Native macOS Tabs
 
-Native macOS tabs can appear through Accessibility as separate windows with different `CGWindowID` values even though the active tab occupies the same visible top-level window frame. When Native Tab Management is enabled, we do the following:
+Native macOS tabs can appear through Accessibility as separate windows with different `CGWindowID` values even though the active tab occupies the same visible top-level window frame. Zonogy represents such a window with a single managed window backed by whichever tab is currently active. When Native Tab Management is enabled, we do the following:
 
 - When we detect an eligible, unminimized window that is not placed in any zone:
   - Wait until the WindowServer exposes a live frame for its `CGWindowID`.
-  - Compare that frame against live WindowServer frames for placed managed windows from the same process, falling back to the managed window's current Accessibility frame. 
+  - Compare that frame against live WindowServer frames for placed managed windows from the same process, falling back to the managed window's current Accessibility frame.
   - If the x-position, y-position, and width coincide within normal rounding tolerance, and height differs by at most 50 pixels, reuse the existing placed managed window's `windowId` and zone assignment while replacing its backing AX element and `CGWindowID` with the candidate window. (This replacement does not place the candidate through the normal new-window path, so no retargeting, etc.)
+
+- When a managed window in a zone is closed: We look for a surviving window of the same process whose live frame still coincides (using the same tolerance) with the managed window's remembered frame. ("Remembered frame" because the closed `CGWindowID` might not have a frame any more in CG or AX.) If such a window is found, we rebind the managed window to it, keeping its `windowId` and zone, instead of treating the window as closed. If none is found, the window is removed from its zone as usual.
 
 ## User Interactions
 
@@ -375,7 +377,7 @@ Changes apply immediately while Zonogy is running.
 
 The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
 
-The "Disable native macOS tab handling" toggle turns off the native-tab frame wait and same-frame replacement behavior, so unplaced native-tab candidates are treated like ordinary windows.
+The "Disable native macOS tab handling" toggle turns off both native-tab behaviors — the tab-switch frame wait and replacement, and the tab-close rebind to a surviving sibling — so native-tab candidates are treated like ordinary separate windows (and closing a tab empties its zone even when other tabs of that window remain).
 
 When "Save debug log to file" is off, Zonogy does not write to `/tmp/zonogy-debug.log` and does not modify any existing file at that path.
 When this toggle is turned on, Zonogy clears `/tmp/zonogy-debug.log` before writing new entries.

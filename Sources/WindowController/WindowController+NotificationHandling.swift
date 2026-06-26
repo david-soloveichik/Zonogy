@@ -108,9 +108,12 @@ extension WindowController {
 
             // Stage before notifying the delegate so deferred-prune-aware cleanup
             // (e.g. remembered-size preservation) can detect the pending entry and
-            // avoid dropping state on a spurious AXDestroyed + restore cycle.
-            stagePendingPrunedWindow(managed, reason: "ax-destroyed-notification")
-            delegate?.windowWillClose(windowId: managed.windowId)
+            // avoid dropping state on a spurious AXDestroyed + restore cycle. Staging may instead
+            // rebind a closed native-tab window to a surviving sibling; only notify close if it
+            // actually staged for prune.
+            if stagePendingPrunedWindow(managed, reason: "ax-destroyed-notification") {
+                delegate?.windowWillClose(windowId: managed.windowId)
+            }
 
         case axMiniaturizedNotification:
             Logger.debug("External window \(managed.windowId) minimized")
@@ -178,6 +181,8 @@ extension WindowController {
             replacementElementAvailable: replacement != nil
         ) {
         case .prune:
+            // The closed-native-tab rebind runs in stagePendingPrunedWindow (the single prune
+            // choke point), so both this notification path and the validation sweep are covered.
             if windowStillListed {
                 Logger.debug(
                     "AXUIElementDestroyed for window \(managed.windowId): listed in WindowServer but no live element resolved; treating as closed"
@@ -390,6 +395,7 @@ extension WindowController {
     }
 
     private func handleWindowMovedNotification(managed: ManagedWindow) {
+        recordCachedFrame(for: managed)
         let isProgrammatic = programmaticUpdateWindowIds.contains(managed.windowId)
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
         let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
@@ -407,6 +413,7 @@ extension WindowController {
     }
 
     private func handleWindowResizedNotification(managed: ManagedWindow) {
+        recordCachedFrame(for: managed)
         // Always check full-screen state on resize (even for programmatic updates)
         // since entering/exiting full-screen fires resize notifications
         delegate?.windowDidResize(windowId: managed.windowId)

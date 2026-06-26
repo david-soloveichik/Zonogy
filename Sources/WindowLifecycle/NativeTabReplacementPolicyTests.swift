@@ -136,6 +136,39 @@ enum NativeTabReplacementPolicyTests {
         )
         assert(tied?.windowId == 11, "windowId should break exact coincidence ties deterministically")
 
+        func sibling(_ cgWindowId: Int, _ frame: CGRect = incoming) -> NativeTabReplacementPolicy.SiblingCandidate {
+            NativeTabReplacementPolicy.SiblingCandidate(cgWindowId: cgWindowId, frame: frame)
+        }
+
+        assert(
+            NativeTabReplacementPolicy.bestSibling(matching: incoming, among: [sibling(300)])?.cgWindowId == 300,
+            "a sibling coincident with the cached frame should be adopted on tab close"
+        )
+        assert(
+            NativeTabReplacementPolicy.bestSibling(
+                matching: incoming,
+                among: [
+                    sibling(300, CGRect(x: 100, y: 80, width: 900, height: 735)),
+                    sibling(301, CGRect(x: 100, y: 80, width: 900, height: 710))
+                ]
+            )?.cgWindowId == 301,
+            "closest coincident sibling frame should win"
+        )
+        assert(
+            NativeTabReplacementPolicy.bestSibling(matching: incoming, among: [sibling(305), sibling(304)])?.cgWindowId == 304,
+            "CGWindowID should break exact sibling coincidence ties deterministically"
+        )
+        assert(
+            NativeTabReplacementPolicy.bestSibling(
+                matching: incoming,
+                among: [
+                    sibling(306, CGRect(x: 100, y: 80, width: 900, height: 751)),
+                    sibling(307, CGRect(x: 103, y: 80, width: 900, height: 700))
+                ]
+            ) == nil,
+            "siblings beyond frame/height tolerance should not match the cached frame"
+        )
+
         if allPassed {
             print("NativeTabReplacementPolicyTests: all tests passed")
         }

@@ -38,6 +38,13 @@ class ManagedWindow {
     /// Maintained by FloatingZoneCoordinator.
     var isInFloatingZone: Bool = false
 
+    /// Most recent on-screen frame in accessibility coordinates (primary-display top-left
+    /// origin), refreshed on AXMoved/AXResized. Used to find a surviving native-tab sibling
+    /// when the tab currently backing this window is closed — matched against the sibling's
+    /// live frame, which can differ from the zone frame (ActiveFit reveal, manual/Sticky
+    /// resize). Nil until the first move/resize is observed.
+    var cachedFrame: CGRect?
+
     /// Whether this window is placed in any zone (tiled or floating).
     /// A window not placed in any zone is considered minimized from Zonogy's perspective.
     var isPlacedInZone: Bool {
@@ -63,11 +70,7 @@ class ManagedWindow {
 
     /// The actual frame currently reported by the backing window.
     var actualFrame: CGRect {
-        guard let position = ManagedWindow.copyCGPointValue(element: backing.element, attribute: kAXPositionAttribute as CFString),
-              let size = ManagedWindow.copyCGSizeValue(element: backing.element, attribute: kAXSizeAttribute as CFString) else {
-            return .zero
-        }
-        return CGRect(origin: position, size: size)
+        ManagedWindow.frame(of: backing.element) ?? .zero
     }
 
     /// Whether the window is currently minimized according to the Accessibility API.

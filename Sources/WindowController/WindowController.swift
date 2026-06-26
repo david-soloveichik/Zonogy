@@ -296,13 +296,20 @@ class WindowController {
             return []
         }
 
+        // Native-tab close-rebind is allowed for per-pid validation (which only runs once focus
+        // events resume after wake) but not for the global sweep, whose CGWindowList can be
+        // transiently incomplete during wake/topology restoration — there, fall back to deferred prune.
+        let allowNativeTabRebind = pidFilter != nil
         var removedWindowIds: [Int] = []
         for (windowId, managed, reason) in stale {
             let pid = managed.backing.pid
-            Logger.debug("Detected destroyed external window \(windowId) pid \(pid) (reason: \(reason)); staging for deferred prune")
-            stagePendingPrunedWindow(managed, reason: reason)
-            removedWindowIds.append(windowId)
-            Logger.debug("Deferred-prune staged external window \(windowId)")
+            Logger.debug("Detected destroyed external window \(windowId) pid \(pid) (reason: \(reason)); evaluating for deferred prune")
+            if stagePendingPrunedWindow(managed, reason: reason, allowNativeTabRebind: allowNativeTabRebind) {
+                removedWindowIds.append(windowId)
+                Logger.debug("Deferred-prune staged external window \(windowId)")
+            } else {
+                Logger.debug("Kept external window \(windowId) (rebound to surviving native-tab sibling) instead of pruning")
+            }
         }
 
         return removedWindowIds
@@ -488,6 +495,16 @@ class WindowController {
 
 // Helper methods for ManagedWindow to access coordinate conversion
 extension ManagedWindow {
+    /// Read an element's current frame (position + size) in accessibility coordinates
+    /// (primary-display top-left origin), or nil if either attribute is unavailable.
+    static func frame(of element: AXUIElement) -> CGRect? {
+        guard let position = copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),
+              let size = copyCGSizeValue(element: element, attribute: kAXSizeAttribute as CFString) else {
+            return nil
+        }
+        return CGRect(origin: position, size: size)
+    }
+
     /// Helper methods to copy AX values - made internal for use by WindowController
     static func copyCGPointValue(element: AXUIElement, attribute: CFString) -> CGPoint? {
         var rawValue: CFTypeRef?

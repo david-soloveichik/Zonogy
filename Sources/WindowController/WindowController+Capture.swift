@@ -164,36 +164,16 @@ extension WindowController {
         }
 
         var captured: [ManagedWindow] = []
-
-        if let windowElements = windowsObject as? [AXUIElement] {
-            for element in windowElements {
-                if let managed = captureWindowIfNeeded(
-                    element: element,
-                    pid: pid,
-                    appElement: appElement,
-                    allowReturningExisting: allowExisting,
-                    notifyDelegate: notifyDelegate,
-                    needsRetry: &needsRetry
-                ) {
-                    captured.append(managed)
-                }
-            }
-        } else if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
-            let array = unsafeBitCast(windowsObject, to: CFArray.self)
-            let count = CFArrayGetCount(array)
-            for index in 0..<count {
-                let rawElement = CFArrayGetValueAtIndex(array, index)
-                let element = unsafeBitCast(rawElement, to: AXUIElement.self)
-                if let managed = captureWindowIfNeeded(
-                    element: element,
-                    pid: pid,
-                    appElement: appElement,
-                    allowReturningExisting: allowExisting,
-                    notifyDelegate: notifyDelegate,
-                    needsRetry: &needsRetry
-                ) {
-                    captured.append(managed)
-                }
+        for element in windowElements(from: windowsObject) {
+            if let managed = captureWindowIfNeeded(
+                element: element,
+                pid: pid,
+                appElement: appElement,
+                allowReturningExisting: allowExisting,
+                notifyDelegate: notifyDelegate,
+                needsRetry: &needsRetry
+            ) {
+                captured.append(managed)
             }
         }
 
@@ -294,8 +274,7 @@ extension WindowController {
                 element: element,
                 identifier: identifier,
                 appElement: appElement,
-                incomingFrame: incomingWindowServerFrame,
-                incomingExisting: existing
+                incomingFrame: incomingWindowServerFrame
             ) {
                 return replacement
             }
@@ -318,6 +297,9 @@ extension WindowController {
             windowId: windowId,
             backing: ManagedWindowBacking(element: element, pid: pid, cgWindowId: identifier.cgWindowId)
         )
+        // Seed the cached frame now so it is available even if placement issues no move
+        // (e.g. the window is already at its target frame); refreshed on later move/resize.
+        recordCachedFrame(for: managed)
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
         externalWindows[identifier] = managed
@@ -344,8 +326,7 @@ extension WindowController {
         element: AXUIElement,
         identifier: ExternalWindowIdentifier,
         appElement: AXUIElement,
-        incomingFrame: CGRect,
-        incomingExisting: ManagedWindow?
+        incomingFrame: CGRect
     ) -> ManagedWindow? {
         let samePidWindows = windowRegistry.allWindows
             .filter { $0.backing.pid == identifier.pid }
@@ -440,15 +421,6 @@ extension WindowController {
         }
 
         let previousIdentifier = managed.externalIdentifier
-        if let incomingExisting, incomingExisting.windowId != managed.windowId {
-            Logger.debug(
-                "Native tab replacement: removing redundant unplaced managed window \(incomingExisting.windowId) " +
-                "(pid \(identifier.pid), CGWindowID \(identifier.cgWindowId)) before preserving window \(managed.windowId)"
-            )
-            windowLastActiveTime.removeValue(forKey: incomingExisting.windowId)
-            removeManagedWindowFromLiveTracking(incomingExisting)
-        }
-
         replaceTrackedWindowBacking(
             managed,
             newElement: element,
@@ -489,12 +461,54 @@ extension WindowController {
         String(format: "%.1f", Double(value))
     }
 
+    /// Extract an `[AXUIElement]` from the value of a `kAXWindowsAttribute` query, handling both
+    /// the bridged-array and raw-CFArray representations the Accessibility API may return.
+    private func windowElements(from windowsObject: CFTypeRef) -> [AXUIElement] {
+        if let windowElements = windowsObject as? [AXUIElement] {
+            return windowElements
+        }
+        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
+            let array = unsafeBitCast(windowsObject, to: CFArray.self)
+            return (0..<CFArrayGetCount(array)).map {
+                unsafeBitCast(CFArrayGetValueAtIndex(array, $0), to: AXUIElement.self)
+            }
+        }
+        return []
+    }
+
+    /// Drop a redundant managed window that already tracks `element` before another window adopts
+    /// it as its new native-tab backing. The redundant window is always an unplaced duplicate of
+    /// the same tab group — the switch path only adopts an unplaced incoming window, and the close
+    /// path filters out siblings placed in a zone of their own — so removing it never vacates a zone.
+    private func dropRedundantManagedWindow(for element: AXUIElement, keeping managed: ManagedWindow) {
+        guard let redundant = existingManagedWindow(for: element),
+              redundant.windowId != managed.windowId else {
+            return
+        }
+        // Defensive: callers only ever route unplaced duplicates here (switch adopts an unplaced
+        // incoming window; close filters out siblings placed in a zone). Never vacate a zone.
+        guard !redundant.isPlacedInZone else {
+            Logger.debug("Native tab replacement: refusing to drop placed managed window \(redundant.windowId) as a redundant backing for window \(managed.windowId)")
+            return
+        }
+        Logger.debug(
+            "Native tab replacement: removing redundant unplaced managed window \(redundant.windowId) " +
+            "(pid \(redundant.backing.pid), CGWindowID \(redundant.backing.cgWindowId)) before window \(managed.windowId) adopts its tab"
+        )
+        windowLastActiveTime.removeValue(forKey: redundant.windowId)
+        removeManagedWindowFromLiveTracking(redundant)
+    }
+
     private func replaceTrackedWindowBacking(
         _ managed: ManagedWindow,
         newElement: AXUIElement,
         newIdentifier: ExternalWindowIdentifier,
         appElement: AXUIElement
     ) {
+        // If the new backing element/CGWindowID is itself an already-tracked (unplaced) managed
+        // window, drop that duplicate first so we never leave two managed windows sharing a backing.
+        dropRedundantManagedWindow(for: newElement, keeping: managed)
+
         let previousIdentifier = managed.externalIdentifier
         removeAccessibilityTracking(for: managed)
         externalWindows.removeValue(forKey: previousIdentifier)
@@ -509,6 +523,127 @@ extension WindowController {
         externalWindowsByElement[AccessibilityElementKey(element: newElement)] = managed
         externalWindows[newIdentifier] = managed
         registerAccessibilityNotifications(for: managed, appElement: appElement)
+
+        // Refresh the cached frame from the new backing so a later tab-close rebind matches where
+        // the window actually sits, even before the next move/resize notification arrives.
+        recordCachedFrame(for: managed)
+    }
+
+    /// Refresh `managed.cachedFrame` from the live accessibility frame. Invoked on the
+    /// AXMoved/AXResized notifications we already observe, so the cache tracks the window's
+    /// real on-screen frame (including ActiveFit reveal and manual resizes).
+    internal func recordCachedFrame(for managed: ManagedWindow) {
+        guard let frame = actualFrameInAccessibilityCoordinates(for: managed),
+              frame.width > 0, frame.height > 0 else {
+            Logger.debug("recordCachedFrame: no usable accessibility frame for window \(managed.windowId) (pid \(managed.backing.pid), CGWindowID \(managed.backing.cgWindowId)); keeping previous cached frame")
+            return
+        }
+        managed.cachedFrame = frame
+    }
+
+    /// When a placed managed window's backing tab is closed — its CGWindowID has left the
+    /// WindowServer but other tabs of the same window survive — rebind it to a surviving sibling
+    /// (same process, different CGWindowID, coincident with its cached frame) so it keeps its
+    /// `windowId` and zone instead of being pruned. Called from `stagePendingPrunedWindow`, so it
+    /// guards every prune trigger (the `AXUIElementDestroyed` notification and the validation
+    /// sweep). Returns true when a sibling was adopted; false when the window should be pruned.
+    internal func rebindClosedNativeTabWindowIfPossible(_ managed: ManagedWindow) -> Bool {
+        guard !nativeTabHandlingDisabled, managed.isPlacedInZone else {
+            return false
+        }
+
+        let identifier = managed.externalIdentifier
+        // Only a window whose own CGWindowID is gone is a tab close. If it is still listed (e.g. a
+        // recycled AX element with the same CGWindowID), a different-CGWindowID rebind is wrong.
+        guard !WindowServerWindowList.containsWindow(pid: identifier.pid, cgWindowId: identifier.cgWindowId) else {
+            return false
+        }
+        guard let cachedFrame = managed.cachedFrame, cachedFrame.width > 0, cachedFrame.height > 0 else {
+            Logger.debug("Native tab close: window \(managed.windowId) (pid \(identifier.pid), CGWindowID \(identifier.cgWindowId)) has no cached frame; cannot match a surviving sibling")
+            return false
+        }
+
+        let appElement = accessibilityWatcher.applicationElement(for: identifier.pid)
+        let siblings = nativeTabSiblingCandidates(
+            pid: identifier.pid,
+            excludingCgWindowId: identifier.cgWindowId,
+            excludingElement: managed.backing.element,
+            appElement: appElement
+        )
+
+        guard let match = NativeTabReplacementPolicy.bestSibling(
+                  matching: cachedFrame,
+                  among: siblings.map { $0.candidate }
+              ),
+              let adopted = siblings.first(where: { $0.candidate.cgWindowId == match.cgWindowId }) else {
+            Logger.debug(
+                "Native tab close: no surviving sibling coincident with cached frame \(cachedFrame) for window \(managed.windowId) (pid \(identifier.pid), closed CGWindowID \(identifier.cgWindowId), \(siblings.count) sibling candidate(s))"
+            )
+            return false
+        }
+
+        let newIdentifier = ExternalWindowIdentifier(pid: identifier.pid, cgWindowId: match.cgWindowId)
+        replaceTrackedWindowBacking(
+            managed,
+            newElement: adopted.element,
+            newIdentifier: newIdentifier,
+            appElement: appElement
+        )
+        Logger.debug(
+            "Native tab close: rebound window \(managed.windowId) to surviving sibling " +
+            "(pid \(identifier.pid), CGWindowID \(identifier.cgWindowId) -> \(match.cgWindowId), " +
+            "cached frame \(cachedFrame), sibling frame \(match.frame))"
+        )
+        return true
+    }
+
+    /// Enumerate the application's current windows (excluding `excludingElement` and
+    /// `excludingCgWindowId`) as `SiblingCandidate`s paired with their live AX elements. A
+    /// sibling's frame comes from the live WindowServer frame, falling back to its accessibility
+    /// frame — mirroring the tab-switch path.
+    private func nativeTabSiblingCandidates(
+        pid: pid_t,
+        excludingCgWindowId: Int,
+        excludingElement: AXUIElement,
+        appElement: AXUIElement
+    ) -> [(element: AXUIElement, candidate: NativeTabReplacementPolicy.SiblingCandidate)] {
+        var windowsObject: CFTypeRef?
+        let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
+        guard status == .success, let windowsObject else {
+            return []
+        }
+
+        let excludedKey = AccessibilityElementKey(element: excludingElement)
+        var results: [(element: AXUIElement, candidate: NativeTabReplacementPolicy.SiblingCandidate)] = []
+        for element in windowElements(from: windowsObject) {
+            guard AccessibilityElementKey(element: element) != excludedKey else {
+                continue
+            }
+            // Never steal a window Zonogy already manages in a zone of its own; only untracked tabs
+            // or redundant unplaced duplicates of this tab group are valid rebind targets.
+            if let tracked = existingManagedWindow(for: element), tracked.isPlacedInZone {
+                continue
+            }
+            guard let cgWindowId = cgWindowIdWithStatus(for: element, pid: pid, context: "native-tab-close-sibling").id else {
+                continue
+            }
+            let cgWindowIdInt = Int(cgWindowId)
+            guard cgWindowIdInt != excludingCgWindowId else {
+                continue
+            }
+
+            let frame: CGRect
+            if let wsFrame = WindowServerWindowList.frame(for: cgWindowIdInt, ownerPid: pid) {
+                frame = wsFrame
+            } else if let axFrame = ManagedWindow.frame(of: element), axFrame.width > 0, axFrame.height > 0 {
+                frame = axFrame
+            } else {
+                continue
+            }
+
+            results.append((element, NativeTabReplacementPolicy.SiblingCandidate(cgWindowId: cgWindowIdInt, frame: frame)))
+        }
+        return results
     }
 
     /// Enumerate the application's current windows and return a *fresh* AX element
@@ -542,21 +677,6 @@ extension WindowController {
             return Int(resolved) == cgWindowId
         }
 
-        if let windowElements = windowsObject as? [AXUIElement] {
-            return windowElements.first(where: matches)
-        }
-
-        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
-            let array = unsafeBitCast(windowsObject, to: CFArray.self)
-            let count = CFArrayGetCount(array)
-            for index in 0..<count {
-                let element = unsafeBitCast(CFArrayGetValueAtIndex(array, index), to: AXUIElement.self)
-                if matches(element) {
-                    return element
-                }
-            }
-        }
-
-        return nil
+        return windowElements(from: windowsObject).first(where: matches)
     }
 }

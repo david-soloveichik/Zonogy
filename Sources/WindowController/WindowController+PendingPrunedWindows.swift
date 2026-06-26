@@ -20,6 +20,7 @@ extension WindowController {
             windowId: pending.windowId,
             backing: ManagedWindowBacking(element: element, pid: identifier.pid, cgWindowId: identifier.cgWindowId)
         )
+        recordCachedFrame(for: managed)
         windowRegistry.insert(managed)
         externalWindowsByElement[AccessibilityElementKey(element: element)] = managed
         externalWindows[identifier] = managed
@@ -89,10 +90,24 @@ extension WindowController {
         restoredPendingPruneDestinationsByWindowId.removeValue(forKey: windowId)
     }
 
+    /// Stage a managed window for deferred prune — unless it is a placed native-tab window whose
+    /// closed tab can be rebound to a surviving sibling, in which case it is kept in its zone.
+    /// Returns true if the window was staged for prune; false if it was rebound (and not pruned).
+    /// This is the single choke point both prune triggers funnel through (the
+    /// `AXUIElementDestroyed` notification and the validation sweep), so the rebind covers both.
+    /// `allowNativeTabRebind` is turned off for the global validation sweep, whose `CGWindowList`
+    /// can be transiently incomplete during wake/topology restoration; the destroy notification and
+    /// per-pid validation (which only runs once focus events resume after wake) keep it on.
+    @discardableResult
     internal func stagePendingPrunedWindow(
         _ managed: ManagedWindow,
-        reason: String
-    ) {
+        reason: String,
+        allowNativeTabRebind: Bool = true
+    ) -> Bool {
+        if allowNativeTabRebind, rebindClosedNativeTabWindowIfPossible(managed) {
+            return false
+        }
+
         let windowId = managed.windowId
         let identifier = managed.externalIdentifier
         let lastActiveTime = windowLastActiveTime.removeValue(forKey: windowId)
@@ -109,6 +124,7 @@ extension WindowController {
         Logger.debug(
             "Staged window \(windowId) for deferred prune (pid \(identifier.pid), CGWindowID \(identifier.cgWindowId), reason: \(reason))"
         )
+        return true
     }
 
     internal func removeManagedWindowFromLiveTracking(_ managed: ManagedWindow) {
