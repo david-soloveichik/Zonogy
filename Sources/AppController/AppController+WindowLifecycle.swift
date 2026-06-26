@@ -889,10 +889,10 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowCreationFailedRetryNeeded(pid: \(pid))") {
             return
         }
-        // When AXWindowCreated fires but we can't capture the window (likely due to .cannotComplete errors),
-        // schedule a retry to attempt capturing windows for this PID again
+        // Transient AX/WindowServer gaps can make a new window temporarily unmanageable;
+        // schedule a retry to attempt capturing windows for this PID again.
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        Logger.debug("Scheduling capture retry for pid \(pid) due to failed AXWindowCreated capture")
+        Logger.debug("Scheduling capture retry for pid \(pid) after transient window capture failure")
         capturePipeline.requestRetry(forPid: pid, bundleId: bundleId)
     }
 

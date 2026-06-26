@@ -103,7 +103,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 
 ## Limitations
 
-- **Not compatible with native MacOS tabs.** Currently, the Accessibility API does not let us distinguish native tabs from separate windows. (Note that tabs in Safari, Chrome, and many other applications are not "native" MacOS tabs, and thus cause no issues.) I suggest *System Settings* > *Desktop & Dock* > *Prefer tabs when opening documents*: "Never".
+- **Not fully compatible with native MacOS tabs.** The available APIs make it difficult to distinguish native tabs from separate windows, and to handle native tab events as expected. (Note that tabs in Safari, Chrome, and many other applications are not "native" MacOS tabs, and thus cause no issues.) While basic native tab handling works, there are edge cases that do not (e.g. dragging tabs between windows, Merge All Windows, etc). I suggest *System Settings* > *Desktop & Dock* > *Prefer tabs when opening documents*: "Never".
 - **Not compatible with native MacOS Spaces or Stage Manager.** Zonogy is meant to replace these native features.
 
 ## Per-App Exceptions

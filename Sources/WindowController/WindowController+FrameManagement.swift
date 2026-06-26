@@ -619,15 +619,10 @@ extension WindowController {
         guard let managed = windowRegistry.window(withId: windowId) else {
             return nil
         }
-        let cgWindowId = managed.backing.cgWindowId
-
-        guard let windowInfo = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(cgWindowId)) as? [[String: Any]],
-              let boundsDict = windowInfo.first?[kCGWindowBounds as String] as? NSDictionary,
-              let rect = CGRect(dictionaryRepresentation: boundsDict) else {
-            return nil
-        }
-        // CGWindow bounds are already in screen/global coordinates with y:0 at top-left.
-        return rect
+        return WindowServerWindowList.frame(
+            for: managed.backing.cgWindowId,
+            ownerPid: managed.backing.pid
+        )
     }
 
     private func overflowArea(for frame: CGRect, bounds: CGRect) -> CGFloat {

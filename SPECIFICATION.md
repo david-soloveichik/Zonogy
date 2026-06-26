@@ -72,6 +72,15 @@ We manage a window if it passes **all** of the following conditions (see `winman
 
 Every managed window (from other applications) receives a sequential `windowId` used as the source of truth for zone assignments, even when the window also has a `CGWindowID` (obtained via `_AXUIElementGetWindow`). Placeholder windows do not have windowIds—they are owned directly by zones. Always log both identifiers when the CGWindowID value exists.
 
+### Native macOS Tabs
+
+Native macOS tabs can appear through Accessibility as separate windows with different `CGWindowID` values even though the active tab occupies the same visible top-level window frame. When Native Tab Management is enabled, we do the following:
+
+- When we detect an eligible, unminimized window that is not placed in any zone:
+  - Wait until the WindowServer exposes a live frame for its `CGWindowID`.
+  - Compare that frame against live WindowServer frames for placed managed windows from the same process, falling back to the managed window's current Accessibility frame. 
+  - If the x-position, y-position, and width coincide within normal rounding tolerance, and height differs by at most 50 pixels, reuse the existing placed managed window's `windowId` and zone assignment while replacing its backing AX element and `CGWindowID` with the candidate window. (This replacement does not place the candidate through the normal new-window path, so no retargeting, etc.)
+
 ## User Interactions
 
 > Note: For simplicity, this specification refers to keyboard shortcuts and mouse-gesture modifiers by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
@@ -354,16 +363,19 @@ For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFIC
 
 ### Debug Preferences
 
-Zonogy Preferences includes a **Debug** tab with four independent debug toggles, all **off by default**:
+Zonogy Preferences includes a **Debug** tab with five independent debug toggles, all **off by default**:
 
 - Save debug log to file (`/tmp/zonogy-debug.log`)
 - Show Dock debug rectangle
 - Show full-screen debug rectangles
 - Disable pre-position of minimized windows prior to unminimize
+- Disable native macOS tab handling
 
 Changes apply immediately while Zonogy is running.
 
 The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
+
+The "Disable native macOS tab handling" toggle turns off the native-tab frame wait and same-frame replacement behavior, so unplaced native-tab candidates are treated like ordinary windows.
 
 When "Save debug log to file" is off, Zonogy does not write to `/tmp/zonogy-debug.log` and does not modify any existing file at that path.
 When this toggle is turned on, Zonogy clears `/tmp/zonogy-debug.log` before writing new entries.

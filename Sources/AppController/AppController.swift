@@ -325,6 +325,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         self.windowController = WindowController(
             ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
+            nativeTabHandlingDisabled: DebugPreferencesStore.loadDisableNativeTabHandling(),
             primaryScreenBounds: contextStore.primaryScreenBounds,
             applicationExceptionPolicy: configuration.applicationExceptionPolicy
         )

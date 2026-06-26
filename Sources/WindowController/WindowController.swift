@@ -56,6 +56,7 @@ class WindowController {
     internal var accessibilityFrameRetryStates: [Int: FrameRetryState] = [:]
     internal var nextAccessibilityFrameRetryChainId: UInt64 = 1
     internal var ignoredBundleIdentifiers: Set<String>
+    internal var nativeTabHandlingDisabled: Bool
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
     internal var currentDraggingWindowId: Int?
@@ -100,6 +101,7 @@ class WindowController {
 
     init(
         ignoredBundleIdentifiers: Set<String> = [],
+        nativeTabHandlingDisabled: Bool = false,
         primaryScreenBounds: CGRect,
         applicationExceptionPolicy: ApplicationExceptionPolicy = .empty
     ) {
@@ -108,6 +110,7 @@ class WindowController {
             applicationNotifications: AccessibilityNotificationCatalog.applicationNotifications
         )
         self.ignoredBundleIdentifiers = ignoredBundleIdentifiers
+        self.nativeTabHandlingDisabled = nativeTabHandlingDisabled
         self.primaryScreenBounds = primaryScreenBounds
         self.applicationExceptionPolicy = applicationExceptionPolicy
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in

@@ -117,15 +117,7 @@ extension WindowController {
         externalWindows.removeValue(forKey: managed.externalIdentifier)
         windowRegistry.removeWindow(withId: windowId)
 
-        lastConfirmedAliveAt.removeValue(forKey: windowId)
-        programmaticUpdateWindowIds.remove(windowId)
-        programmaticUpdateWorkItems[windowId]?.cancel()
-        programmaticUpdateWorkItems.removeValue(forKey: windowId)
-
-        if var retryState = accessibilityFrameRetryStates.removeValue(forKey: windowId) {
-            retryState.cancel()
-        }
-
+        clearBackingScopedState(for: windowId, reason: "remove-live-tracking")
         restoredPendingPruneActivitySkipWindowIds.remove(windowId)
         restoredPendingPruneDestinationsByWindowId.removeValue(forKey: windowId)
 
@@ -137,6 +129,18 @@ extension WindowController {
         }
 
         updateMouseUpGlobalMonitorInstallation()
+    }
+
+    internal func clearBackingScopedState(for windowId: Int, reason: String) {
+        lastConfirmedAliveAt.removeValue(forKey: windowId)
+        programmaticUpdateWindowIds.remove(windowId)
+        programmaticUpdateWorkItems[windowId]?.cancel()
+        programmaticUpdateWorkItems.removeValue(forKey: windowId)
+
+        if var retryState = accessibilityFrameRetryStates.removeValue(forKey: windowId) {
+            retryState.cancel()
+            Logger.debug("Cancelled frame retry chain for window \(windowId) (reason: \(reason))")
+        }
     }
 
     private func pendingPrunedWindowDestination(for managed: ManagedWindow) -> PendingPrunedWindowDestination? {

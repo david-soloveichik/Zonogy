@@ -75,13 +75,15 @@ extension WindowController {
         }
 
         let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
+        let focusedExisting = existingManagedWindow(for: windowElement)
 
-        if let existing = existingManagedWindow(for: windowElement) {
-            Logger.debug("captureFocusedWindow: returning existing managed window \(existing.windowId) for pid \(pid)")
-            return existing
+        if let focusedExisting, focusedExisting.isPlacedInZone {
+            Logger.debug("captureFocusedWindow: returning existing managed window \(focusedExisting.windowId) for pid \(pid)")
+            return focusedExisting
         }
 
-        guard allowCreating else {
+        if !allowCreating,
+           focusedExisting == nil {
             Logger.debug("captureFocusedWindow: focused window for pid \(pid) is not yet tracked and allowCreating=false")
             return nil
         }
@@ -91,7 +93,7 @@ extension WindowController {
             pid: pid,
             appElement: appElement,
             allowReturningExisting: true,
-            notifyDelegate: true
+            notifyDelegate: allowCreating
         )
     }
 
@@ -233,15 +235,30 @@ extension WindowController {
             return nil
         }
 
-        if let existing = existingManagedWindow(for: element) {
+        let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
+        let existing = existingManagedWindow(for: element)
+
+        if let existing,
+           existing.externalIdentifier == identifier,
+           AccessibilityElementKey(element: existing.backing.element) != AccessibilityElementKey(element: element) {
+            rebindElement(for: existing, newElement: element, appElement: appElement)
+        }
+
+        let shouldEvaluateNativeTabReplacement = NativeTabReplacementPolicy.shouldEvaluateIncomingWindow(
+            isPlacedInZone: existing?.isPlacedInZone ?? false,
+            isMinimized: isMinimized,
+            nativeTabHandlingDisabled: nativeTabHandlingDisabled
+        )
+
+        if let existing, !shouldEvaluateNativeTabReplacement {
             Logger.debug(
                 "captureWindowIfNeeded: Window already exists for pid \(pid) as managed \(existing.windowId) (CGWindowID: \(windowNumStr)), allowReturningExisting=\(allowReturningExisting)"
             )
             return allowReturningExisting ? existing : nil
         }
 
-        let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
-        if let restored = restorePendingPrunedWindowIfNeeded(
+        if existing == nil,
+           let restored = restorePendingPrunedWindowIfNeeded(
             identifier: identifier,
             element: element,
             appElement: appElement,
@@ -250,6 +267,45 @@ extension WindowController {
         ) {
             Logger.debug("captureWindowIfNeeded: Restored deferred-prune window \(restored.windowId) for pid \(pid)")
             return restored
+        }
+
+        let incomingWindowServerFrame: CGRect?
+        if shouldEvaluateNativeTabReplacement {
+            guard let frame = WindowServerWindowList.frame(
+                for: identifier.cgWindowId,
+                ownerPid: identifier.pid
+            ) else {
+                needsRetry?.pointee = true
+                Logger.debug(
+                    "captureWindowIfNeeded: Waiting for live WindowServer frame before managing pid \(pid), CGWindowID \(identifier.cgWindowId) (native tab handling enabled)"
+                )
+                return nil
+            }
+            Logger.debug(
+                "Native tab replacement: incoming live WindowServer frame available for pid \(pid), CGWindowID \(identifier.cgWindowId): \(frame)"
+            )
+            incomingWindowServerFrame = frame
+        } else {
+            incomingWindowServerFrame = nil
+        }
+
+        if let incomingWindowServerFrame {
+            if let replacement = replaceNativeTabBackingIfNeeded(
+                element: element,
+                identifier: identifier,
+                appElement: appElement,
+                incomingFrame: incomingWindowServerFrame,
+                incomingExisting: existing
+            ) {
+                return replacement
+            }
+        }
+
+        if let existing {
+            Logger.debug(
+                "Native tab replacement: no placed coincident window found for unplaced existing managed window \(existing.windowId) (pid \(pid), CGWindowID \(identifier.cgWindowId)); allowReturningExisting=\(allowReturningExisting)"
+            )
+            return allowReturningExisting ? existing : nil
         }
 
         if pendingPrunedWindows.hasEntries(forPid: pid) {
@@ -282,6 +338,177 @@ extension WindowController {
 
         Logger.debug("captureWindowIfNeeded: Successfully captured window \(managed.windowId) for pid \(pid)")
         return managed
+    }
+
+    private func replaceNativeTabBackingIfNeeded(
+        element: AXUIElement,
+        identifier: ExternalWindowIdentifier,
+        appElement: AXUIElement,
+        incomingFrame: CGRect,
+        incomingExisting: ManagedWindow?
+    ) -> ManagedWindow? {
+        let samePidWindows = windowRegistry.allWindows
+            .filter { $0.backing.pid == identifier.pid }
+            .sorted { $0.windowId < $1.windowId }
+
+        Logger.debug(
+            "Native tab replacement: evaluating \(samePidWindows.count) same-pid managed window(s) for incoming pid \(identifier.pid), CGWindowID \(identifier.cgWindowId), frame \(incomingFrame)"
+        )
+
+        var candidates: [NativeTabReplacementPolicy.Candidate] = []
+        for managed in samePidWindows {
+            let placement = nativeTabPlacementDescription(for: managed)
+
+            guard managed.backing.cgWindowId != identifier.cgWindowId else {
+                Logger.debug(
+                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement)); same CGWindowID \(identifier.cgWindowId)"
+                )
+                continue
+            }
+
+            guard managed.isPlacedInZone else {
+                Logger.debug(
+                    "Native tab replacement: skipping managed window \(managed.windowId) (CGWindowID \(managed.backing.cgWindowId)); not placed in any zone"
+                )
+                continue
+            }
+
+            let candidateFrame: CGRect
+            let candidateFrameSource: String
+            if let liveFrame = WindowServerWindowList.frame(
+                for: managed.backing.cgWindowId,
+                ownerPid: managed.backing.pid
+            ) {
+                candidateFrame = liveFrame
+                candidateFrameSource = "live WindowServer frame"
+            } else {
+                let fallbackFrame = managed.actualFrame
+                guard fallbackFrame.width > 0, fallbackFrame.height > 0 else {
+                    Logger.debug(
+                        "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); live WindowServer frame unavailable and ManagedWindow.actualFrame unavailable"
+                    )
+                    continue
+                }
+
+                candidateFrame = fallbackFrame
+                candidateFrameSource = "ManagedWindow.actualFrame fallback"
+                Logger.debug(
+                    "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) using ManagedWindow.actualFrame fallback because live WindowServer frame is unavailable: \(candidateFrame)"
+                )
+            }
+
+            let coincides = NativeTabReplacementPolicy.framesCoincide(incomingFrame, candidateFrame)
+            let deltaDescription = nativeTabFrameDeltaDescription(incomingFrame: incomingFrame, candidateFrame: candidateFrame)
+            if coincides {
+                Logger.debug(
+                    "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) is a coincident candidate using \(candidateFrameSource); candidate frame \(candidateFrame); \(deltaDescription)"
+                )
+            } else {
+                Logger.debug(
+                    "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) rejected by frame check using \(candidateFrameSource); candidate frame \(candidateFrame); \(deltaDescription)"
+                )
+                continue
+            }
+
+            candidates.append(NativeTabReplacementPolicy.Candidate(
+                windowId: managed.windowId,
+                pid: managed.backing.pid,
+                cgWindowId: managed.backing.cgWindowId,
+                frame: candidateFrame,
+                isPlacedInZone: managed.isPlacedInZone
+            ))
+        }
+
+        guard !candidates.isEmpty else {
+            Logger.debug(
+                "Native tab replacement: no coincident candidates for incoming pid \(identifier.pid), CGWindowID \(identifier.cgWindowId); normal capture path will continue"
+            )
+            return nil
+        }
+
+        guard let match = NativeTabReplacementPolicy.replacementCandidate(
+            incomingPid: identifier.pid,
+            incomingCgWindowId: identifier.cgWindowId,
+            incomingFrame: incomingFrame,
+            candidates: candidates
+        ),
+              let managed = windowRegistry.window(withId: match.windowId) else {
+            Logger.debug(
+                "Native tab replacement: policy returned no live managed match from \(candidates.count) coincident candidate(s) for incoming pid \(identifier.pid), CGWindowID \(identifier.cgWindowId); normal capture path will continue"
+            )
+            return nil
+        }
+
+        let previousIdentifier = managed.externalIdentifier
+        if let incomingExisting, incomingExisting.windowId != managed.windowId {
+            Logger.debug(
+                "Native tab replacement: removing redundant unplaced managed window \(incomingExisting.windowId) " +
+                "(pid \(identifier.pid), CGWindowID \(identifier.cgWindowId)) before preserving window \(managed.windowId)"
+            )
+            windowLastActiveTime.removeValue(forKey: incomingExisting.windowId)
+            removeManagedWindowFromLiveTracking(incomingExisting)
+        }
+
+        replaceTrackedWindowBacking(
+            managed,
+            newElement: element,
+            newIdentifier: identifier,
+            appElement: appElement
+        )
+
+        Logger.debug(
+            "Native tab replacement: preserved managed window \(managed.windowId) in its existing zone " +
+            "(pid \(identifier.pid), CGWindowID \(previousIdentifier.cgWindowId) -> \(identifier.cgWindowId), " +
+            "old frame: \(match.frame), new frame: \(incomingFrame))"
+        )
+
+        return managed
+    }
+
+    private func nativeTabPlacementDescription(for managed: ManagedWindow) -> String {
+        let screenDescription = managed.screenDisplayId.map { ScreenContextStore.logDescription(for: $0) } ?? "unknown screen"
+        if let zoneIndex = managed.zoneIndex {
+            return "zone \(zoneIndex) on \(screenDescription)"
+        }
+        if managed.isInFloatingZone {
+            return "floating zone on \(screenDescription)"
+        }
+        return "not placed"
+    }
+
+    private func nativeTabFrameDeltaDescription(incomingFrame: CGRect, candidateFrame: CGRect) -> String {
+        let dx = abs(incomingFrame.minX - candidateFrame.minX)
+        let dy = abs(incomingFrame.minY - candidateFrame.minY)
+        let dw = abs(incomingFrame.width - candidateFrame.width)
+        let dh = abs(incomingFrame.height - candidateFrame.height)
+        return "deltas x=\(formatNativeTabDelta(dx)), y=\(formatNativeTabDelta(dy)), width=\(formatNativeTabDelta(dw)), height=\(formatNativeTabDelta(dh)) " +
+            "(limits x/y/width<=\(formatNativeTabDelta(NativeTabReplacementPolicy.frameTolerance)), height<=\(formatNativeTabDelta(NativeTabReplacementPolicy.heightTolerance)))"
+    }
+
+    private func formatNativeTabDelta(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
+    }
+
+    private func replaceTrackedWindowBacking(
+        _ managed: ManagedWindow,
+        newElement: AXUIElement,
+        newIdentifier: ExternalWindowIdentifier,
+        appElement: AXUIElement
+    ) {
+        let previousIdentifier = managed.externalIdentifier
+        removeAccessibilityTracking(for: managed)
+        externalWindows.removeValue(forKey: previousIdentifier)
+        clearBackingScopedState(for: managed.windowId, reason: "native-tab-replacement")
+
+        managed.backing = ManagedWindowBacking(
+            element: newElement,
+            pid: newIdentifier.pid,
+            cgWindowId: newIdentifier.cgWindowId
+        )
+
+        externalWindowsByElement[AccessibilityElementKey(element: newElement)] = managed
+        externalWindows[newIdentifier] = managed
+        registerAccessibilityNotifications(for: managed, appElement: appElement)
     }
 
     /// Enumerate the application's current windows and return a *fresh* AX element

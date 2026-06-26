@@ -22,6 +22,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: A newly created window opened into a tiling zone can keep its opening size instead of filling the zone (eg NordVPN), then only snap to the zone later when an unrelated event triggers a fresh sync.
   - Think about: An app can reject the initial AX size write (window queried microseconds after creation) while the position write succeeds. Need an appropriate retry mechanism.
 
+- Bug report: Native macOS tabs can be captured as separate windows because `_AXUIElementGetWindow` reports a fresh `CGWindowID` before `CGWindowListCopyWindowInfo` exposes its bounds.
+  - Think about: When native tab handling is enabled, eligible unplaced windows should wait for a live WindowServer frame before normal placement so same-frame tab replacement can run. "Unplaced" includes already-tracked windows that are not assigned to any Zonogy zone; do not limit this to never-seen `CGWindowID` values.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the floating zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 

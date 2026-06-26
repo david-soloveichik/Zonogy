@@ -6,9 +6,10 @@ final class DebugPreferencesViewController: NSViewController {
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
     private var disablePrePositionCheckbox: NSButton?
+    private var disableNativeTabsCheckbox: NSButton?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 440))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 500))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -83,6 +84,23 @@ final class DebugPreferencesViewController: NSViewController {
         disablePrePositionHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(disablePrePositionHintLabel)
 
+        let disableNativeTabsCheckbox = NSButton(
+            checkboxWithTitle: "Disable native macOS tab handling",
+            target: self,
+            action: #selector(disableNativeTabsToggled(_:))
+        )
+        disableNativeTabsCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(disableNativeTabsCheckbox)
+        self.disableNativeTabsCheckbox = disableNativeTabsCheckbox
+
+        let disableNativeTabsHintLabel = NSTextField(
+            wrappingLabelWithString: "When on, Zonogy treats native macOS tabs as ordinary separate windows and skips the live WindowServer frame wait used to detect tab switches."
+        )
+        disableNativeTabsHintLabel.font = NSFont.systemFont(ofSize: 12)
+        disableNativeTabsHintLabel.textColor = .secondaryLabelColor
+        disableNativeTabsHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(disableNativeTabsHintLabel)
+
         let filesHeaderLabel = NSTextField(labelWithString: "Debug File Locations")
         filesHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
         filesHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -144,7 +162,14 @@ final class DebugPreferencesViewController: NSViewController {
             disablePrePositionHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             disablePrePositionHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            filesHeaderLabel.topAnchor.constraint(equalTo: disablePrePositionHintLabel.bottomAnchor, constant: 20),
+            disableNativeTabsCheckbox.topAnchor.constraint(equalTo: disablePrePositionHintLabel.bottomAnchor, constant: 14),
+            disableNativeTabsCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            disableNativeTabsHintLabel.topAnchor.constraint(equalTo: disableNativeTabsCheckbox.bottomAnchor, constant: 6),
+            disableNativeTabsHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            disableNativeTabsHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            filesHeaderLabel.topAnchor.constraint(equalTo: disableNativeTabsHintLabel.bottomAnchor, constant: 20),
             filesHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             debugLogPathLabel.topAnchor.constraint(equalTo: filesHeaderLabel.bottomAnchor, constant: 8),
@@ -161,7 +186,7 @@ final class DebugPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 440)
+        self.preferredContentSize = NSSize(width: 580, height: 500)
         syncControls()
     }
 
@@ -189,10 +214,17 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func disableNativeTabsToggled(_ sender: NSButton) {
+        let disabled = sender.state == .on
+        AppController.shared.setNativeTabHandlingDisabledFromSettings(disabled)
+        syncControls()
+    }
+
     private func syncControls() {
         saveLogCheckbox?.state = AppController.shared.isDebugLogToFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
         disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
+        disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off
     }
 }

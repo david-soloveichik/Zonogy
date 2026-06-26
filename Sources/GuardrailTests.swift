@@ -21,6 +21,9 @@ enum GuardrailTests {
         if !SpuriousDestroyPolicyTests.run() {
             allPassed = false
         }
+        if !NativeTabReplacementPolicyTests.run() {
+            allPassed = false
+        }
         if !WindowPlacementManagerNoOpPlacementTests.run() {
             allPassed = false
         }
@@ -136,6 +139,9 @@ enum GuardrailTests {
             allPassed = false
         }
         if !StickyResizePreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }
         if !MouseGestureModifierPreferencesTests.run() {

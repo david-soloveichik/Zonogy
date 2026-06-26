@@ -249,17 +249,46 @@ extension WindowController {
         // the stored element reference current for future AX operations (minimize, etc).
         if let identifier = externalIdentifier(for: element),
            let existing = externalWindows[identifier] {
+            let isMinimized = isWindowMinimized(element)
+            if NativeTabReplacementPolicy.shouldEvaluateIncomingWindow(
+                isPlacedInZone: existing.isPlacedInZone,
+                isMinimized: isMinimized,
+                nativeTabHandlingDisabled: nativeTabHandlingDisabled
+            ) {
+                var needsCaptureRetry = false
+                let capturedWindow = captureWindowIfNeeded(
+                    element: element,
+                    pid: pid,
+                    appElement: appElement,
+                    allowReturningExisting: true,
+                    notifyDelegate: true,
+                    needsRetry: &needsCaptureRetry
+                )
+                if capturedWindow == nil {
+                    accessibilityWatcher.registerWindowNotifications(for: element, pid: pid)
+                }
+                delegate?.windowElementDidCreate(element: element, pid: pid)
+
+                if capturedWindow == nil {
+                    Logger.debug("AXWindowCreated: Failed to resolve already-tracked unplaced native-tab candidate '\(windowTitle)' for pid \(pid), requesting capture retry")
+                    delegate?.windowCreationFailedRetryNeeded(forPid: pid)
+                }
+                return
+            }
+
             rebindElement(for: existing, newElement: element, appElement: appElement)
             delegate?.windowElementDidCreate(element: element, pid: pid)
             return
         }
 
+        var needsCaptureRetry = false
         let capturedWindow = captureWindowIfNeeded(
             element: element,
             pid: pid,
             appElement: appElement,
             allowReturningExisting: false,
-            notifyDelegate: true
+            notifyDelegate: true,
+            needsRetry: &needsCaptureRetry
         )
 
         if capturedWindow == nil {
@@ -296,14 +325,20 @@ extension WindowController {
         var focusedWindowId: Int?
 
         if status == .success {
+            var needsCaptureRetry = false
             let captured = captureWindowIfNeeded(
                 element: element,
                 pid: targetPid,
                 appElement: appElement,
                 allowReturningExisting: true,
-                notifyDelegate: true
+                notifyDelegate: true,
+                needsRetry: &needsCaptureRetry
             )
             focusedWindowId = captured?.windowId
+            if needsCaptureRetry {
+                Logger.debug("AXMainWindowChanged: capture needs retry for pid \(targetPid)")
+                delegate?.windowCreationFailedRetryNeeded(forPid: targetPid)
+            }
         } else if let managed = managedWindow(matching: element) {
             focusedWindowId = managed.windowId
         }
@@ -326,13 +361,19 @@ extension WindowController {
             Logger.debug("Focus changed in app pid \(pid), validating windows")
             var focusedWindowId: Int?
             let appElement = accessibilityWatcher.applicationElement(for: pid)
+            var needsCaptureRetry = false
             let captured = captureWindowIfNeeded(
                 element: element,
                 pid: pid,
                 appElement: appElement,
                 allowReturningExisting: true,
-                notifyDelegate: true
+                notifyDelegate: true,
+                needsRetry: &needsCaptureRetry
             )
+            if needsCaptureRetry {
+                Logger.debug("AXFocusedWindowChanged: capture needs retry for pid \(pid)")
+                delegate?.windowCreationFailedRetryNeeded(forPid: pid)
+            }
             if let captured {
                 focusedWindowId = captured.windowId
             } else if let managed = managedWindow(matching: element) {

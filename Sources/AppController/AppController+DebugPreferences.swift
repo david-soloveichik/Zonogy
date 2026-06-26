@@ -10,6 +10,10 @@ extension AppController {
         DebugPreferencesStore.loadDisablePrePositionBeforeUnminimize()
     }
 
+    internal var isNativeTabHandlingDisabledInSettings: Bool {
+        DebugPreferencesStore.loadDisableNativeTabHandling()
+    }
+
     internal func setDebugLogToFileEnabledFromSettings(_ enabled: Bool) {
         let wasEnabled = Logger.logToFile
         DebugPreferencesStore.saveLogToFileEnabled(enabled)
@@ -32,5 +36,11 @@ extension AppController {
     internal func setDisablePrePositionBeforeUnminimizeFromSettings(_ enabled: Bool) {
         Logger.debug("Debug: disable pre-position before unminimize=\(enabled)")
         DebugPreferencesStore.saveDisablePrePositionBeforeUnminimize(enabled)
+    }
+
+    internal func setNativeTabHandlingDisabledFromSettings(_ disabled: Bool) {
+        Logger.debug("Debug: disable native macOS tab handling=\(disabled)")
+        DebugPreferencesStore.saveDisableNativeTabHandling(disabled)
+        windowController.nativeTabHandlingDisabled = disabled
     }
 }
