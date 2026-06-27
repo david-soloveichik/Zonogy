@@ -30,7 +30,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         case .off:
             return "Snapshots are saved only with the Control-Command-/ shortcut."
         case .onClearReset:
-            return "Capture the current arrangement right before Clear/Reset Zones, when managed windows are present."
+            return "Capture the current arrangement on Clear/Reset Zones, or when another snapshot is restored."
         case .onEveryOccupancyChange:
             return "Also save any arrangement that stays put for the delay below. The pre-clear capture still applies too."
         }
@@ -50,7 +50,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.winShotCheckbox = winShotCheckbox
 
         let winShotHintLabel = NSTextField(
-            wrappingLabelWithString: "Save and restore window arrangement snapshots with Control-Cmd-Tab. (Requires Screen Recording permission.)"
+            wrappingLabelWithString: "Restore window arrangement snapshots with Control-Cmd-Tab. (Requires Screen Recording permission.)"
         )
         winShotHintLabel.font = NSFont.systemFont(ofSize: 12)
         winShotHintLabel.textColor = .secondaryLabelColor
