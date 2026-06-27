@@ -562,9 +562,10 @@ extension WindowController {
     /// When a placed managed window is being pruned — its backing tab is gone or no longer resolves
     /// to a live AX element — but other tabs of the same window survive, rebind it to a surviving
     /// sibling (same process, coincident with its cached frame) so it keeps its `windowId` and zone
-    /// instead of being pruned. Called from `stagePendingPrunedWindow`, so it covers every prune
-    /// trigger (the `AXUIElementDestroyed` notification and the validation sweep), whether the closed
-    /// `CGWindowID` has vanished from the window list or merely no longer resolves to an element.
+    /// instead of being pruned. Called from `stagePendingPrunedWindow` for the `AXUIElementDestroyed`
+    /// notification and per-pid validation (the global validation sweep opts out via
+    /// `allowNativeTabRebind`), whether the closed `CGWindowID` has vanished from the window list or
+    /// merely no longer resolves to an element.
     /// Returns true when a sibling was adopted; false when the window should be pruned.
     internal func rebindClosedNativeTabWindowIfPossible(_ managed: ManagedWindow) -> Bool {
         guard !nativeTabHandlingDisabled, managed.isPlacedInZone else {
@@ -613,8 +614,7 @@ extension WindowController {
 
     /// Enumerate the application's current windows (excluding `excludingElement` and
     /// `excludingCgWindowId`) as `SiblingCandidate`s paired with their live AX elements. Only a
-    /// window with a live WindowServer frame — the on-screen tab — qualifies, mirroring the
-    /// tab-switch path.
+    /// window with a live WindowServer frame — the on-screen tab — qualifies.
     private func nativeTabSiblingCandidates(
         pid: pid_t,
         excludingCgWindowId: Int,

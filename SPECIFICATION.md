@@ -83,6 +83,8 @@ Native macOS tabs can appear through Accessibility as separate windows with diff
 
 - When a managed window in a zone is closed: We look for a window of the same process that is currently visible by WindowServer, and whose position and width coincide with the managed window's remembered frame (height is not compared, as in the switch case). ("Remembered frame" because the closed `CGWindowID` might not have a frame any more in CG or AX.) If such a window is found, we rebind the managed window to it, keeping its `windowId` and zone, instead of treating the window as closed. If none is found, the window is removed from its zone as usual.
 
+> **Caveats.** (1) Our native tabs handling assumes that the CG state has settled by the time that Zonogy receives the notifications. If not, this can cause some race conditions, mainly on the close path (the switch path waits for a live frame, so it is largely shielded). (2) The frame check is inherently inelegant.
+
 ## User Interactions
 
 > Note: For simplicity, this specification refers to keyboard shortcuts and mouse-gesture modifiers by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
