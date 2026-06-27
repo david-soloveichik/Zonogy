@@ -338,6 +338,16 @@ extension LauncherPreferencesViewController: NSTextFieldDelegate {
     }
 }
 
+extension LauncherPreferencesViewController: ReloadablePreferencesPane {
+    /// Re-read launcher-config.json so reopening Preferences reflects external edits instead of
+    /// saving stale in-memory items back over them. No-op until the table has loaded; the
+    /// initial load happens in viewDidLoad.
+    func reloadFromDisk() {
+        guard isViewLoaded else { return }
+        loadConfiguration()
+    }
+}
+
 // MARK: - Helper Classes
 
 private class EditableAliasTextField: NSTextField {

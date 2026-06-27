@@ -280,6 +280,6 @@ The launcher window should be configured as:
 - **Application caching:** The app list is pre-loaded at Zonogy startup and cached in memory. Launcher opens display the cached list instantly.
 - **Lazy icon loading:** Icons are loaded on-demand as rows appear, avoiding upfront I/O overhead.
 - **Automatic refresh:** Zonogy watches standard application roots (`/Applications`, `/System/Applications`, `/System/Library/CoreServices/Applications`, `~/Applications`) and debounces filesystem events before reloading launcher items; if Launcher is open in app-list mode, its list updates in place.
-- **Manual refresh fallback:** The menu bar provides "Reload Launcher Items and Exceptions" to force an immediate rescan of launcher items, reload `launcher-config.json` (for alias changes), and reload all `config.json` fields (exceptions, ignored bundle identifiers, `deriveBundleIdFromPathForProcesses`), using the same in-place update behavior for the launcher list.
+- **Manual refresh fallback:** Opening Preferences forces an immediate rescan of launcher items, reloads `launcher-config.json` (for alias changes), and reloads all `config.json` fields (exceptions, ignored bundle identifiers, `deriveBundleIdFromPathForProcesses`), using the same in-place update behavior for the launcher list.
 - Search filtering should be responsive (< 16ms for 60fps feel)
 - Window enumeration on tab-into-app should be fast (uses Zonogy's tracked windows)

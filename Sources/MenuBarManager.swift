@@ -4,7 +4,6 @@ import AppKit
 
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
-    func menuBarManagerDidRequestReloadConfiguration()
     func menuBarManagerDidRequestPreferences()
 }
 
@@ -51,14 +50,6 @@ class MenuBarManager {
         )
         preferencesItem.target = self
         menu.addItem(preferencesItem)
-
-        let reloadConfigItem = NSMenuItem(
-            title: "Reload Launcher Items and Exceptions",
-            action: #selector(handleReloadConfiguration),
-            keyEquivalent: ""
-        )
-        reloadConfigItem.target = self
-        menu.addItem(reloadConfigItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -120,11 +111,6 @@ class MenuBarManager {
     @objc private func handlePreferences() {
         Logger.debug("Preferences requested from menu bar")
         delegate?.menuBarManagerDidRequestPreferences()
-    }
-
-    @objc private func handleReloadConfiguration() {
-        Logger.debug("Reload Launcher Items and Exceptions requested from menu bar")
-        delegate?.menuBarManagerDidRequestReloadConfiguration()
     }
 
     @objc private func handleQuit() {

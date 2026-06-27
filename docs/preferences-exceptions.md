@@ -6,7 +6,7 @@ By default Zonogy manages a window only if it has a standard AX window role, exp
 
 ## The exceptions list
 
-Each row is one app, keyed by **bundle identifier** (e.g. `com.apple.Dictionary`). Add picks from the eligible running apps; double-click a row to edit. *Reveal Config File* icon (bottom on window) opens `~/Library/Application Support/Zonogy/config.json`; edits to that file take effect via the menu bar's *Reload Launcher Items and Exceptions*.
+Each row is one app, keyed by **bundle identifier** (e.g. `com.apple.Dictionary`). Add picks from the eligible running apps; double-click a row to edit. *Reveal Config File* icon (bottom on window) opens `~/Library/Application Support/Zonogy/config.json`; edits to that file take effect the next time you open Preferences.
 
 <img src="images/exceptions-list.png" alt="Exceptions preferences tab" width="500" />
 

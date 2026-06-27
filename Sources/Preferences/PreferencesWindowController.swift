@@ -1,6 +1,14 @@
 /// Controls the preferences window with tabbed interface
 import AppKit
 
+/// A Preferences pane whose contents are backed by an on-disk config file
+/// (`config.json` / `launcher-config.json`). Such panes read their file once in
+/// `viewDidLoad`; conforming lets the window re-read it each time Preferences opens,
+/// so the UI reflects external edits instead of showing—or saving over—stale cached data.
+protocol ReloadablePreferencesPane: AnyObject {
+    func reloadFromDisk()
+}
+
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
@@ -88,7 +96,20 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     func showWindow() {
+        // Commit any in-progress field edit (e.g. a Launcher alias being typed) before
+        // reloading, so reopening Preferences while it is already open refreshes from disk
+        // without discarding the user's uncommitted text.
+        window?.makeFirstResponder(nil)
+        reloadConfigBackedPanes()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+    }
+
+    /// Re-read on-disk config into the config-backed panes so reopening Preferences after an
+    /// external edit (or a runtime reload) shows current data instead of stale cached entries.
+    private func reloadConfigBackedPanes() {
+        tabViewController?.children
+            .compactMap { $0 as? ReloadablePreferencesPane }
+            .forEach { $0.reloadFromDisk() }
     }
 }

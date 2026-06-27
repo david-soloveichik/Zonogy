@@ -329,3 +329,13 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         editException(at: row)
     }
 }
+
+extension ExceptionsPreferencesViewController: ReloadablePreferencesPane {
+    /// Re-read config.json so reopening Preferences reflects external edits instead of saving
+    /// stale in-memory entries back over them. No-op until the table has loaded; the initial
+    /// load happens in viewDidLoad.
+    func reloadFromDisk() {
+        guard isViewLoaded else { return }
+        loadConfiguration()
+    }
+}
