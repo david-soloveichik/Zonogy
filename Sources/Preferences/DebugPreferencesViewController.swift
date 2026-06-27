@@ -94,7 +94,7 @@ final class DebugPreferencesViewController: NSViewController {
         self.disableNativeTabsCheckbox = disableNativeTabsCheckbox
 
         let disableNativeTabsHintLabel = NSTextField(
-            wrappingLabelWithString: "When on, Zonogy treats native macOS tabs as ordinary separate windows and skips the live WindowServer frame wait used to detect tab switches."
+            wrappingLabelWithString: "When on, disables Zonogy's special handling of native macOS tabs."
         )
         disableNativeTabsHintLabel.font = NSFont.systemFont(ofSize: 12)
         disableNativeTabsHintLabel.textColor = .secondaryLabelColor

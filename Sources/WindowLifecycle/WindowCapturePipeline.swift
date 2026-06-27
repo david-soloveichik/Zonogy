@@ -4,7 +4,7 @@ import AppKit
 final class WindowCapturePipeline {
     struct RetryConfiguration {
         let delays: [TimeInterval]
-        static let `default` = RetryConfiguration(delays: [1.0, 2.0, 4.0, 8.0])
+        static let `default` = RetryConfiguration(delays: [0.25, 0.5, 1.0, 2.0, 4.0])
     }
 
     struct CaptureRequest {
@@ -59,6 +59,9 @@ final class WindowCapturePipeline {
             cancelRetry(forPid: pid)
             return
         }
+        // A fresh external trigger restarts the backoff instead of inheriting a prior capture's
+        // attempt count, so rapid triggers don't escalate the delay before the new window is adopted.
+        retryStates[pid]?.attempt = 0
         scheduleRetry(for: application, hintBundleId: bundleId)
     }
 
