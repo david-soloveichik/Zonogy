@@ -72,8 +72,8 @@ final class PreferencesWindowController: NSWindowController {
         // WinShot Snapshots tab
         let winShotVC = WinShotSnapshotsPreferencesViewController()
         let winShotItem = NSTabViewItem(viewController: winShotVC)
-        winShotItem.label = "WinShot"
-        winShotItem.image = NSImage(systemSymbolName: "camera", accessibilityDescription: "WinShot Snapshots")
+        winShotItem.label = "Snapshots"
+        winShotItem.image = NSImage(systemSymbolName: "camera", accessibilityDescription: "Snapshots")
         tabVC.addTabViewItem(winShotItem)
 
         // Debug tab

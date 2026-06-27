@@ -341,14 +341,14 @@ final class GeneralPreferencesViewController: NSViewController {
             screenRecordingStatusView?.layer?.cornerRadius = 6
             screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Granted")
             screenRecordingStatusIcon?.contentTintColor = .systemGreen
-            screenRecordingStatusLabel?.stringValue = "Screen Recording permission granted (only used for WinShot feature)"
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission granted (only used for WinShot snapshots feature)"
             screenRecordingStatusLabel?.textColor = .labelColor
         } else {
             screenRecordingStatusView?.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.15).cgColor
             screenRecordingStatusView?.layer?.cornerRadius = 6
             screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Required")
             screenRecordingStatusIcon?.contentTintColor = .systemOrange
-            screenRecordingStatusLabel?.stringValue = "Screen Recording permission not granted (only used for WinShot feature)"
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission not granted (only used for WinShot snapshots feature)"
             screenRecordingStatusLabel?.textColor = .labelColor
         }
     }
