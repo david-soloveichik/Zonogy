@@ -612,9 +612,9 @@ extension WindowController {
     }
 
     /// Enumerate the application's current windows (excluding `excludingElement` and
-    /// `excludingCgWindowId`) as `SiblingCandidate`s paired with their live AX elements. A
-    /// sibling's frame comes from the live WindowServer frame, falling back to its accessibility
-    /// frame — mirroring the tab-switch path.
+    /// `excludingCgWindowId`) as `SiblingCandidate`s paired with their live AX elements. Only a
+    /// window with a live WindowServer frame — the on-screen tab — qualifies, mirroring the
+    /// tab-switch path.
     private func nativeTabSiblingCandidates(
         pid: pid_t,
         excludingCgWindowId: Int,
@@ -646,16 +646,14 @@ extension WindowController {
                 continue
             }
 
-            let frame: CGRect
-            if let wsFrame = WindowServerWindowList.frame(for: cgWindowIdInt, ownerPid: pid) {
-                frame = wsFrame
-            } else if let axFrame = ManagedWindow.frame(of: element), axFrame.width > 0, axFrame.height > 0 {
-                frame = axFrame
-            } else {
+            // Require a live WindowServer frame — the on-screen tab. A background or switched-away
+            // tab still appears in the window list but has no live frame, so rebinding to it would
+            // wrongly hold the zone on a whole-window close.
+            guard let wsFrame = WindowServerWindowList.frame(for: cgWindowIdInt, ownerPid: pid) else {
                 continue
             }
 
-            results.append((element, NativeTabReplacementPolicy.SiblingCandidate(cgWindowId: cgWindowIdInt, frame: frame)))
+            results.append((element, NativeTabReplacementPolicy.SiblingCandidate(cgWindowId: cgWindowIdInt, frame: wsFrame)))
         }
         return results
     }
