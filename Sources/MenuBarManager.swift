@@ -43,6 +43,16 @@ class MenuBarManager {
         // Create the menu
         let menu = NSMenu()
 
+        // Inactive header showing the app name and version. A nil action leaves it
+        // grayed out under NSMenu's automatic item enabling.
+        let versionItem = NSMenuItem(
+            title: AppVersion.menuBarDisplayString,
+            action: nil,
+            keyEquivalent: ""
+        )
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
         let preferencesItem = NSMenuItem(
             title: "Preferences...",
             action: #selector(handlePreferences),

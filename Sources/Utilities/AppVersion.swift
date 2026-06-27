@@ -22,7 +22,17 @@ enum AppVersion {
 
     /// "Zonogy Window Manager 1.0 (805 · ef8f4d6)" for the General tab and logs.
     static var preferencesDisplayString: String {
-        let base = "Zonogy Window Manager \(marketingVersion)"
+        displayString(prefix: "Zonogy Window Manager")
+    }
+
+    /// "Zonogy 1.0 (805 · ef8f4d6)" for the menu bar's inactive title item.
+    static var menuBarDisplayString: String {
+        displayString(prefix: "Zonogy")
+    }
+
+    /// Joins a product-name prefix with the marketing version and optional build detail.
+    private static func displayString(prefix: String) -> String {
+        let base = "\(prefix) \(marketingVersion)"
         guard let detail = buildDetail else { return base }
         return "\(base) (\(detail))"
     }
