@@ -559,23 +559,19 @@ extension WindowController {
         managed.cachedFrame = frame
     }
 
-    /// When a placed managed window's backing tab is closed — its CGWindowID has left the
-    /// WindowServer but other tabs of the same window survive — rebind it to a surviving sibling
-    /// (same process, different CGWindowID, coincident with its cached frame) so it keeps its
-    /// `windowId` and zone instead of being pruned. Called from `stagePendingPrunedWindow`, so it
-    /// guards every prune trigger (the `AXUIElementDestroyed` notification and the validation
-    /// sweep). Returns true when a sibling was adopted; false when the window should be pruned.
+    /// When a placed managed window is being pruned — its backing tab is gone or no longer resolves
+    /// to a live AX element — but other tabs of the same window survive, rebind it to a surviving
+    /// sibling (same process, coincident with its cached frame) so it keeps its `windowId` and zone
+    /// instead of being pruned. Called from `stagePendingPrunedWindow`, so it covers every prune
+    /// trigger (the `AXUIElementDestroyed` notification and the validation sweep), whether the closed
+    /// `CGWindowID` has vanished from the window list or merely no longer resolves to an element.
+    /// Returns true when a sibling was adopted; false when the window should be pruned.
     internal func rebindClosedNativeTabWindowIfPossible(_ managed: ManagedWindow) -> Bool {
         guard !nativeTabHandlingDisabled, managed.isPlacedInZone else {
             return false
         }
 
         let identifier = managed.externalIdentifier
-        // Only a window whose own CGWindowID is gone is a tab close. If it is still listed (e.g. a
-        // recycled AX element with the same CGWindowID), a different-CGWindowID rebind is wrong.
-        guard !WindowServerWindowList.containsWindow(pid: identifier.pid, cgWindowId: identifier.cgWindowId) else {
-            return false
-        }
         guard let cachedFrame = managed.cachedFrame, cachedFrame.width > 0, cachedFrame.height > 0 else {
             Logger.debug("Native tab close: window \(managed.windowId) (pid \(identifier.pid), CGWindowID \(identifier.cgWindowId)) has no cached frame; cannot match a surviving sibling")
             return false
