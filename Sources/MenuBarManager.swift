@@ -5,15 +5,19 @@ import AppKit
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
     func menuBarManagerDidRequestPreferences()
+    func menuBarManagerDidRequestSaveSnapshot()
+    func menuBarManagerDidRequestClearAllSnapshots()
 }
 
 /// Manages the menu bar status item, including visual state (e.g. dimming during sleep/wake) and its menu.
-class MenuBarManager {
+class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var isDimmed: Bool = false
+    private var saveSnapshotItem: NSMenuItem?
     weak var delegate: MenuBarManagerDelegate?
 
-    init() {
+    override init() {
+        super.init()
         setupMenuBar()
     }
 
@@ -42,6 +46,7 @@ class MenuBarManager {
 
         // Create the menu
         let menu = NSMenu()
+        menu.delegate = self
 
         // Inactive header showing the app name and version. A nil action leaves it
         // grayed out under NSMenu's automatic item enabling.
@@ -60,6 +65,26 @@ class MenuBarManager {
         )
         preferencesItem.target = self
         menu.addItem(preferencesItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let clearSnapshotsItem = NSMenuItem(
+            title: "Clear All Snapshots",
+            action: #selector(handleClearAllSnapshots),
+            keyEquivalent: ""
+        )
+        clearSnapshotsItem.target = self
+        menu.addItem(clearSnapshotsItem)
+
+        let saveSnapshotItem = NSMenuItem(
+            title: "Save Snapshot",
+            action: #selector(handleSaveSnapshot),
+            keyEquivalent: ""
+        )
+        saveSnapshotItem.target = self
+        menu.addItem(saveSnapshotItem)
+        self.saveSnapshotItem = saveSnapshotItem
+        updateSaveSnapshotShortcut()
 
         menu.addItem(NSMenuItem.separator())
 
@@ -123,6 +148,30 @@ class MenuBarManager {
         delegate?.menuBarManagerDidRequestPreferences()
     }
 
+    @objc private func handleSaveSnapshot() {
+        Logger.debug("Save snapshot requested from menu bar")
+        delegate?.menuBarManagerDidRequestSaveSnapshot()
+    }
+
+    @objc private func handleClearAllSnapshots() {
+        Logger.debug("Clear all snapshots requested from menu bar")
+        delegate?.menuBarManagerDidRequestClearAllSnapshots()
+    }
+
+    /// Reflects the current (user-configurable) Save Snapshot shortcut beside its menu item so the
+    /// menu always matches Preferences. Clears the equivalent when the action has no shortcut.
+    private func updateSaveSnapshotShortcut() {
+        guard let item = saveSnapshotItem else { return }
+        if let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .saveWinShotSnapshot),
+           let equivalent = shortcut.menuItemKeyEquivalent {
+            item.keyEquivalent = equivalent.key
+            item.keyEquivalentModifierMask = equivalent.modifiers
+        } else {
+            item.keyEquivalent = ""
+            item.keyEquivalentModifierMask = []
+        }
+    }
+
     @objc private func handleQuit() {
         Logger.debug("Quit requested from menu bar")
         delegate?.menuBarManagerDidRequestQuit()
@@ -134,5 +183,12 @@ class MenuBarManager {
             NSStatusBar.system.removeStatusItem(statusItem)
             self.statusItem = nil
         }
+    }
+}
+
+extension MenuBarManager: NSMenuDelegate {
+    /// The Save Snapshot shortcut can change in Preferences, so refresh it each time the menu opens.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        updateSaveSnapshotShortcut()
     }
 }

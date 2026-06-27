@@ -25,4 +25,16 @@ extension AppController {
         dismissLauncherIfActive()
         PreferencesWindowController.shared.showWindow()
     }
+
+    func menuBarManagerDidRequestSaveSnapshot() {
+        saveWinShotSnapshot()
+    }
+
+    func menuBarManagerDidRequestClearAllSnapshots() {
+        winShotManager.clearAllSnapshots()
+        // Reflect the now-empty state in an open chooser (it closes itself when empty).
+        if let screenId = winShotChooserController.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: screenId)
+        }
+    }
 }
