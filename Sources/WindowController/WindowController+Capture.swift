@@ -361,12 +361,25 @@ extension WindowController {
             // frame by the time we get here. Matching a still-live window would be a false positive
             // (two distinct windows that merely share a frame), so only a window whose live frame is
             // gone — read from its Accessibility frame — is an eligible replacement target.
-            if WindowServerWindowList.frame(
+            if let liveFrame = WindowServerWindowList.frame(
                 for: managed.backing.cgWindowId,
                 ownerPid: managed.backing.pid
-            ) != nil {
+            ) {
+                // Diagnostic so each skip self-classifies: if the incoming window sits at a
+                // different position than this placed window (its live or remembered frame), they
+                // are genuinely separate windows and the skip is correct. If they coincide, this is
+                // either two distinct windows sharing a frame (still correct to skip) or a
+                // same-group tab whose background frame reappeared before we evaluated — a missed
+                // adoption worth investigating.
+                let cachedFrame = managed.cachedFrame
+                let coincides = NativeTabReplacementPolicy.positionAndWidthCoincide(incomingFrame, liveFrame)
+                    || (cachedFrame.map { NativeTabReplacementPolicy.positionAndWidthCoincide(incomingFrame, $0) } ?? false)
                 Logger.debug(
-                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); still exposes a live WindowServer frame, so it is a separate live window, not a switched-away tab"
+                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); still exposes a live WindowServer frame. " +
+                    "incoming=\(incomingFrame) live=\(liveFrame) cached=\(cachedFrame.map { "\($0)" } ?? "nil"); " +
+                    (coincides
+                        ? "frames COINCIDE -> separate windows sharing a frame (correct) OR a missed same-group adoption (investigate)"
+                        : "frames DIFFER -> genuinely separate windows, skip is correct")
                 )
                 continue
             }
@@ -383,7 +396,7 @@ extension WindowController {
                 "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) eligible via \(candidateFrameSource): \(candidateFrame)"
             )
 
-            let coincides = NativeTabReplacementPolicy.framesCoincide(incomingFrame, candidateFrame)
+            let coincides = NativeTabReplacementPolicy.positionAndWidthCoincide(incomingFrame, candidateFrame)
             let deltaDescription = nativeTabFrameDeltaDescription(incomingFrame: incomingFrame, candidateFrame: candidateFrame)
             if coincides {
                 Logger.debug(
@@ -459,7 +472,7 @@ extension WindowController {
         let dw = abs(incomingFrame.width - candidateFrame.width)
         let dh = abs(incomingFrame.height - candidateFrame.height)
         return "deltas x=\(formatNativeTabDelta(dx)), y=\(formatNativeTabDelta(dy)), width=\(formatNativeTabDelta(dw)), height=\(formatNativeTabDelta(dh)) " +
-            "(limits x/y/width<=\(formatNativeTabDelta(NativeTabReplacementPolicy.frameTolerance)), height<=\(formatNativeTabDelta(NativeTabReplacementPolicy.heightTolerance)))"
+            "(limits x/y/width<=\(formatNativeTabDelta(NativeTabReplacementPolicy.frameTolerance)); height not checked for adoption)"
     }
 
     private func formatNativeTabDelta(_ value: CGFloat) -> String {

@@ -64,33 +64,27 @@ enum NativeTabReplacementPolicyTests {
             )
         }
 
+        // Position + width match (used by both the switch and close paths); height is ignored.
         assert(
-            NativeTabReplacementPolicy.framesCoincide(
+            NativeTabReplacementPolicy.positionAndWidthCoincide(
                 incoming,
-                CGRect(x: 101, y: 79, width: 899, height: 750)
+                CGRect(x: 101, y: 79, width: 899, height: 5000)
             ),
-            "height difference at the 50px limit should match when position and width coincide"
+            "position+width within tolerance should coincide regardless of height"
         )
         assert(
-            !NativeTabReplacementPolicy.framesCoincide(
-                incoming,
-                CGRect(x: 100, y: 80, width: 900, height: 751)
-            ),
-            "height difference beyond 50px should not match"
-        )
-        assert(
-            !NativeTabReplacementPolicy.framesCoincide(
+            !NativeTabReplacementPolicy.positionAndWidthCoincide(
                 incoming,
                 CGRect(x: 103, y: 80, width: 900, height: 700)
             ),
-            "x differences beyond frame tolerance should not match"
+            "x beyond frame tolerance should not coincide"
         )
         assert(
-            !NativeTabReplacementPolicy.framesCoincide(
+            !NativeTabReplacementPolicy.positionAndWidthCoincide(
                 incoming,
                 CGRect(x: 100, y: 80, width: 903, height: 700)
             ),
-            "width differences beyond frame tolerance should not match"
+            "width beyond frame tolerance should not coincide"
         )
 
         let exact = NativeTabReplacementPolicy.replacementCandidate(
@@ -109,21 +103,29 @@ enum NativeTabReplacementPolicyTests {
                 candidate(windowId: 1, pid: 43),
                 candidate(windowId: 2, cgWindowId: 100),
                 candidate(windowId: 3, isPlacedInZone: false),
-                candidate(windowId: 4, frame: CGRect(x: 100, y: 80, width: 900, height: 751))
+                candidate(windowId: 4, frame: CGRect(x: 103, y: 80, width: 900, height: 700))
             ]
         )
-        assert(rejected == nil, "different pid, same CGWindowID, unplaced, and noncoincident candidates should be rejected")
+        assert(rejected == nil, "different pid, same CGWindowID, unplaced, and position/width-noncoincident candidates should be rejected")
+
+        let heightStaleMatch = NativeTabReplacementPolicy.replacementCandidate(
+            incomingPid: 42,
+            incomingCgWindowId: 100,
+            incomingFrame: incoming,
+            candidates: [candidate(windowId: 5, frame: CGRect(x: 100, y: 80, width: 900, height: 1200))]
+        )
+        assert(heightStaleMatch?.windowId == 5, "adoption ignores height: a large/stale height difference must still match when position and width coincide")
 
         let closest = NativeTabReplacementPolicy.replacementCandidate(
             incomingPid: 42,
             incomingCgWindowId: 100,
             incomingFrame: incoming,
             candidates: [
-                candidate(windowId: 9, frame: CGRect(x: 100, y: 80, width: 900, height: 735)),
-                candidate(windowId: 8, frame: CGRect(x: 100, y: 80, width: 900, height: 710))
+                candidate(windowId: 9, frame: CGRect(x: 101, y: 80, width: 900, height: 700)),
+                candidate(windowId: 8, frame: CGRect(x: 100, y: 80, width: 900, height: 700))
             ]
         )
-        assert(closest?.windowId == 8, "closest coincident frame should win")
+        assert(closest?.windowId == 8, "closest position/width candidate should win")
 
         let tied = NativeTabReplacementPolicy.replacementCandidate(
             incomingPid: 42,
@@ -148,11 +150,11 @@ enum NativeTabReplacementPolicyTests {
             NativeTabReplacementPolicy.bestSibling(
                 matching: incoming,
                 among: [
-                    sibling(300, CGRect(x: 100, y: 80, width: 900, height: 735)),
-                    sibling(301, CGRect(x: 100, y: 80, width: 900, height: 710))
+                    sibling(300, CGRect(x: 101, y: 80, width: 900, height: 700)),
+                    sibling(301, CGRect(x: 100, y: 80, width: 900, height: 700))
                 ]
             )?.cgWindowId == 301,
-            "closest coincident sibling frame should win"
+            "closest position/width sibling should win"
         )
         assert(
             NativeTabReplacementPolicy.bestSibling(matching: incoming, among: [sibling(305), sibling(304)])?.cgWindowId == 304,
@@ -161,12 +163,19 @@ enum NativeTabReplacementPolicyTests {
         assert(
             NativeTabReplacementPolicy.bestSibling(
                 matching: incoming,
+                among: [sibling(306, CGRect(x: 100, y: 80, width: 900, height: 1200))]
+            )?.cgWindowId == 306,
+            "close match ignores height too: a large height difference must still match the cached frame"
+        )
+        assert(
+            NativeTabReplacementPolicy.bestSibling(
+                matching: incoming,
                 among: [
-                    sibling(306, CGRect(x: 100, y: 80, width: 900, height: 751)),
-                    sibling(307, CGRect(x: 103, y: 80, width: 900, height: 700))
+                    sibling(307, CGRect(x: 103, y: 80, width: 900, height: 700)),
+                    sibling(308, CGRect(x: 100, y: 80, width: 904, height: 700))
                 ]
             ) == nil,
-            "siblings beyond frame/height tolerance should not match the cached frame"
+            "siblings beyond position/width tolerance should not match the cached frame"
         )
 
         if allPassed {

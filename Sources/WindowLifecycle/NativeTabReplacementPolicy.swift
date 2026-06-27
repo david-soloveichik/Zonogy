@@ -1,8 +1,9 @@
 import Foundation
 
-/// Pure frame-coincidence matching for native macOS tabs, which Accessibility exposes as
-/// separate windows: adopting a switched-to tab into an existing zone occupant, and rebinding
-/// a zone occupant to a surviving sibling tab when the tab currently backing it is closed.
+/// Pure position/width-coincidence matching for native macOS tabs, which Accessibility exposes as
+/// separate windows: adopting a switched-to tab into an existing zone occupant, and rebinding a
+/// zone occupant to a surviving sibling tab when the tab currently backing it is closed. Height is
+/// never compared (see `positionAndWidthCoincide`).
 enum NativeTabReplacementPolicy {
     struct Candidate: Equatable {
         let windowId: Int
@@ -21,7 +22,6 @@ enum NativeTabReplacementPolicy {
     }
 
     static let frameTolerance: CGFloat = 2.0
-    static let heightTolerance: CGFloat = 50.0
 
     static func shouldEvaluateIncomingWindow(
         isPlacedInZone: Bool,
@@ -31,24 +31,26 @@ enum NativeTabReplacementPolicy {
         !nativeTabHandlingDisabled && !isMinimized && !isPlacedInZone
     }
 
+    /// Pick the placed managed window a switched-to tab should be adopted into. Matches on
+    /// position and width only (see `positionAndWidthCoincide`). The live-frame check upstream has
+    /// already excluded separate live windows, so the remaining candidates are switched-away tabs;
+    /// among those an exact position/width match identifies the window.
     static func replacementCandidate(
         incomingPid: pid_t,
         incomingCgWindowId: Int,
         incomingFrame: CGRect,
         candidates: [Candidate],
-        frameTolerance: CGFloat = Self.frameTolerance,
-        heightTolerance: CGFloat = Self.heightTolerance
+        frameTolerance: CGFloat = Self.frameTolerance
     ) -> Candidate? {
         candidates
             .filter { candidate in
                 candidate.pid == incomingPid &&
                 candidate.cgWindowId != incomingCgWindowId &&
                 candidate.isPlacedInZone &&
-                framesCoincide(
+                positionAndWidthCoincide(
                     incomingFrame,
                     candidate.frame,
-                    frameTolerance: frameTolerance,
-                    heightTolerance: heightTolerance
+                    tolerance: frameTolerance
                 )
             }
             .min { lhs, rhs in
@@ -61,22 +63,20 @@ enum NativeTabReplacementPolicy {
             }
     }
 
-    /// Among surviving sibling windows, pick the one whose frame still coincides with the
-    /// closed window's last cached frame. Ties break toward the closest frame, then the lowest
-    /// CGWindowID, so selection is deterministic.
+    /// Among surviving sibling windows, pick the one whose frame still coincides with the closed
+    /// window's last cached frame. Matches on position and width only, like the switch case. Ties
+    /// break toward the closest frame, then the lowest CGWindowID, so selection is deterministic.
     static func bestSibling(
         matching cachedFrame: CGRect,
         among candidates: [SiblingCandidate],
-        frameTolerance: CGFloat = Self.frameTolerance,
-        heightTolerance: CGFloat = Self.heightTolerance
+        frameTolerance: CGFloat = Self.frameTolerance
     ) -> SiblingCandidate? {
         candidates
             .filter { candidate in
-                framesCoincide(
+                positionAndWidthCoincide(
                     cachedFrame,
                     candidate.frame,
-                    frameTolerance: frameTolerance,
-                    heightTolerance: heightTolerance
+                    tolerance: frameTolerance
                 )
             }
             .min { lhs, rhs in
@@ -89,22 +89,24 @@ enum NativeTabReplacementPolicy {
             }
     }
 
-    static func framesCoincide(
+    /// Position and width coincidence within rounding tolerance, ignoring height. Both the switch
+    /// (adoption) and close (sibling) matches use this. Height is deliberately not compared: a
+    /// resize that lands on the active tab can leave a tracked tab's height stale, which would
+    /// otherwise block a correct match, and exact position+width coincidence is already a strong
+    /// same-window signal.
+    static func positionAndWidthCoincide(
         _ lhs: CGRect,
         _ rhs: CGRect,
-        frameTolerance: CGFloat = Self.frameTolerance,
-        heightTolerance: CGFloat = Self.heightTolerance
+        tolerance: CGFloat = Self.frameTolerance
     ) -> Bool {
-        abs(lhs.minX - rhs.minX) <= frameTolerance &&
-        abs(lhs.minY - rhs.minY) <= frameTolerance &&
-        abs(lhs.width - rhs.width) <= frameTolerance &&
-        abs(lhs.height - rhs.height) <= heightTolerance
+        abs(lhs.minX - rhs.minX) <= tolerance &&
+        abs(lhs.minY - rhs.minY) <= tolerance &&
+        abs(lhs.width - rhs.width) <= tolerance
     }
 
     private static func coincidenceScore(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
         abs(lhs.minX - rhs.minX) +
         abs(lhs.minY - rhs.minY) +
-        abs(lhs.width - rhs.width) +
-        abs(lhs.height - rhs.height)
+        abs(lhs.width - rhs.width)
     }
 }
