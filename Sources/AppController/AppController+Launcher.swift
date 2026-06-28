@@ -463,16 +463,17 @@ extension AppController: LauncherControllerDelegate {
             let destination = launcherSelectionDestination(for: managed)
             let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: managed, destination: $0) }
 
-            // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation
-            if !managed.isPlacedInZone {
-                // Suppress deminiaturized notification so it doesn't trigger re-placement
-                suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
+            // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
+            // Do not assign a minimized window to a zone; the deminiaturize notification will place it.
+            if managed.isMinimizedPerAccessibility {
                 unminimizeWithPrePositioning(
                     managed,
                     targetFrame: targetInfo?.frame,
                     on: targetInfo?.descriptor,
-                    reason: "launcher"
+                    reason: "launcher",
+                    focusAfterPlacement: true
                 )
+                return
             }
             // Place in targeted zone
             placeSelectedWindow(managed, destination: destination)
@@ -543,16 +544,17 @@ extension AppController: LauncherControllerDelegate {
             let destination = launcherSelectionDestination(for: preferredWindow)
             let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: preferredWindow, destination: $0) }
 
-            // Pre-position and unminimize if needed
-            if !preferredWindow.isPlacedInZone {
-                // Suppress deminiaturized notification so it doesn't trigger re-placement
-                suppressNextEvents(for: [preferredWindow.windowId], events: [.deminiaturized], reason: "launcher-unminimize")
+            // Pre-position and unminimize if needed. Do not assign a minimized window to a zone;
+            // the deminiaturize notification will place it.
+            if preferredWindow.isMinimizedPerAccessibility {
                 unminimizeWithPrePositioning(
                     preferredWindow,
                     targetFrame: targetInfo?.frame,
                     on: targetInfo?.descriptor,
-                    reason: "launcher"
+                    reason: "launcher",
+                    focusAfterPlacement: true
                 )
+                return
             }
 
             // Place in targeted zone

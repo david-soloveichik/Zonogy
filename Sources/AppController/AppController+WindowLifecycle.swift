@@ -378,6 +378,7 @@ extension AppController {
 
     func windowDidDeminiaturize(windowId: Int) {
         if shouldIgnoreDueToSleepWake(event: "windowDidDeminiaturize(\(windowId))") {
+            pendingExplicitUnminimizeFocusWindowIds.remove(windowId)
             return
         }
         Logger.debug("Window \(windowId) did deminiaturize")
@@ -404,6 +405,51 @@ extension AppController {
         }
         guard let managed = windowController.window(withId: windowId) else { return }
         windowPlacementManager.placeNewWindow(managed)
+        focusExplicitlyUnminimizedWindowIfNeeded(
+            originalWindowId: windowId,
+            resolvedWindowId: windowId,
+            reason: "deminiaturize-placement"
+        )
+    }
+
+    func windowDidAdoptNativeTabOnDeminiaturize(originalWindowId: Int, adoptedWindowId: Int) {
+        if shouldIgnoreDueToSleepWake(event: "windowDidAdoptNativeTabOnDeminiaturize(\(originalWindowId)->\(adoptedWindowId))") {
+            pendingExplicitUnminimizeFocusWindowIds.remove(originalWindowId)
+            pendingExplicitUnminimizeFocusWindowIds.remove(adoptedWindowId)
+            return
+        }
+        focusExplicitlyUnminimizedWindowIfNeeded(
+            originalWindowId: originalWindowId,
+            resolvedWindowId: adoptedWindowId,
+            reason: "native-tab-deminiaturize-adoption"
+        )
+    }
+
+    private func focusExplicitlyUnminimizedWindowIfNeeded(
+        originalWindowId: Int,
+        resolvedWindowId: Int,
+        reason: String
+    ) {
+        let originalWasPending = pendingExplicitUnminimizeFocusWindowIds.remove(originalWindowId) != nil
+        let resolvedWasPending = resolvedWindowId != originalWindowId
+            ? pendingExplicitUnminimizeFocusWindowIds.remove(resolvedWindowId) != nil
+            : false
+        guard originalWasPending || resolvedWasPending else {
+            return
+        }
+
+        guard let managed = windowController.window(withId: resolvedWindowId) else {
+            Logger.debug("Explicit unminimize focus skipped: resolved window \(resolvedWindowId) is no longer managed (\(reason))")
+            return
+        }
+
+        recordActiveWindowForHistory(windowId: managed.windowId, reason: "explicit-unminimize-focus")
+        if managed.isInFloatingZone {
+            activateFloatingZoneWindow(managed, reason: reason)
+        } else {
+            raiseWindow(managed)
+        }
+        Logger.debug("Focused explicitly unminimized window \(managed.windowId) (\(reason))")
     }
 
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
@@ -822,10 +868,20 @@ extension AppController {
         if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
            placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
             reconcileCapturedFrontmostWindowIfNeeded(window)
+            focusExplicitlyUnminimizedWindowIfNeeded(
+                originalWindowId: window.windowId,
+                resolvedWindowId: window.windowId,
+                reason: "capture-restored-placement"
+            )
             return
         }
         windowPlacementManager.placeNewWindow(window)
         reconcileCapturedFrontmostWindowIfNeeded(window)
+        focusExplicitlyUnminimizedWindowIfNeeded(
+            originalWindowId: window.windowId,
+            resolvedWindowId: window.windowId,
+            reason: "capture-placement"
+        )
     }
 
     private func reconcileCapturedFrontmostWindowIfNeeded(_ window: ManagedWindow) {

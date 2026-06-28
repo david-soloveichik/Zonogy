@@ -280,6 +280,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var pendingWindowIds: Set<Int>
     }
     internal var pendingRestoreRaise: PendingRestoreRaise?
+    /// Minimized windows explicitly selected or dropped by the user should become frontmost
+    /// after the deminiaturize path finishes placement or native-tab adoption.
+    internal var pendingExplicitUnminimizeFocusWindowIds: Set<Int> = []
 
     // Computed property for backward compatibility
     internal var targetedZoneKey: ZoneKey? {

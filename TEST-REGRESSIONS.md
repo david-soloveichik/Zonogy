@@ -25,6 +25,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Native macOS tabs can be captured as separate windows because `_AXUIElementGetWindow` reports a fresh `CGWindowID` before `CGWindowListCopyWindowInfo` exposes its bounds.
   - Think about: When native tab handling is enabled, eligible unplaced windows should wait for a live WindowServer frame before normal placement so same-frame tab replacement can run. "Unplaced" includes already-tracked windows that are not assigned to any Zonogy zone; do not limit this to never-seen `CGWindowID` values.
 
+- Bug report: Selecting or dragging a parked native-tab window from Launcher, DockMenus, CmdTab, or another explicit chooser can place one tab identity in a tiling zone while sibling tab identities later get placed separately, making one real window appear to occupy multiple zones.
+  - Think about: Explicit placement paths should not assign minimized windows directly. Set the intended target, then let the deminiaturize notification run unsuppressed so native-tab replacement can collapse the active tab into an existing placed managed window before any normal placement, and focus the resulting visible window afterward.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the floating zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 

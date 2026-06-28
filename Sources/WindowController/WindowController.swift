@@ -564,6 +564,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
+    func windowDidAdoptNativeTabOnDeminiaturize(originalWindowId: Int, adoptedWindowId: Int)
     func windowDidResize(windowId: Int)
     func windowElementDidCreate(element: AXUIElement, pid: pid_t)
     func windowElementDidResize(element: AXUIElement, pid: pid_t)

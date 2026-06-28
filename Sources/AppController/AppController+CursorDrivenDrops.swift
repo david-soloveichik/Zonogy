@@ -187,15 +187,17 @@ extension AppController {
             return false
         }
 
-        let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-        if !managed.isPlacedInZone {
-            suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "\(reason)-unminimize")
+        if managed.isMinimizedPerAccessibility {
+            let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
+            targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
             unminimizeWithPrePositioning(
                 managed,
                 targetFrame: displayFrame,
                 on: descriptor,
-                reason: reason
+                reason: reason,
+                focusAfterPlacement: true
             )
+            return true
         }
 
         placeWindowIntoZone(managed, zoneKey: zoneKey)
@@ -212,9 +214,17 @@ extension AppController {
             return false
         }
 
-        if !managed.isPlacedInZone {
-            suppressNextEvents(for: [managed.windowId], events: [.deminiaturized], reason: "\(reason)-unminimize")
-            unminimizeWithPrePositioning(managed, reason: reason)
+        if managed.isMinimizedPerAccessibility {
+            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+            let targetFrame = floatingZoneCoordinator.computePlacementFrame(for: managed, on: screenId)
+            unminimizeWithPrePositioning(
+                managed,
+                targetFrame: targetFrame,
+                on: descriptor(for: screenId),
+                reason: reason,
+                focusAfterPlacement: true
+            )
+            return true
         }
 
         removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: false)

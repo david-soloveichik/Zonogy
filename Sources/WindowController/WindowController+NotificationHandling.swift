@@ -121,7 +121,9 @@ extension WindowController {
 
         case axDeminiaturizedNotification:
             Logger.debug("External window \(managed.windowId) deminiaturized")
-            delegate?.windowDidDeminiaturize(windowId: managed.windowId)
+            if let windowId = resolvedDeminiaturizedWindowIdForPlacement(managed: managed, element: element) {
+                delegate?.windowDidDeminiaturize(windowId: windowId)
+            }
 
         case axMovedNotificationName:
             handleWindowMovedNotification(managed: managed)
@@ -132,6 +134,57 @@ extension WindowController {
         default:
             break
         }
+    }
+
+    /// Route a deminiaturized, unplaced native-tab candidate through the same replacement
+    /// check used by created/focused windows before AppController places it. If the tab is
+    /// adopted into an existing placed managed window, there is no new window to place.
+    private func resolvedDeminiaturizedWindowIdForPlacement(
+        managed: ManagedWindow,
+        element: AXUIElement
+    ) -> Int? {
+        guard NativeTabReplacementPolicy.shouldEvaluateIncomingWindow(
+            isPlacedInZone: managed.isPlacedInZone,
+            isMinimized: false,
+            nativeTabHandlingDisabled: nativeTabHandlingDisabled
+        ) else {
+            return managed.windowId
+        }
+
+        let pid = managed.backing.pid
+        let appElement = accessibilityWatcher.applicationElement(for: pid)
+        var needsCaptureRetry = false
+        let resolved = captureWindowIfNeeded(
+            element: element,
+            pid: pid,
+            appElement: appElement,
+            allowReturningExisting: true,
+            notifyDelegate: false,
+            needsRetry: &needsCaptureRetry
+        )
+
+        if needsCaptureRetry {
+            Logger.debug("AXWindowDeminiaturized: native-tab candidate \(managed.windowId) needs capture retry before placement")
+            delegate?.windowCreationFailedRetryNeeded(forPid: pid)
+            return nil
+        }
+
+        guard let resolved else {
+            return managed.windowId
+        }
+
+        if resolved.windowId != managed.windowId {
+            Logger.debug(
+                "AXWindowDeminiaturized: native-tab candidate \(managed.windowId) was adopted by placed window \(resolved.windowId); skipping normal placement"
+            )
+            delegate?.windowDidAdoptNativeTabOnDeminiaturize(
+                originalWindowId: managed.windowId,
+                adoptedWindowId: resolved.windowId
+            )
+            return nil
+        }
+
+        return managed.windowId
     }
 
     /// Handle a possibly-spurious `AXUIElementDestroyed` for a tracked window.
