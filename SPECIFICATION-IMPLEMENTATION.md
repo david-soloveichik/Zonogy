@@ -13,6 +13,7 @@ Beyond the self-evident path of app termination (which removes all windows for t
 All window removal paths **except app termination** use deferred pruning: instead of immediately discarding the window's identity and recency info, the window is staged in a pending-prune store keyed by `(pid, CGWindowID)`. The zone is vacated immediately (placeholder appears), but the bookkeeping is retained. This guards against false positives from transient AX unavailability (e.g., sleep/wake, screen topology changes, or spurious `AXUIElementDestroyed` notifications macOS can emit near sleep).
 
 - **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise.
+- **Native macOS tabs:** Before staging a placed window for deferred prune, Zonogy attempts the native tab close-rebind described in `SPECIFICATION.md` when the stale signal comes from `AXUIElementDestroyed` or from a per-PID validation pass for one application. The full sync sweep over all tracked windows skips this rebind because its WindowServer snapshot can be transiently incomplete during wake or display changes.
 - **Clearing:** Pending-prune entries for a PID are discarded when (1) the app terminates, or (2) a *new* managed window (different `CGWindowID`) is discovered for that PID, which signals that the old windows are truly gone.
 
 ## Floating Zone Protection Windows
