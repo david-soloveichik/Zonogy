@@ -6,14 +6,15 @@ Beyond the self-evident path of app termination (which removes all windows for t
 
 - **Per-PID validation with retry (`ValidationRetryManager`):** After window focus changes within an app, app switches (validates the previous app), and app deactivation/hide, runs a PID-scoped check. If no destroyed windows are found but the PID still has managed windows (i.e., AX may be temporarily stale), retries with exponential backoff (≈0.2–3.2 s). This tries to catch window closed as soon as possible so that its zone is emptied and UI updates.
 
-- **Zone sync pruning:** Every full `syncWindowsToZones()` checks all managed windows. Full syncs run frequently — after zone add/remove, window placement, miniaturize/deminiaturize, drag-drop, screen-topology changes, WinShot/Launcher operations, and other layout-affecting events.
+- **Zone sync pruning:** A full `syncWindowsToZones()` pass (normal layout reconciliation pass, not the live-resize path) checks all managed windows for destruction. Full syncs run frequently — after zone add/remove, window placement, miniaturize/deminiaturize, drag-drop, screen-topology changes, WinShot/Launcher operations, and other layout-affecting events.
+
+- **Native-tab close-rebind:** When a single-application signal flags a placed window as gone — an `AXUIElementDestroyed` notification or a per-PID validation pass — Zonogy first attempts the native-tab close-rebind (`SPECIFICATION.md`), keeping the window in its zone if a surviving sibling matches and pruning it only otherwise. The all-window `syncWindowsToZones()` sweep skips the rebind, because it runs during wake and display changes when its global `CGWindowListCopyWindowInfo` snapshot can be transiently incomplete — too unreliable to pick a sibling; those windows fall through to deferred pruning (below), which is recoverable, whereas a wrong rebind is not.
 
 ### Deferred Pruning
 
 All window removal paths **except app termination** use deferred pruning: instead of immediately discarding the window's identity and recency info, the window is staged in a pending-prune store keyed by `(pid, CGWindowID)`. The zone is vacated immediately (placeholder appears), but the bookkeeping is retained. This guards against false positives from transient AX unavailability (e.g., sleep/wake, screen topology changes, or spurious `AXUIElementDestroyed` notifications macOS can emit near sleep).
 
 - **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise.
-- **Native macOS tabs:** Before staging a placed window for deferred prune, Zonogy attempts the native tab close-rebind described in `SPECIFICATION.md` when the stale signal comes from `AXUIElementDestroyed` or from a per-PID validation pass for one application. The full sync sweep over all tracked windows skips this rebind because its WindowServer snapshot can be transiently incomplete during wake or display changes.
 - **Clearing:** Pending-prune entries for a PID are discarded when (1) the app terminates, or (2) a *new* managed window (different `CGWindowID`) is discovered for that PID, which signals that the old windows are truly gone.
 
 ## Floating Zone Protection Windows
