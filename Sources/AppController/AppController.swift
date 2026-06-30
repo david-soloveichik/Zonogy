@@ -35,6 +35,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let wasDetached: Bool
         let rememberedSize: CGSize?
     }
+    struct UnmanagedWindowEdgeDragState {
+        let elementKey: AccessibilityElementKey
+        let pid: pid_t
+        var cgWindowId: Int?
+        let originFrame: CGRect
+        var latestFrame: CGRect
+        var isActive: Bool
+        var parkedCapturedWindowId: Int?
+        var hoveredAddZoneScreenId: CGDirectDisplayID?
+        var hoveredFloatingScreenId: CGDirectDisplayID?
+    }
     static let shared = AppController()
 
     internal let windowController: WindowController
@@ -147,6 +158,11 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// sync/focus bursts.
     internal var lastLoggedResizeHandleFingerprint: [CGDirectDisplayID: String] = [:]
     internal var tiledToFloatingDragContexts: [Int: TiledToFloatingDragContext] = [:]
+    internal var unmanagedWindowEdgeDragState: UnmanagedWindowEdgeDragState?
+    internal var unmanagedWindowEdgeDragLocalMouseUpMonitor: Any?
+    internal var unmanagedWindowEdgeDragGlobalMouseUpMonitor: Any?
+    internal var unmanagedWindowEdgeDragSuppressedManagedWindowIds: Set<Int> = []
+    internal var unmanagedWindowEdgeIndicatorMousePassthroughEnabled = false
     internal let addIndicatorTracker = EdgeIndicatorTracker()
     internal let floatingIndicatorTracker = EdgeIndicatorTracker()
     internal let menuBarManager = MenuBarManager()

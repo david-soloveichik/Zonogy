@@ -677,6 +677,9 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidBegin(\(windowId))") {
             return
         }
+        if suppressManagedMoveForUnmanagedWindowEdgeDrag(windowId: windowId, frame: frame, event: "move-begin") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-begin") {
             return
         }
@@ -711,6 +714,9 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidUpdate(\(windowId))") {
             return
         }
+        if suppressManagedMoveForUnmanagedWindowEdgeDrag(windowId: windowId, frame: frame, event: "move-update") {
+            return
+        }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-update") {
             return
         }
@@ -723,6 +729,9 @@ extension AppController {
 
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect) {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidEnd(\(windowId))") {
+            return
+        }
+        if suppressManagedMoveForUnmanagedWindowEdgeDrag(windowId: windowId, frame: finalFrame, event: "move-end") {
             return
         }
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
@@ -951,6 +960,9 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
             return
         }
+        if handleCapturedWindowForUnmanagedWindowEdgeDrag(window) {
+            return
+        }
         if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
            placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
             reconcileCapturedFrontmostWindowIfNeeded(window)
@@ -1064,6 +1076,7 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowElementDidClose(\(pid))") {
             return
         }
+        clearUnmanagedWindowEdgeState(for: element, pid: pid, reason: "element-closed")
         let elementKey = AccessibilityElementKey(element: element)
         if let workItem = fullScreenCheckWorkItemsByElement.removeValue(forKey: elementKey) {
             workItem.cancel()

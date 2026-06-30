@@ -307,6 +307,7 @@ final class FloatingZoneIndicatorManager {
     weak var delegate: FloatingZoneIndicatorManagerDelegate?
     private var handles: [CGDirectDisplayID: IndicatorHandle] = [:]
     private var dragHighlightedScreenId: CGDirectDisplayID?
+    private var mousePassthroughForUnmanagedWindowEdgeDrag = false
     /// Screens whose pill is mid-pulse, keyed by a generation counter. While a screen is pulsing,
     /// `applyIndicatorFrame` leaves its frame alone so the frequent indicator refreshes (which call
     /// `applyIndicatorFrame(animated: false)`) don't snap the pill back and cut the pop short. The
@@ -320,6 +321,7 @@ final class FloatingZoneIndicatorManager {
             let baseFrame = descriptor.cocoaFrame.standardized
             if let handle = handles[descriptor.screenId] {
                 handle.baseFrame = baseFrame
+                handle.window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
                 handle.view.isTargeted = descriptor.isTargeted
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
@@ -334,6 +336,7 @@ final class FloatingZoneIndicatorManager {
             }
 
             let window = IndicatorWindow(frame: baseFrame)
+            window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
             let view = IndicatorView(
                 frame: NSRect(origin: .zero, size: baseFrame.size),
                 screenId: descriptor.screenId,
@@ -362,6 +365,16 @@ final class FloatingZoneIndicatorManager {
                 handle.window.orderOut(nil)
                 handle.window.close()
             }
+        }
+    }
+
+    func setMousePassthroughForUnmanagedWindowEdgeDrag(_ enabled: Bool) {
+        guard mousePassthroughForUnmanagedWindowEdgeDrag != enabled else {
+            return
+        }
+        mousePassthroughForUnmanagedWindowEdgeDrag = enabled
+        for handle in handles.values {
+            handle.window.ignoresMouseEvents = enabled
         }
     }
 

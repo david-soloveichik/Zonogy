@@ -253,6 +253,7 @@ class AddZoneIndicatorManager {
     private var views: [CGDirectDisplayID: AddZoneIndicatorView] = [:]
     private var baseFrames: [CGDirectDisplayID: CGRect] = [:]
     private var dragHighlightedScreenId: CGDirectDisplayID?
+    private var mousePassthroughForUnmanagedWindowEdgeDrag = false
 
     func present(for descriptors: [AddZoneIndicatorDescriptor]) {
         // Track which screens should have indicators
@@ -273,8 +274,9 @@ class AddZoneIndicatorManager {
             baseFrames[descriptor.screenId] = baseFrame
 
             if let existingView = views[descriptor.screenId],
-               windows[descriptor.screenId] != nil {
+               let existingWindow = windows[descriptor.screenId] {
                 // Update existing indicator
+                existingWindow.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
                 existingView.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
                 existingView.autoresizingMask = [.width, .height]
                 applyIndicatorFrame(for: descriptor.screenId, animated: false)
@@ -283,6 +285,7 @@ class AddZoneIndicatorManager {
                 let window = AddZoneIndicatorWindow(contentRect: baseFrame)
                 let view = AddZoneIndicatorView(frame: CGRect(origin: .zero, size: baseFrame.size))
 
+                window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
                 view.delegate = delegate
                 view.screenId = descriptor.screenId
                 view.manager = self
@@ -297,6 +300,16 @@ class AddZoneIndicatorManager {
 
                 applyIndicatorFrame(for: descriptor.screenId, animated: false)
             }
+        }
+    }
+
+    func setMousePassthroughForUnmanagedWindowEdgeDrag(_ enabled: Bool) {
+        guard mousePassthroughForUnmanagedWindowEdgeDrag != enabled else {
+            return
+        }
+        mousePassthroughForUnmanagedWindowEdgeDrag = enabled
+        for window in windows.values {
+            window.ignoresMouseEvents = enabled
         }
     }
 

@@ -79,6 +79,8 @@ extension WindowController {
             var pid: pid_t = 0
             if AXUIElementGetPid(element, &pid) == .success, pid != getpid() {
                 switch notificationName {
+                case axMovedNotificationName:
+                    delegate?.windowElementDidMove(element: element, pid: pid)
                 case axResizedNotificationName:
                     delegate?.windowElementDidResize(element: element, pid: pid)
                 case axDestroyedNotification:
