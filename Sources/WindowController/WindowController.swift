@@ -611,6 +611,7 @@ protocol WindowControllerDelegate: AnyObject {
     func windowController(_ controller: WindowController, didCollapseNativeTabSourceWindow sourceWindowId: Int, into destinationWindowId: Int)
     func windowDidResize(windowId: Int)
     func windowElementDidCreate(element: AXUIElement, pid: pid_t)
+    func windowElementDidMove(element: AXUIElement, pid: pid_t)
     func windowElementDidResize(element: AXUIElement, pid: pid_t)
     func windowElementDidClose(element: AXUIElement, pid: pid_t)
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)

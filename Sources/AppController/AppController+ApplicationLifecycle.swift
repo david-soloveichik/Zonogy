@@ -49,6 +49,7 @@ extension AppController {
 
         // Notify full-screen tracker that this app terminated
         notifyFullScreenTrackerOfAppTermination(pid: application.processIdentifier)
+        clearUnmanagedWindowEdgeState(forPid: application.processIdentifier, reason: "application-termination")
 
         capturePipeline.cancelRetry(forPid: application.processIdentifier)
         // When an application terminates, remove all of its managed windows immediately

@@ -130,6 +130,7 @@ Zonogy handles this with two complementary mechanisms:
 - **Programmatic-update suppression:** When Zonogy resizes a window, `WindowController` tags that window as "programmatic" for a short time and ignores the resulting AX moved/resized notifications. This prevents feedback loops where reacting to our own move/resize would cause additional move/resize attempts.
 - **Gesture heuristics for non-programmatic AX events:**
   - **Moves / drags:** An AXMoved burst is treated as a user drag only if the left mouse button is down and the pointer moves beyond a small activation threshold. Drag end is detected via mouse-up monitoring. This avoids treating incidental or app-driven moves as a drag-and-drop gesture.
+  - **Untracked windows from managed apps:** For an untracked window from a managed app, Zonogy tracks only add-zone and floating-zone edge targets. The edge indicator windows pass mouse events through during the gesture; on mouse-up, Zonogy sets the normal placement target that any later capture will use.
   - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until focus loss or the next layout sync. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window).
 
 This attribution work is used by:

@@ -168,6 +168,7 @@ extension AppController {
     internal func cancelSleepSensitiveAsyncWork(reason: String) {
         validationRetryManager.cancelAllValidationRetries()
         cancelUnmanagedFocusRetry()
+        cancelUnmanagedWindowEdgeDrag(reason: reason)
         cancelWakeReadinessTimer(reason: "cancelled (\(reason))")
         cancelWakeAXWindowPollingTimer(reason: reason)
 
