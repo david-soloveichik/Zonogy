@@ -28,6 +28,12 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Selecting or dragging a parked native-tab window from Launcher, DockMenus, CmdTab, or another explicit chooser can place one tab identity in a tiling zone while sibling tab identities later get placed separately, making one real window appear to occupy multiple zones.
   - Think about: Explicit placement paths should not assign minimized windows directly. Set the intended target, then let the deminiaturize notification run unsuppressed so native-tab replacement can collapse the active tab into an existing placed managed window before any normal placement, and focus the resulting visible window afterward.
 
+- Bug report: A full sync can see a placed native-tab backing missing from the global WindowServer snapshot and prune it before the safer PID-scoped close-rebind has a chance to adopt a surviving sibling tab.
+  - Think about: Full sync should defer placed native-tab stale candidates to PID validation instead of choosing a sibling or pruning directly from a global WindowServer snapshot miss.
+
+- Bug report: A newly discovered managed window can clear a very recent pending-prune entry for another window from the same PID before that original window has had a chance to reappear.
+  - Think about: Same-PID new-window cleanup should preserve very recent pending-prune entries generally; this is not specific to native tabs and should not depend on the native-tab handling preference.
+
 - Bug report: After sleep/wake or screen-change recapture, a pruned window can be re-placed from stale recapture state, leaving a tiling zone falsely occupied and routing subsequent windows into the floating zone.
   - Think about: Recapture placement must revalidate candidate IDs against the live registry, and sync must clear any zone occupant IDs with no managed window.
 

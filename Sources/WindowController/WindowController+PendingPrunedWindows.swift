@@ -52,7 +52,7 @@ extension WindowController {
         pid: pid_t,
         discoveredIdentifier: ExternalWindowIdentifier
     ) {
-        let cleared = pendingPrunedWindows.clear(forPid: pid)
+        let cleared = pendingPrunedWindows.clearForNewManagedWindow(pid: pid)
         guard !cleared.isEmpty else {
             return
         }

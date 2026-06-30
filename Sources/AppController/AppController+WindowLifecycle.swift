@@ -144,6 +144,33 @@ extension AppController {
 
     // MARK: - WindowControllerDelegate
 
+    func windowController(
+        _ controller: WindowController,
+        didDeferNativeTabPruneForPidValidation pid: pid_t
+    ) {
+        guard pendingNativeTabPidValidationRequests.insert(pid).inserted else {
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingNativeTabPidValidationRequests.remove(pid)
+
+            if self.shouldIgnoreDueToSleepWake(event: "nativeTabPidValidation(pid: \(pid))") {
+                return
+            }
+            guard self.hasManagedWindows(for: pid) else {
+                return
+            }
+
+            Logger.debug("Running PID-scoped native-tab validation for pid \(pid) after global sync deferral")
+            _ = self.validationRetryManager.validateWindowsForApplication(
+                pid: pid,
+                trigger: .syncNativeTabCandidate
+            )
+        }
+    }
+
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?) {
         // AX focus notifications can fire after screens go to sleep; ignore them to
         // avoid incorrect pruning of windows when AX APIs return transient errors.

@@ -242,7 +242,27 @@ class WindowController {
         }
 
         var stale: [(Int, ManagedWindow, String)] = []
+        var pidsNeedingNativeTabValidation: Set<pid_t> = []
         let now = Date()
+
+        func deferWindowServerMissToPidValidationIfNeeded(
+            _ managed: ManagedWindow,
+            reason: String
+        ) -> Bool {
+            // Global WindowServer snapshots can be transiently incomplete; defer sibling
+            // selection to a PID-scoped pass before treating this as a closed native tab.
+            guard pidFilter == nil,
+                  managed.isPlacedInZone,
+                  !nativeTabHandlingDisabled else {
+                return false
+            }
+
+            pidsNeedingNativeTabValidation.insert(managed.backing.pid)
+            Logger.debug(
+                "Deferring stale placed window \(managed.windowId) pid \(managed.backing.pid) (reason: \(reason)) to PID-scoped native-tab validation"
+            )
+            return true
+        }
 
         for managed in windowRegistry.allWindows {
             let windowId = managed.windowId
@@ -257,6 +277,12 @@ class WindowController {
 
             if !snapshot.contains(pid: windowPid, cgWindowId: cgWindowId) {
                 staleByCGWindowList += 1
+                if deferWindowServerMissToPidValidationIfNeeded(
+                    managed,
+                    reason: "missing-from-cgwindowlist"
+                ) {
+                    continue
+                }
                 stale.append((windowId, managed, "missing-from-cgwindowlist"))
                 continue
             }
@@ -286,19 +312,26 @@ class WindowController {
             if !isAccessibilityElementAlive(managed) {
                 lastConfirmedAliveAt.removeValue(forKey: windowId)
                 staleByAX += 1
+                // Native-tab close deferral is intentionally limited to WindowServer misses.
+                // If the window is still listed but AX is invalid, handle it through the
+                // ordinary deferred-prune path instead of treating it as a tab-close signal.
                 stale.append((windowId, managed, "ax-element-invalid"))
             } else {
                 lastConfirmedAliveAt[windowId] = now
             }
         }
 
+        for pid in pidsNeedingNativeTabValidation.sorted() {
+            delegate?.windowController(self, didDeferNativeTabPruneForPidValidation: pid)
+        }
+
         guard !stale.isEmpty else {
             return []
         }
 
-        // Native-tab close-rebind is allowed for per-pid validation (which only runs once focus
-        // events resume after wake) but not for the global sweep, whose CGWindowList can be
-        // transiently incomplete during wake/topology restoration — there, fall back to deferred prune.
+        // Native-tab close-rebind is allowed for per-pid validation. The global sweep defers
+        // eligible placed candidates to PID validation above; remaining stale windows are handled
+        // directly without sibling selection.
         let allowNativeTabRebind = pidFilter != nil
         var removedWindowIds: [Int] = []
         for (windowId, managed, reason) in stale {
@@ -580,6 +613,9 @@ protocol WindowControllerDelegate: AnyObject {
     /// Called when pending-prune entries are permanently discarded (window truly gone).
     /// Staged windows restored via deferred-prune matching do NOT fire this callback.
     func windowController(_ controller: WindowController, didDiscardPendingPrunedWindowIds windowIds: [Int], reason: String)
+    /// Called when a global sweep sees a placed native-tab candidate missing from WindowServer.
+    /// The delegate should run PID-scoped validation so sibling selection uses a narrower snapshot.
+    func windowController(_ controller: WindowController, didDeferNativeTabPruneForPidValidation pid: pid_t)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool

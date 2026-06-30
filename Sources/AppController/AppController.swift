@@ -64,6 +64,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isSyncingWindows = false
     internal var pendingSync = false
     internal var pendingSyncRecentlyPlacedInFloatingZone: Int?
+    /// PIDs already queued for next-runloop native-tab validation after a global sync deferral.
+    internal var pendingNativeTabPidValidationRequests: Set<pid_t> = []
     /// Window IDs whose geometry reapply should be skipped for an immediate full sync pass.
     internal var pendingSyncSkipGeometryWindowIds: Set<Int> = []
     /// Next-runloop cleanup for unconsumed sync geometry-skip marks.

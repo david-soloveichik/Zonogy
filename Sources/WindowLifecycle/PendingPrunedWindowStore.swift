@@ -14,7 +14,10 @@ struct PendingPrunedWindowStore {
         let windowId: Int
         let lastActiveTime: Date?
         let preferredDestination: PendingPrunedWindowDestination?
+        let stagedAt: Date
     }
+
+    static let samePidNewWindowClearGrace: TimeInterval = 2.0
 
     private var entriesByIdentifier: [ExternalWindowIdentifier: Entry] = [:]
 
@@ -22,13 +25,15 @@ struct PendingPrunedWindowStore {
         identifier: ExternalWindowIdentifier,
         windowId: Int,
         lastActiveTime: Date?,
-        preferredDestination: PendingPrunedWindowDestination?
+        preferredDestination: PendingPrunedWindowDestination?,
+        stagedAt: Date = Date()
     ) {
         entriesByIdentifier[identifier] = Entry(
             identifier: identifier,
             windowId: windowId,
             lastActiveTime: lastActiveTime,
-            preferredDestination: preferredDestination
+            preferredDestination: preferredDestination,
+            stagedAt: stagedAt
         )
     }
 
@@ -37,7 +42,26 @@ struct PendingPrunedWindowStore {
     }
 
     mutating func clear(forPid pid: pid_t) -> [Entry] {
-        let identifiers = entriesByIdentifier.keys.filter { $0.pid == pid }
+        clear(forPid: pid) { _ in true }
+    }
+
+    mutating func clearForNewManagedWindow(
+        pid: pid_t,
+        now: Date = Date(),
+        graceInterval: TimeInterval = Self.samePidNewWindowClearGrace
+    ) -> [Entry] {
+        let cutoff = now.addingTimeInterval(-graceInterval)
+        return clear(forPid: pid) { entry in
+            entry.stagedAt <= cutoff
+        }
+    }
+
+    private mutating func clear(forPid pid: pid_t, where shouldClear: (Entry) -> Bool) -> [Entry] {
+        let identifiers = entriesByIdentifier
+            .filter { identifier, entry in
+                identifier.pid == pid && shouldClear(entry)
+            }
+            .map(\.key)
         guard !identifiers.isEmpty else {
             return []
         }
