@@ -149,6 +149,7 @@ extension WindowController {
 
     internal func clearBackingScopedState(for windowId: Int, reason: String) {
         lastConfirmedAliveAt.removeValue(forKey: windowId)
+        lastExternalMoveByWindowId.removeValue(forKey: windowId)
         programmaticUpdateWindowIds.remove(windowId)
         programmaticUpdateWorkItems[windowId]?.cancel()
         programmaticUpdateWorkItems.removeValue(forKey: windowId)

@@ -59,7 +59,15 @@ extension AppController {
         guard !windowIds.isEmpty else { return }
 
         for windowId in windowIds {
-            performDestroyedWindowPreSyncCleanup(windowId: windowId, reason: reason, retarget: retarget)
+            performWindowLayoutRemovalPreSyncCleanup(
+                windowId: windowId,
+                reason: reason,
+                retarget: retarget,
+                notifyFullScreenTrackerOfClose: true,
+                frontmostReplacementWindowId: nil,
+                frontmostReason: "window-destroyed:\(windowId)",
+                sizeClearReason: "destroyed-window"
+            )
         }
 
         if shouldRefreshWinShotChooser, let chooserScreenId = winShotChooserController.currentScreenId {
@@ -71,35 +79,45 @@ extension AppController {
         }
 
         for windowId in windowIds {
-            performDestroyedWindowPostSyncCleanup(windowId: windowId)
+            performWindowLayoutRemovalPostSyncCleanup(windowId: windowId, reason: "close")
         }
     }
 
-    private func performDestroyedWindowPreSyncCleanup(windowId: Int, reason: String, retarget: Bool) {
+    private func performWindowLayoutRemovalPreSyncCleanup(
+        windowId: Int,
+        reason: String,
+        retarget: Bool,
+        notifyFullScreenTrackerOfClose: Bool,
+        frontmostReplacementWindowId: Int?,
+        frontmostReason: String,
+        sizeClearReason: String
+    ) {
         if let workItem = fullScreenCheckWorkItemsByWindowId.removeValue(forKey: windowId) {
             workItem.cancel()
         }
 
-        // Notify full-screen tracker before cleanup
-        if let managed = windowController.window(withId: windowId) {
-            fullScreenElementCache.removeValue(forKey: AccessibilityElementKey(element: managed.backing.element))
-            notifyFullScreenTrackerOfWindowClose(
-                cgWindowId: CGWindowID(managed.backing.cgWindowId),
-                pid: managed.backing.pid
-            )
-        } else {
-            notifyFullScreenTrackerOfWindowClose(windowId: windowId)
+        if notifyFullScreenTrackerOfClose {
+            if let managed = windowController.window(withId: windowId) {
+                fullScreenElementCache.removeValue(forKey: AccessibilityElementKey(element: managed.backing.element))
+                notifyFullScreenTrackerOfWindowClose(
+                    cgWindowId: CGWindowID(managed.backing.cgWindowId),
+                    pid: managed.backing.pid
+                )
+            } else {
+                notifyFullScreenTrackerOfWindowClose(windowId: windowId)
+            }
         }
 
         if currentFrontmostManagedWindowId == windowId {
-            setCurrentFrontmostManagedWindowId(nil, reason: "window-destroyed:\(windowId)")
+            setCurrentFrontmostManagedWindowId(frontmostReplacementWindowId, reason: frontmostReason)
         }
-        // If the window is staged for deferred prune, keep its remembered sizes alive —
-        // a false-positive detection followed by restore would otherwise lose user state.
-        // The sizes are cleared when the pending-prune entry is permanently discarded
-        // (see windowController(_:didDiscardPendingPrunedWindowIds:reason:)).
+
+        // If the window is staged for deferred prune, keep its remembered sizes alive — a
+        // false-positive detection followed by restore would otherwise lose user state. The sizes
+        // are cleared when the pending-prune entry is permanently discarded (see
+        // windowController(_:didDiscardPendingPrunedWindowIds:reason:)).
         if !windowController.hasPendingPrunedEntry(forWindowId: windowId) {
-            _ = clearRememberedManualResizeSize(for: windowId, reason: "destroyed-window")
+            _ = clearRememberedManualResizeSize(for: windowId, reason: sizeClearReason)
             floatingZoneCoordinator.clearRememberedSize(for: windowId)
         }
         selfResizeSnapDebouncer.clear(windowId: windowId)
@@ -110,8 +128,8 @@ extension AppController {
         winShotManager.removeSnapshotsContaining(windowId: windowId)
     }
 
-    private func performDestroyedWindowPostSyncCleanup(windowId: Int) {
-        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "close")
+    private func performWindowLayoutRemovalPostSyncCleanup(windowId: Int, reason: String) {
+        clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: reason)
         activeFitClearSuppressionForWindow(windowId)
     }
 
@@ -212,8 +230,16 @@ extension AppController {
         // When focus changes in an application, validate its windows
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .focusChanged)
-        handleManualResizeFocusChange(pid: pid)
-        handleActiveFitFocusChange(pid: pid)
+
+        // If the focused window was just moved by its own application, skip immediate
+        // focus-driven frame reasserts (Sticky Resize restore, ActiveFit reveal/rest).
+        // Repositioning it right away can fight app-managed moves that are still settling.
+        if let focusedWindowId, windowController.isExternallyMovingRecently(windowId: focusedWindowId) {
+            Logger.debug("Skipping focus-driven frame reasserts for window \(focusedWindowId); moved externally")
+        } else {
+            handleManualResizeFocusChange(pid: pid)
+            handleActiveFitFocusChange(pid: pid)
+        }
         handleFloatingZoneFocusChange(pid: pid, focusedWindowId: focusedWindowId)
 
         // Record window activity for launcher recency ordering
@@ -460,6 +486,29 @@ extension AppController {
             resolvedWindowId: adoptedWindowId,
             reason: "native-tab-deminiaturize-adoption"
         )
+    }
+
+    func windowController(
+        _ controller: WindowController,
+        didCollapseNativeTabSourceWindow sourceWindowId: Int,
+        into destinationWindowId: Int
+    ) {
+        performWindowLayoutRemovalPreSyncCleanup(
+            windowId: sourceWindowId,
+            reason: "native-tab-source-collapse",
+            retarget: true,
+            notifyFullScreenTrackerOfClose: false,
+            frontmostReplacementWindowId: destinationWindowId,
+            frontmostReason: "native-tab-source-collapse",
+            sizeClearReason: "native-tab-source-collapse"
+        )
+
+        if let chooserScreenId = winShotChooserController.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: chooserScreenId)
+        }
+
+        syncWindowsToZones()
+        performWindowLayoutRemovalPostSyncCleanup(windowId: sourceWindowId, reason: "native-tab-source-collapse")
     }
 
     private func focusExplicitlyUnminimizedWindowIfNeeded(

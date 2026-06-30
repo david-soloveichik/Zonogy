@@ -461,6 +461,18 @@ extension WindowController {
         if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
             delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
         } else {
+            // The application moved the window itself (not a Zonogy drag). Remember this so
+            // immediate focus-driven layout checks can avoid fighting a still-settling move.
+            lastExternalMoveByWindowId[managed.windowId] = Date()
+            let appElement = accessibilityWatcher.applicationElement(for: managed.backing.pid)
+            if collapsePlacedNativeTabSourceIfNeeded(
+                managed,
+                sourceFrame: accessibilityFrame,
+                appElement: appElement,
+                reason: "app-driven-move"
+            ) != nil {
+                return
+            }
             Logger.debug("External window \(managed.windowId) move not part of an active manual drag; no zone update issued")
         }
     }

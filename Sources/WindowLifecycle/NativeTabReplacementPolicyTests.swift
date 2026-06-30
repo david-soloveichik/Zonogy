@@ -138,6 +138,22 @@ enum NativeTabReplacementPolicyTests {
         )
         assert(tied?.windowId == 11, "windowId should break exact coincidence ties deterministically")
 
+        let mergeDestination = NativeTabReplacementPolicy.mergeDestinationCandidate(
+            sourcePid: 42,
+            sourceCgWindowId: 100,
+            sourceFrame: incoming,
+            candidates: [
+                candidate(windowId: 21, frame: CGRect(x: 100, y: 80, width: 900, height: 1200)),
+                candidate(windowId: 22, pid: 43),
+                candidate(windowId: 23, cgWindowId: 100),
+                candidate(windowId: 24, isPlacedInZone: false)
+            ]
+        )
+        assert(
+            mergeDestination?.windowId == 21,
+            "last-tab merge destination should be a placed same-pid window with coincident position and width"
+        )
+
         func sibling(_ cgWindowId: Int, _ frame: CGRect = incoming) -> NativeTabReplacementPolicy.SiblingCandidate {
             NativeTabReplacementPolicy.SiblingCandidate(cgWindowId: cgWindowId, frame: frame)
         }

@@ -47,6 +47,14 @@ extension WindowController {
         return false
     }
 
+    /// True if the window was moved by its own application within the suppression window.
+    internal func isExternallyMovingRecently(windowId: Int) -> Bool {
+        guard let movedAt = lastExternalMoveByWindowId[windowId] else {
+            return false
+        }
+        return Date().timeIntervalSince(movedAt) < Self.externalMoveReassertSuppressionWindow
+    }
+
     internal func handleMouseUp() {
         defer {
             updateMouseUpGlobalMonitorInstallation()

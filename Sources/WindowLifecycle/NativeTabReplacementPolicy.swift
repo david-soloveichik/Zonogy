@@ -1,9 +1,10 @@
 import Foundation
 
 /// Pure position/width-coincidence matching for native macOS tabs, which Accessibility exposes as
-/// separate windows: adopting a switched-to tab into an existing zone occupant, and rebinding a
-/// zone occupant to a surviving sibling tab when the tab currently backing it is closed. Height is
-/// never compared (see `positionAndWidthCoincide`).
+/// separate windows: adopting a switched-to tab into an existing zone occupant, collapsing a
+/// last-tab merge into the destination occupant, and rebinding a zone occupant to a surviving
+/// sibling tab when the tab currently backing it is closed. Height is never compared (see
+/// `positionAndWidthCoincide`).
 enum NativeTabReplacementPolicy {
     struct Candidate: Equatable {
         let windowId: Int
@@ -41,6 +42,41 @@ enum NativeTabReplacementPolicy {
         incomingFrame: CGRect,
         candidates: [Candidate],
         frameTolerance: CGFloat = Self.frameTolerance
+    ) -> Candidate? {
+        coincidentPlacedCandidate(
+            incomingPid: incomingPid,
+            incomingCgWindowId: incomingCgWindowId,
+            incomingFrame: incomingFrame,
+            candidates: candidates,
+            frameTolerance: frameTolerance
+        )
+    }
+
+    /// Pick the placed managed window that should keep the visible top-level window when the last
+    /// tab of another placed same-process window is dragged into it. This uses the same deterministic
+    /// frame match as tab-switch replacement, but callers may include still-live destination windows.
+    static func mergeDestinationCandidate(
+        sourcePid: pid_t,
+        sourceCgWindowId: Int,
+        sourceFrame: CGRect,
+        candidates: [Candidate],
+        frameTolerance: CGFloat = Self.frameTolerance
+    ) -> Candidate? {
+        coincidentPlacedCandidate(
+            incomingPid: sourcePid,
+            incomingCgWindowId: sourceCgWindowId,
+            incomingFrame: sourceFrame,
+            candidates: candidates,
+            frameTolerance: frameTolerance
+        )
+    }
+
+    private static func coincidentPlacedCandidate(
+        incomingPid: pid_t,
+        incomingCgWindowId: Int,
+        incomingFrame: CGRect,
+        candidates: [Candidate],
+        frameTolerance: CGFloat
     ) -> Candidate? {
         candidates
             .filter { candidate in

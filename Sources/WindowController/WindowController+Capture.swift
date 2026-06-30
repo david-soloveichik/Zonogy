@@ -230,6 +230,17 @@ extension WindowController {
             nativeTabHandlingDisabled: nativeTabHandlingDisabled
         )
 
+        if let existing,
+           existing.isPlacedInZone,
+           isExternallyMovingRecently(windowId: existing.windowId),
+           let collapsed = collapsePlacedNativeTabSourceIfNeeded(
+               existing,
+               appElement: appElement,
+               reason: "recent-app-driven-move-capture"
+           ) {
+            return collapsed
+        }
+
         if let existing, !shouldEvaluateNativeTabReplacement {
             Logger.debug(
                 "captureWindowIfNeeded: Window already exists for pid \(pid) as managed \(existing.windowId) (CGWindowID: \(windowNumStr)), allowReturningExisting=\(allowReturningExisting)"
@@ -320,6 +331,115 @@ extension WindowController {
 
         Logger.debug("captureWindowIfNeeded: Successfully captured window \(managed.windowId) for pid \(pid)")
         return managed
+    }
+
+    @discardableResult
+    internal func collapsePlacedNativeTabSourceIfNeeded(
+        _ source: ManagedWindow,
+        sourceFrame explicitSourceFrame: CGRect? = nil,
+        appElement: AXUIElement,
+        reason: String
+    ) -> ManagedWindow? {
+        guard !nativeTabHandlingDisabled, source.isPlacedInZone else {
+            return nil
+        }
+
+        let sourceIdentifier = source.externalIdentifier
+        let sourceFrame = explicitSourceFrame ?? actualFrameInAccessibilityCoordinates(for: source)
+        guard let sourceFrame, sourceFrame.width > 0, sourceFrame.height > 0 else {
+            Logger.debug(
+                "Native tab merge: source window \(source.windowId) (pid \(sourceIdentifier.pid), CGWindowID \(sourceIdentifier.cgWindowId)) has no usable frame; cannot collapse (reason: \(reason))"
+            )
+            return nil
+        }
+
+        let candidates = windowRegistry.allWindows
+            .filter {
+                $0.windowId != source.windowId &&
+                $0.backing.pid == sourceIdentifier.pid &&
+                $0.isPlacedInZone
+            }
+            .compactMap { managed -> NativeTabReplacementPolicy.Candidate? in
+                guard let frame = nativeTabMergeDestinationFrame(for: managed) else {
+                    return nil
+                }
+                return NativeTabReplacementPolicy.Candidate(
+                    windowId: managed.windowId,
+                    pid: managed.backing.pid,
+                    cgWindowId: managed.backing.cgWindowId,
+                    frame: frame,
+                    isPlacedInZone: managed.isPlacedInZone
+                )
+            }
+
+        guard let match = NativeTabReplacementPolicy.mergeDestinationCandidate(
+                  sourcePid: sourceIdentifier.pid,
+                  sourceCgWindowId: sourceIdentifier.cgWindowId,
+                  sourceFrame: sourceFrame,
+                  candidates: candidates
+              ),
+              let destination = windowRegistry.window(withId: match.windowId) else {
+            return nil
+        }
+
+        let sourceWindowId = source.windowId
+        let destinationWindowId = destination.windowId
+        let destinationPreviousIdentifier = destination.externalIdentifier
+        let sourceElement = source.backing.element
+
+        Logger.debug(
+            "Native tab merge: collapsing placed source window \(sourceWindowId) " +
+            "(pid \(sourceIdentifier.pid), CGWindowID \(sourceIdentifier.cgWindowId), frame \(sourceFrame)) " +
+            "into destination window \(destinationWindowId) " +
+            "(CGWindowID \(destinationPreviousIdentifier.cgWindowId), match frame \(match.frame), reason: \(reason))"
+        )
+
+        windowLastActiveTime.removeValue(forKey: sourceWindowId)
+        removeManagedWindowFromLiveTracking(source)
+        replaceTrackedWindowBacking(
+            destination,
+            newElement: sourceElement,
+            newIdentifier: sourceIdentifier,
+            appElement: appElement
+        )
+        lastExternalMoveByWindowId[destinationWindowId] = Date()
+
+        delegate?.windowController(
+            self,
+            didCollapseNativeTabSourceWindow: sourceWindowId,
+            into: destinationWindowId
+        )
+
+        Logger.debug(
+            "Native tab merge: preserved destination window \(destinationWindowId) in its zone " +
+            "(pid \(sourceIdentifier.pid), CGWindowID \(destinationPreviousIdentifier.cgWindowId) -> \(sourceIdentifier.cgWindowId)); " +
+            "removed source window \(sourceWindowId)"
+        )
+
+        return destination
+    }
+
+    private func nativeTabMergeDestinationFrame(for managed: ManagedWindow) -> CGRect? {
+        if let liveFrame = WindowServerWindowList.frame(
+            for: managed.backing.cgWindowId,
+            ownerPid: managed.backing.pid
+        ), liveFrame.width > 0, liveFrame.height > 0 {
+            return liveFrame
+        }
+
+        if let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed),
+           accessibilityFrame.width > 0,
+           accessibilityFrame.height > 0 {
+            return accessibilityFrame
+        }
+
+        if let cachedFrame = managed.cachedFrame,
+           cachedFrame.width > 0,
+           cachedFrame.height > 0 {
+            return cachedFrame
+        }
+
+        return nil
     }
 
     private func replaceNativeTabBackingIfNeeded(

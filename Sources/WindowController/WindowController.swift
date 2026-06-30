@@ -67,6 +67,10 @@ class WindowController {
     internal var primaryScreenBounds: CGRect
     internal var applicationExceptionPolicy: ApplicationExceptionPolicy
     internal var dragCandidate: DragCandidate?
+    /// Most recent moment each window was moved by its own application — a non-programmatic move
+    /// that is not a recognized Zonogy manual drag. Focus-driven frame reasserts consult
+    /// `isExternallyMovingRecently(windowId:)` so they do not immediately fight that app move.
+    internal var lastExternalMoveByWindowId: [Int: Date] = [:]
     internal var pendingPrunedWindows = PendingPrunedWindowStore()
     /// Window ids whose next activity record should be skipped because they were restored
     /// from deferred-prune state and should keep their prior recency ordering.
@@ -90,6 +94,10 @@ class WindowController {
     // Require at least a few pixels of movement (with the button still down)
     // before turning an AXMoved burst into a real drag begin event.
     internal let dragActivationDistance: CGFloat = 6
+
+    /// How long after an application-driven move (see `lastExternalMoveByWindowId`) focus-driven
+    /// frame reasserts stay suppressed for that window.
+    internal static let externalMoveReassertSuppressionWindow: TimeInterval = 0.3
 
     /// Tracks the last time each window was activated for shared managed-window recency ordering.
     internal var windowLastActiveTime: [Int: Date] = [:]
@@ -598,6 +606,9 @@ protocol WindowControllerDelegate: AnyObject {
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)
     func windowDidAdoptNativeTabOnDeminiaturize(originalWindowId: Int, adoptedWindowId: Int)
+    /// Called after a placed native-tab source window is removed because its backing was adopted
+    /// by another placed same-process managed window.
+    func windowController(_ controller: WindowController, didCollapseNativeTabSourceWindow sourceWindowId: Int, into destinationWindowId: Int)
     func windowDidResize(windowId: Int)
     func windowElementDidCreate(element: AXUIElement, pid: pid_t)
     func windowElementDidResize(element: AXUIElement, pid: pid_t)
