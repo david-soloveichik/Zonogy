@@ -451,26 +451,25 @@ extension WindowController {
         recordCachedFrame(for: managed)
         let isProgrammatic = programmaticUpdateWindowIds.contains(managed.windowId)
         let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
-        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed) ?? .zero
+        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed)
+        let loggedFrame = accessibilityFrame ?? .zero
         if isProgrammatic {
-            Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame) (ignored programmatic update; cursorTargetedZone: \(targetDescription))")
+            Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (ignored programmatic update; cursorTargetedZone: \(targetDescription))")
             return
         }
 
-        Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame) (cursorTargetedZone: \(targetDescription))")
-        if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
-            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
+        Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (cursorTargetedZone: \(targetDescription))")
+        if ensureManualDragBegan(for: managed, frame: loggedFrame) {
+            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: loggedFrame)
         } else {
             // The application moved the window itself (not a Zonogy drag). Remember this so
             // immediate focus-driven layout checks can avoid fighting a still-settling move.
             lastExternalMoveByWindowId[managed.windowId] = Date()
-            let appElement = accessibilityWatcher.applicationElement(for: managed.backing.pid)
-            if collapsePlacedNativeTabSourceIfNeeded(
+            if collapseNativeTabSourceForAppGeometryChangeIfNeeded(
                 managed,
                 sourceFrame: accessibilityFrame,
-                appElement: appElement,
                 reason: "app-driven-move"
-            ) != nil {
+            ) {
                 return
             }
             Logger.debug("External window \(managed.windowId) move not part of an active manual drag; no zone update issued")
@@ -495,12 +494,39 @@ extension WindowController {
             Logger.debug("External window \(managed.windowId) resized during active drag; ignoring (OS-driven resize)")
             return
         }
+
+        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed)
+        // Finder reports some last-tab merges as a resize of the source window rather than
+        // a move. Collapse that native-tab source before manual-resize bookkeeping can mark
+        // it detached in its old zone and later snap it back there.
+        if collapseNativeTabSourceForAppGeometryChangeIfNeeded(
+            managed,
+            sourceFrame: accessibilityFrame,
+            reason: "app-driven-resize"
+        ) {
+            return
+        }
+
         Logger.debug("External window \(managed.windowId) resized (non-programmatic)")
         if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
             delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
         } else {
             delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
         }
+    }
+
+    private func collapseNativeTabSourceForAppGeometryChangeIfNeeded(
+        _ managed: ManagedWindow,
+        sourceFrame: CGRect?,
+        reason: String
+    ) -> Bool {
+        let appElement = accessibilityWatcher.applicationElement(for: managed.backing.pid)
+        return collapsePlacedNativeTabSourceIfNeeded(
+            managed,
+            sourceFrame: sourceFrame,
+            appElement: appElement,
+            reason: reason
+        ) != nil
     }
 
     // MARK: - Element Rebinding
