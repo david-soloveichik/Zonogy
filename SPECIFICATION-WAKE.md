@@ -45,4 +45,4 @@ We poll at 0.5 increments until this passes. At this point we assume that AX API
 
 set screensAsleep = false and undim the menubar icon
 
-Finally do the same thing that happens during "screen‑change recapture" (re-use same code). Any windows that were falsely pruned during the sleep transition (due to transient AX unavailability or spurious `AXUIElementDestroyed` notifications) are recovered via the deferred-prune mechanism (see SPECIFICATION-IMPLEMENTATION.md § Deferred Pruning).
+Finally do the same thing that happens during "screen-change recapture" (re-use same code). Any windows that were falsely pruned during the sleep transition (due to transient AX unavailability or spurious `AXUIElementDestroyed` notifications) are recovered via the deferred-prune mechanism (see SPECIFICATION-IMPLEMENTATION.md § Deferred Pruning). Tracked-but-unzoned windows are placed only when the recapture pass revalidates them as live; stale tracked records remain unplaced.

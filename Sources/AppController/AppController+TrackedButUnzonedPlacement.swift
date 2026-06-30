@@ -13,6 +13,7 @@ extension AppController {
         reason: String,
         candidateKind: String,
         restrictedToScreenId: CGDirectDisplayID? = nil,
+        allowedWindowIds: Set<Int>? = nil,
         skipFullScreenPausedScreens: Bool,
         logSkipFullScreenPaused: Bool,
         _ handler: (ManagedWindow) -> Void
@@ -20,6 +21,10 @@ extension AppController {
         var placedCount = 0
 
         let candidateWindowIds: [Int] = windowController.allWindows.compactMap { (window: ManagedWindow) -> Int? in
+            if let allowedWindowIds, !allowedWindowIds.contains(window.windowId) {
+                return nil
+            }
+
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(window.windowId) else {
@@ -82,4 +87,3 @@ extension AppController {
         return placedCount
     }
 }
-

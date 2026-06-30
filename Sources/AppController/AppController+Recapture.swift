@@ -10,8 +10,9 @@ import AppKit
 ///    (macOS can silently relocate windows when displays reattach; the
 ///    new screen is unlikely to reflect any user intent so we hide the
 ///    window rather than guessing where it should land)
-/// 3. Identifies tracked windows that are unminimized but not in any zone
-///    (tiled or floating) and places them via the normal placement flow
+/// 3. Places only tracked, unminimized, unzoned windows that this recapture
+///    pass just validated as live. This avoids turning stale parked native-tab
+///    identities into new zone occupants after wake.
 extension AppController {
     /// Schedule a window recapture pass after the specified delay.
     /// Called from screen topology refresh (display changes) and wake-from-sleep.
@@ -35,6 +36,7 @@ extension AppController {
             // Recapture windows from all running applications
             let visibleBundleIds = self.bundleIdsWithVisibleWindows()
             var capturedCount = 0
+            var recapturedLiveWindowIds = Set<Int>()
             for application in NSWorkspace.shared.runningApplications {
                 guard self.shouldManage(application: application, visibleBundleIds: visibleBundleIds) else {
                     continue
@@ -48,6 +50,14 @@ extension AppController {
                 )
                 if !capturedWindows.isEmpty {
                     capturedCount += capturedWindows.count
+                    recapturedLiveWindowIds.formUnion(
+                        capturedWindows.compactMap { window in
+                            WindowServerWindowList.frame(
+                                for: window.backing.cgWindowId,
+                                ownerPid: window.backing.pid
+                            ) != nil ? window.windowId : nil
+                        }
+                    )
                     Logger.debug("Captured \(capturedWindows.count) windows for \(application.bundleIdentifier ?? "unknown") (pid \(application.processIdentifier))")
                 }
             }
@@ -58,7 +68,10 @@ extension AppController {
             // Place any tracked but unzoned windows.
             // This intentionally does not sync per placement; we do one sync below
             // to avoid re-entrant churn while iterating recapture candidates.
-            let placedUnzonedCount = self.placeTrackedButUnzonedWindows(reason: reason)
+            let placedUnzonedCount = self.placeTrackedButUnzonedWindows(
+                reason: reason,
+                allowedWindowIds: recapturedLiveWindowIds
+            )
 
             // Sync if we captured new windows, minimized drifted floating occupants, or placed unzoned ones.
             if capturedCount > 0 || minimizedDriftedCount > 0 || placedUnzonedCount > 0 {
@@ -82,9 +95,10 @@ extension AppController {
         pendingRecaptureWorkItems.removeAll()
     }
 
-    /// Places any tracked windows that are unminimized but not assigned to any zone.
-    /// Called after wake and screen changes to catch windows that
-    /// were deminiaturized or created while events were suppressed.
+    /// Places tracked windows that are unminimized, unzoned, and validated by
+    /// the current recapture pass. Called after wake and screen changes to
+    /// catch windows that were deminiaturized or created while events were
+    /// suppressed without reviving stale tracked native-tab identities.
     /// Returns the number of windows placed.
     ///
     /// Candidates on full-screen-paused screens are not pre-filtered here: `placeNewWindow`
@@ -92,11 +106,15 @@ extension AppController {
     /// partial-pause path (place into the targeted zone on a non-paused screen, then
     /// re-raise the FS Space) and the deferral path uniformly.
     @discardableResult
-    internal func placeTrackedButUnzonedWindows(reason: String) -> Int {
+    internal func placeTrackedButUnzonedWindows(
+        reason: String,
+        allowedWindowIds: Set<Int>
+    ) -> Int {
         withTrackedButUnzonedWindows(
             reason: reason,
             candidateKind: "recapture",
             restrictedToScreenId: nil,
+            allowedWindowIds: allowedWindowIds,
             skipFullScreenPausedScreens: false,
             logSkipFullScreenPaused: false
         ) { window in
