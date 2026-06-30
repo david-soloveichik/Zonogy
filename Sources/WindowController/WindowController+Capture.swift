@@ -384,14 +384,23 @@ extension WindowController {
                 continue
             }
 
-            let candidateFrame = managed.actualFrame
-            guard candidateFrame.width > 0, candidateFrame.height > 0 else {
+            let accessibilityFrame = managed.actualFrame
+            let candidateFrame: CGRect
+            let candidateFrameSource: String
+            if accessibilityFrame.width > 0, accessibilityFrame.height > 0 {
+                candidateFrame = accessibilityFrame
+                candidateFrameSource = "ManagedWindow.actualFrame (live WindowServer frame withdrawn)"
+            } else if let cachedFrame = managed.cachedFrame,
+                      cachedFrame.width > 0,
+                      cachedFrame.height > 0 {
+                candidateFrame = cachedFrame
+                candidateFrameSource = "managed.cachedFrame (live WindowServer frame withdrawn, AX frame unavailable)"
+            } else {
                 Logger.debug(
-                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); no live WindowServer frame and ManagedWindow.actualFrame unavailable"
+                    "Native tab replacement: skipping managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)); no live WindowServer frame, ManagedWindow.actualFrame unavailable, and cachedFrame unavailable"
                 )
                 continue
             }
-            let candidateFrameSource = "ManagedWindow.actualFrame (live WindowServer frame withdrawn)"
             Logger.debug(
                 "Native tab replacement: managed window \(managed.windowId) (\(placement), CGWindowID \(managed.backing.cgWindowId)) eligible via \(candidateFrameSource): \(candidateFrame)"
             )
