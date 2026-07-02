@@ -42,6 +42,7 @@ When the user left-clicks a Dock app **without Shift**:
 - Zonogy performs the **Default Launcher action for that app** (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)), including `hasMainWindow` behavior.
 - After the action begins, dismiss the DockMenu.
 - Intercept only when the Dock app icon is the **topmost** UI at the cursor. If another menu/panel/window overlaps the Dock at that point, let that frontmost UI handle the click normally. (Using `AXUIElementCopyElementAtPosition()`)
+- Never intercept a click landing on Zonogy's own add-zone or floating-zone bar (they render above the Dock); this holds even when the topmost-element check is momentarily unavailable.
 
 **Modifiers:**
 

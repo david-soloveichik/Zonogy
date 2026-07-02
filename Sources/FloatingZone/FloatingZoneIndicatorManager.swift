@@ -17,7 +17,7 @@ protocol FloatingZoneIndicatorManagerDelegate: AnyObject {
 /// Sizing and timing for the brief "pop" when a floating zone becomes targeted. The floating zone
 /// has no border to flash, so its bottom-edge pill momentarily enlarges instead — the floating-zone
 /// analog of the tiling-zone border flash.
-private enum FloatingIndicatorPulse {
+enum FloatingIndicatorPulse {
     /// Peak height the pill jumps to before settling back to its resting thickness.
     static let peakThickness: CGFloat = 20
     /// How much wider the pill grows at the peak, centered on its resting midpoint.
@@ -42,7 +42,9 @@ final class FloatingZoneIndicatorManager {
             isOpaque = false
             hasShadow = false
             backgroundColor = .clear
-            level = .floating
+            // Above the Dock: a Dock sharing the bottom edge must not capture the bar's
+            // hovers, clicks, or drops.
+            level = EdgeIndicatorWindowLevel.resting
             collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
         }
 
@@ -422,7 +424,7 @@ final class FloatingZoneIndicatorManager {
         ).standardized
 
         // Float above neighboring windows for the pop so it reads clearly, then animate back down.
-        handle.window.level = .statusBar
+        handle.window.level = EdgeIndicatorWindowLevel.raised
         handle.window.orderFrontRegardless()
         handle.window.setFrame(popped, display: true)
 
@@ -455,7 +457,9 @@ final class FloatingZoneIndicatorManager {
         let targetFrame = restingFrame(for: handle)
         let shouldFloatOnTop = targetFrame.height > EdgeIndicatorPillSizing.baseThickness
 
-        let targetLevel: NSWindow.Level = shouldFloatOnTop ? .statusBar : .floating
+        let targetLevel: NSWindow.Level = shouldFloatOnTop
+            ? EdgeIndicatorWindowLevel.raised
+            : EdgeIndicatorWindowLevel.resting
         if handle.window.level != targetLevel {
             handle.window.level = targetLevel
         }

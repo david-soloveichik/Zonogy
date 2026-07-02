@@ -69,6 +69,14 @@ final class DockMenusCoordinator {
 
     weak var delegate: DockMenusCoordinatorDelegate?
 
+    /// Forwarded to the click interceptor: true when a click point lands on Zonogy edge UI
+    /// drawn above the Dock (add-zone and floating-zone pills).
+    var isClickPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)? {
+        didSet {
+            clickInterceptor.isPointCoveredByZonogyEdgeUI = isClickPointCoveredByZonogyEdgeUI
+        }
+    }
+
     // Cached for Cocoa<->Accessibility conversion; refreshed via updatePrimaryScreenBounds when the
     // primary display changes (the Dock lives on the primary screen, so its resolution matters).
     private var primaryScreenBounds: CGRect

@@ -33,7 +33,9 @@ class AddZoneIndicatorWindow: NSPanel {
 
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .floating
+        // Above the Dock: a Dock sharing this screen edge must not capture the pill's
+        // hovers, clicks, or drops.
+        self.level = EdgeIndicatorWindowLevel.resting
         // Follow the active space but avoid joining dedicated full-screen spaces.
         self.collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
         self.ignoresMouseEvents = false
@@ -357,7 +359,9 @@ class AddZoneIndicatorManager {
             targetFrame.size.width = thickness
         }
 
-        let targetLevel: NSWindow.Level = shouldFloatOnTop ? .statusBar : .floating
+        let targetLevel: NSWindow.Level = shouldFloatOnTop
+            ? EdgeIndicatorWindowLevel.raised
+            : EdgeIndicatorWindowLevel.resting
         if window.level != targetLevel {
             window.level = targetLevel
         }

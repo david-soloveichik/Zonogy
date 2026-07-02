@@ -45,6 +45,11 @@ final class DockClickInterceptor {
     /// Called when a click occurs in the Dock frame but no Dock element is found (Dock is hidden).
     var onDockNotFound: (() -> Void)?
 
+    /// Returns true when the point lands on Zonogy UI drawn above the Dock (the add-zone and
+    /// floating-zone pills). Such clicks always pass through, even when the topmost-element
+    /// accessibility check is transiently unavailable.
+    var isPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)?
+
     /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary screen).
     private var interceptFrame: CGRect?
 
@@ -236,6 +241,11 @@ final class DockClickInterceptor {
         // Control bypasses interception (spec: preserve Dock context menus)
         let flags = event.flags
         if flags.contains(.maskShift) || flags.contains(.maskControl) {
+            return .pass
+        }
+
+        // Zonogy's own edge pills render above the Dock; clicks on them belong to the pills.
+        if isPointCoveredByZonogyEdgeUI?(location) == true {
             return .pass
         }
 

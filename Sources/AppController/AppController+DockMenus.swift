@@ -25,6 +25,9 @@ extension AppController {
             enableDebugOverlay: dockMenusConfig.showsDockFrameOverlay
         )
         coordinator.delegate = self
+        coordinator.isClickPointCoveredByZonogyEdgeUI = { [weak self] point in
+            self?.isPointCoveredByZonogyEdgePill(point) ?? false
+        }
         dockMenusCoordinator = coordinator
         coordinator.start()
     }
@@ -57,6 +60,38 @@ extension AppController {
     private func applyDockMenusConfiguration() {
         stopDockMenus()
         startDockMenusIfConfigured()
+    }
+
+    /// True when the point lands within the maximal extent of any add-zone or floating-zone
+    /// pill. The trackers store the resting 6 px frames, but the pills grow inward from their
+    /// screen edge on hover/drag (and the floating pill pulses taller on targeting), so widen
+    /// each frame inward to the largest thickness it can reach.
+    private func isPointCoveredByZonogyEdgePill(_ point: CGPoint) -> Bool {
+        let maxThickness = max(EdgeIndicatorPillSizing.dragThickness, FloatingIndicatorPulse.peakThickness)
+        let expansion = maxThickness - EdgeIndicatorPillSizing.baseThickness
+
+        for (pill, frame) in addIndicatorTracker.hitAreas {
+            var covered = frame
+            covered.size.width += expansion
+            if pill.side == .right {
+                covered.origin.x -= expansion
+            }
+            if covered.contains(point) {
+                return true
+            }
+        }
+
+        for frame in floatingIndicatorTracker.hitAreas.values {
+            // Bottom-edge pill: growth is upward, which decreases y in accessibility coordinates.
+            var covered = frame
+            covered.origin.y -= expansion
+            covered.size.height += expansion
+            if covered.contains(point) {
+                return true
+            }
+        }
+
+        return false
     }
 }
 
