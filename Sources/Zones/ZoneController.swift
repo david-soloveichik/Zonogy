@@ -4,6 +4,10 @@ import AppKit
 /// Manages the zones and their assignments.
 /// Zones can contain external window occupants (tracked by windowId).
 /// Placeholder windows are managed separately by PlaceholderCoordinator.
+///
+/// Each zone carries the screen side it tiles on. Single-bar layout styles force sides by zone
+/// index; the dual-bar style carries sides as state (which bar added each zone), repaired to
+/// keep every side within capacity and two zones on one per side.
 class ZoneController {
     struct RemovalResult {
         let removedWindowId: Int?
@@ -12,19 +16,17 @@ class ZoneController {
     private var zones: [Zone] = []
     private var layout = ZoneLayout()
     private var screenFrame: CGRect
+    private(set) var layoutStyle: ZoneLayoutStyle
 
-    init(screenFrame: CGRect, initialZoneCount: Int = 1) {
+    init(screenFrame: CGRect, initialZoneCount: Int = 1, layoutStyle: ZoneLayoutStyle = .rightBar) {
         self.screenFrame = screenFrame.standardized
-        initializeZones(count: initialZoneCount)
-    }
-
-    private func initializeZones(count: Int) {
-        let zoneCount = clampedZoneCount(count)
-        let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
-        zones = frames.enumerated().map { index, frame in
-            Zone(index: index + 1, frame: frame)
-        }
-        Logger.debug("Initialized \(zoneCount) zone(s)")
+        self.layoutStyle = layoutStyle
+        let zoneCount = max(1, min(layoutStyle.maxZoneCount, initialZoneCount))
+        recomputeLayout(
+            sides: layoutStyle.canonicalSides(zoneCount: zoneCount),
+            preservingOccupants: Array(repeating: nil, count: zoneCount)
+        )
+        Logger.debug("Initialized \(zoneCount) zone(s) with layout style \(layoutStyle.rawValue)")
     }
 
     /// Get all zones
@@ -37,18 +39,64 @@ class ZoneController {
         return zones.first { $0.index == index }
     }
 
-    /// Add a new zone (up to max of 3)
-    /// Returns the newly created zone, or nil if max reached
-    func addZone() -> Zone? {
-        guard zones.count < 3 else {
-            Logger.debug("Cannot add zone: maximum of 3 zones reached")
+    private var currentSides: [ZoneSide] {
+        zones.sorted { $0.index < $1.index }.map { $0.side }
+    }
+
+    private var currentOccupants: [Int?] {
+        zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId }
+    }
+
+    /// Number of zones currently on a side.
+    func zoneCount(on side: ZoneSide) -> Int {
+        zones.filter { $0.side == side }.count
+    }
+
+    /// True when a zone can be added on the given side (side capacity and total max permitting).
+    /// A lone full-screen zone does not block either side: adding re-splits the screen.
+    func canAddZone(on side: ZoneSide) -> Bool {
+        guard zones.count < layoutStyle.maxZoneCount else {
+            return false
+        }
+        if zones.count == 1 {
+            return true
+        }
+        return zoneCount(on: side) < layoutStyle.sideCapacity(side)
+    }
+
+    /// Add a new zone, on `preferredSide` when given (an add-zone bar click), otherwise on the
+    /// style's preferred side with remaining capacity.
+    /// Returns the newly created zone, or nil if no capacity remains.
+    func addZone(preferredSide: ZoneSide? = nil) -> Zone? {
+        guard zones.count < layoutStyle.maxZoneCount else {
+            Logger.debug("Cannot add zone: maximum of \(layoutStyle.maxZoneCount) zones reached")
             return nil
         }
 
-        let newCount = zones.count + 1
-        let occupants = zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId } + [nil]
-        recomputeLayout(zoneCount: newCount, preservingOccupants: occupants)
-        Logger.debug("Added zone \(newCount)")
+        let side: ZoneSide
+        if let preferredSide {
+            guard canAddZone(on: preferredSide) else {
+                Logger.debug("Cannot add zone: side \(preferredSide.rawValue) is full")
+                return nil
+            }
+            side = preferredSide
+        } else if let fallback = layoutStyle.preferredAddSideOrder.first(where: { canAddZone(on: $0) }) {
+            side = fallback
+        } else {
+            Logger.debug("Cannot add zone: no side has remaining capacity")
+            return nil
+        }
+
+        var sides = currentSides
+        // Splitting a lone full-screen zone: the new zone takes the clicked side and the
+        // existing zone takes the other, regardless of the side it nominally carried.
+        if sides.count == 1 {
+            sides = [side.opposite]
+        }
+        sides.append(side)
+
+        recomputeLayout(sides: repairedSides(sides), preservingOccupants: currentOccupants + [nil])
+        Logger.debug("Added zone \(zones.count) on side \(side.rawValue)")
         return zones.last
     }
 
@@ -68,38 +116,47 @@ class ZoneController {
         let removedZone = zones.remove(at: arrayIndex)
         let removedWindowId = removedZone.occupantWindowId
 
-        let remainingOccupants = zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId }
-        let newCount = zones.count
-        recomputeLayout(zoneCount: newCount, preservingOccupants: remainingOccupants)
+        recomputeLayout(sides: repairedSides(currentSides), preservingOccupants: currentOccupants)
 
-        Logger.debug("Removed zone \(index), now have \(newCount) zone(s)")
+        Logger.debug("Removed zone \(index), now have \(zones.count) zone(s)")
         return RemovalResult(removedWindowId: removedWindowId)
     }
 
-    /// Force the number of zones to the specified count (clamped to 1...3).
+    /// Force the number of zones to the specified count (clamped to 1...max for the style).
     /// - Returns: Window IDs removed due to a reduction in zone count.
     @discardableResult
     func setZoneCount(to desiredCount: Int) -> [Int] {
-        let clampedCount = clampedZoneCount(desiredCount)
+        let clampedCount = max(1, min(layoutStyle.maxZoneCount, desiredCount))
         guard clampedCount != zones.count else {
             return []
         }
 
         let sortedZones = zones.sorted { $0.index < $1.index }
-        var occupants: [Int?]
         var removedWindowIds: [Int] = []
+        var occupants: [Int?]
+        var sides: [ZoneSide]
 
         if clampedCount < sortedZones.count {
             occupants = sortedZones.prefix(clampedCount).map { $0.occupantWindowId }
             removedWindowIds = sortedZones.dropFirst(clampedCount).compactMap { $0.occupantWindowId }
+            sides = repairedSides(Array(sortedZones.prefix(clampedCount).map { $0.side }))
         } else {
             occupants = sortedZones.map { $0.occupantWindowId }
-            if clampedCount > occupants.count {
-                occupants.append(contentsOf: Array(repeating: nil, count: clampedCount - occupants.count))
+                + Array(repeating: nil, count: clampedCount - sortedZones.count)
+            sides = sortedZones.map { $0.side }
+            while sides.count < clampedCount {
+                let side = layoutStyle.preferredAddSideOrder.first { candidate in
+                    sides.filter { $0 == candidate }.count < layoutStyle.sideCapacity(candidate)
+                } ?? .right
+                if sides.count == 1 {
+                    sides = [side.opposite]
+                }
+                sides.append(side)
             }
+            sides = repairedSides(sides)
         }
 
-        recomputeLayout(zoneCount: clampedCount, preservingOccupants: occupants)
+        recomputeLayout(sides: sides, preservingOccupants: occupants)
         Logger.debug("Adjusted zone count to \(clampedCount)")
         return removedWindowIds
     }
@@ -107,11 +164,62 @@ class ZoneController {
     /// Replace the current tiling-zone topology with the provided occupant list.
     /// Each array element maps to the corresponding 1-based zone index.
     func replaceZones(withOccupants occupantWindowIds: [Int?]) {
-        let requestedCount = clampedZoneCount(max(1, occupantWindowIds.count))
+        let requestedCount = max(1, min(layoutStyle.maxZoneCount, max(1, occupantWindowIds.count)))
         let occupants = Array(occupantWindowIds.prefix(requestedCount))
             + Array(repeating: nil, count: max(0, requestedCount - occupantWindowIds.count))
-        recomputeLayout(zoneCount: requestedCount, preservingOccupants: occupants)
+        recomputeLayout(
+            sides: layoutStyle.canonicalSides(zoneCount: requestedCount),
+            preservingOccupants: occupants
+        )
         Logger.debug("Replaced zones with \(requestedCount) explicit occupant slot(s)")
+    }
+
+    /// Switch to another layout style, re-tiling the current zones in place (occupants keep
+    /// their indexes). Zones beyond the new style's maximum are dropped, highest index first.
+    /// - Returns: Window IDs from dropped zones.
+    @discardableResult
+    func setLayoutStyle(_ newStyle: ZoneLayoutStyle) -> [Int] {
+        guard newStyle != layoutStyle else {
+            return []
+        }
+        layoutStyle = newStyle
+
+        let sortedZones = zones.sorted { $0.index < $1.index }
+        let keptCount = max(1, min(newStyle.maxZoneCount, sortedZones.count))
+        let removedWindowIds = sortedZones.dropFirst(keptCount).compactMap { $0.occupantWindowId }
+        let kept = sortedZones.prefix(keptCount)
+
+        recomputeLayout(
+            sides: repairedSides(kept.map { $0.side }),
+            preservingOccupants: kept.map { $0.occupantWindowId }
+        )
+        Logger.debug("Switched layout style to \(newStyle.rawValue); \(zones.count) zone(s) retained")
+        return removedWindowIds
+    }
+
+    /// Align dual-bar side assignments to saved zone frames (e.g. a WinShot snapshot), so a
+    /// restored arrangement reproduces its columns. No-op for single-bar styles (sides are fixed)
+    /// or when the frames don't describe a valid dual-bar arrangement.
+    func alignSides(toSavedFrames framesByIndex: [Int: CGRect]) {
+        guard layoutStyle == .dualBar, zones.count > 1 else {
+            return
+        }
+
+        let sortedZones = zones.sorted { $0.index < $1.index }
+        var inferred: [ZoneSide] = []
+        for zone in sortedZones {
+            guard let saved = framesByIndex[zone.index] else {
+                return
+            }
+            inferred.append(saved.standardized.midX <= screenFrame.midX ? .left : .right)
+        }
+
+        let repaired = repairedSides(inferred)
+        guard repaired == inferred, inferred != currentSides else {
+            return
+        }
+        recomputeLayout(sides: inferred, preservingOccupants: currentOccupants)
+        Logger.debug("Aligned zone sides to saved frames: \(inferred.map(\.rawValue))")
     }
 
     /// Assign an external window to a zone.
@@ -181,10 +289,9 @@ class ZoneController {
         }
 
         let sanitizedFrame = sanitizeFrame(newFrame)
-        layout.resize(zoneIndex: index, zoneCount: zones.count, screenFrame: screenFrame, to: sanitizedFrame)
+        layout.resize(zoneIndex: index, sides: currentSides, screenFrame: screenFrame, to: sanitizedFrame)
 
-        let occupants = zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId }
-        recomputeLayout(zoneCount: zones.count, preservingOccupants: occupants)
+        recomputeLayout(sides: currentSides, preservingOccupants: currentOccupants)
 
         if wasOccupied {
             Logger.debug("Resized occupied zone \(index) using frame \(sanitizedFrame)")
@@ -195,38 +302,55 @@ class ZoneController {
     }
 
     /// Resize zones by dragging a separator
-    func resizeBySeparator(index: Int, delta: CGFloat) {
-        layout.resizeBySeparator(index: index, delta: delta, zoneCount: zones.count, screenFrame: screenFrame)
-        let occupants = zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId }
-        recomputeLayout(zoneCount: zones.count, preservingOccupants: occupants)
-        Logger.debug("Resized by separator \(index) delta \(delta)")
+    func resizeBySeparator(id: ZoneLayout.SeparatorIdentity, delta: CGFloat) {
+        layout.resizeBySeparator(id: id, delta: delta, screenFrame: screenFrame)
+        recomputeLayout(sides: currentSides, preservingOccupants: currentOccupants)
+        Logger.debug("Resized by separator \(id.logLabel) delta \(delta)")
     }
 
-    /// Recompute the layout for the current number of zones.
-    /// Preserves occupant window IDs; PlaceholderCoordinator manages placeholders separately.
-    private func recomputeLayout(zoneCount: Int, preservingOccupants occupantsParam: [Int?]? = nil) {
-        let frames = layout.frames(for: zoneCount, screenFrame: screenFrame)
-
-        let occupants: [Int?]
-        if let provided = occupantsParam {
-            occupants = provided
-        } else {
-            occupants = zones.sorted { $0.index < $1.index }.map { $0.occupantWindowId }
+    /// Repair a side assignment so it is valid for the current style: single-bar styles use
+    /// their fixed sides; dual-bar keeps carried sides but re-tiles two same-side survivors to
+    /// one per side (in index order) and falls back to canonical sides for degenerate states.
+    private func repairedSides(_ proposed: [ZoneSide]) -> [ZoneSide] {
+        if let fixed = layoutStyle.fixedSides(zoneCount: proposed.count) {
+            return fixed
         }
+        guard proposed.count > 1 else {
+            return layoutStyle.canonicalSides(zoneCount: max(1, proposed.count))
+        }
+
+        let leftCount = proposed.filter { $0 == .left }.count
+        let rightCount = proposed.count - leftCount
+
+        if proposed.count == 2, leftCount != 1 {
+            return [.left, .right]
+        }
+        if leftCount == 0 || rightCount == 0
+            || leftCount > layoutStyle.sideCapacity(.left)
+            || rightCount > layoutStyle.sideCapacity(.right) {
+            return layoutStyle.canonicalSides(zoneCount: proposed.count)
+        }
+        return proposed
+    }
+
+    /// Recompute zone frames for the given sides, preserving occupant window IDs by position.
+    /// PlaceholderCoordinator manages placeholders separately.
+    private func recomputeLayout(sides: [ZoneSide], preservingOccupants occupants: [Int?]) {
+        let frames = layout.frames(sides: sides, screenFrame: screenFrame)
 
         zones = frames.enumerated().map { index, frame in
             let occupantId = index < occupants.count ? occupants[index] : nil
-            return Zone(index: index + 1, frame: frame, occupantWindowId: occupantId)
+            return Zone(index: index + 1, frame: frame, side: sides[index], occupantWindowId: occupantId)
         }
     }
 
     func separators() -> [ZoneLayout.Separator] {
-        return layout.separators(zoneCount: zones.count, screenFrame: screenFrame)
+        return layout.separators(sides: currentSides, screenFrame: screenFrame)
     }
 
     /// Force a layout recalculation (useful after screen size changes)
     func relayout() {
-        recomputeLayout(zoneCount: zones.count)
+        recomputeLayout(sides: currentSides, preservingOccupants: currentOccupants)
         Logger.debug("Relayout complete for \(zones.count) zone(s)")
     }
 
@@ -260,9 +384,5 @@ class ZoneController {
         standardized.size.height = max(0, maxY - standardized.origin.y)
 
         return standardized
-    }
-
-    private func clampedZoneCount(_ count: Int) -> Int {
-        return max(1, min(3, count))
     }
 }

@@ -4,8 +4,8 @@ import CoreGraphics
 protocol FloatingDragHandlerHost: AnyObject {
     var areGestureModifiersHeld: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
-    func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
-    func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
+    func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> AddZonePillKey?
+    func updateAddZoneIndicatorHighlight(pill: AddZonePillKey?)
     func resolveFloatingDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
@@ -18,7 +18,7 @@ protocol FloatingDragHandlerHost: AnyObject {
     func finalizeFloatingDrop(
         windowId: Int,
         finalFrame: CGRect,
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     )
@@ -38,7 +38,7 @@ final class FloatingDragHandler {
         let originScreenId: CGDirectDisplayID?
         let originZoneKey: ZoneKey?
         let requiresGestureModifiers: Bool
-        var hoveredAddZoneScreenId: CGDirectDisplayID?
+        var hoveredAddZonePill: AddZonePillKey?
         var hoveredFloatingScreenId: CGDirectDisplayID?
         var hoveredEmptyZoneKey: ZoneKey?
         var isOverlayShowing: Bool = false
@@ -63,7 +63,7 @@ final class FloatingDragHandler {
             originScreenId: originScreenId,
             originZoneKey: originZoneKey,
             requiresGestureModifiers: requiresGestureModifiers,
-            hoveredAddZoneScreenId: nil,
+            hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
             lastCursorPoint: nil
         )
@@ -103,7 +103,7 @@ final class FloatingDragHandler {
         if !current.requiresGestureModifiers {
             let emptyZone = EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: host.resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
-                hoveredAddZoneScreenId: addZoneTarget,
+                hoveredAddZonePill: addZoneTarget,
                 hoveredFloatingScreenId: floatingTarget
             )
             if current.hoveredEmptyZoneKey != emptyZone {
@@ -119,9 +119,9 @@ final class FloatingDragHandler {
             }
         }
 
-        if current.hoveredAddZoneScreenId != addZoneTarget {
-            current.hoveredAddZoneScreenId = addZoneTarget
-            host.updateAddZoneIndicatorHighlight(screenId: addZoneTarget)
+        if current.hoveredAddZonePill != addZoneTarget {
+            current.hoveredAddZonePill = addZoneTarget
+            host.updateAddZoneIndicatorHighlight(pill: addZoneTarget)
         }
 
         if current.hoveredFloatingScreenId != floatingTarget {
@@ -142,15 +142,15 @@ final class FloatingDragHandler {
 
         let finalCursorPoint = current.lastCursorPoint ?? host.currentCursorAccessibilityPoint()
         switch EdgePillDragPolicy.dropDecision(
-            hoveredAddZoneScreenId: current.hoveredAddZoneScreenId,
+            hoveredAddZonePill: current.hoveredAddZonePill,
             hoveredFloatingScreenId: current.hoveredFloatingScreenId,
             hoveredZoneKey: host.areGestureModifiersHeld ? nil : current.hoveredEmptyZoneKey
         ) {
-        case .addZone(let screenId):
+        case .addZone(let pill):
             host.finalizeFloatingDrop(
                 windowId: current.windowId,
                 finalFrame: finalFrame,
-                hoveredAddZoneScreenId: screenId,
+                hoveredAddZonePill: pill,
                 hoveredFloatingScreenId: nil,
                 finalCursorPoint: finalCursorPoint
             )
@@ -158,7 +158,7 @@ final class FloatingDragHandler {
             host.finalizeFloatingDrop(
                 windowId: current.windowId,
                 finalFrame: finalFrame,
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: screenId,
                 finalCursorPoint: finalCursorPoint
             )
@@ -168,12 +168,12 @@ final class FloatingDragHandler {
             host.finalizeFloatingDrop(
                 windowId: current.windowId,
                 finalFrame: finalFrame,
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: nil,
                 finalCursorPoint: finalCursorPoint
             )
         }
-        host.updateAddZoneIndicatorHighlight(screenId: nil)
+        host.updateAddZoneIndicatorHighlight(pill: nil)
         host.updateFloatingIndicatorHighlight(screenId: nil)
     }
 
@@ -182,7 +182,7 @@ final class FloatingDragHandler {
             tearDownOverlaysIfNeeded(&current)
         }
         state = nil
-        host?.updateAddZoneIndicatorHighlight(screenId: nil)
+        host?.updateAddZoneIndicatorHighlight(pill: nil)
         host?.updateFloatingIndicatorHighlight(screenId: nil)
     }
 

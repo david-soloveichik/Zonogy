@@ -10,7 +10,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
     struct FloatingFloatingDragState {
         let windowId: Int
-        var hoveredAddZoneScreenId: CGDirectDisplayID?
+        var hoveredAddZonePill: AddZonePillKey?
         var hoveredFloatingScreenId: CGDirectDisplayID?
     }
     struct ZoneEdgeMargins {
@@ -43,7 +43,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var latestFrame: CGRect
         var isActive: Bool
         var parkedCapturedWindowId: Int?
-        var hoveredAddZoneScreenId: CGDirectDisplayID?
+        var hoveredAddZonePill: AddZonePillKey?
         var hoveredFloatingScreenId: CGDirectDisplayID?
     }
     static let shared = AppController()
@@ -163,8 +163,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var unmanagedWindowEdgeDragGlobalMouseUpMonitor: Any?
     internal var unmanagedWindowEdgeDragSuppressedManagedWindowIds: Set<Int> = []
     internal var unmanagedWindowEdgeIndicatorMousePassthroughEnabled = false
-    internal let addIndicatorTracker = EdgeIndicatorTracker()
-    internal let floatingIndicatorTracker = EdgeIndicatorTracker()
+    internal let addIndicatorTracker = EdgeIndicatorTracker<AddZonePillKey>()
+    internal let floatingIndicatorTracker = EdgeIndicatorTracker<CGDirectDisplayID>()
     internal let menuBarManager = MenuBarManager()
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
@@ -336,7 +336,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.launcherShortcutTargetsZoneWithActiveWindowEnabled = LauncherBehaviorPreferencesStore.loadShortcutTargetsZoneWithActiveWindow()
 
         let screens = NSScreen.screens
-        guard let contextStore = ScreenContextStore(screens: screens) else {
+        guard let contextStore = ScreenContextStore(
+            screens: screens,
+            zoneLayoutStyle: ZoneLayoutStylePreferencesStore.loadStyle()
+        ) else {
             fatalError("No primary screen found")
         }
 

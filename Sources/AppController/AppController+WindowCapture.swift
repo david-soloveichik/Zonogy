@@ -84,7 +84,7 @@ extension AppController {
               let cursorPoint,
               let key = EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
-                hoveredAddZoneScreenId: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+                hoveredAddZonePill: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
                 hoveredFloatingScreenId: resolveFloatingDropTarget(cursorPoint: cursorPoint)
               ),
               placeholderCoordinator.hasPlaceholder(for: key),

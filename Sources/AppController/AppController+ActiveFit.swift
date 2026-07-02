@@ -50,9 +50,8 @@ extension AppController {
             }
         }
 
-        guard let zoneIndex = managed.zoneIndex,
-              zoneIndex >= 2 else {
-            // New focused window is not in a right-column zone; no reveal mode needed.
+        guard let zoneIndex = managed.zoneIndex else {
+            // New focused window is not in a tiling zone; no reveal mode needed.
             return
         }
 
@@ -64,6 +63,11 @@ extension AppController {
         let screenId = managed.screenDisplayId ?? detectScreenId(for: managed)
         guard let screenId else {
             exitRevealMode(reason: "focus-no-screen")
+            return
+        }
+
+        guard activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) else {
+            // The zone is anchored at the screen's top-left; a reveal shift could not help.
             return
         }
 
@@ -105,9 +109,9 @@ extension AppController {
             return
         }
 
-        guard zoneIndex >= 2 else {
+        guard activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) else {
             Logger.debug("ActiveFit: exiting reveal mode for window \(managed.windowId); reassigned to zone \(zoneIndex)")
-            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone-cannot-reveal")
             return
         }
 
@@ -206,7 +210,7 @@ extension AppController {
 
         // Check if window would overflow in rest mode and needs reveal mode
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
-            zoneIndex: zoneIndex,
+            zoneFrame: zone.frame,
             zoneOrigin: candidateFrame.origin,
             windowSize: candidateSize,
             screenBounds: screenBounds,
@@ -308,8 +312,8 @@ extension AppController {
         reason: String = "assignment-change",
         shouldPrimeWithRestMove: Bool = true
     ) {
-        guard zoneIndex >= 2 else {
-            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone<2")
+        guard activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) else {
+            clearRevealModeForWindow(windowId: managed.windowId, transitionToRest: true, reason: "assignment-zone-cannot-reveal")
             return
         }
 
@@ -331,7 +335,8 @@ extension AppController {
     internal func frameRetryDidSettle(windowId: Int) {
         guard let managed = windowController.window(withId: windowId),
               let screenId = managed.screenDisplayId,
-              let zoneIndex = managed.zoneIndex, zoneIndex >= 2 else { return }
+              let zoneIndex = managed.zoneIndex,
+              activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) else { return }
         guard isWindowActive(managed) else { return }
         evaluateRevealModeForAssignment(
             managed: managed,
@@ -401,8 +406,7 @@ extension AppController {
         // Return to rest mode first (with new zone geometry)
         exitRevealMode(reason: reason)
 
-        guard zoneIndex >= 2,
-              screenContexts[screenId]?.zoneController.zone(at: zoneIndex) != nil else {
+        guard activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) else {
             return
         }
 
@@ -428,6 +432,18 @@ extension AppController {
             return true
         }
         return false
+    }
+
+
+    /// Whether the zone at (screenId, zoneIndex) could benefit from a reveal shift.
+    /// See ActiveFitPolicy.zoneCanReveal.
+    internal func activeFitZoneCanReveal(screenId: CGDirectDisplayID, zoneIndex: Int) -> Bool {
+        guard let context = screenContexts[screenId],
+              let zone = context.zoneController.zone(at: zoneIndex),
+              let descriptor = descriptor(for: screenId) else {
+            return false
+        }
+        return ActiveFitPolicy.zoneCanReveal(zoneFrame: zone.frame, screenBounds: descriptor.visibleScreenBounds)
     }
 
     /// Returns true when the window is participating in the managed layout — either as a tiled
@@ -469,7 +485,7 @@ extension AppController {
                let managed = self.windowController.window(withId: activeWindowId),
                let screenId = managed.screenDisplayId,
                let zoneIndex = managed.zoneIndex,
-               zoneIndex >= 2 {
+               self.activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) {
                 Logger.debug("ActiveFit: evaluating reveal mode for window \(activeWindowId) after restore")
                 self.evaluateRevealModeIfNeeded(
                     for: managed,

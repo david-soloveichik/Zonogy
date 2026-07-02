@@ -3,16 +3,17 @@ import AppKit
 /// Manages draggable resize handles between zones for adjusting zone layout ratios.
 struct ZoneSeparatorDescriptor {
     let screenId: CGDirectDisplayID
-    let index: Int
-    let orientation: ZoneLayout.SeparatorOrientation
+    let id: ZoneLayout.SeparatorIdentity
     let frame: CGRect // Screen-local coordinates
     let screenCocoaBounds: CGRect // Screen's Cocoa bounds for coordinate conversion
+
+    var orientation: ZoneLayout.SeparatorOrientation { id.orientation }
 }
 
 protocol ZoneResizeHandleManagerDelegate: AnyObject {
-    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int)
-    func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint)
-    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int)
+    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity)
+    func resizeHandleDragged(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity, delta: CGPoint)
+    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity)
     /// Returns true when the previous resize sync's AX writes are still in flight,
     /// allowing the caller to skip a tick and let delta accumulate.
     func isResizeHandleSyncBusy() -> Bool
@@ -51,8 +52,8 @@ final class ZoneResizeHandleManager {
         weak var delegate: ZoneResizeHandleManagerDelegate?
         unowned let dragOverlay: ZoneResizeDragOverlay
         let screenId: CGDirectDisplayID
-        let separatorIndex: Int
-        let orientation: ZoneLayout.SeparatorOrientation
+        let separatorId: ZoneLayout.SeparatorIdentity
+        var orientation: ZoneLayout.SeparatorOrientation { separatorId.orientation }
 
         private var isHovering = false
         private var isDragging = false
@@ -74,10 +75,9 @@ final class ZoneResizeHandleManager {
         private var uncommittedCocoaDelta: CGPoint = .zero
         private var syncTimer: Timer?
 
-        init(frame frameRect: NSRect, screenId: CGDirectDisplayID, index: Int, orientation: ZoneLayout.SeparatorOrientation, dragOverlay: ZoneResizeDragOverlay) {
+        init(frame frameRect: NSRect, screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity, dragOverlay: ZoneResizeDragOverlay) {
             self.screenId = screenId
-            self.separatorIndex = index
-            self.orientation = orientation
+            self.separatorId = separatorId
             self.dragOverlay = dragOverlay
             super.init(frame: frameRect)
             wantsLayer = true
@@ -195,7 +195,7 @@ final class ZoneResizeHandleManager {
             if pendingDelta.x != 0 || pendingDelta.y != 0 {
                 let delta = pendingDelta
                 pendingDelta = .zero
-                delegate?.resizeHandleDragged(screenId: screenId, separatorIndex: separatorIndex, delta: delta)
+                delegate?.resizeHandleDragged(screenId: screenId, separatorId: separatorId, delta: delta)
             }
 
             // Clean up all drag state BEFORE notifying delegate, so the full
@@ -210,14 +210,14 @@ final class ZoneResizeHandleManager {
             needsDisplay = true
 
             if hadActiveResizeDrag {
-                delegate?.resizeHandleDragEnded(screenId: screenId, separatorIndex: separatorIndex)
+                delegate?.resizeHandleDragEnded(screenId: screenId, separatorId: separatorId)
             }
         }
 
         override func mouseDragged(with event: NSEvent) {
             if !hasActiveResizeDrag {
                 hasActiveResizeDrag = true
-                delegate?.resizeHandleDragBegan(screenId: screenId, separatorIndex: separatorIndex)
+                delegate?.resizeHandleDragBegan(screenId: screenId, separatorId: separatorId)
             }
 
             isDragging = true
@@ -255,7 +255,7 @@ final class ZoneResizeHandleManager {
                     self.pendingDelta = .zero
                     self.delegate?.resizeHandleDragged(
                         screenId: self.screenId,
-                        separatorIndex: self.separatorIndex,
+                        separatorId: self.separatorId,
                         delta: delta
                     )
                 }
@@ -284,7 +284,7 @@ final class ZoneResizeHandleManager {
         var pendingRemoval = Set(handles.keys)
 
         for descriptor in descriptors {
-            let key = "\(descriptor.screenId)-\(descriptor.index)"
+            let key = "\(descriptor.screenId)-\(descriptor.id.logLabel)"
             // Convert screen-local frame to Cocoa frame for window
             // descriptor.frame is in screen-local coordinates (origin at screen's top-left, y down).
             // NSWindow needs Cocoa coordinates (origin at primary screen's bottom-left, y up).
@@ -309,7 +309,7 @@ final class ZoneResizeHandleManager {
             }
 
             let window = HandleWindow(frame: cocoaFrame)
-            let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, index: descriptor.index, orientation: descriptor.orientation, dragOverlay: dragOverlay)
+            let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, separatorId: descriptor.id, dragOverlay: dragOverlay)
             view.delegate = delegate
             view.autoresizingMask = [.width, .height]
             window.contentView = view

@@ -79,7 +79,7 @@ extension AppController {
         unmanagedWindowEdgeDragSuppressedManagedWindowIds.removeAll()
         tearDownUnmanagedWindowEdgeMouseUpMonitors()
         setUnmanagedWindowEdgeIndicatorMousePassthrough(false)
-        updateAddZoneIndicatorHighlight(screenId: nil)
+        updateAddZoneIndicatorHighlight(pill: nil)
         updateFloatingIndicatorHighlight(screenId: nil)
     }
 
@@ -173,7 +173,7 @@ extension AppController {
             latestFrame: frame,
             isActive: false,
             parkedCapturedWindowId: nil,
-            hoveredAddZoneScreenId: nil,
+            hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil
         )
         installUnmanagedWindowEdgeMouseUpMonitorsIfNeeded()
@@ -202,9 +202,9 @@ extension AppController {
         let addZoneTarget = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         let floatingTarget = addZoneTarget == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
 
-        if state.hoveredAddZoneScreenId != addZoneTarget {
-            state.hoveredAddZoneScreenId = addZoneTarget
-            updateAddZoneIndicatorHighlight(screenId: addZoneTarget)
+        if state.hoveredAddZonePill != addZoneTarget {
+            state.hoveredAddZonePill = addZoneTarget
+            updateAddZoneIndicatorHighlight(pill: addZoneTarget)
         }
 
         if state.hoveredFloatingScreenId != floatingTarget {
@@ -222,7 +222,7 @@ extension AppController {
 
         unmanagedWindowEdgeDragState = nil
         tearDownUnmanagedWindowEdgeMouseUpMonitors()
-        updateAddZoneIndicatorHighlight(screenId: nil)
+        updateAddZoneIndicatorHighlight(pill: nil)
         updateFloatingIndicatorHighlight(screenId: nil)
         defer {
             setUnmanagedWindowEdgeIndicatorMousePassthrough(false)
@@ -233,13 +233,13 @@ extension AppController {
         }
 
         let cursorPoint = currentCursorAccessibilityPoint()
-        let addZoneTarget = state.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint)
+        let addZoneTarget = state.hoveredAddZonePill ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         let floatingTarget = addZoneTarget == nil
             ? (state.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint))
             : nil
 
         if let target = UnmanagedWindowEdgeDragPolicy.edgeDropTarget(
-            hoveredAddZoneScreenId: addZoneTarget,
+            hoveredAddZonePill: addZoneTarget,
             hoveredFloatingScreenId: floatingTarget
         ) {
             applyUnmanagedWindowEdgeTarget(target)
@@ -251,16 +251,16 @@ extension AppController {
     @discardableResult
     private func applyUnmanagedWindowEdgeTarget(_ target: UnmanagedWindowEdgeDragPolicy.EdgeDropTarget) -> Bool {
         switch target {
-        case .addZone(let screenId):
-            guard let zone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
+        case .addZone(let pill):
+            guard let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
                 Logger.debug(
                     "Unmanaged edge drag: add-zone drop did nothing because screen " +
-                    "\(screenContextStore.loggingIndex(for: screenId)) is already at max zones"
+                    "\(screenContextStore.loggingIndex(for: pill.screenId)) has no room on the \(pill.side.rawValue) side"
                 )
                 return false
             }
             targetedZoneManager.setTargetedZone(
-                ZoneKey(screenId: screenId, index: zone.index),
+                ZoneKey(screenId: pill.screenId, index: zone.index),
                 reason: "unmanaged-window-add-zone-drop"
             )
             return true

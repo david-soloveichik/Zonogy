@@ -9,9 +9,12 @@ extension AppController {
         _ = addZone(on: screenId, announce: true)
     }
 
+    /// Add a zone on `side` (the clicked add-zone bar's edge); a nil side uses the layout
+    /// style's preferred fill order (keyboard shortcut and other side-agnostic paths).
     @discardableResult
     internal func addZone(
         on screenId: CGDirectDisplayID,
+        side: ZoneSide? = nil,
         announce: Bool = true,
         promoteFloatingOccupant: Bool = true
     ) -> Zone? {
@@ -34,9 +37,10 @@ extension AppController {
         endUnderCovers(on: screenId, reason: "add-zone", recreatePlaceholders: false)
 
         guard let context = screenContexts[screenId],
-              let newZone = context.zoneController.addZone() else {
+              let newZone = context.zoneController.addZone(preferredSide: side) else {
             if announce {
-                print("Failed to add zone (max 3 zones)")
+                let maxZones = screenContexts[screenId]?.zoneController.layoutStyle.maxZoneCount ?? 3
+                print("Failed to add zone (max \(maxZones) zones)")
             }
             return nil
         }

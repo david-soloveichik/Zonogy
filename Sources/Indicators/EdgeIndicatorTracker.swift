@@ -1,26 +1,26 @@
 import CoreGraphics
 
 /// Tracks edge-indicator hit areas and drag-highlight state so multiple presenters can share logic.
-final class EdgeIndicatorTracker {
-    private(set) var hitAreas: [CGDirectDisplayID: CGRect] = [:]
-    private(set) var highlightedScreenId: CGDirectDisplayID?
+/// Keyed generically: floating-zone bars use a screen id, add-zone bars use (screen, side).
+final class EdgeIndicatorTracker<Key: Hashable> {
+    private(set) var hitAreas: [Key: CGRect] = [:]
+    private(set) var highlighted: Key?
 
-    /// Replace the set of hit areas. Clears the highlight if the previous screen no longer exists.
-    func updateHitAreas(_ newAreas: [CGDirectDisplayID: CGRect]) {
+    /// Replace the set of hit areas. Clears the highlight if its key no longer exists.
+    func updateHitAreas(_ newAreas: [Key: CGRect]) {
         hitAreas = newAreas
-        if let highlighted = highlightedScreenId,
-           hitAreas[highlighted] == nil {
-            highlightedScreenId = nil
+        if let highlighted, hitAreas[highlighted] == nil {
+            self.highlighted = nil
         }
     }
 
     /// Returns whether the highlight changed.
     @discardableResult
-    func setHighlightedScreen(_ screenId: CGDirectDisplayID?) -> Bool {
-        if highlightedScreenId == screenId {
+    func setHighlighted(_ key: Key?) -> Bool {
+        if highlighted == key {
             return false
         }
-        highlightedScreenId = screenId
+        highlighted = key
         return true
     }
 }

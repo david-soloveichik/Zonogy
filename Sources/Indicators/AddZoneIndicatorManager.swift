@@ -1,15 +1,22 @@
 import Cocoa
 
-/// Renders the vertical "add zone" indicator per screen and routes interactions back to the controller.
+/// Renders the vertical "add zone" bars on screen edges and routes interactions back to the controller.
+/// A screen shows one bar per layout-style edge with remaining zone capacity.
+
+/// Identifies one add-zone bar: a screen edge on a specific screen.
+struct AddZonePillKey: Hashable {
+    let screenId: CGDirectDisplayID
+    let side: ZoneSide
+}
 
 // MARK: - Delegate Protocol
 
 protocol AddZoneIndicatorManagerDelegate: AnyObject {
-    func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID)
+    func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor pill: AddZonePillKey)
     func addZoneIndicatorManager(
         _ manager: AddZoneIndicatorManager,
         didReceiveExternalDrop items: [ExternalDropItem],
-        for screenId: CGDirectDisplayID
+        for pill: AddZonePillKey
     )
 }
 
@@ -41,7 +48,7 @@ class AddZoneIndicatorView: NSView {
         didSet {
             if isHovered != oldValue {
                 needsDisplay = true
-                manager?.updateIndicatorThickness(for: screenId, animated: true)
+                manager?.updateIndicatorThickness(for: pill, animated: true)
             }
         }
     }
@@ -56,13 +63,13 @@ class AddZoneIndicatorView: NSView {
         didSet {
             if isExternalDropHover != oldValue {
                 needsDisplay = true
-                manager?.updateIndicatorThickness(for: screenId, animated: true)
+                manager?.updateIndicatorThickness(for: pill, animated: true)
             }
         }
     }
 
     weak var delegate: AddZoneIndicatorManagerDelegate?
-    var screenId: CGDirectDisplayID = 0
+    var pill = AddZonePillKey(screenId: 0, side: .right)
     var manager: AddZoneIndicatorManager?
 
     override var acceptsFirstResponder: Bool { false }
@@ -117,7 +124,7 @@ class AddZoneIndicatorView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        delegate?.addZoneIndicatorManager(manager!, didClickIndicatorFor: screenId)
+        delegate?.addZoneIndicatorManager(manager!, didClickIndicatorFor: pill)
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -173,7 +180,7 @@ class AddZoneIndicatorView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         isExternalDropHover = false
-        return manager?.handleExternalDrop(from: sender, on: screenId) ?? false
+        return manager?.handleExternalDrop(from: sender, on: pill) ?? false
     }
 
     override init(frame frameRect: NSRect) {
@@ -235,11 +242,11 @@ class AddZoneIndicatorView: NSView {
 // MARK: - Indicator Descriptor
 
 struct AddZoneIndicatorDescriptor {
-    let screenId: CGDirectDisplayID
+    let pill: AddZonePillKey
     let frame: CGRect
 
-    init(screenId: CGDirectDisplayID, frame: CGRect) {
-        self.screenId = screenId
+    init(pill: AddZonePillKey, frame: CGRect) {
+        self.pill = pill
         self.frame = frame
     }
 }
@@ -249,37 +256,37 @@ struct AddZoneIndicatorDescriptor {
 class AddZoneIndicatorManager {
     weak var delegate: AddZoneIndicatorManagerDelegate?
 
-    private var windows: [CGDirectDisplayID: AddZoneIndicatorWindow] = [:]
-    private var views: [CGDirectDisplayID: AddZoneIndicatorView] = [:]
-    private var baseFrames: [CGDirectDisplayID: CGRect] = [:]
-    private var dragHighlightedScreenId: CGDirectDisplayID?
+    private var windows: [AddZonePillKey: AddZoneIndicatorWindow] = [:]
+    private var views: [AddZonePillKey: AddZoneIndicatorView] = [:]
+    private var baseFrames: [AddZonePillKey: CGRect] = [:]
+    private var dragHighlightedPill: AddZonePillKey?
     private var mousePassthroughForUnmanagedWindowEdgeDrag = false
 
     func present(for descriptors: [AddZoneIndicatorDescriptor]) {
-        // Track which screens should have indicators
-        let screenIds = Set(descriptors.map { $0.screenId })
+        // Track which pills should have indicators
+        let pills = Set(descriptors.map { $0.pill })
 
-        // Remove indicators for screens that no longer need them
-        let toRemove = windows.keys.filter { !screenIds.contains($0) }
-        for screenId in toRemove {
-            windows[screenId]?.close()
-            windows.removeValue(forKey: screenId)
-            views.removeValue(forKey: screenId)
-            baseFrames.removeValue(forKey: screenId)
+        // Remove indicators for pills that no longer need them
+        let toRemove = windows.keys.filter { !pills.contains($0) }
+        for pill in toRemove {
+            windows[pill]?.close()
+            windows.removeValue(forKey: pill)
+            views.removeValue(forKey: pill)
+            baseFrames.removeValue(forKey: pill)
         }
 
         // Create or update indicators for each descriptor
         for descriptor in descriptors {
             let baseFrame = descriptor.frame.standardized
-            baseFrames[descriptor.screenId] = baseFrame
+            baseFrames[descriptor.pill] = baseFrame
 
-            if let existingView = views[descriptor.screenId],
-               let existingWindow = windows[descriptor.screenId] {
+            if let existingView = views[descriptor.pill],
+               let existingWindow = windows[descriptor.pill] {
                 // Update existing indicator
                 existingWindow.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
-                existingView.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
+                existingView.isDragHighlighted = (dragHighlightedPill == descriptor.pill)
                 existingView.autoresizingMask = [.width, .height]
-                applyIndicatorFrame(for: descriptor.screenId, animated: false)
+                applyIndicatorFrame(for: descriptor.pill, animated: false)
             } else {
                 // Create new indicator
                 let window = AddZoneIndicatorWindow(contentRect: baseFrame)
@@ -287,18 +294,18 @@ class AddZoneIndicatorManager {
 
                 window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
                 view.delegate = delegate
-                view.screenId = descriptor.screenId
+                view.pill = descriptor.pill
                 view.manager = self
-                view.isDragHighlighted = (dragHighlightedScreenId == descriptor.screenId)
+                view.isDragHighlighted = (dragHighlightedPill == descriptor.pill)
                 view.autoresizingMask = [.width, .height]
 
                 window.contentView = view
                 window.orderFront(nil)
 
-                windows[descriptor.screenId] = window
-                views[descriptor.screenId] = view
+                windows[descriptor.pill] = window
+                views[descriptor.pill] = view
 
-                applyIndicatorFrame(for: descriptor.screenId, animated: false)
+                applyIndicatorFrame(for: descriptor.pill, animated: false)
             }
         }
     }
@@ -313,34 +320,40 @@ class AddZoneIndicatorManager {
         }
     }
 
-    func updateDragHighlight(screenId: CGDirectDisplayID?) {
-        if dragHighlightedScreenId == screenId {
+    func updateDragHighlight(pill: AddZonePillKey?) {
+        if dragHighlightedPill == pill {
             return
         }
-        dragHighlightedScreenId = screenId
-        for (candidateId, view) in views {
-            view.isDragHighlighted = (candidateId == screenId)
-            applyIndicatorFrame(for: candidateId, animated: true)
+        dragHighlightedPill = pill
+        for (candidate, view) in views {
+            view.isDragHighlighted = (candidate == pill)
+            applyIndicatorFrame(for: candidate, animated: true)
         }
     }
 
-    func updateIndicatorThickness(for screenId: CGDirectDisplayID, animated: Bool) {
-        applyIndicatorFrame(for: screenId, animated: animated)
+    func updateIndicatorThickness(for pill: AddZonePillKey, animated: Bool) {
+        applyIndicatorFrame(for: pill, animated: animated)
     }
 
-    private func applyIndicatorFrame(for screenId: CGDirectDisplayID, animated: Bool) {
-        guard let baseFrame = baseFrames[screenId],
-              let window = windows[screenId],
-              let view = views[screenId] else {
+    private func applyIndicatorFrame(for pill: AddZonePillKey, animated: Bool) {
+        guard let baseFrame = baseFrames[pill],
+              let window = windows[pill],
+              let view = views[pill] else {
             return
         }
 
         let thickness = view.desiredThickness
         let shouldFloatOnTop = thickness > EdgeIndicatorPillSizing.baseThickness
 
+        // The bar stays anchored to its screen edge and grows inward toward the screen center.
         var targetFrame = baseFrame
         if shouldFloatOnTop {
-            targetFrame.origin.x = baseFrame.maxX - thickness
+            switch pill.side {
+            case .right:
+                targetFrame.origin.x = baseFrame.maxX - thickness
+            case .left:
+                targetFrame.origin.x = baseFrame.minX
+            }
             targetFrame.size.width = thickness
         }
 
@@ -367,14 +380,14 @@ class AddZoneIndicatorManager {
         }
     }
 
-    func handleExternalDrop(from draggingInfo: NSDraggingInfo, on screenId: CGDirectDisplayID) -> Bool {
+    func handleExternalDrop(from draggingInfo: NSDraggingInfo, on pill: AddZonePillKey) -> Bool {
         guard let payload = ExternalDropParser.payload(from: draggingInfo) else {
             return false
         }
         delegate?.addZoneIndicatorManager(
             self,
             didReceiveExternalDrop: payload.items,
-            for: screenId
+            for: pill
         )
         return true
     }
@@ -386,6 +399,6 @@ class AddZoneIndicatorManager {
         windows.removeAll()
         views.removeAll()
         baseFrames.removeAll()
-        dragHighlightedScreenId = nil
+        dragHighlightedPill = nil
     }
 }

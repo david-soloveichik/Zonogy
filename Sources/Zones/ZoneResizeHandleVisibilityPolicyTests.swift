@@ -23,13 +23,11 @@ enum ZoneResizeHandleVisibilityPolicyTests {
         }
 
         let vertical = ZoneLayout.Separator(
-            index: 0,
-            orientation: .vertical,
+            id: .vertical,
             frame: CGRect(x: 50, y: 0, width: 8, height: 100)
         )
         let horizontal = ZoneLayout.Separator(
-            index: 1,
-            orientation: .horizontal,
+            id: .horizontal(.right),
             frame: CGRect(x: 0, y: 50, width: 100, height: 8)
         )
 

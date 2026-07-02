@@ -12,13 +12,17 @@ class Zone {
     /// The frame (position and size) for this zone in screen coordinates
     var frame: CGRect
 
+    /// The screen half this zone tiles on (see ZoneLayoutStyle).
+    let side: ZoneSide
+
     /// The ID of the external window occupying this zone, or nil if empty.
     /// Only ManagedWindow instances (from other applications) can occupy zones.
     var occupantWindowId: Int?
 
-    init(index: Int, frame: CGRect, occupantWindowId: Int? = nil) {
+    init(index: Int, frame: CGRect, side: ZoneSide, occupantWindowId: Int? = nil) {
         self.index = index
         self.frame = frame
+        self.side = side
         self.occupantWindowId = occupantWindowId
     }
 

@@ -382,14 +382,14 @@ extension AppController {
 
     // MARK: - AddZoneIndicatorManagerDelegate
 
-    func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor screenId: CGDirectDisplayID) {
-        if isScreenPausedForFullScreen(screenId) {
-            Logger.debug("Add zone indicator clicked on full-screen screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+    func addZoneIndicatorManager(_ manager: AddZoneIndicatorManager, didClickIndicatorFor pill: AddZonePillKey) {
+        if isScreenPausedForFullScreen(pill.screenId) {
+            Logger.debug("Add zone indicator clicked on full-screen screen \(screenContextStore.loggingIndex(for: pill.screenId)); ignoring")
             return
         }
-        let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Add zone indicator clicked on screen \(screenIndex)")
-        addZone(on: screenId)
+        let screenIndex = screenContextStore.loggingIndex(for: pill.screenId)
+        Logger.debug("Add zone indicator clicked on screen \(screenIndex) (\(pill.side.rawValue) side)")
+        addZone(on: pill.screenId, side: pill.side)
     }
 
     func windowWillClose(windowId: Int) {
@@ -771,7 +771,7 @@ extension AppController {
                 finalizeFloatingDrop(
                     windowId: windowId,
                     finalFrame: finalFrame,
-                    hoveredAddZoneScreenId: nil,
+                    hoveredAddZonePill: nil,
                     hoveredFloatingScreenId: nil,
                     finalCursorPoint: nil
                 )
@@ -836,7 +836,7 @@ extension AppController {
         }
         clearFloatingZone(for: windowId, minimize: false, reason: "control-command-drag")
         activeFitSuspendForDrag(windowId: windowId)
-        updateAddZoneIndicatorHighlight(screenId: nil)
+        updateAddZoneIndicatorHighlight(pill: nil)
         updateFloatingIndicatorHighlight(screenId: nil)
         let originScreenId = originFloatingScreenId ?? managed.screenDisplayId ?? detectScreenId(for: managed)
         dragDropCoordinator.beginDragSession(
@@ -1151,10 +1151,10 @@ extension AppController {
         ).origin
     }
 
-    internal func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+    internal func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> AddZonePillKey? {
         guard let cursorPoint else { return nil }
-        for (screenId, frame) in addIndicatorTracker.hitAreas where frame.contains(cursorPoint) {
-            return screenId
+        for (pill, frame) in addIndicatorTracker.hitAreas where frame.contains(cursorPoint) {
+            return pill
         }
         return nil
     }

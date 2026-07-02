@@ -8,6 +8,7 @@ enum UnmanagedWindowEdgeDragPolicyTests {
         var allPassed = true
         let screen0: CGDirectDisplayID = 1
         let screen1: CGDirectDisplayID = 2
+        let addPill = AddZonePillKey(screenId: screen0, side: .right)
 
         func assert(_ condition: @autoclosure () -> Bool, _ message: String) {
             if !condition() {
@@ -36,15 +37,15 @@ enum UnmanagedWindowEdgeDragPolicyTests {
 
         assert(
             UnmanagedWindowEdgeDragPolicy.edgeDropTarget(
-                hoveredAddZoneScreenId: screen0,
+                hoveredAddZonePill: addPill,
                 hoveredFloatingScreenId: screen1
-            ) == .addZone(screen0),
+            ) == .addZone(addPill),
             "expected add-zone edge target to win over floating edge target"
         )
 
         assert(
             UnmanagedWindowEdgeDragPolicy.edgeDropTarget(
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: screen1
             ) == .floatingZone(screen1),
             "expected floating-zone edge target when no add-zone target is hovered"
@@ -52,7 +53,7 @@ enum UnmanagedWindowEdgeDragPolicyTests {
 
         assert(
             UnmanagedWindowEdgeDragPolicy.edgeDropTarget(
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: nil
             ) == nil,
             "expected no edge target when no edge pill is hovered"

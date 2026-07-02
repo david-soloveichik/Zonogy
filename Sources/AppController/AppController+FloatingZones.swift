@@ -161,14 +161,14 @@ extension AppController {
     func finalizeFloatingDrop(
         windowId: Int,
         finalFrame: CGRect,
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     ) {
         floatingZoneCoordinator.finalizeFloatingDrop(
             windowId: windowId,
             finalFrame,
-            hoveredAddZoneScreenId: hoveredAddZoneScreenId,
+            hoveredAddZonePill: hoveredAddZonePill,
             hoveredFloatingScreenId: hoveredFloatingScreenId,
             finalCursorPoint: finalCursorPoint
         )

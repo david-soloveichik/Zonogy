@@ -15,8 +15,8 @@ protocol FloatingZoneCoordinatorHost: AnyObject {
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
-    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
-    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
+    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
+    func addZoneIndicatorHitAreas() -> [AddZonePillKey: CGRect]
     func refreshIndicators()
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     func activeScreenId() -> CGDirectDisplayID
@@ -312,7 +312,7 @@ final class FloatingZoneCoordinator {
     func finalizeFloatingDrop(
         windowId: Int,
         _ finalFrame: CGRect,
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?,
         finalCursorPoint: CGPoint?
     ) {
@@ -321,19 +321,19 @@ final class FloatingZoneCoordinator {
             return
         }
 
-        let addZoneScreenId = hoveredAddZoneScreenId ??
+        let addZonePill = hoveredAddZonePill ??
             addZoneDropTarget(for: finalCursorPoint)
 
-        if let addZoneScreenId,
-           let newZone = host.addZone(on: addZoneScreenId, announce: false, promoteFloatingOccupant: false) {
+        if let addZonePill,
+           let newZone = host.addZone(on: addZonePill.screenId, side: addZonePill.side, announce: false, promoteFloatingOccupant: false) {
             clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
             if let result = host.windowPlacementManager.assignWindowFromDrag(
                 managed,
-                to: ZoneKey(screenId: addZoneScreenId, index: newZone.index)
+                to: ZoneKey(screenId: addZonePill.screenId, index: newZone.index)
             ) {
                 displacedWindowCoordinator.resolve(
                     result.displacedWindow,
-                    preferredScreenId: addZoneScreenId,
+                    preferredScreenId: addZonePill.screenId,
                     disposition: .reassign
                 )
             }
@@ -419,11 +419,11 @@ final class FloatingZoneCoordinator {
         return true
     }
     
-    private func addZoneDropTarget(for cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+    private func addZoneDropTarget(for cursorPoint: CGPoint?) -> AddZonePillKey? {
         guard let host, let cursorPoint else { return nil }
         let hitAreas = host.addZoneIndicatorHitAreas()
-        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
-            return screenId
+        for (pill, frame) in hitAreas where frame.contains(cursorPoint) {
+            return pill
         }
         return nil
     }

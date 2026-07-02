@@ -8,21 +8,34 @@ import CoreGraphics
 ///
 /// This policy determines the reveal frame for windows that would overflow in rest mode.
 enum ActiveFitPolicy {
+    /// Whether a zone's occupant could ever be helped by a reveal shift. Windows anchor at the
+    /// zone's top-left and overflow rightward/downward, so reveal shifts move left/up. A zone
+    /// already sitting at the screen's top-left corner has nowhere to shift toward and is exempt
+    /// (this is the full-screen single zone, and the big left zone of the right-bar layout).
+    static func zoneCanReveal(zoneFrame: CGRect, screenBounds: CGRect, tolerance: CGFloat = 1.0) -> Bool {
+        let zone = zoneFrame.standardized
+        let bounds = screenBounds.standardized
+        let anchoredAtLeftEdge = abs(zone.minX - bounds.minX) <= tolerance
+        let anchoredAtTopEdge = abs(zone.minY - bounds.minY) <= tolerance
+        return !(anchoredAtLeftEdge && anchoredAtTopEdge)
+    }
+
     /// Computes the reveal mode frame for a window, or `nil` if no translation is needed.
     ///
-    /// When a window in zone 2 or 3 would overflow the screen bounds in rest mode (anchored at
-    /// zone origin), this method calculates the shifted position that keeps it fully visible.
+    /// When a window whose zone can reveal would overflow the screen bounds in rest mode
+    /// (anchored at zone origin), this method calculates the shifted position that keeps it
+    /// fully visible.
     ///
     /// - Returns: The reveal frame if the window qualifies for reveal mode, or `nil` if the
     ///   window fits on screen in rest mode and no translation is required.
     static func revealFrameIfNeeded(
-        zoneIndex: Int,
+        zoneFrame: CGRect,
         zoneOrigin: CGPoint,
         windowSize: CGSize,
         screenBounds: CGRect,
         tolerance: CGFloat
     ) -> CGRect? {
-        guard zoneIndex >= 2 else {
+        guard zoneCanReveal(zoneFrame: zoneFrame, screenBounds: screenBounds) else {
             return nil
         }
         guard windowSize.width > 0, windowSize.height > 0 else {

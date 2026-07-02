@@ -20,9 +20,10 @@ final class GeneralPreferencesViewController: NSViewController {
     private var autoShowLauncherHintLabel: NSTextField?
     private var stickyResizeCheckbox: NSButton?
     private var stickyResizeHintLabel: NSTextField?
+    private var zoneLayoutOptionViews: [ZoneLayoutStyleOptionView] = []
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 520))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 700))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -167,6 +168,58 @@ final class GeneralPreferencesViewController: NSViewController {
         dockMenusSeparator.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(dockMenusSeparator)
 
+        // Zone layout picker
+        let zoneLayoutSeparator = NSBox()
+        zoneLayoutSeparator.boxType = .separator
+        zoneLayoutSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(zoneLayoutSeparator)
+
+        let zoneLayoutTitleLabel = NSTextField(labelWithString: "Zone Layout")
+        zoneLayoutTitleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        zoneLayoutTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(zoneLayoutTitleLabel)
+
+        let zoneLayoutOptions: [(ZoneLayoutStyle, String)] = [
+            (.rightBar, "Add bar on right"),
+            (.leftBar, "Add bar on left"),
+            (.dualBar, "Add bars on both sides")
+        ]
+        let optionsStack = NSStackView()
+        optionsStack.orientation = .horizontal
+        optionsStack.spacing = 16
+        optionsStack.alignment = .top
+        optionsStack.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(optionsStack)
+
+        zoneLayoutOptionViews = []
+        for (style, caption) in zoneLayoutOptions {
+            let optionView = ZoneLayoutStyleOptionView(style: style)
+            optionView.onSelect = { [weak self] selectedStyle in
+                self?.zoneLayoutStyleSelected(selectedStyle)
+            }
+            optionView.setAccessibilityLabel(caption)
+            zoneLayoutOptionViews.append(optionView)
+
+            let captionLabel = NSTextField(labelWithString: caption)
+            captionLabel.font = NSFont.systemFont(ofSize: 11)
+            captionLabel.textColor = .secondaryLabelColor
+            captionLabel.alignment = .center
+
+            let optionStack = NSStackView(views: [optionView, captionLabel])
+            optionStack.orientation = .vertical
+            optionStack.spacing = 5
+            optionStack.alignment = .centerX
+            optionsStack.addArrangedSubview(optionStack)
+        }
+
+        let zoneLayoutHintLabel = NSTextField(
+            wrappingLabelWithString: "Clicking an add-zone bar creates a new zone on that side of the screen. Single-bar layouts tile up to 3 zones; bars on both sides allow up to 4."
+        )
+        zoneLayoutHintLabel.font = NSFont.systemFont(ofSize: 12)
+        zoneLayoutHintLabel.textColor = .secondaryLabelColor
+        zoneLayoutHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(zoneLayoutHintLabel)
+
         // Version info
         let versionLabel = NSTextField(labelWithString: AppVersion.preferencesDisplayString)
         versionLabel.font = NSFont.systemFont(ofSize: 11)
@@ -220,12 +273,26 @@ final class GeneralPreferencesViewController: NSViewController {
             stickyResizeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             stickyResizeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
+            zoneLayoutSeparator.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 20),
+            zoneLayoutSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            zoneLayoutSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            zoneLayoutTitleLabel.topAnchor.constraint(equalTo: zoneLayoutSeparator.bottomAnchor, constant: 14),
+            zoneLayoutTitleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            optionsStack.topAnchor.constraint(equalTo: zoneLayoutTitleLabel.bottomAnchor, constant: 10),
+            optionsStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            zoneLayoutHintLabel.topAnchor.constraint(equalTo: optionsStack.bottomAnchor, constant: 8),
+            zoneLayoutHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            zoneLayoutHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
             versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 500)
+        self.preferredContentSize = NSSize(width: 580, height: 680)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
@@ -233,6 +300,19 @@ final class GeneralPreferencesViewController: NSViewController {
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
+        syncZoneLayoutSelection()
+    }
+
+    private func zoneLayoutStyleSelected(_ style: ZoneLayoutStyle) {
+        AppController.shared.setZoneLayoutStyleFromSettings(style)
+        syncZoneLayoutSelection()
+    }
+
+    private func syncZoneLayoutSelection() {
+        let current = AppController.shared.zoneLayoutStyleInSettings
+        for optionView in zoneLayoutOptionViews {
+            optionView.isSelected = (optionView.style == current)
+        }
     }
 
     override func viewWillAppear() {

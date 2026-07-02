@@ -8,7 +8,7 @@ Zonogy is a variation on a tiling window manager built around the concept of **z
 
 ### Zones
 
-Zonogy organizes managed windows into **zones**. Each screen has 1–3 **tiling zones** (indexed 1…zoneCount) that form the main layout, and one **floating zone** used for floating a single window above the tiled layout.
+Zonogy organizes managed windows into **zones**. Each screen has 1–4 **tiling zones** (indexed 1…zoneCount; the maximum depends on the selected zone layout, see **Tiling Layout and Spacing**) that form the main layout, and one **floating zone** used for floating a single window above the tiled layout.
 
 A zone contains at most one unminimized managed window or is empty. Minimized windows do not belong to any zone. (Throughout this specification, "managed window" refers to windows from other applications that Zonogy positions.)
 
@@ -95,11 +95,15 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 ### Tiling Layout and Spacing
 
-Tiling zones have indexes (1, 2, 3). When tiling zones are added or removed on a screen, remaining zones reindex sequentially and the tiling zones on that screen are re-tiled to split the screen as follows:
+Zonogy tiles each screen as two side-by-side columns; a column holding two zones stacks them top and bottom. Zonogy Preferences → General offers three zone layouts, presented as clickable pictures of the arrangement:
 
-- 1 zone: full screen (zone 1)
-- 2 zones: left (zone 1) and right (zone 2)
-- 3 zones: left (zone 1), right-top (zone 2), right-bottom (zone 3)
+- **Add bar on right** (default): the add-zone bar sits on the right screen edge. Zone 1 fills the left side; zones 2 and 3 stack on the right (zone 2 on top). Maximum 3 zones.
+- **Add bar on left**: the mirror image. The add-zone bar sits on the left screen edge. Zone 1 fills the right side; zones 2 and 3 stack on the left (zone 2 on top). Maximum 3 zones.
+- **Add bars on both sides**: add-zone bars sit on both screen edges, and each side holds up to two zones, for a maximum of 4 zones. Zone numbers follow creation order rather than fixed positions, so the same zone count can tile either side (for example, 3 zones can be one zone on the left with two stacked on the right, or the reverse).
+
+In every layout, one zone spans the full screen and two zones split it left and right. Within a stacked side, the lower zone number is on top.
+
+The layout choice applies to all screens and persists across restarts. Switching layouts re-tiles each screen in place: zones keep their numbers and windows. A zone beyond the new layout's maximum is removed and its window minimized.
 
 Both windows and placeholders preserve an 8 pixel buffer at the outer screen edges. When two zones share a boundary, they split that buffer evenly so the visible gap between their contents is exactly 8 pixels (each zone contributes 4 pixels along the shared edge) for a consistent grid.
 
@@ -122,19 +126,22 @@ When invoking Control-Cmd-[minus], never remove the zone containing the currentl
 2. Prefer non-targeted zones over the targeted zone.
 3. Break any remaining ties by choosing the zone with the highest index.
 
-Removing a zone preserves the surviving tiling zones on that same screen in index order, so higher-index survivors collapse inward to fill the gap. If the removed zone contained a window, if no tiling zone remains for it on that screen after the collapse, minimize it instead.
+Removing a zone reindexes the survivors sequentially and re-tiles them. In the single-bar layouts, the survivors take the layout's shape for the new count (higher-index survivors collapse inward). In the both-sides layout, each survivor keeps its side — a zone left alone on its side expands to the full column — except that when a removal leaves both survivors stacked on one side, they re-tile to one per side, lower zone number on the left. If the removed zone contained a window, if no tiling zone remains for it on that screen after the collapse, minimize it instead.
 
 Pressing Control-Cmd-0 performs that same shortcut-removal action repeatedly on the active screen until only one tiling zone remains.
 
 If the currently active (key) managed window is a floating-zone occupant, Control-Cmd-0 collapses that window's screen to a single tiling zone (minimizing every tiled occupant on that screen) and promotes the floating window into tiling zone 1 on that screen.
 
-The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 (for now).
+The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 in the single-bar layouts and 4 in the both-sides layout.
 
 **Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "×" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.
 
-A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty.
+A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty. The shortcut adds on the layout's add-bar side; in the both-sides layout it fills the right side first, then the left.
 
-Each screen with fewer than 3 tiling zones also displays an add-zone indicator: a vertical pill (≈6 px wide, ≈⅓ screen height) on its right edge, vertically centered. Clicking this indicator adds a tiling zone to that screen.
+Each screen also displays an add-zone indicator on each of the layout's bar edges while that side can still take a zone: a vertical pill (≈6 px wide, ≈⅓ screen height), vertically centered on that screen edge. Clicking an indicator adds a tiling zone on that side of that screen (the new zone gets the highest index):
+
+- Splitting a lone full-screen zone puts the new empty zone on the clicked side and moves the existing zone — window and all — to the other side.
+- Adding to a side that already holds a zone stacks that side: the existing zone keeps the top slot and the new zone takes the bottom.
 
 Pressing Control-Cmd-Escape clears all zones on the active screen and empties the floating zone. If the zones are already empty on the active screen, then it resets to a one-zone configuration (just zone 1). After this clear/reset completes, target zone 1 on that screen. (When WinShot auto-save is on in either mode, the pre-clear arrangement is captured first when managed windows are present. See [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md).)
 
@@ -222,9 +229,11 @@ If an empty-zone placeholder is activated and that tiling zone's frame overlaps 
 
 Zones are resized by dragging a zone resize bar: a thin white separator located in the margin between zones. This bar is only visible when the mouse hovers over the margin between zones. Dragging it adjusts the layout ratios for the involved zones. During a drag, a dedicated overlay bar tracks the mouse directly (independent of window repositioning) so the bar visual stays smooth even when managed windows lag behind.
 
-If an ActiveFit window in reveal mode (zone 2 or 3) would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between zone 1 and zones 2/3 is shortened or hidden so it stays outside the reveal frame, and the horizontal bar between zones 2 and 3 is hidden whenever it would intersect an ActiveFit window in zone 2 or 3. When the window exits reveal mode, the bars return to the normal layout.
+There is one vertical resize bar between the two columns, and a horizontal resize bar between the stacked zones of any side holding two zones (so the both-sides layout with 4 zones has three bars; each side's horizontal split adjusts independently).
 
-If the front-most managed window on a screen would overlap a zone resize bar, the bars adapt so they do not interfere with that active window: the vertical bar between zone 1 and zones 2/3 is hidden whenever it would intersect a front-most zone‑1 window, and the horizontal bar between zones 2 and 3 is shortened (or hidden if fully covered) so it stays outside the front‑most window (zone 1/2/3). Ignore small overlaps (e.g., window shadows) when computing these intersections. Recompute these bar adjustments immediately when the active/front‑most window changes (including app activation) and after a resize drag completes.
+If an ActiveFit window in reveal mode would overlap a zone resize bar, the bars adapt so they do not interfere with that window: the vertical bar between the columns is shortened or hidden so it stays outside the reveal frame, and a horizontal bar is hidden whenever it would intersect the ActiveFit window. When the window exits reveal mode, the bars return to the normal layout.
+
+If the front-most managed window on a screen would overlap a zone resize bar, the bars adapt so they do not interfere with that active window: each bar is shortened (or hidden if fully covered) so it stays outside the front-most window. Ignore small overlaps (e.g., window shadows) when computing these intersections. Recompute these bar adjustments immediately when the active/front-most window changes (including app activation) and after a resize drag completes.
 
 When the floating zone is occupied on a screen, hide the zone resize bars that the floating zone window would overlap. Bars that do not intersect the floating window remain visible. (During an active resize drag, the dragged bar is never hidden by this rule.)
 
@@ -266,7 +275,7 @@ Holding Control-Command promotes the drag into the full zone overlay + drop pipe
 
 Holding Control-Command during a tiled drag promotes it into a floating-zone drag (the window is moved into the floating zone immediately). Releasing Control-Command cancels the conversion and resumes the tiled drag.
 
-If a window is dragged and dropped over a screen's add-zone indicator ("new zone" pill), we immediately add the zone and place the dragged window into it (works for both tiled and floating-zone drags). During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
+If a window is dragged and dropped over an add-zone indicator ("new zone" pill), we immediately add the zone on that indicator's side and place the dragged window into it (works for both tiled and floating-zone drags). During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
 ### Drag and Drop on Placeholder Windows and the Add-Zone Indicator
 
@@ -276,7 +285,7 @@ Dragging external content over an empty-zone placeholder shows the same full-scr
 
 Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-screen zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
 
-**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on the add-zone indicator first creates the new zone, targets the lowest-index empty tiling zone on that screen, and then opens the file the same way.
+**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on an add-zone indicator first creates the new zone on that indicator's side, targets the lowest-index empty tiling zone on that screen, and then opens the file the same way.
 
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
 
@@ -298,14 +307,14 @@ When an app is hidden (via MacOS's Cmd-H or any hide action), treat every curren
 ### Startup
 
 - **Initial target:** Tiling zone 1 on the primary display. After seeding completes, if no empty tiling zone exists anywhere, target the floating zone on the primary display instead.
-- On launch, Zonogy seeds tiling zones per screen. The initial zone count on each screen equals the number of unminimized windows on that screen (minimum 1, maximum 3); extra windows beyond 3 are minimized. Floating zones start empty.
+- On launch, Zonogy seeds tiling zones per screen. The initial zone count on each screen equals the number of unminimized windows on that screen (minimum 1, up to the zone layout's maximum); extra windows are minimized. Floating zones start empty.
 - Windows are assigned to zones in zone-index order by selecting the remaining window whose bounds overlap the zone the most (falling back to the left-most window if nothing overlaps).
 
 ## Special Features
 
 ### ActiveFit: Active Overflow Reveal for Key Windows
 
-Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in zone 2 or zone 3 (the right column). This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
+Some applications refuse to shrink below their minimum width/height, which means the standard zone-aligned frame can spill off-screen when the window lives in a zone away from the screen's top-left corner. This is acceptable while the window is inactive, but when the user activates that window it must be temporarily repositioned so the entire frame fits within the display's visible bounds.
 
 **Terminology:**
 
@@ -314,7 +323,7 @@ Some applications refuse to shrink below their minimum width/height, which means
 
 **Implementation requirements:**
 
-1. ActiveFit only applies to non-placeholder windows assigned to zone 2 or zone 3 on any screen. Zone 1 never receives this treatment.
+1. ActiveFit applies to non-placeholder windows in any tiling zone except one anchored at the screen's top-left corner — reveal shifts move left/up, so that zone's window cannot be helped. (With the default right-bar layout, the exempt zone is zone 1; a single full-screen zone is always exempt.)
 2. Determine the candidate active size for the window. Normally this is the window's actual *post-resize* size after the standard zone-aligned move/resize. However, if the Sticky Resize option is enabled, and this zone has a remembered manual size for its current occupant, use that remembered size instead. Anchor the candidate size to the zone's content origin (after margins) and determine whether the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance). If it would, the window qualifies for ActiveFit.
 3. When a qualifying window becomes the active/key window, enter **reveal mode**: first apply the candidate active size (zone size or remembered manual size), then shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
 4. Reveal mode ends — and the window returns to **rest mode** (moved back to its normal zone-anchored position so other zones reclaim their space) — when another managed window becomes active, or when the revealed window leaves its zone, is minimized, or closes. (Focusing a window that Zonogy does not manage does not end reveal mode.)

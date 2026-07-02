@@ -53,14 +53,14 @@ extension AppController {
             return placeManagedWindowItem(window, intoTilingZone: zoneKey, reason: reason)
         case .floatingZone(let screenId):
             return placeManagedWindowItem(window, intoFloatingZone: screenId, reason: reason)
-        case .addZone(let screenId):
-            guard let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
-                Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
+        case .addZone(let pill):
+            guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+                Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
                 return false
             }
             return placeManagedWindowItem(
                 window,
-                intoTilingZone: ZoneKey(screenId: screenId, index: newZone.index),
+                intoTilingZone: ZoneKey(screenId: pill.screenId, index: newZone.index),
                 reason: reason
             )
         case .cancelled:
@@ -131,12 +131,12 @@ extension AppController {
             targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
             openExternalDropItems(items)
             return true
-        case .addZone(let screenId):
-            if let zone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) {
-                let newZoneKey = zoneKey(for: screenId, index: zone.index)
+        case .addZone(let pill):
+            if let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) {
+                let newZoneKey = zoneKey(for: pill.screenId, index: zone.index)
                 targetedZoneManager.setTargetedZone(newZoneKey, reason: reason)
             } else {
-                Logger.debug("Cursor-driven drop: add-zone launchable drop hit max zones on screen \(screenContextStore.loggingIndex(for: screenId))")
+                Logger.debug("Cursor-driven drop: add-zone launchable drop hit max zones on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
             }
             openExternalDropItems(items)
             return true
@@ -158,12 +158,12 @@ extension AppController {
         case .floatingZone(let screenId):
             targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
             return true
-        case .addZone(let screenId):
-            guard let newZone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
-                Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: screenId))")
+        case .addZone(let pill):
+            guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+                Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
                 return false
             }
-            targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: newZone.index), reason: reason)
+            targetedZoneManager.setTargetedZone(ZoneKey(screenId: pill.screenId, index: newZone.index), reason: reason)
             return true
         case .cancelled:
             return false

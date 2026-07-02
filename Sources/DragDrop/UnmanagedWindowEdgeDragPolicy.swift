@@ -3,7 +3,7 @@ import CoreGraphics
 /// Pure policy for edge-pill drops from untracked windows that belong to manageable apps.
 enum UnmanagedWindowEdgeDragPolicy {
     enum EdgeDropTarget: Equatable {
-        case addZone(CGDirectDisplayID)
+        case addZone(AddZonePillKey)
         case floatingZone(CGDirectDisplayID)
     }
 
@@ -18,11 +18,11 @@ enum UnmanagedWindowEdgeDragPolicy {
     }
 
     static func edgeDropTarget(
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?
     ) -> EdgeDropTarget? {
-        if let hoveredAddZoneScreenId {
-            return .addZone(hoveredAddZoneScreenId)
+        if let hoveredAddZonePill {
+            return .addZone(hoveredAddZonePill)
         }
         if let hoveredFloatingScreenId {
             return .floatingZone(hoveredFloatingScreenId)

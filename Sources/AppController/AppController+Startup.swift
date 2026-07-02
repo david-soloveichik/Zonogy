@@ -52,7 +52,7 @@ extension AppController {
             }
 
             let windows = windowsByScreen[screenId] ?? []
-            let desiredZoneCount = max(1, min(windows.count, 3))
+            let desiredZoneCount = max(1, min(windows.count, context.zoneController.layoutStyle.maxZoneCount))
             let removedWindowIds = context.zoneController.setZoneCount(to: desiredZoneCount)
 
             // Clear placeholders when zone count changes

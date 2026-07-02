@@ -250,21 +250,31 @@ extension AppController {
         // Step 1: Identify current windows on this screen (excluding placeholders)
         let currentWindows = collectCurrentWindows(on: screenId)
 
-        // Step 2: Identify which windows are in the snapshot
-        let snapshotWindowIds = snapshot.allWindowIds
+        // Step 2: Identify which windows the restore will actually place. The active layout may
+        // allow fewer zones than the snapshot recorded (e.g. a 4-zone dual-bar snapshot restored
+        // under a single-bar layout); windows from those dropped zones are not part of the restore.
+        let restorableZoneCount = min(snapshot.zoneCount, context.zoneController.layoutStyle.maxZoneCount)
+        var snapshotWindowIds = Set(
+            snapshot.zoneAssignments
+                .filter { $0.key <= restorableZoneCount }
+                .map { $0.value.windowId }
+        )
+        if let floatingIdentity = snapshot.floatingZoneOccupant {
+            snapshotWindowIds.insert(floatingIdentity.windowId)
+        }
 
-        // Step 3: Find windows to minimize (current but not in snapshot)
+        // Step 3: Find windows to minimize (current but not restored)
         let windowsToMinimize = currentWindows.filter { !snapshotWindowIds.contains($0.windowId) }
 
         // Step 4: Restore zone configuration
-        restoreZoneConfiguration(snapshot: snapshot, context: context)
+        restoreZoneConfiguration(snapshot: snapshot, zoneCount: restorableZoneCount, context: context)
 
         // Step 5: PREP PHASE - Prepare all work items (find windows, remove from old locations)
         var zoneWorkItems: [ZoneRestoreWorkItem] = []
         var floatingWorkItem: FloatingRestoreWorkItem?
 
         // Prepare zone restoration work items
-        for (zoneIndex, identity) in snapshot.zoneAssignments {
+        for (zoneIndex, identity) in snapshot.zoneAssignments where zoneIndex <= restorableZoneCount {
             if let workItem = prepareZoneRestore(
                 identity: identity,
                 zoneIndex: zoneIndex,
@@ -681,19 +691,23 @@ extension AppController {
         )
     }
 
-    private func restoreZoneConfiguration(snapshot: WinShotSnapshot, context: ScreenContext) {
+    /// - Parameter zoneCount: the snapshot's zone count already clamped to the active layout's maximum.
+    private func restoreZoneConfiguration(snapshot: WinShotSnapshot, zoneCount targetZoneCount: Int, context: ScreenContext) {
         clearRememberedManualResizeSizes(on: snapshot.screenId, reason: "winshot-restore-zone-config")
 
         let currentZoneCount = context.zoneController.allZones.count
-        let targetZoneCount = snapshot.zoneCount
 
         if currentZoneCount != targetZoneCount {
             context.zoneController.setZoneCount(to: targetZoneCount)
             placeholderCoordinator.clearPlaceholdersForScreen(snapshot.screenId)
         }
 
-        // Restore zone frames/ratios
-        // Resize zone 1 first (sets left width ratio), then zone 2 (sets height ratio for 3-zone layout)
+        // In the dual-bar layout the same zone count can tile either side; recover the
+        // snapshot's column arrangement from its saved frames before restoring ratios.
+        context.zoneController.alignSides(toSavedFrames: snapshot.zoneFrames)
+
+        // Restore zone frames/ratios: each saved frame re-derives the ratios the zone participates
+        // in (column split, and its side's stack split when stacked).
         for zoneIndex in 1...targetZoneCount {
             if let savedFrame = snapshot.zoneFrames[zoneIndex] {
                 context.zoneController.resizeZone(at: zoneIndex, to: savedFrame, allowOccupied: true)

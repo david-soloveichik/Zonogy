@@ -22,14 +22,14 @@ extension AppController {
     func addZoneIndicatorManager(
         _ manager: AddZoneIndicatorManager,
         didReceiveExternalDrop items: [ExternalDropItem],
-        for screenId: CGDirectDisplayID
+        for pill: AddZonePillKey
     ) {
         guard !items.isEmpty else { return }
-        if let zone = addZone(on: screenId, announce: false, promoteFloatingOccupant: false) {
-            let newZoneKey = zoneKey(for: screenId, index: zone.index)
+        if let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) {
+            let newZoneKey = zoneKey(for: pill.screenId, index: zone.index)
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "add-zone-drop")
         } else {
-            Logger.debug("Add-zone drop requested a new zone on screen \(screenContextStore.loggingIndex(for: screenId)) but creation failed (likely at max zones)")
+            Logger.debug("Add-zone drop requested a new zone on screen \(screenContextStore.loggingIndex(for: pill.screenId)) but creation failed (likely at max zones)")
         }
         openExternalDropItems(items)
     }

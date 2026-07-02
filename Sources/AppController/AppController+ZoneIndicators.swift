@@ -65,9 +65,19 @@ extension AppController {
         var originY = fallbackBottom - indicatorHeight
         var usedGapPlacement = false
 
-        if zone.index > 1, let previousZone = controller.zone(at: zone.index - 1) {
-            let previousContentFrame = frameWithMargin(for: previousZone, in: controller).standardized
-            let gapTop = previousContentFrame.maxY
+        // Center the indicator in the margin between this zone and the zone directly above it
+        // (the zone whose bottom edge meets this zone's top edge).
+        let zoneFrame = zone.frame.standardized
+        let zoneAbove = controller.allZones.first { other in
+            guard other !== zone else { return false }
+            let otherFrame = other.frame.standardized
+            let horizontalOverlap = min(zoneFrame.maxX, otherFrame.maxX) - max(zoneFrame.minX, otherFrame.minX)
+            return abs(otherFrame.maxY - zoneFrame.minY) <= edgeAlignmentTolerance && horizontalOverlap > 0
+        }
+
+        if let zoneAbove {
+            let aboveContentFrame = frameWithMargin(for: zoneAbove, in: controller).standardized
+            let gapTop = aboveContentFrame.maxY
             let gapBottom = contentFrame.minY
 
             if gapBottom > gapTop {
@@ -100,34 +110,32 @@ extension AppController {
         placeholderCoordinator.setTargetedZone(targetedZoneKey)
         refreshOccupiedZoneTargetBorder()
 
-        // Refresh add-zone indicators
+        // Refresh add-zone indicators: one bar per layout-style edge with remaining capacity.
         var addZoneDescriptors: [AddZoneIndicatorDescriptor] = []
-        var newAddZoneHitAreas: [CGDirectDisplayID: CGRect] = [:]
+        var newAddZoneHitAreas: [AddZonePillKey: CGRect] = [:]
 
         for (screenId, context) in screenContexts {
             guard !isScreenPausedForFullScreen(screenId) else {
                 continue
             }
-            let zoneCount = context.zoneController.allZones.count
-            // Only show the indicator if there are fewer than 3 zones
-            guard zoneCount < 3 else { continue }
-
+            let controller = context.zoneController
             let screenDescriptor = context.descriptor
-            guard let frames = addZoneIndicatorFrames(for: screenDescriptor) else {
-                continue
+
+            for side in controller.layoutStyle.barSides {
+                guard controller.canAddZone(on: side) else { continue }
+                guard let frames = addZoneIndicatorFrames(for: screenDescriptor, side: side) else {
+                    continue
+                }
+                let pill = AddZonePillKey(screenId: screenId, side: side)
+                addZoneDescriptors.append(AddZoneIndicatorDescriptor(pill: pill, frame: frames.cocoa))
+                newAddZoneHitAreas[pill] = frames.accessibility
             }
-            let descriptor = AddZoneIndicatorDescriptor(
-                screenId: screenId,
-                frame: frames.cocoa
-            )
-            addZoneDescriptors.append(descriptor)
-            newAddZoneHitAreas[screenId] = frames.accessibility
         }
 
         addIndicatorTracker.updateHitAreas(newAddZoneHitAreas)
 
         if addZoneDescriptors.isEmpty {
-            addZoneIndicatorManager.updateDragHighlight(screenId: nil)
+            addZoneIndicatorManager.updateDragHighlight(pill: nil)
             addZoneIndicatorManager.tearDown()
         } else {
             addZoneIndicatorManager.present(for: addZoneDescriptors)
@@ -147,7 +155,7 @@ extension AppController {
                 cocoaFrame: frames.cocoa,
                 isTargeted: targetedFloatingScreenId == screenId,
                 isOccupied: floatingZoneOccupant(on: screenId) != nil,
-                isDragHighlighted: floatingIndicatorTracker.highlightedScreenId == screenId
+                isDragHighlighted: floatingIndicatorTracker.highlighted == screenId
             )
             floatingDescriptors.append(descriptor)
             newFloatingHitAreas[screenId] = frames.accessibility
@@ -156,7 +164,7 @@ extension AppController {
         floatingIndicatorTracker.updateHitAreas(newFloatingHitAreas)
 
         if floatingDescriptors.isEmpty {
-            floatingIndicatorTracker.setHighlightedScreen(nil)
+            floatingIndicatorTracker.setHighlighted(nil)
             floatingIndicatorManager.tearDown()
         } else {
             floatingIndicatorManager.present(over: floatingDescriptors)
@@ -191,7 +199,10 @@ extension AppController {
         }
     }
 
-    private func addZoneIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
+    private func addZoneIndicatorFrames(
+        for descriptor: ScreenDescriptor,
+        side: ZoneSide
+    ) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.cocoaBounds.standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil
@@ -203,8 +214,8 @@ extension AppController {
         // Height: 1/3 of screen height
         let indicatorHeight = (bounds.height / 3).rounded()
 
-        // Position on the right edge, vertically centered
-        let originX = bounds.maxX - indicatorWidth
+        // Position on the bar's screen edge, vertically centered
+        let originX = side == .right ? bounds.maxX - indicatorWidth : bounds.minX
         let originY = (bounds.midY - indicatorHeight / 2).rounded()
 
         let cocoaFrame = CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight).standardized
@@ -231,13 +242,13 @@ extension AppController {
         return (cocoa: cocoaFrame, accessibility: accessibilityFrame)
     }
 
-    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
+    func addZoneIndicatorHitAreas() -> [AddZonePillKey: CGRect] {
         addIndicatorTracker.hitAreas
     }
 
-    func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?) {
-        if addIndicatorTracker.setHighlightedScreen(screenId) {
-            addZoneIndicatorManager.updateDragHighlight(screenId: screenId)
+    func updateAddZoneIndicatorHighlight(pill: AddZonePillKey?) {
+        if addIndicatorTracker.setHighlighted(pill) {
+            addZoneIndicatorManager.updateDragHighlight(pill: pill)
         }
     }
 
@@ -246,7 +257,7 @@ extension AppController {
     }
 
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?) {
-        if floatingIndicatorTracker.setHighlightedScreen(screenId) {
+        if floatingIndicatorTracker.setHighlighted(screenId) {
             floatingIndicatorManager.updateDragHighlight(screenId: screenId)
         }
     }
@@ -284,23 +295,19 @@ extension AppController {
         on screenId: CGDirectDisplayID,
         context: ScreenContext
     ) -> [CGRect] {
-        let zoneIndices: [Int]
-
-        switch (context.zoneController.allZones.count, separator.orientation, separator.index) {
-        case (2, .vertical, 0):
-            zoneIndices = [1, 2]
-        case (3, .vertical, 0):
-            zoneIndices = [1, 2, 3]
-        case (3, .horizontal, 1):
-            zoneIndices = [2, 3]
-        default:
-            zoneIndices = []
+        // Every zone borders the vertical between-columns bar; an in-column bar borders
+        // only the two zones stacked on its side.
+        let adjacentZones: [Zone]
+        switch separator.id {
+        case .vertical:
+            adjacentZones = context.zoneController.allZones
+        case .horizontal(let side):
+            adjacentZones = context.zoneController.allZones.filter { $0.side == side }
         }
 
-        return zoneIndices.compactMap { zoneIndex in
-            let key = zoneKey(for: screenId, index: zoneIndex)
-            guard placeholderCoordinator.hasPlaceholder(for: key),
-                  let zone = context.zoneController.zone(at: zoneIndex) else {
+        return adjacentZones.compactMap { zone in
+            let key = zoneKey(for: screenId, index: zone.index)
+            guard placeholderCoordinator.hasPlaceholder(for: key) else {
                 return nil
             }
             return frameWithMargin(for: zone, in: context.zoneController)
@@ -466,7 +473,6 @@ extension AppController {
                     on: screenId,
                     context: context
                 )
-                let orientationLabel = sep.orientation == .vertical ? "v" : "h"
                 let originalFrame = sep.frame
                 guard let frame = ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
                     sep,
@@ -476,7 +482,7 @@ extension AppController {
                     pinnedContext: pinnedContext
                 ) else {
                     logLines.append(
-                        "  separator \(orientationLabel)#\(sep.index) @\(formatRectForLog(originalFrame)) -> hidden"
+                        "  separator \(sep.id.logLabel) @\(formatRectForLog(originalFrame)) -> hidden"
                     )
                     continue
                 }
@@ -488,13 +494,12 @@ extension AppController {
                     outcome = "clipped to \(formatRectForLog(frame))"
                 }
                 logLines.append(
-                    "  separator \(orientationLabel)#\(sep.index) @\(formatRectForLog(originalFrame)) -> \(outcome)"
+                    "  separator \(sep.id.logLabel) @\(formatRectForLog(originalFrame)) -> \(outcome)"
                 )
 
                 descriptors.append(ZoneSeparatorDescriptor(
                     screenId: screenId,
-                    index: sep.index,
-                    orientation: sep.orientation,
+                    id: sep.id,
                     frame: frame,
                     screenCocoaBounds: context.descriptor.cocoaBounds
                 ))

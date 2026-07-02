@@ -9,6 +9,7 @@ enum EdgePillDragPolicyTests {
         let screen0: CGDirectDisplayID = 1
         let screen1: CGDirectDisplayID = 2
         let screen2: CGDirectDisplayID = 3
+        let addPill = AddZonePillKey(screenId: screen1, side: .left)
         let emptyZone = ZoneKey(screenId: screen0, index: 1)
 
         func assert(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -21,7 +22,7 @@ enum EdgePillDragPolicyTests {
         assert(
             EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: emptyZone,
-                hoveredAddZoneScreenId: screen1,
+                hoveredAddZonePill: addPill,
                 hoveredFloatingScreenId: nil
             ) == nil,
             "expected add-zone hover to suppress empty-zone auto-promotion hover"
@@ -30,7 +31,7 @@ enum EdgePillDragPolicyTests {
         assert(
             EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: emptyZone,
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: screen2
             ) == nil,
             "expected floating-pill hover to suppress underlying zone hover"
@@ -39,7 +40,7 @@ enum EdgePillDragPolicyTests {
         assert(
             EdgePillDragPolicy.effectiveZoneHover(
                 hoveredZoneKey: emptyZone,
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: nil
             ) == emptyZone,
             "expected zone hover to remain when no edge pill is hovered"
@@ -47,16 +48,16 @@ enum EdgePillDragPolicyTests {
 
         assert(
             EdgePillDragPolicy.dropDecision(
-                hoveredAddZoneScreenId: screen1,
+                hoveredAddZonePill: addPill,
                 hoveredFloatingScreenId: screen2,
                 hoveredZoneKey: emptyZone
-            ) == .addZone(screen1),
+            ) == .addZone(addPill),
             "expected add-zone drop to win over floating-pill and zone targets"
         )
 
         assert(
             EdgePillDragPolicy.dropDecision(
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: screen2,
                 hoveredZoneKey: emptyZone
             ) == .floatingZone(screen2),
@@ -65,7 +66,7 @@ enum EdgePillDragPolicyTests {
 
         assert(
             EdgePillDragPolicy.dropDecision(
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: nil,
                 hoveredZoneKey: emptyZone
             ) == .zone(emptyZone),
@@ -74,7 +75,7 @@ enum EdgePillDragPolicyTests {
 
         assert(
             EdgePillDragPolicy.dropDecision(
-                hoveredAddZoneScreenId: nil,
+                hoveredAddZonePill: nil,
                 hoveredFloatingScreenId: nil,
                 hoveredZoneKey: nil
             ) == .fallback,

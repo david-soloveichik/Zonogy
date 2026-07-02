@@ -22,18 +22,22 @@ final class ScreenContextStore {
 
     private(set) var contexts: [CGDirectDisplayID: ScreenContext] = [:]
     private(set) var order: [CGDirectDisplayID] = []
+    /// Layout style applied to newly created zone controllers (existing controllers are
+    /// switched by AppController when the preference changes).
+    var zoneLayoutStyle: ZoneLayoutStyle
     /// Identity and bounds of the primary display. Refreshed on every `rebuild` so the
     /// Cocoa<->Accessibility flip reference tracks resolution changes on the primary display
     /// (a stale value mis-positions every managed window vertically, on all screens).
     private(set) var primaryDisplayId: CGDirectDisplayID
     private(set) var primaryScreenBounds: CGRect
 
-    init?(screens: [NSScreen]) {
+    init?(screens: [NSScreen], zoneLayoutStyle: ZoneLayoutStyle = .rightBar) {
         guard let primaryScreen = screens.first,
               let primaryId = ScreenContextStore.displayId(for: primaryScreen) else {
             return nil
         }
 
+        self.zoneLayoutStyle = zoneLayoutStyle
         primaryDisplayId = primaryId
         primaryScreenBounds = primaryScreen.frame
         rebuild(with: screens, primaryBounds: primaryScreen.frame)
@@ -143,7 +147,10 @@ final class ScreenContextStore {
                 updatedContexts[displayId] = existing
                 updatedDisplayIds.append(displayId)
             } else {
-                let zoneController = ZoneController(screenFrame: descriptor.visibleScreenBounds)
+                let zoneController = ZoneController(
+                    screenFrame: descriptor.visibleScreenBounds,
+                    layoutStyle: zoneLayoutStyle
+                )
                 updatedContexts[displayId] = ScreenContext(descriptor: descriptor, zoneController: zoneController)
                 addedDisplayIds.append(displayId)
             }

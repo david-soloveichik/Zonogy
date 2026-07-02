@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 
-/// Simple assertions for ZoneLayout geometry
+/// Simple assertions for ZoneLayout geometry across the layout styles
 enum ZoneLayoutTests {
     @discardableResult
     static func run() -> Bool {
@@ -19,6 +19,13 @@ enum ZoneLayoutTests {
         func assertApproximatelyEqual(_ actual: CGFloat, _ expected: CGFloat, label: String) {
             if abs(actual - expected) > tolerance {
                 print("ZoneLayoutTests: \(label) failed\n  expected: \(expected)\n  actual:   \(actual)")
+                allPassed = false
+            }
+        }
+
+        func assertTrue(_ condition: Bool, label: String) {
+            if !condition {
+                print("ZoneLayoutTests: \(label) failed")
                 allPassed = false
             }
         }
@@ -46,176 +53,198 @@ enum ZoneLayoutTests {
             }
         }
 
-        let single = ZoneLayout.computeFrames(zoneCount: 1, screenFrame: screen)
-        if let frame = single.first {
-            assertEqual(frame, screen, label: "1 zone")
-            assertRectWithinScreen(frame, label: "1 zone frame")
-        }
-
-        let splitTwo = ZoneLayout.computeFrames(zoneCount: 2, screenFrame: screen)
-        if splitTwo.count == 2 {
-            let halfWidth = screen.width / 2
-            let expectedLeft = CGRect(x: screen.minX,
-                                      y: screen.minY,
-                                      width: halfWidth,
-                                      height: screen.height)
-            let expectedRight = CGRect(x: screen.minX + halfWidth,
-                                       y: screen.minY,
-                                       width: halfWidth,
-                                       height: screen.height)
-            assertEqual(splitTwo[0], expectedLeft, label: "2 zones (left)")
-            assertEqual(splitTwo[1], expectedRight, label: "2 zones (right)")
-
-            assertRectWithinScreen(splitTwo[0], label: "2 zones left frame")
-            assertRectWithinScreen(splitTwo[1], label: "2 zones right frame")
-            assertApproximatelyEqual(splitTwo[0].width + splitTwo[1].width, screen.width, label: "2 zones total width")
-            assertApproximatelyEqual(splitTwo[0].maxX, splitTwo[1].minX, label: "2 zones boundary alignment")
-            assertNoOverlaps(splitTwo, label: "2 zones")
-        } else {
-            print("ZoneLayoutTests: expected 2 frames for 2 zones, got \(splitTwo.count)")
-            allPassed = false
-        }
-
-        let splitThree = ZoneLayout.computeFrames(zoneCount: 3, screenFrame: screen)
-        if splitThree.count == 3 {
-            let halfWidth = screen.width / 2
-            let halfHeight = screen.height / 2
-            let expectedLeft = CGRect(x: screen.minX,
-                                      y: screen.minY,
-                                      width: halfWidth,
-                                      height: screen.height)
-            let expectedTopRight = CGRect(x: screen.minX + halfWidth,
-                                          y: screen.minY,
-                                          width: halfWidth,
-                                          height: halfHeight)
-            let expectedBottomRight = CGRect(x: screen.minX + halfWidth,
-                                             y: screen.minY + halfHeight,
-                                             width: halfWidth,
-                                             height: halfHeight)
-            assertEqual(splitThree[0], expectedLeft, label: "3 zones (left)")
-            assertEqual(splitThree[1], expectedTopRight, label: "3 zones (top-right)")
-            assertEqual(splitThree[2], expectedBottomRight, label: "3 zones (bottom-right)")
-
-            for (index, frame) in splitThree.enumerated() {
-                assertRectWithinScreen(frame, label: "3 zones frame \(index + 1)")
+        func assertTiling(_ frames: [CGRect], label: String) {
+            assertNoOverlaps(frames, label: label)
+            for (index, frame) in frames.enumerated() {
+                assertRectWithinScreen(frame, label: "\(label) frame \(index + 1)")
             }
-            assertApproximatelyEqual(splitThree[0].width + splitThree[1].width, screen.width, label: "3 zones total width")
-            assertApproximatelyEqual(splitThree[1].height + splitThree[2].height, screen.height, label: "3 zones right column total height")
-            assertApproximatelyEqual(splitThree[0].maxX, splitThree[1].minX, label: "3 zones vertical boundary alignment")
-            assertApproximatelyEqual(splitThree[1].maxY, splitThree[2].minY, label: "3 zones horizontal boundary alignment")
-            assertNoOverlaps(splitThree, label: "3 zones")
-        } else {
-            print("ZoneLayoutTests: expected 3 frames for 3 zones, got \(splitThree.count)")
-            allPassed = false
+            let totalArea = frames.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
+            assertApproximatelyEqual(
+                totalArea / (screen.width * screen.height), 1.0,
+                label: "\(label) total area"
+            )
         }
 
-        // Verify resizable behavior adjusts layout ratios.
+        let halfWidth = screen.width / 2
+        let halfHeight = screen.height / 2
+        let leftHalf = CGRect(x: screen.minX, y: screen.minY, width: halfWidth, height: screen.height)
+        let rightHalf = CGRect(x: screen.minX + halfWidth, y: screen.minY, width: halfWidth, height: screen.height)
+        let leftTop = CGRect(x: screen.minX, y: screen.minY, width: halfWidth, height: halfHeight)
+        let leftBottom = CGRect(x: screen.minX, y: screen.minY + halfHeight, width: halfWidth, height: halfHeight)
+        let rightTop = CGRect(x: screen.minX + halfWidth, y: screen.minY, width: halfWidth, height: halfHeight)
+        let rightBottom = CGRect(x: screen.minX + halfWidth, y: screen.minY + halfHeight, width: halfWidth, height: halfHeight)
+
+        // Single zone fills the screen regardless of nominal side.
+        for side in ZoneSide.allCases {
+            let single = ZoneLayout.computeFrames(sides: [side], screenFrame: screen)
+            if let frame = single.first {
+                assertEqual(frame, screen, label: "1 zone (side \(side.rawValue))")
+            }
+        }
+
+        // Right-bar canonical shapes: zone 1 left, zones 2/3 stack on the right.
+        let rightBarTwo = ZoneLayout.computeFrames(sides: [.left, .right], screenFrame: screen)
+        assertEqual(rightBarTwo[0], leftHalf, label: "right-bar 2 zones (zone 1 left)")
+        assertEqual(rightBarTwo[1], rightHalf, label: "right-bar 2 zones (zone 2 right)")
+        assertTiling(rightBarTwo, label: "right-bar 2 zones")
+
+        let rightBarThree = ZoneLayout.computeFrames(sides: [.left, .right, .right], screenFrame: screen)
+        assertEqual(rightBarThree[0], leftHalf, label: "right-bar 3 zones (zone 1 left)")
+        assertEqual(rightBarThree[1], rightTop, label: "right-bar 3 zones (zone 2 right-top)")
+        assertEqual(rightBarThree[2], rightBottom, label: "right-bar 3 zones (zone 3 right-bottom)")
+        assertTiling(rightBarThree, label: "right-bar 3 zones")
+
+        // Left-bar mirror: zone 1 right, zones 2/3 stack on the left (zone 2 on top).
+        let leftBarThree = ZoneLayout.computeFrames(sides: [.right, .left, .left], screenFrame: screen)
+        assertEqual(leftBarThree[0], rightHalf, label: "left-bar 3 zones (zone 1 right)")
+        assertEqual(leftBarThree[1], leftTop, label: "left-bar 3 zones (zone 2 left-top)")
+        assertEqual(leftBarThree[2], leftBottom, label: "left-bar 3 zones (zone 3 left-bottom)")
+        assertTiling(leftBarThree, label: "left-bar 3 zones")
+
+        // Dual-bar 2x2: index order carries creation order; row = index order within a side.
+        let dualFour = ZoneLayout.computeFrames(sides: [.left, .right, .right, .left], screenFrame: screen)
+        assertEqual(dualFour[0], leftTop, label: "dual 4 zones (zone 1 left-top)")
+        assertEqual(dualFour[1], rightTop, label: "dual 4 zones (zone 2 right-top)")
+        assertEqual(dualFour[2], rightBottom, label: "dual 4 zones (zone 3 right-bottom)")
+        assertEqual(dualFour[3], leftBottom, label: "dual 4 zones (zone 4 left-bottom)")
+        assertTiling(dualFour, label: "dual 4 zones")
+
+        // Dual-bar 3 zones stacked on the left with a right single (path-dependent arrangement).
+        let dualLeftStack = ZoneLayout.computeFrames(sides: [.right, .left, .left], screenFrame: screen)
+        assertTiling(dualLeftStack, label: "dual 3 zones (left stack)")
+
+        // Degenerate one-sided stack (transient state): the lone column spans the full width.
+        let fullWidthStack = ZoneLayout.computeFrames(sides: [.left, .left], screenFrame: screen)
+        assertEqual(
+            fullWidthStack[0],
+            CGRect(x: screen.minX, y: screen.minY, width: screen.width, height: halfHeight),
+            label: "one-sided stack (top)"
+        )
+        assertEqual(
+            fullWidthStack[1],
+            CGRect(x: screen.minX, y: screen.minY + halfHeight, width: screen.width, height: halfHeight),
+            label: "one-sided stack (bottom)"
+        )
+
+        // Resizing a zone adjusts the column split (and stack split for stacked zones).
         var adjustableLayout = ZoneLayout()
-        let proposedLeft = CGRect(x: screen.minX,
-                                  y: screen.minY,
-                                  width: 400,
-                                  height: screen.height)
-        adjustableLayout.resize(zoneIndex: 1, zoneCount: 2, screenFrame: screen, to: proposedLeft)
-        let resizedTwo = adjustableLayout.frames(for: 2, screenFrame: screen)
-        if resizedTwo.count == 2 {
-            assertApproximatelyEqual(resizedTwo[0].width, 400, label: "resized 2 zones (left width)")
-            assertApproximatelyEqual(resizedTwo[1].width, screen.width - 400, label: "resized 2 zones (right width)")
-            assertApproximatelyEqual(resizedTwo[0].maxX, resizedTwo[1].minX, label: "resized 2 zones boundary alignment")
-            assertNoOverlaps(resizedTwo, label: "resized 2 zones")
-        } else {
-            print("ZoneLayoutTests: expected 2 frames for resized 2 zones, got \(resizedTwo.count)")
-            allPassed = false
-        }
+        let proposedLeft = CGRect(x: screen.minX, y: screen.minY, width: 400, height: screen.height)
+        adjustableLayout.resize(zoneIndex: 1, sides: [.left, .right], screenFrame: screen, to: proposedLeft)
+        let resizedTwo = adjustableLayout.frames(sides: [.left, .right], screenFrame: screen)
+        assertApproximatelyEqual(resizedTwo[0].width, 400, label: "resized 2 zones (left width)")
+        assertApproximatelyEqual(resizedTwo[1].width, screen.width - 400, label: "resized 2 zones (right width)")
+        assertApproximatelyEqual(resizedTwo[0].maxX, resizedTwo[1].minX, label: "resized 2 zones boundary alignment")
 
-        let proposedTopRight = CGRect(x: screen.minX + 400,
-                                      y: screen.minY + 600,
-                                      width: screen.width - 400,
-                                      height: 300)
-        adjustableLayout.resize(zoneIndex: 2, zoneCount: 3, screenFrame: screen, to: proposedTopRight)
-        let resizedThree = adjustableLayout.frames(for: 3, screenFrame: screen)
-        if resizedThree.count == 3 {
-            assertApproximatelyEqual(resizedThree[0].width, 400, label: "resized 3 zones (left width)")
-            assertApproximatelyEqual(resizedThree[1].height, 300, label: "resized 3 zones (top height)")
-            assertApproximatelyEqual(resizedThree[2].height, screen.height - 300, label: "resized 3 zones (bottom height)")
-            assertApproximatelyEqual(resizedThree[0].maxX, resizedThree[1].minX, label: "resized 3 zones vertical boundary alignment")
-            assertApproximatelyEqual(resizedThree[1].maxY, resizedThree[2].minY, label: "resized 3 zones horizontal boundary alignment")
-            assertNoOverlaps(resizedThree, label: "resized 3 zones")
-        } else {
-            print("ZoneLayoutTests: expected 3 frames for resized 3 zones, got \(resizedThree.count)")
-            allPassed = false
-        }
+        let proposedTopRight = CGRect(x: screen.minX + 400, y: screen.minY, width: screen.width - 400, height: 300)
+        adjustableLayout.resize(zoneIndex: 2, sides: [.left, .right, .right], screenFrame: screen, to: proposedTopRight)
+        let resizedThree = adjustableLayout.frames(sides: [.left, .right, .right], screenFrame: screen)
+        assertApproximatelyEqual(resizedThree[0].width, 400, label: "resized 3 zones (left width)")
+        assertApproximatelyEqual(resizedThree[1].height, 300, label: "resized 3 zones (top height)")
+        assertApproximatelyEqual(resizedThree[2].height, screen.height - 300, label: "resized 3 zones (bottom height)")
+        assertNoOverlaps(resizedThree, label: "resized 3 zones")
 
-        // Verify separator frames align with zone boundaries.
+        // Resizing a bottom stacked zone in a mirrored arrangement updates that side's split.
+        var mirroredLayout = ZoneLayout()
+        let proposedLeftBottom = CGRect(x: screen.minX, y: screen.minY + 650, width: 500, height: 250)
+        mirroredLayout.resize(zoneIndex: 3, sides: [.right, .left, .left], screenFrame: screen, to: proposedLeftBottom)
+        let mirroredFrames = mirroredLayout.frames(sides: [.right, .left, .left], screenFrame: screen)
+        assertApproximatelyEqual(mirroredFrames[2].height, 250, label: "mirrored resize (left-bottom height)")
+        assertApproximatelyEqual(mirroredFrames[1].height, screen.height - 250, label: "mirrored resize (left-top height)")
+        assertApproximatelyEqual(mirroredFrames[0].width, screen.width - 500, label: "mirrored resize (right zone width from left zone)")
+
+        // Per-side stack splits are independent in the dual-bar 2x2.
+        var dualLayout = ZoneLayout()
+        dualLayout.resizeBySeparator(id: .horizontal(.left), delta: 150, screenFrame: screen)
+        let dualFrames = dualLayout.frames(sides: [.left, .right, .right, .left], screenFrame: screen)
+        assertApproximatelyEqual(dualFrames[0].height, halfHeight + 150, label: "dual left stack split moved")
+        assertApproximatelyEqual(dualFrames[1].height, halfHeight, label: "dual right stack split unchanged")
+        assertTiling(dualFrames, label: "dual 4 zones after left split resize")
+
+        // Separator identity and geometry per arrangement.
         do {
             let layout = ZoneLayout()
-            let frames = layout.frames(for: 2, screenFrame: screen)
-            let separators = layout.separators(zoneCount: 2, screenFrame: screen)
-            if separators.count == 1 {
-                let separator = separators[0]
-                assert(separator.orientation == .vertical, "2-zone separator should be vertical")
-                assert(separator.index == 0, "2-zone separator index should be 0")
+            let sides: [ZoneSide] = [.left, .right]
+            let frames = layout.frames(sides: sides, screenFrame: screen)
+            let separators = layout.separators(sides: sides, screenFrame: screen)
+            assertTrue(separators.count == 1, label: "2 zones separator count")
+            if let separator = separators.first {
+                assertTrue(separator.id == .vertical, label: "2 zones separator identity")
                 assertApproximatelyEqual(separator.frame.midX, frames[0].maxX, label: "2-zone separator x alignment")
                 assertApproximatelyEqual(separator.frame.height, screen.height, label: "2-zone separator height")
-            } else {
-                print("ZoneLayoutTests: expected 1 separator for 2 zones, got \(separators.count)")
-                allPassed = false
             }
         }
 
         do {
             let layout = ZoneLayout()
-            let frames = layout.frames(for: 3, screenFrame: screen)
-            let separators = layout.separators(zoneCount: 3, screenFrame: screen)
-            let vertical = separators.first(where: { $0.orientation == .vertical })
-            let horizontal = separators.first(where: { $0.orientation == .horizontal })
-
-            if let vertical {
-                assert(vertical.index == 0, "3-zone vertical separator index should be 0")
-                assertApproximatelyEqual(vertical.frame.midX, frames[0].maxX, label: "3-zone vertical separator x alignment")
-                assertApproximatelyEqual(vertical.frame.height, screen.height, label: "3-zone vertical separator height")
-            } else {
-                print("ZoneLayoutTests: missing vertical separator for 3 zones")
-                allPassed = false
-            }
-
+            let sides: [ZoneSide] = [.right, .left, .left]
+            let frames = layout.frames(sides: sides, screenFrame: screen)
+            let separators = layout.separators(sides: sides, screenFrame: screen)
+            assertTrue(separators.count == 2, label: "left-bar 3 zones separator count")
+            let vertical = separators.first { $0.id == .vertical }
+            let horizontal = separators.first { $0.id == .horizontal(.left) }
+            assertTrue(vertical != nil, label: "left-bar 3 zones has vertical separator")
+            assertTrue(horizontal != nil, label: "left-bar 3 zones has left horizontal separator")
+            assertTrue(!separators.contains { $0.id == .horizontal(.right) }, label: "left-bar 3 zones has no right horizontal separator")
             if let horizontal {
-                assert(horizontal.index == 1, "3-zone horizontal separator index should be 1")
-                assertApproximatelyEqual(horizontal.frame.midY, frames[1].maxY, label: "3-zone horizontal separator y alignment")
-                assertApproximatelyEqual(horizontal.frame.width, frames[1].width, label: "3-zone horizontal separator width")
-            } else {
-                print("ZoneLayoutTests: missing horizontal separator for 3 zones")
-                allPassed = false
+                assertApproximatelyEqual(horizontal.frame.midY, frames[1].maxY, label: "left-bar horizontal separator y alignment")
+                assertApproximatelyEqual(horizontal.frame.width, frames[1].width, label: "left-bar horizontal separator width")
+                assertApproximatelyEqual(horizontal.frame.minX, screen.minX, label: "left-bar horizontal separator on left column")
             }
         }
 
-        // Verify extreme separator drags clamp ratios.
+        do {
+            let layout = ZoneLayout()
+            let sides: [ZoneSide] = [.left, .right, .right, .left]
+            let separators = layout.separators(sides: sides, screenFrame: screen)
+            assertTrue(separators.count == 3, label: "dual 4 zones separator count")
+            assertTrue(separators.contains { $0.id == .vertical }, label: "dual 4 zones has vertical separator")
+            assertTrue(separators.contains { $0.id == .horizontal(.left) }, label: "dual 4 zones has left horizontal separator")
+            assertTrue(separators.contains { $0.id == .horizontal(.right) }, label: "dual 4 zones has right horizontal separator")
+        }
+
+        do {
+            let layout = ZoneLayout()
+            let separators = layout.separators(sides: [.left], screenFrame: screen)
+            assertTrue(separators.isEmpty, label: "single zone has no separators")
+        }
+
+        // Extreme separator drags clamp ratios.
         do {
             var layout = ZoneLayout()
-            layout.resizeBySeparator(index: 0, delta: -100_000, zoneCount: 2, screenFrame: screen)
-            let frames = layout.frames(for: 2, screenFrame: screen)
+            layout.resizeBySeparator(id: .vertical, delta: -100_000, screenFrame: screen)
+            let frames = layout.frames(sides: [.left, .right], screenFrame: screen)
             assertApproximatelyEqual(frames[0].width, screen.width * 0.1, label: "vertical separator clamp (min)")
         }
 
         do {
             var layout = ZoneLayout()
-            layout.resizeBySeparator(index: 0, delta: 100_000, zoneCount: 2, screenFrame: screen)
-            let frames = layout.frames(for: 2, screenFrame: screen)
+            layout.resizeBySeparator(id: .vertical, delta: 100_000, screenFrame: screen)
+            let frames = layout.frames(sides: [.left, .right], screenFrame: screen)
             assertApproximatelyEqual(frames[0].width, screen.width * 0.9, label: "vertical separator clamp (max)")
         }
 
         do {
             var layout = ZoneLayout()
-            layout.resizeBySeparator(index: 1, delta: -100_000, zoneCount: 3, screenFrame: screen)
-            let frames = layout.frames(for: 3, screenFrame: screen)
+            layout.resizeBySeparator(id: .horizontal(.right), delta: -100_000, screenFrame: screen)
+            let frames = layout.frames(sides: [.left, .right, .right], screenFrame: screen)
             assertApproximatelyEqual(frames[1].height, screen.height * 0.1, label: "horizontal separator clamp (min)")
         }
 
         do {
             var layout = ZoneLayout()
-            layout.resizeBySeparator(index: 1, delta: 100_000, zoneCount: 3, screenFrame: screen)
-            let frames = layout.frames(for: 3, screenFrame: screen)
+            layout.resizeBySeparator(id: .horizontal(.right), delta: 100_000, screenFrame: screen)
+            let frames = layout.frames(sides: [.left, .right, .right], screenFrame: screen)
             assertApproximatelyEqual(frames[1].height, screen.height * 0.9, label: "horizontal separator clamp (max)")
         }
+
+        // Layout style capacity and canonical-side derivations.
+        assertTrue(ZoneLayoutStyle.rightBar.maxZoneCount == 3, label: "right-bar max zones")
+        assertTrue(ZoneLayoutStyle.leftBar.maxZoneCount == 3, label: "left-bar max zones")
+        assertTrue(ZoneLayoutStyle.dualBar.maxZoneCount == 4, label: "dual-bar max zones")
+        assertTrue(ZoneLayoutStyle.rightBar.fixedSides(zoneCount: 3) == [.left, .right, .right], label: "right-bar fixed sides")
+        assertTrue(ZoneLayoutStyle.leftBar.fixedSides(zoneCount: 3) == [.right, .left, .left], label: "left-bar fixed sides")
+        assertTrue(ZoneLayoutStyle.dualBar.fixedSides(zoneCount: 3) == nil, label: "dual-bar sides are stateful")
+        assertTrue(ZoneLayoutStyle.dualBar.canonicalSides(zoneCount: 4) == [.left, .right, .right, .left], label: "dual-bar canonical fill")
 
         if allPassed {
             print("ZoneLayoutTests: all tests passed")

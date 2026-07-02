@@ -9,7 +9,7 @@ struct DragSession {
     let originFrame: CGRect
     var latestFrame: CGRect
     var hoveredZoneKey: ZoneKey?
-    var hoveredAddZoneScreenId: CGDirectDisplayID?
+    var hoveredAddZonePill: AddZonePillKey?
     var hoveredFloatingScreenId: CGDirectDisplayID?
     let originatedFromFloating: Bool
     let isCursorDriven: Bool  // true for DockMenu drags (no actual window frame updates)
@@ -73,12 +73,12 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func isScreenPausedForFullScreen(_ screenId: CGDirectDisplayID) -> Bool
 
     // Add-zone indicator support
-    func addZoneIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
-    func updateAddZoneIndicatorHighlight(screenId: CGDirectDisplayID?)
+    func addZoneIndicatorHitAreas() -> [AddZonePillKey: CGRect]
+    func updateAddZoneIndicatorHighlight(pill: AddZonePillKey?)
     func floatingIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     @discardableResult
-    func addZone(on screenId: CGDirectDisplayID, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
 
     // Floating zone placement
     func dropWindowIntoFloatingZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
@@ -127,7 +127,7 @@ class DragDropCoordinator {
             originFrame: frame,
             latestFrame: frame,
             hoveredZoneKey: nil,
-            hoveredAddZoneScreenId: nil,
+            hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: false,
@@ -157,7 +157,7 @@ class DragDropCoordinator {
             originFrame: cursorFrame,
             latestFrame: cursorFrame,
             hoveredZoneKey: nil,
-            hoveredAddZoneScreenId: nil,
+            hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: true,
@@ -187,7 +187,7 @@ class DragDropCoordinator {
     enum CursorDrivenDropTarget {
         case tilingZone(ZoneKey)
         case floatingZone(CGDirectDisplayID)
-        case addZone(CGDirectDisplayID)
+        case addZone(AddZonePillKey)
         case cancelled
     }
 
@@ -208,22 +208,22 @@ class DragDropCoordinator {
             Logger.debug("Cursor-driven drag aborted: unable to resolve cursor position")
             dragSession = nil
             cursorPointOverrideAX = nil
-            delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate?.updateAddZoneIndicatorHighlight(pill: nil)
             delegate?.updateFloatingIndicatorHighlight(screenId: nil)
             return .cancelled
         }
 
         let target: CursorDrivenDropTarget
         switch EdgePillDragPolicy.dropDecision(
-            hoveredAddZoneScreenId: session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+            hoveredAddZonePill: session.hoveredAddZonePill ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
             hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
             hoveredZoneKey: session.hoveredZoneKey ?? filteredCursorDrivenZoneTarget(
                 resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint),
                 policy: session.zoneDropPolicy
             )
         ) {
-        case .addZone(let screenId):
-            target = .addZone(screenId)
+        case .addZone(let pill):
+            target = .addZone(pill)
         case .floatingZone(let screenId):
             target = .floatingZone(screenId)
         case .zone(let targetKey):
@@ -234,7 +234,7 @@ class DragDropCoordinator {
 
         dragSession = nil
         cursorPointOverrideAX = nil
-        delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
+        delegate?.updateAddZoneIndicatorHighlight(pill: nil)
         delegate?.updateFloatingIndicatorHighlight(screenId: nil)
 
         Logger.debug("Cursor-driven drag ended with target: \(target)")
@@ -290,7 +290,7 @@ class DragDropCoordinator {
             Logger.debug("Drag drop aborted: unable to resolve cursor position")
             handleDropCancellation(session: session)
             dragSession = nil
-            delegate.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate.updateAddZoneIndicatorHighlight(pill: nil)
             delegate.updateFloatingIndicatorHighlight(screenId: nil)
             return EndDragSessionResult(
                 displacedWindow: nil,
@@ -302,12 +302,12 @@ class DragDropCoordinator {
         }
 
         switch EdgePillDragPolicy.dropDecision(
-            hoveredAddZoneScreenId: session.hoveredAddZoneScreenId ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+            hoveredAddZonePill: session.hoveredAddZonePill ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
             hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
             hoveredZoneKey: session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint)
         ) {
-        case .addZone(let screenId):
-            if let result = performDropIntoNewZone(session: session, screenId: screenId) {
+        case .addZone(let pill):
+            if let result = performDropIntoNewZone(session: session, pill: pill) {
                 displacedWindow = result.displacedWindow
                 displacedPreferredScreen = result.preferredScreenId
                 displacedDisposition = result.displacedDisposition
@@ -343,7 +343,7 @@ class DragDropCoordinator {
 
         dragSession = nil
         cursorPointOverrideAX = nil
-        delegate.updateAddZoneIndicatorHighlight(screenId: nil)
+        delegate.updateAddZoneIndicatorHighlight(pill: nil)
         delegate.updateFloatingIndicatorHighlight(screenId: nil)
 
         let preferredScreen = displacedPreferredScreen ?? session.originScreenId
@@ -360,7 +360,7 @@ class DragDropCoordinator {
         dragOverlayManager.tearDown()
         dragSession = nil
         cursorPointOverrideAX = nil
-        delegate?.updateAddZoneIndicatorHighlight(screenId: nil)
+        delegate?.updateAddZoneIndicatorHighlight(pill: nil)
         delegate?.updateFloatingIndicatorHighlight(screenId: nil)
     }
 
@@ -417,14 +417,14 @@ class DragDropCoordinator {
         descriptor.screenToAccessibility(zone.frame)
     }
 
-    private func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+    private func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> AddZonePillKey? {
         guard let cursorPoint,
               let delegate = delegate else {
             return nil
         }
         let hitAreas = delegate.addZoneIndicatorHitAreas()
-        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
-            return screenId
+        for (pill, frame) in hitAreas where frame.contains(cursorPoint) {
+            return pill
         }
         return nil
     }
@@ -463,14 +463,14 @@ class DragDropCoordinator {
         }
         session.latestFrame = frame
         let cursorPoint = currentCursorAccessibilityPoint()
-        let addZoneScreenId = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
-        let floatingScreenId = addZoneScreenId == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
+        let addZonePill = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
+        let floatingScreenId = addZonePill == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
         var targetKey = EdgePillDragPolicy.effectiveZoneHover(
             hoveredZoneKey: filteredCursorDrivenZoneTarget(
                 resolveDropTarget(for: frame, cursorPoint: cursorPoint),
                 policy: session.zoneDropPolicy
             ),
-            hoveredAddZoneScreenId: addZoneScreenId,
+            hoveredAddZonePill: addZonePill,
             hoveredFloatingScreenId: floatingScreenId
         )
         // gesture-modifier floating drags skip empty zones as drop targets
@@ -492,7 +492,7 @@ class DragDropCoordinator {
             dragOverlayManager.tearDown()
             dragSession = nil
             cursorPointOverrideAX = nil
-            delegate.updateAddZoneIndicatorHighlight(screenId: nil)
+            delegate.updateAddZoneIndicatorHighlight(pill: nil)
             delegate.updateFloatingIndicatorHighlight(screenId: nil)
 
             let promoted = delegate.promoteTiledDragToFloating(
@@ -508,11 +508,11 @@ class DragDropCoordinator {
             return
         }
         session.hoveredZoneKey = targetKey
-        session.hoveredAddZoneScreenId = addZoneScreenId
+        session.hoveredAddZonePill = addZonePill
         session.hoveredFloatingScreenId = floatingScreenId
         dragSession = session
         dragOverlayManager.updateHighlight(to: targetKey)
-        delegate?.updateAddZoneIndicatorHighlight(screenId: addZoneScreenId)
+        delegate?.updateAddZoneIndicatorHighlight(pill: addZonePill)
         delegate?.updateFloatingIndicatorHighlight(screenId: floatingScreenId)
     }
 
@@ -567,15 +567,15 @@ class DragDropCoordinator {
         return zone.isEmpty
     }
 
-    private func performDropIntoNewZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
+    private func performDropIntoNewZone(session: DragSession, pill: AddZonePillKey) -> DropResult? {
         guard let delegate = delegate else {
             return nil
         }
-        guard let newZone = delegate.addZone(on: screenId, announce: false, promoteFloatingOccupant: false) else {
-            Logger.debug("Failed to add zone on \(ScreenContextStore.logDescription(for: screenId)) for drag-drop request")
+        guard let newZone = delegate.addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+            Logger.debug("Failed to add zone on \(ScreenContextStore.logDescription(for: pill.screenId)) for drag-drop request")
             return nil
         }
-        let newKey = ZoneKey(screenId: screenId, index: newZone.index)
+        let newKey = ZoneKey(screenId: pill.screenId, index: newZone.index)
         return performDrop(session: session, targetKey: newKey)
     }
 

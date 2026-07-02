@@ -100,25 +100,21 @@ enum ZoneResizeHandleVisibilityPolicy {
         var adjusted = frame
         switch separator.orientation {
         case .vertical:
-            // Separator between zone 1 and zones 2/3: clip against reveal windows in zones 2/3.
-            if separator.index == 0, context.zoneIndex >= 2 {
-                guard let clipped = clipSeparatorFrame(
-                    adjusted,
-                    avoiding: context.avoidFrame,
-                    orientation: .vertical,
-                    minimumVisibleFrame: minimumVisibleFrame
-                ) else {
-                    return nil
-                }
-                adjusted = clipped
+            // The between-columns separator is shortened so it stays outside the reveal frame.
+            guard let clipped = clipSeparatorFrame(
+                adjusted,
+                avoiding: context.avoidFrame,
+                orientation: .vertical,
+                minimumVisibleFrame: minimumVisibleFrame
+            ) else {
+                return nil
             }
+            adjusted = clipped
 
         case .horizontal:
-            // Separator between zones 2 and 3: hide if it intersects reveal windows in zones 2/3,
+            // In-column separators hide whenever they intersect the reveal frame,
             // unless pinned mode requires a minimum visible segment.
-            if separator.index == 1,
-               context.zoneIndex >= 2,
-               adjusted.intersects(context.avoidFrame) {
+            if adjusted.intersects(context.avoidFrame) {
                 guard let minimumVisibleFrame else {
                     return nil
                 }
@@ -143,36 +139,16 @@ enum ZoneResizeHandleVisibilityPolicy {
         context: ZoneResizeHandleAvoidanceContext,
         minimumVisibleFrame: CGRect?
     ) -> CGRect? {
-        var adjusted = frame
-
-        // Managed windows in any tiling zone should avoid both separators.
-        if separator.orientation == .vertical,
-           separator.index == 0 {
-            guard let clipped = clipSeparatorFrame(
-                adjusted,
-                avoiding: context.avoidFrame,
-                orientation: .vertical,
-                minimumVisibleFrame: minimumVisibleFrame
-            ) else {
-                return nil
-            }
-            adjusted = clipped
+        // Managed windows in any tiling zone should avoid every separator.
+        guard let clipped = clipSeparatorFrame(
+            frame,
+            avoiding: context.avoidFrame,
+            orientation: separator.orientation,
+            minimumVisibleFrame: minimumVisibleFrame
+        ) else {
+            return nil
         }
-
-        if separator.orientation == .horizontal,
-           separator.index == 1 {
-            guard let clipped = clipSeparatorFrame(
-                adjusted,
-                avoiding: context.avoidFrame,
-                orientation: .horizontal,
-                minimumVisibleFrame: minimumVisibleFrame
-            ) else {
-                return nil
-            }
-            adjusted = clipped
-        }
-
-        return adjusted
+        return clipped
     }
 
     /// Returns the adjusted frame for a separator, or `nil` if it should be hidden.

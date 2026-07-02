@@ -240,9 +240,9 @@ extension AppController {
         }
 
         // Ctrl+Cmd-click on the Add Zone pill should behave like a regular left-click.
-        for (screenId, hitArea) in addIndicatorTracker.hitAreas {
+        for (pill, hitArea) in addIndicatorTracker.hitAreas {
             if hitArea.contains(location) {
-                addZoneIndicatorManager(addZoneIndicatorManager, didClickIndicatorFor: screenId)
+                addZoneIndicatorManager(addZoneIndicatorManager, didClickIndicatorFor: pill)
                 return true
             }
         }

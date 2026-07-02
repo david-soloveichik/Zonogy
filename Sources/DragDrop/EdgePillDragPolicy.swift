@@ -3,7 +3,7 @@ import CoreGraphics
 /// Resolves precedence between edge-pill targets and underlying zone targets during drags.
 enum EdgePillDragPolicy {
     enum DropDecision: Equatable {
-        case addZone(CGDirectDisplayID)
+        case addZone(AddZonePillKey)
         case floatingZone(CGDirectDisplayID)
         case zone(ZoneKey)
         case fallback
@@ -11,10 +11,10 @@ enum EdgePillDragPolicy {
 
     static func effectiveZoneHover(
         hoveredZoneKey: ZoneKey?,
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?
     ) -> ZoneKey? {
-        guard hoveredAddZoneScreenId == nil,
+        guard hoveredAddZonePill == nil,
               hoveredFloatingScreenId == nil else {
             return nil
         }
@@ -22,12 +22,12 @@ enum EdgePillDragPolicy {
     }
 
     static func dropDecision(
-        hoveredAddZoneScreenId: CGDirectDisplayID?,
+        hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?,
         hoveredZoneKey: ZoneKey?
     ) -> DropDecision {
-        if let hoveredAddZoneScreenId {
-            return .addZone(hoveredAddZoneScreenId)
+        if let hoveredAddZonePill {
+            return .addZone(hoveredAddZonePill)
         }
         if let hoveredFloatingScreenId {
             return .floatingZone(hoveredFloatingScreenId)

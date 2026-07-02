@@ -35,8 +35,8 @@ extension AppController {
 
     // MARK: - ZoneResizeHandleManagerDelegate
 
-    internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
-        Logger.debug("Zone resize drag began on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
+    internal func beginZoneResizeDrag(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity) {
+        Logger.debug("Zone resize drag began on \(screenContextStore.logDescription(for: screenId)) separator \(separatorId.logLabel)")
         zoneResizeDragScreenId = screenId
         liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
@@ -44,8 +44,8 @@ extension AppController {
         exitRevealMode(reason: "zone-resize-begin")
     }
 
-    internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorIndex: Int) {
-        Logger.debug("Zone resize drag ended on \(screenContextStore.logDescription(for: screenId)) separator \(separatorIndex)")
+    internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity) {
+        Logger.debug("Zone resize drag ended on \(screenContextStore.logDescription(for: screenId)) separator \(separatorId.logLabel)")
         zoneResizeDragScreenId = nil
         liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
@@ -61,18 +61,17 @@ extension AppController {
         }
     }
 
-    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorIndex: Int) {
-        beginZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
+    func resizeHandleDragBegan(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity) {
+        beginZoneResizeDrag(screenId: screenId, separatorId: separatorId)
     }
 
-    func resizeHandleDragged(screenId: CGDirectDisplayID, separatorIndex: Int, delta: CGPoint) {
+    func resizeHandleDragged(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity, delta: CGPoint) {
         guard let context = screenContexts[screenId] else { return }
 
-        let separators = context.zoneController.separators()
-        guard let separator = separators.first(where: { $0.index == separatorIndex }) else { return }
+        guard context.zoneController.separators().contains(where: { $0.id == separatorId }) else { return }
 
         let scalarDelta: CGFloat
-        switch separator.orientation {
+        switch separatorId.orientation {
         case .vertical:
             scalarDelta = delta.x
         case .horizontal:
@@ -84,7 +83,7 @@ extension AppController {
         clearRememberedManualResizeSizes(on: screenId, reason: "zone-resize-drag")
 
         // Apply resize
-        context.zoneController.resizeBySeparator(index: separatorIndex, delta: scalarDelta)
+        context.zoneController.resizeBySeparator(id: separatorId, delta: scalarDelta)
 
         // Live separator drags only change zone geometry; use the fast sync path
         // and defer full reconciliation/indicator refresh until mouse-up.
@@ -95,8 +94,8 @@ extension AppController {
         windowController.isLiveResizeAXQueueBusy
     }
 
-    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorIndex: Int) {
-        endZoneResizeDrag(screenId: screenId, separatorIndex: separatorIndex)
+    func resizeHandleDragEnded(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity) {
+        endZoneResizeDrag(screenId: screenId, separatorId: separatorId)
         // Drain any in-flight async AX writes before the full sync, so stale
         // background writes cannot overwrite the corrected final frames.
         windowController.drainLiveResizeQueue()
