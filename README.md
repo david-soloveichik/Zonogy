@@ -28,7 +28,7 @@ Multi-screen setups are first-class and each screen gets its own independent set
 
 ### Zones
 
-Each screen has 1–3 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically. See [Resizing Zones vs. Windows](docs/resizing-zones-vs-windows.md) for more detail.
+Each screen has 1–4 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically. See [Resizing Zones vs. Windows](docs/resizing-zones-vs-windows.md) for more detail.
 
 Exactly one zone is the **destination** at any moment, indicated by a glowing indicator. New or unminimized windows are always placed into the destination zone.
 
@@ -54,14 +54,14 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 
 <img src="docs/images/dockmenus.png" alt="DockMenus" width="356" />
 
-- **ActiveFit** — windows in the right column that can't shrink to fit are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
+- **ActiveFit** — windows that can't shrink to fit their zone are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
 
 ## Mouse Controls
 
 | Gesture | Action |
 | --- | --- |
-| Click new zone pill (on right edge of each screen) | Add a tiling zone |
+| Click new zone pill (on screen edge — right by default, per the zone layout) | Add a tiling zone on that side |
 | Click floating zone destination indicator (on bottom edge of each screen) | Set the floating zone as destination |
 | `Control-Cmd`-click anywhere in a zone (even if zone is occupied) | Set that zone as destination |
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
@@ -129,4 +129,4 @@ Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex
 
 ## History
 
-My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically *opinionated* and reflects how I work. For example, I've never needed more than 3 tiled windows per screen (plus a floating-zone slot), so that defines the current limit. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
+My day job is [teaching and research at UT Austin](https://www.solo-group.link/), but better UI is a passionate hobby. I originally built Zonogy for myself and decided to share it in case others find it useful. The project is unapologetically *opinionated* and reflects how I work. Of course, Zonogy is open source, and contributions, experiments, and personal forks are all welcome.
