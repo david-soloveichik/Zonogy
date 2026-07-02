@@ -264,6 +264,11 @@ class AddZoneIndicatorManager {
     private var dragHighlightedPill: AddZonePillKey?
     private var mousePassthroughForUnmanagedWindowEdgeDrag = false
 
+    /// Current Cocoa frames of the presented pill windows (reflecting any hover/drag expansion).
+    var presentedWindowFrames: [CGRect] {
+        windows.values.map { $0.frame }
+    }
+
     func present(for descriptors: [AddZoneIndicatorDescriptor]) {
         // Track which pills should have indicators
         let pills = Set(descriptors.map { $0.pill })

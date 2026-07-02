@@ -62,36 +62,19 @@ extension AppController {
         startDockMenusIfConfigured()
     }
 
-    /// True when the point lands within the maximal extent of any add-zone or floating-zone
-    /// pill. The trackers store the resting 6 px frames, but the pills grow inward from their
-    /// screen edge on hover/drag (and the floating pill pulses taller on targeting), so widen
-    /// each frame inward to the largest thickness it can reach.
+    /// True when the point lands on the current on-screen frame of an add-zone or floating-zone
+    /// pill window. Uses the live window frames — which already reflect hover/drag/pulse
+    /// expansion — rather than inflated resting frames, so Dock icons next to a resting pill
+    /// keep normal DockMenus interception right up to the pill's visible edge.
     private func isPointCoveredByZonogyEdgePill(_ point: CGPoint) -> Bool {
-        let maxThickness = max(EdgeIndicatorPillSizing.dragThickness, FloatingIndicatorPulse.peakThickness)
-        let expansion = maxThickness - EdgeIndicatorPillSizing.baseThickness
-
-        for (pill, frame) in addIndicatorTracker.hitAreas {
-            var covered = frame
-            covered.size.width += expansion
-            if pill.side == .right {
-                covered.origin.x -= expansion
-            }
-            if covered.contains(point) {
-                return true
-            }
+        let cocoaFrames = addZoneIndicatorManager.presentedWindowFrames
+            + floatingIndicatorManager.presentedWindowFrames
+        return cocoaFrames.contains { cocoaFrame in
+            CoordinateConversion.cocoaToAccessibility(
+                cocoaFrame: cocoaFrame,
+                primaryScreenBounds: windowController.primaryScreenBounds
+            ).contains(point)
         }
-
-        for frame in floatingIndicatorTracker.hitAreas.values {
-            // Bottom-edge pill: growth is upward, which decreases y in accessibility coordinates.
-            var covered = frame
-            covered.origin.y -= expansion
-            covered.size.height += expansion
-            if covered.contains(point) {
-                return true
-            }
-        }
-
-        return false
     }
 }
 

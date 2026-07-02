@@ -17,7 +17,7 @@ protocol FloatingZoneIndicatorManagerDelegate: AnyObject {
 /// Sizing and timing for the brief "pop" when a floating zone becomes targeted. The floating zone
 /// has no border to flash, so its bottom-edge pill momentarily enlarges instead — the floating-zone
 /// analog of the tiling-zone border flash.
-enum FloatingIndicatorPulse {
+private enum FloatingIndicatorPulse {
     /// Peak height the pill jumps to before settling back to its resting thickness.
     static let peakThickness: CGFloat = 20
     /// How much wider the pill grows at the peak, centered on its resting midpoint.
@@ -308,6 +308,11 @@ final class FloatingZoneIndicatorManager {
 
     weak var delegate: FloatingZoneIndicatorManagerDelegate?
     private var handles: [CGDirectDisplayID: IndicatorHandle] = [:]
+
+    /// Current Cocoa frames of the presented bar windows (reflecting any hover/drag/pulse expansion).
+    var presentedWindowFrames: [CGRect] {
+        handles.values.map { $0.window.frame }
+    }
     private var dragHighlightedScreenId: CGDirectDisplayID?
     private var mousePassthroughForUnmanagedWindowEdgeDrag = false
     /// Screens whose pill is mid-pulse, keyed by a generation counter. While a screen is pulsing,
