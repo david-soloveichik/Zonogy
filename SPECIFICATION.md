@@ -87,7 +87,7 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 3. If an application-driven move or resize puts the source window at the same position and width as a destination placed window, Zonogy treats this as a tab merge: the destination managed window adopts the source backing and keeps its zone, while the source managed window is removed from its old zone so that zone shows its placeholder. (While an application-driven frame change is still settling, Zonogy also avoids immediately pulling the focused window back to its zone.)
 
-> **Caveats and Known bugs.** (1) Our native tabs handling assumes that the CG state has settled by the time that Zonogy receives the notifications. If not, this could cause some race conditions (although item 1 waits for a live frame so it might be shielded?). Observation: Opening many new tabs fast bugs out. (2) "Merge All Windows" doesn't emit any window notifications, so we miss it. (3) The frame check is inherently inelegant.
+> **Caveats and Known bugs.** (1) Our native tabs handling assumes that the CG state has settled by the time that Zonogy receives the notifications. If not, this could cause some race conditions (although item 1 waits for a live frame so it might be shielded?). (2) "Merge All Windows" doesn't emit any window notifications, so we miss it. (3) The frame check is inherently inelegant.
 
 ## User Interactions
 
