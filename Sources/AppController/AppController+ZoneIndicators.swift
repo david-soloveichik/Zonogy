@@ -227,6 +227,7 @@ extension AppController {
     /// Canonical Cocoa and global (accessibility-coordinate) frames of a screen's floating-zone bar.
     internal func floatingIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.visibleScreenBounds.standardized
+        let fullBounds = descriptor.cocoaToScreen(descriptor.cocoaBounds).standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil
         }
@@ -235,7 +236,9 @@ extension AppController {
         let height: CGFloat = EdgeIndicatorPillSizing.baseThickness
         var originX = (bounds.midX - width / 2).rounded()
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
-        let originY = bounds.maxY - height
+        // Flush with the true screen bottom — beneath a bottom Dock's icons, in the margin
+        // between them and the screen edge, just as the add-zone bars share a side Dock's edge.
+        let originY = fullBounds.maxY - height
         let screenFrame = CGRect(x: originX, y: originY, width: width, height: height).standardized
         let cocoaFrame = descriptor.screenToCocoa(screenFrame).standardized
         let accessibilityFrame = descriptor.screenToAccessibility(screenFrame).standardized
