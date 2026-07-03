@@ -10,10 +10,8 @@ extension AppController {
     /// so the dot stays stable for the (brief) duration of the gesture.
     struct WindowFocusNavigationState {
         let candidates: [WindowFocusNavigation.Candidate]
-        /// Focused window's rectangle, or the targeted zone's rectangle, in accessibility coordinates.
-        let anchorFrame: CGRect
-        let anchorScreenId: CGDirectDisplayID
-        var selection: Int?
+        let anchor: WindowFocusNavigation.Anchor
+        var selection: WindowFocusNavigation.Selection?
     }
 }
 
@@ -62,24 +60,22 @@ extension AppController {
             return
         }
 
-        let anchor = windowFocusNavigationAnchor(candidates: candidates)
+        let resolved = windowFocusNavigationAnchor(candidates: candidates)
         let selection = WindowFocusNavigation.initialSelection(
             direction: direction,
-            focusedWindowId: anchor.focusedWindowId,
-            anchorFrame: anchor.frame,
-            anchorScreenId: anchor.screenId,
-            targetOccupantWindowId: anchor.targetOccupantWindowId,
+            focusedWindowId: resolved.focusedWindowId,
+            anchor: resolved.anchor,
+            targetOccupantWindowId: resolved.targetOccupantWindowId,
             candidates: candidates
         )
 
         windowFocusNavigationState = WindowFocusNavigationState(
             candidates: candidates,
-            anchorFrame: anchor.frame,
-            anchorScreenId: anchor.screenId,
+            anchor: resolved.anchor,
             selection: selection
         )
         updateWindowFocusDot(selection: selection)
-        Logger.debug("Window-focus navigation begun (\(direction)); selection: \(selection.map(String.init) ?? "none")")
+        Logger.debug("Window-focus navigation begun (\(direction)); selection: \(selection.map { String($0.windowId) } ?? "none")")
     }
 
     private func moveWindowFocusNavigation(direction: ZoneNavigationDirection) {
@@ -87,8 +83,7 @@ extension AppController {
         let next = WindowFocusNavigation.nextSelection(
             direction: direction,
             currentSelection: state.selection,
-            anchorFrame: state.anchorFrame,
-            anchorScreenId: state.anchorScreenId,
+            anchor: state.anchor,
             candidates: state.candidates
         )
         state.selection = next
@@ -101,14 +96,14 @@ extension AppController {
         clearWindowFocusNavigation()
 
         guard let selection = state.selection,
-              let managed = windowController.window(withId: selection) else {
+              let managed = windowController.window(withId: selection.windowId) else {
             Logger.debug("Window-focus navigation committed with no selection")
             return
         }
 
         // Focus only — targeting is intentionally left unchanged. Mirror the activation path used by
         // "Focus the targeted zone's window": floating occupants take the floating-zone raise path.
-        Logger.debug("Window-focus navigation focusing window \(selection)")
+        Logger.debug("Window-focus navigation focusing window \(selection.windowId)")
         if managed.isInFloatingZone {
             activateFloatingZoneWindow(managed, reason: "window-focus-navigation")
         } else {
@@ -162,11 +157,23 @@ extension AppController {
                       let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed) else {
                     continue
                 }
-                candidates.append(.init(windowId: windowId, frame: frame, screenId: screenId))
+                candidates.append(.init(
+                    windowId: windowId,
+                    frame: frame,
+                    screenId: screenId,
+                    isFloating: false,
+                    zoneIndex: zone.index
+                ))
             }
             if let managed = floatingZoneOccupant(on: screenId),
                let frame = windowController.actualFrameInAccessibilityCoordinates(for: managed) {
-                candidates.append(.init(windowId: managed.windowId, frame: frame, screenId: screenId))
+                candidates.append(.init(
+                    windowId: managed.windowId,
+                    frame: frame,
+                    screenId: screenId,
+                    isFloating: true,
+                    zoneIndex: nil
+                ))
             }
         }
         return candidates
@@ -176,10 +183,14 @@ extension AppController {
     /// otherwise the targeted zone (its rectangle plus its occupant, if any).
     private func windowFocusNavigationAnchor(
         candidates: [WindowFocusNavigation.Candidate]
-    ) -> (frame: CGRect, screenId: CGDirectDisplayID, focusedWindowId: Int?, targetOccupantWindowId: Int?) {
+    ) -> (anchor: WindowFocusNavigation.Anchor, focusedWindowId: Int?, targetOccupantWindowId: Int?) {
+        func anchor(at candidate: WindowFocusNavigation.Candidate) -> WindowFocusNavigation.Anchor {
+            .init(frame: candidate.frame, screenId: candidate.screenId)
+        }
+
         if let focusedId = currentFrontmostManagedWindowId,
            let focused = candidates.first(where: { $0.windowId == focusedId }) {
-            return (focused.frame, focused.screenId, focusedId, nil)
+            return (anchor(at: focused), focusedId, nil)
         }
 
         func candidateOccupant(_ windowId: Int?) -> Int? {
@@ -191,24 +202,31 @@ extension AppController {
            let context = screenContexts[key.screenId],
            let zone = context.zoneController.zone(at: key.index) {
             let frame = context.descriptor.screenToAccessibility(zone.frame)
-            return (frame, key.screenId, nil, candidateOccupant(zone.occupantWindowId))
+            return (
+                .init(frame: frame, screenId: key.screenId),
+                nil,
+                candidateOccupant(zone.occupantWindowId)
+            )
         }
 
         if let screenId = targetedFloatingScreenId,
            let descriptor = descriptor(for: screenId),
            let frames = floatingIndicatorFrames(for: descriptor) {
-            return (frames.accessibility, screenId, nil, candidateOccupant(floatingZoneOccupant(on: screenId)?.windowId))
+            return (
+                .init(frame: frames.accessibility, screenId: screenId),
+                nil,
+                candidateOccupant(floatingZoneOccupant(on: screenId)?.windowId)
+            )
         }
 
         // No focused window and no resolvable target: anchor at the first candidate so a direction
         // press can still reach a neighbor.
-        let first = candidates[0]
-        return (first.frame, first.screenId, nil, nil)
+        return (anchor(at: candidates[0]), nil, nil)
     }
 
-    private func updateWindowFocusDot(selection: Int?) {
+    private func updateWindowFocusDot(selection: WindowFocusNavigation.Selection?) {
         guard let selection,
-              let candidate = windowFocusNavigationState?.candidates.first(where: { $0.windowId == selection }),
+              let candidate = windowFocusNavigationState?.candidates.first(where: { $0.windowId == selection.windowId }),
               let descriptor = descriptor(for: candidate.screenId) else {
             windowFocusDotOverlay.hide()
             return

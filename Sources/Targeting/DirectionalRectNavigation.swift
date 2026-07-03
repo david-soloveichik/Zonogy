@@ -7,6 +7,16 @@ enum ZoneNavigationDirection {
     case down
     case left
     case right
+
+    /// The reverse direction, used by window-focus navigation to back out of a pass-through stop.
+    var opposite: ZoneNavigationDirection {
+        switch self {
+        case .up: return .down
+        case .down: return .up
+        case .left: return .right
+        case .right: return .left
+        }
+    }
 }
 
 /// Pure "nearest rectangle in a physical direction" selector on a shared global plane.
