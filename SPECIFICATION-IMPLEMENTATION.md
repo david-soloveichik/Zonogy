@@ -148,9 +148,13 @@ Some applications report the subrole for their minimized windows as AXDialogSubr
 
 When unminimizing a window that needs to appear at a specific position (e.g., restoring a WinShot snapshot or selecting a minimized window from Launcher), we first set the window's position and size while the window is still minimized. However, if we unminimize synchronously right after setting position/size, the window sometimes visually appears at its old location before snapping to the correct position. To address this, we default to async mode for unminimization.
 
+### Focusing a specific window of another application
+
+To focus a specific window, we set the window's `kAXMainAttribute`, perform `kAXRaiseAction`, and only then call `app.activate()`. (The order matters. Requesting activation first seems to restore whichever window the application last had frontmost, overriding the raise.)
+
 ### Floating zone activation workaround
 
-When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before calling `app.activate()` and `kAXRaiseAction`.
+When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before the make-main / raise / `app.activate()` sequence described above.
 
 ### Full-screen pause
 

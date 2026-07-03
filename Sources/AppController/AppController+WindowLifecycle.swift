@@ -1248,7 +1248,7 @@ extension AppController {
 // MARK: - Window activation
 
 extension AppController {
-    /// Activates the application owning the window and raises the window to front.
+    /// Raises the window to front and activates the application owning it.
     internal func raiseWindow(_ managed: ManagedWindow) {
         let element = managed.backing.element
         let pid = managed.backing.pid
