@@ -36,7 +36,7 @@ Zonogy rethinks multiple aspects of the operating system UI, including window ma
 
 Drag and drop is woven throughout: Windows can be dragged between zones. An app can be dragged from the Dock to a zone to open it there, and similarly for documents or URLs. Items can be dragged onto the New Zone Bar or Floating Zone Bar (along screen edges) to place them in a new tiling zone or the floating zone.
 
-Multi-screen setups are first-class and each screen gets its own independent set of zones and snapshots.
+Multi-screen setups are first-class and each screen gets its own independent set of zones and snapshots. Zonogy also handles native macOS tabs and full-screen windows.
 
 Zonogy lives in the macOS menu bar. Click the Zonogy icon <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-icon-dark.png"><img src="docs/images/menubar-icon.png" alt="Zonogy menu bar icon" height="18" /></picture> to open Preferences or to quit Zonogy.
 
