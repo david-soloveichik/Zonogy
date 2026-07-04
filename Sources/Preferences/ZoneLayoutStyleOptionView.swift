@@ -1,6 +1,6 @@
 import AppKit
 
-/// A clickable pictogram of one zone layout style for the General preferences tab:
+/// A clickable pictogram of one zone layout style for the Zones preferences tab:
 /// a mini screen showing the style's maximum zone arrangement and its add-zone bar edge(s).
 final class ZoneLayoutStyleOptionView: NSControl {
     let style: ZoneLayoutStyle

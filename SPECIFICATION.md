@@ -95,7 +95,7 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 ### Tiling Layout and Spacing
 
-Zonogy tiles each screen as two side-by-side columns; a column holding two zones stacks them top and bottom. Zonogy Preferences → General offers three zone layouts, presented as clickable pictures of the arrangement:
+Zonogy tiles each screen as two side-by-side columns; a column holding two zones stacks them top and bottom. Zonogy Preferences → Zones offers three zone layouts, presented as clickable pictures of the arrangement:
 
 - **Add bar on right** (default): the add-zone bar sits on the right screen edge. Zone 1 fills the left side; zones 2 and 3 stack on the right (zone 2 on top). Maximum 3 zones.
 - **Add bar on left**: the mirror image. The add-zone bar sits on the left screen edge. Zone 1 fills the right side; zones 2 and 3 stack on the left (zone 2 on top). Maximum 3 zones.

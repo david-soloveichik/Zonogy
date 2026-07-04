@@ -49,6 +49,13 @@ final class PreferencesWindowController: NSWindowController {
         generalItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "General")
         tabVC.addTabViewItem(generalItem)
 
+        // Zones tab
+        let zonesVC = ZonesPreferencesViewController()
+        let zonesItem = NSTabViewItem(viewController: zonesVC)
+        zonesItem.label = "Zones"
+        zonesItem.image = Self.zonesTabImage()
+        tabVC.addTabViewItem(zonesItem)
+
         // Targeting tab
         let targetingVC = TargetingPreferencesViewController()
         let targetingItem = NSTabViewItem(viewController: targetingVC)
@@ -93,6 +100,37 @@ final class PreferencesWindowController: NSWindowController {
 
         window?.contentViewController = tabVC
         self.tabViewController = tabVC
+    }
+
+    /// Template toolbar icon for the Zones tab, drawn to match the SF Symbols rectangle
+    /// family (no system symbol shows this arrangement): the default zone layout — a
+    /// full-height left column beside a right column split into two stacked zones.
+    private static func zonesTabImage() -> NSImage {
+        let size = NSSize(width: 19, height: 14)
+        let lineWidth: CGFloat = 1.3
+        let image = NSImage(size: size, flipped: false) { _ in
+            NSColor.black.setStroke()
+
+            let outer = NSBezierPath(
+                roundedRect: NSRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
+                xRadius: 2.5,
+                yRadius: 2.5
+            )
+            outer.lineWidth = lineWidth
+            outer.stroke()
+
+            let dividers = NSBezierPath()
+            dividers.move(to: NSPoint(x: size.width / 2, y: lineWidth / 2))
+            dividers.line(to: NSPoint(x: size.width / 2, y: size.height - lineWidth / 2))
+            dividers.move(to: NSPoint(x: size.width / 2, y: size.height / 2))
+            dividers.line(to: NSPoint(x: size.width - lineWidth / 2, y: size.height / 2))
+            dividers.lineWidth = lineWidth
+            dividers.stroke()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Zones"
+        return image
     }
 
     func showWindow() {
