@@ -147,6 +147,12 @@ enum GuardrailTests {
         if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }
+        if !UpdateCheckPreferencesStoreTests.run() {
+            allPassed = false
+        }
+        if !UpdateVersionComparisonTests.run() {
+            allPassed = false
+        }
         if !MouseGestureModifierPreferencesTests.run() {
             allPassed = false
         }

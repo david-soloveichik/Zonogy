@@ -166,6 +166,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let addIndicatorTracker = EdgeIndicatorTracker<AddZonePillKey>()
     internal let floatingIndicatorTracker = EdgeIndicatorTracker<CGDirectDisplayID>()
     internal let menuBarManager = MenuBarManager()
+    internal let updateChecker = UpdateChecker()
+    internal var isPresentingUpdateCheckAlert = false
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
     internal let winShotOccupancyAutoSaveScheduler = WinShotOccupancyAutoSaveScheduler()
@@ -423,6 +425,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         cmdTabKeyInterceptor.start(delegate: self)
         windowFocusNavigationInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
+        startUpdateChecker()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
 

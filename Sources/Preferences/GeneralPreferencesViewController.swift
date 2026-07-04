@@ -14,6 +14,8 @@ final class GeneralPreferencesViewController: NSViewController {
     private var screenRecordingStatusLabel: NSTextField?
     private var launchAtLoginCheckbox: NSButton?
     private var launchAtLoginHintLabel: NSTextField?
+    private var updateCheckCheckbox: NSButton?
+    private var updateCheckHintLabel: NSTextField?
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
     private var autoShowLauncherCheckbox: NSButton?
@@ -23,7 +25,7 @@ final class GeneralPreferencesViewController: NSViewController {
     private var zoneLayoutOptionViews: [ZoneLayoutStyleOptionView] = []
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 700))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 760))
 
         // Title label
         let titleLabel = NSTextField(labelWithString: "General Settings")
@@ -120,6 +122,18 @@ final class GeneralPreferencesViewController: NSViewController {
         launchAtLoginHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(launchAtLoginHintLabel)
         self.launchAtLoginHintLabel = launchAtLoginHintLabel
+
+        let updateCheckCheckbox = NSButton(checkboxWithTitle: "Automatically check for updates", target: self, action: #selector(updateCheckToggled(_:)))
+        updateCheckCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(updateCheckCheckbox)
+        self.updateCheckCheckbox = updateCheckCheckbox
+
+        let updateCheckHintLabel = NSTextField(wrappingLabelWithString: "Once a day, Zonogy checks GitHub for a newer release and offers it.")
+        updateCheckHintLabel.font = NSFont.systemFont(ofSize: 12)
+        updateCheckHintLabel.textColor = .secondaryLabelColor
+        updateCheckHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(updateCheckHintLabel)
+        self.updateCheckHintLabel = updateCheckHintLabel
 
         let dockMenusCheckbox = NSButton(checkboxWithTitle: "Enable DockMenus", target: self, action: #selector(dockMenusToggled(_:)))
         dockMenusCheckbox.translatesAutoresizingMaskIntoConstraints = false
@@ -248,7 +262,14 @@ final class GeneralPreferencesViewController: NSViewController {
             launchAtLoginHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             launchAtLoginHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            dockMenusCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
+            updateCheckCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
+            updateCheckCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            updateCheckHintLabel.topAnchor.constraint(equalTo: updateCheckCheckbox.bottomAnchor, constant: 6),
+            updateCheckHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            updateCheckHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            dockMenusCheckbox.topAnchor.constraint(equalTo: updateCheckHintLabel.bottomAnchor, constant: 18),
             dockMenusCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusHintLabel.topAnchor.constraint(equalTo: dockMenusCheckbox.bottomAnchor, constant: 6),
@@ -292,11 +313,12 @@ final class GeneralPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 680)
+        self.preferredContentSize = NSSize(width: 580, height: 740)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
         syncLaunchAtLoginCheckbox()
+        syncUpdateCheckCheckbox()
         syncDockMenusCheckbox()
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
@@ -349,6 +371,17 @@ final class GeneralPreferencesViewController: NSViewController {
     private func syncLaunchAtLoginCheckbox() {
         let enabled = AppController.shared.isLaunchAtLoginEnabledInSettings
         launchAtLoginCheckbox?.state = enabled ? .on : .off
+    }
+
+    @objc private func updateCheckToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setAutomaticUpdateCheckEnabledFromSettings(enabled)
+        syncUpdateCheckCheckbox()
+    }
+
+    private func syncUpdateCheckCheckbox() {
+        let enabled = AppController.shared.isAutomaticUpdateCheckEnabledInSettings
+        updateCheckCheckbox?.state = enabled ? .on : .off
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {

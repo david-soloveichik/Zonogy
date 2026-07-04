@@ -7,6 +7,7 @@ protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestPreferences()
     func menuBarManagerDidRequestSaveSnapshot()
     func menuBarManagerDidRequestClearAllSnapshots()
+    func menuBarManagerDidRequestCheckForUpdates()
 }
 
 /// Manages the menu bar status item, including visual state (e.g. dimming during sleep/wake) and its menu.
@@ -14,6 +15,7 @@ class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var isDimmed: Bool = false
     private var saveSnapshotItem: NSMenuItem?
+    private var checkForUpdatesItem: NSMenuItem?
     weak var delegate: MenuBarManagerDelegate?
 
     override init() {
@@ -57,6 +59,15 @@ class MenuBarManager: NSObject {
         )
         versionItem.isEnabled = false
         menu.addItem(versionItem)
+
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(handleCheckForUpdates),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = self
+        menu.addItem(checkForUpdatesItem)
+        self.checkForUpdatesItem = checkForUpdatesItem
 
         let preferencesItem = NSMenuItem(
             title: "Preferences...",
@@ -146,6 +157,17 @@ class MenuBarManager: NSObject {
     @objc private func handlePreferences() {
         Logger.debug("Preferences requested from menu bar")
         delegate?.menuBarManagerDidRequestPreferences()
+    }
+
+    @objc private func handleCheckForUpdates() {
+        Logger.debug("Check for updates requested from menu bar")
+        delegate?.menuBarManagerDidRequestCheckForUpdates()
+    }
+
+    /// Retitles the update item when a newer version is known, so the menu doubles as a
+    /// passive update hint. Pass nil to restore the plain "Check for Updates..." item.
+    func setAvailableUpdateVersion(_ version: String?) {
+        checkForUpdatesItem?.title = version.map { "Update Available (\($0))..." } ?? "Check for Updates..."
     }
 
     @objc private func handleSaveSnapshot() {

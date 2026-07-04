@@ -376,6 +376,17 @@ For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATIO
 
 For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFICATION-CMDTAB.md)**.
 
+## Software Updates
+
+Zonogy can check GitHub Releases for a newer version. (The check requests only the latest release's metadata; nothing about the user or system is sent.) The process for publishing a release is documented in [SPECIFICATION-RELEASE.md](SPECIFICATION-RELEASE.md).
+
+- The menu bar menu has a "Check for Updates..." item.
+- **Automatic checks:** When "Automatically check for updates" is enabled in Preferences → General (default on), Zonogy checks shortly after launch and once a day. The first time a run discovers a given newer version, it shows the new-version alert (at most once per version per run, so relaunching can re-alert).
+- **New-version alert:** Offers "View Release" (opens the release page in the browser), "Later", and "Skip This Version".
+- While a newer, non-skipped version is known, the menu item instead reads "Update Available (version)..." and choosing it opens the release page directly.
+- **Skipping:** "Skip This Version" suppresses the automatic alert and the menu hint for that version only; a later release triggers normally. A manual check still reports a skipped version.
+- **Version comparison:** The release tag (with any leading "v" removed) is compared to the installed version numerically per dot-separated component, so 1.10 is newer than 1.9. Missing components count as zero.
+
 ## Developer Tools
 
 ### Debug Preferences
@@ -434,7 +445,7 @@ The tool is available in the shell path.
 
 The `--help` argument explains the functionality.
 
-The source code at `/Users/dsolov/Documents/Development/VibeDevelopment/WindowManagerMonitor-claude` is also useful to us to understand how to efficiently read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
+The source code of winmanmon is also useful to us to understand how to efficiently read important properties of windows such as whether they have a zoom button, its subrole, and whether it is movable, etc.
 
 ## Configuration
 

@@ -107,6 +107,7 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
 | **Application window capture** | 0.0s + 0.4s | `asyncAfter` | `AppController+Startup.swift` | Schedules two capture attempts per application — one immediate (0.0s) and one at 0.4s. Used at startup for all running applications, and at runtime for app activation, launch, and unhide events. The second attempt catches windows that aren't AX-queryable right away. (Separate from `WindowCapturePipeline` backoff retries, which handle per-PID capture failures after `AXWindowCreated`.) |
+| **Software update checks** | 10s after launch, then every 24h (1h tolerance) | `asyncAfter` + `Timer` | `UpdateChecker.swift` | Automatic checks of GitHub Releases for a newer Zonogy version. The launch check is delayed so it stays clear of startup window seeding. Both fire only while "Automatically check for updates" is enabled — the preference is consulted when the timer fires, so toggling it needs no rescheduling. |
 
 ---
 
@@ -120,5 +121,5 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 ## Notes
 
-- **No global polling loops:** Every timer is tied to a concrete event (window creation, focus change, display reconfiguration, etc.). Scheduled timers (`asyncAfter`, `DispatchSourceTimer`, `Timer`) are cancelled when no longer needed. Deadline-based mechanisms (notification suppression, activity recording suppression) are not actively cancelled — they expire passively when checked.
+- **No global polling loops:** Every timer is tied to a concrete event (window creation, focus change, display reconfiguration, etc.); the sole standing schedule is the daily software update check. Scheduled timers (`asyncAfter`, `DispatchSourceTimer`, `Timer`) are cancelled when no longer needed. Deadline-based mechanisms (notification suppression, activity recording suppression) are not actively cancelled — they expire passively when checked.
 - **Why so many AX workarounds?** The Accessibility API provides no guarantees on timing, ordering, or completeness of notifications. Windows may not be queryable when created, moves may silently fail, destroy notifications may never arrive, and the API may be entirely unavailable during sleep/wake transitions. Each retry mechanism targets a specific failure mode.
