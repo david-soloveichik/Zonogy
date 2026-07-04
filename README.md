@@ -8,6 +8,20 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 
 <img src="docs/images/hero-screenshot.png" alt="Hero screenshot, showing various features of Zonogy" width="1512" />
 
+## Contents
+
+- [Overview](#overview)
+- [Core Concepts](#core-concepts)
+- [Features](#features)
+- [Mouse Controls](#mouse-controls)
+- [Default Keyboard Shortcuts](#default-keyboard-shortcuts-configurable)
+- [Requirements](#requirements)
+- [Limitations](#limitations)
+- [Per-App Exceptions](#per-app-exceptions)
+- [Additional Suggestions](#additional-suggestions)
+- [Development](#development)
+- [History](#history)
+
 ## Overview
 
 Zonogy rethinks multiple aspects of the operating system UI, including window management, virtual desktops, application/window launching, and interacting with the Dock.
