@@ -44,6 +44,7 @@ So the launcher automatically dismisses when:
 - An unmanaged window gains focus on the Launcher's screen (to avoid overlapping it)
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
+- Zonogy opens its own Preferences window or an update-check alert (so the Launcher does not cover them)
 
 ## Positioning
 

@@ -47,19 +47,14 @@ extension AppController {
     /// update-check alert is already on screen).
     @discardableResult
     private func presentUpdateAvailableAlert(for update: UpdateInfo) -> Bool {
-        // A manual check can complete while an automatic check's alert is still up
-        // (or vice versa); never stack a second modal alert on the first.
-        guard !isPresentingUpdateCheckAlert else { return false }
-        isPresentingUpdateCheckAlert = true
-        defer { isPresentingUpdateCheckAlert = false }
-        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Zonogy \(update.version) is available"
         alert.informativeText = "You have Zonogy \(AppVersion.marketingVersion)."
         alert.addButton(withTitle: "View Release")
         alert.addButton(withTitle: "Later")
         alert.addButton(withTitle: "Skip This Version")
-        switch alert.runModal() {
+        guard let response = runUpdateCheckAlert(alert) else { return false }
+        switch response {
         case .alertFirstButtonReturn:
             NSWorkspace.shared.open(update.pageURL)
         case .alertThirdButtonReturn:
@@ -71,14 +66,38 @@ extension AppController {
     }
 
     private func presentInformationalAlert(title: String, text: String) {
-        guard !isPresentingUpdateCheckAlert else { return }
-        isPresentingUpdateCheckAlert = true
-        defer { isPresentingUpdateCheckAlert = false }
-        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text
-        alert.runModal()
+        runUpdateCheckAlert(alert)
+    }
+
+    /// Update-themed icon for the update-check alerts. NSAlert would otherwise show the app
+    /// icon, which degrades to a plain folder when the bare dev executable runs outside the
+    /// app bundle.
+    private static let updateCheckAlertIcon: NSImage? = {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 52, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(hierarchicalColor: .controlAccentColor))
+        return NSImage(systemSymbolName: "arrow.down.app", accessibilityDescription: "Software update")?
+            .withSymbolConfiguration(configuration)
+    }()
+
+    /// Runs an update-check alert modally, returning nil without presenting when one is
+    /// already on screen — a manual check can complete while an automatic check's alert
+    /// is still up (or vice versa); never stack a second modal alert on the first.
+    /// Dismisses an open Launcher first (as opening Preferences does) so its floating
+    /// panel does not cover the alert.
+    @discardableResult
+    private func runUpdateCheckAlert(_ alert: NSAlert) -> NSApplication.ModalResponse? {
+        guard !isPresentingUpdateCheckAlert else { return nil }
+        isPresentingUpdateCheckAlert = true
+        defer { isPresentingUpdateCheckAlert = false }
+        if let icon = Self.updateCheckAlertIcon {
+            alert.icon = icon
+        }
+        dismissLauncherIfActive()
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal()
     }
 
     // MARK: - Settings

@@ -123,7 +123,7 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(updateCheckCheckbox)
         self.updateCheckCheckbox = updateCheckCheckbox
 
-        let updateCheckHintLabel = NSTextField(wrappingLabelWithString: "Once a day, Zonogy checks GitHub for a newer release and offers it.")
+        let updateCheckHintLabel = NSTextField(wrappingLabelWithString: "Once a day, Zonogy checks GitHub for a newer release.")
         updateCheckHintLabel.font = NSFont.systemFont(ofSize: 12)
         updateCheckHintLabel.textColor = .secondaryLabelColor
         updateCheckHintLabel.translatesAutoresizingMaskIntoConstraints = false
