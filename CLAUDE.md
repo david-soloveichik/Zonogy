@@ -1,2 +1,0 @@
-- **VERY IMPORTANT**: Always first read and follow instructions in AGENTS.md
-- Always read SPECIFICATION.md which will tell you the big picture of the project

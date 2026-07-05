@@ -10,7 +10,7 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 
 *Windows tiled into zones, with the Launcher and a DockMenus window list open.*
 
-<a href="https://youtu.be/Z-Z3h0UDfpM"><img src="docs/images/video-thumbnail.png" alt="Watch the Zonogy demo video on YouTube" width="1512" /></a>
+<a href="https://youtu.be/rcInUytB798"><img src="docs/images/video-thumbnail.png" alt="Watch the Zonogy demo video on YouTube" width="1512" /></a>
 
 *▶ Watch the short tutorial video on YouTube.*
 
