@@ -48,6 +48,10 @@
       "hasMainWindow": true
     },
     {
+      "bundleIdentifier": "com.blackpixel.kaleidoscope",
+      "snapToZoneOnSelfResize": true
+    },
+    {
       "bundleIdentifier": "com.daisydiskapp.DaisyDisk",
       "ignoreHeightRequirement": true
     },
@@ -60,13 +64,22 @@
       "excludedWindowTitles": ["Discord Updater"]
     },
     {
+      "bundleIdentifier": "com.microsoft.Outlook",
+      "requireActiveZoomButton": true
+    },
+    {
       "bundleIdentifier": "com.microsoft.Powerpoint",
       "treatAXUnknownFullWidthAsFullScreen": true
     },
     {
       "bundleIdentifier": "com.microsoft.autoupdate2",
       "hasMainWindow": true,
-      "ignoreHeightRequirement": true
+      "ignoreHeightRequirement": true,
+      "snapToZoneOnSelfResize": true
+    },
+    {
+      "bundleIdentifier": "com.openai.codex",
+      "snapToZoneOnSelfResize": true
     },
     {
       "bundleIdentifier": "com.titanium.OnyX",
