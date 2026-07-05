@@ -6,9 +6,13 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 
 > Philosophy: An intentional place for every window.
 
-<img src="docs/images/hero-screenshot.png" alt="Hero screenshot, showing various features of Zonogy" width="1512" />
+<img src="docs/images/hero-screenshot.png" alt="A Zonogy desktop with windows tiled into zones, the Launcher, and a DockMenus window list" width="1512" />
 
-[![Watch the video](https://img.youtube.com/vi/Z-Z3h0UDfpM/maxresdefault.jpg)](https://youtu.be/Z-Z3h0UDfpM)
+*A Zonogy desktop — windows tiled into zones, with the Launcher and a DockMenus window list open.*
+
+<a href="https://youtu.be/Z-Z3h0UDfpM"><img src="docs/images/video-thumbnail.png" alt="Watch the Zonogy demo video on YouTube" width="1512" /></a>
+
+*▶ Watch the demo video on YouTube.*
 
 ## Contents
 

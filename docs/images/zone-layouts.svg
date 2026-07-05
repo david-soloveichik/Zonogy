@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 512.95 189.45">
-  <!-- Generator: Adobe Illustrator 30.5.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 3)  -->
+  <!-- Generator: Adobe Illustrator 30.6.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 109)  -->
   <defs>
     <style>
       .st0 {
@@ -115,7 +115,9 @@
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st2" transform="translate(63.96 20.7)"><tspan x="0" y="0">2 zones, one empty</tspan></text>
+          <g class="st4">
+            <text class="st2" transform="translate(63.96 20.7)"><tspan x="0" y="0">2 zones, one empty</tspan></text>
+          </g>
         </g>
       </g>
     </g>
@@ -124,19 +126,25 @@
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st1" transform="translate(37.4 112.7)"><tspan x="0" y="0">empty</tspan></text>
+          <g class="st4">
+            <text class="st1" transform="translate(37.4 112.7)"><tspan x="0" y="0">empty</tspan></text>
+          </g>
         </g>
       </g>
       <g class="st4">
         <g class="st4">
-          <text class="st1" transform="translate(70.93 112.7)"><tspan x="0" y="0">zone</tspan></text>
+          <g class="st4">
+            <text class="st1" transform="translate(70.93 112.7)"><tspan x="0" y="0">zone</tspan></text>
+          </g>
         </g>
       </g>
     </g>
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st1" transform="translate(34.76 126.7)"><tspan x="0" y="0">(placeholder)</tspan></text>
+          <g class="st4">
+            <text class="st1" transform="translate(34.76 126.7)"><tspan x="0" y="0">(placeholder)</tspan></text>
+          </g>
         </g>
       </g>
     </g>
@@ -149,7 +157,9 @@
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st5" transform="translate(164.97 116.7)"><tspan x="0" y="0">window</tspan></text>
+          <g class="st4">
+            <text class="st5" transform="translate(164.97 116.7)"><tspan x="0" y="0">window</tspan></text>
+          </g>
         </g>
       </g>
     </g>
@@ -159,7 +169,9 @@
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st2" transform="translate(322.79 20.7)"><tspan x="0" y="0">3 zones + floating zone</tspan></text>
+          <g class="st4">
+            <text class="st2" transform="translate(322.79 20.7)"><tspan x="0" y="0">3 zones + floating zone</tspan></text>
+          </g>
         </g>
       </g>
     </g>
@@ -192,17 +204,23 @@
     <g class="st4">
       <g class="st4">
         <g class="st4">
-          <text class="st3" transform="translate(346.13 121.7)"><tspan x="0" y="0">floating</tspan></text>
+          <g class="st4">
+            <text class="st3" transform="translate(346.13 121.7)"><tspan x="0" y="0">floating</tspan></text>
+          </g>
         </g>
       </g>
       <g class="st4">
         <g class="st4">
-          <text class="st3" transform="translate(381.3 121.7)"><tspan x="0" y="0">zone</tspan></text>
+          <g class="st4">
+            <text class="st3" transform="translate(381.3 121.7)"><tspan x="0" y="0">zone</tspan></text>
+          </g>
         </g>
       </g>
       <g class="st4">
         <g class="st4">
-          <text class="st3" transform="translate(404.68 121.7)"><tspan x="0" y="0">window</tspan></text>
+          <g class="st4">
+            <text class="st3" transform="translate(404.68 121.7)"><tspan x="0" y="0">window</tspan></text>
+          </g>
         </g>
       </g>
     </g>
@@ -212,23 +230,32 @@
   <g class="st4">
     <g class="st4">
       <g class="st4">
-        <text class="st0" transform="translate(0 8.57)"><tspan x="0" y="0">destination</tspan></text>
+        <g class="st4">
+          <text class="st0" transform="translate(0 8.57)"><tspan x="0" y="0">destination</tspan></text>
+        </g>
       </g>
     </g>
     <g class="st4">
       <g class="st4">
-        <text class="st0" transform="translate(7.18 18.57)"><tspan x="0" y="0">for</tspan></text>
+        <g class="st4">
+          <text class="st0" transform="translate(7.18 18.57)"><tspan x="0" y="0">for</tspan></text>
+        </g>
       </g>
     </g>
     <g class="st4">
       <g class="st4">
-        <text class="st0" transform="translate(22.28 18.57)"><tspan x="0" y="0">next</tspan></text>
+        <g class="st4">
+          <text class="st0" transform="translate(22.28 18.57)"><tspan x="0" y="0">next</tspan></text>
+        </g>
       </g>
     </g>
     <g class="st4">
       <g class="st4">
-        <text class="st0" transform="translate(7.11 28.57)"><tspan x="0" y="0">window</tspan></text>
+        <g class="st4">
+          <text class="st0" transform="translate(7.11 28.57)"><tspan x="0" y="0">window</tspan></text>
+        </g>
       </g>
     </g>
   </g>
+  <path class="st8" d="M360.21,183.66h66c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2h-66c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
 </svg>
