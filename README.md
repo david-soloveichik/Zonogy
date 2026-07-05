@@ -15,6 +15,7 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 - [Features](#features)
 - [Mouse Controls](#mouse-controls)
 - [Default Keyboard Shortcuts](#default-keyboard-shortcuts-configurable)
+- [Installation](#installation)
 - [Requirements](#requirements)
 - [Limitations](#limitations)
 - [Per-App Exceptions](#per-app-exceptions)
@@ -110,6 +111,12 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-Return` | Focus the destination zone's window |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
+
+## Installation
+
+1. Download `Zonogy-<version>.dmg` from the [latest release](https://github.com/david-soloveichik/Zonogy/releases/latest), open it, and drag Zonogy into Applications. The app is signed and notarized.
+2. On first launch, Zonogy opens Preferences to walk you through granting Accessibility (necessary) and Screen Recording Permissions (optional for WinShot snapshots).
+3. Zonogy checks for new versions automatically (unless turned off). To update, replace the app with the freshly downloaded version; permissions carry over.
 
 ## Requirements
 
