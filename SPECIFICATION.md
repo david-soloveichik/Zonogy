@@ -385,7 +385,7 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 - **New-version alert:** Offers "View Release" (opens the release page in the browser), "Later", and "Skip This Version".
 - While a newer, non-skipped version is known, the menu item instead reads "Update Available (version)..." and choosing it opens the release page directly.
 - **Skipping:** "Skip This Version" suppresses the automatic alert and the menu hint for that version only; a later release triggers normally. A manual check still reports a skipped version.
-- **Version comparison:** The release tag (with any leading "v" removed) is compared to the installed version numerically per dot-separated component, so 1.10 is newer than 1.9. Missing components count as zero.
+- **Version comparison:** The release tag (with any leading "v" removed) is compared to the installed version numerically per dot-separated component, so 1.10 is newer than 1.9. Missing components count as zero. A version may carry a pre-release suffix after a hyphen (such as `1.0-beta.1`); such a version orders before the same version without the suffix (so `1.0-beta.2` is older than `1.0`), and two pre-releases of the same version order by their dot-separated identifiers (numeric identifiers compared as numbers, so `beta.10` is newer than `beta.2`). This lets successive betas supersede one another and the final release supersede them all.
 
 ## Developer Tools
 
