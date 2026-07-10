@@ -1,6 +1,6 @@
 # Zonogy
 
-Zonogy is a zone-based window manager for macOS. (The name suggests "the origin or formation of zones.") Zonogy is free and open source (MIT license).
+Zonogy is a zone-based window manager for macOS. (The name evokes "the origin or formation of zones.") Zonogy is free and open source (MIT license).
 
 Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
 
@@ -63,7 +63,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 
 - **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the destination zone where the window will appear — including automatically when a zone is emptied, so you can immediately place the next window there. Hold `Option` while selecting an app row to open a new window of that app instead of activating the existing one.
 
-<img src="docs/images/launcher.png" alt="Launcher" width="499" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" width="608" />
+<img src="docs/images/launcher.png" alt="Launcher" width="499" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" width="580" />
 
 - **CmdTab** (`Cmd-Tab`) — a fast window chooser replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. The chooser appears directly in the destination zone where the window will appear.
 
@@ -78,6 +78,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 <img src="docs/images/dockmenus.png" alt="DockMenus" width="356" />
 
 - **ActiveFit** — windows that can't shrink to fit their zone are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
+- **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
 - **Window Focus Navigation** (`Control-Cmd-Arrows`, hold) — each arrow press hops a blue dot to the nearest window in that direction; release to focus it. Zonogy's geometric arrangement of windows makes directional navigation unambiguous.
 
