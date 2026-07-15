@@ -1,6 +1,6 @@
 # Sleep / Wake Behavior
 
-Our big picture goal is to minimize the windows on screens that were possibly disconnected during sleep. We also need to readjust screen/zones topology.
+Our big picture goal is to protect window identity while the Accessibility API is unreliable during screen sleep and while the login screen is active. After physical sleep, we also minimize windows on screens that were possibly disconnected and readjust screen and zone topology.
 
 IMPORTANT: This specification does not mention logging. It is expected that the implementation will decide on which information needs to be logged and when.
 
@@ -8,11 +8,11 @@ IMPORTANT TERMINOLOGY: When we say "window" this refers to managed windows of ot
 
 Based on testing, it is safe to assume that `CGWindowID` is preserved between sleep/wake cycles. We do all our matching based on this.
 
-We track sleep/wake state with a single flag: `screensAsleep` (bool): true between `screensDidSleepNotification` and completion of the wake pipeline. 
+We track sleep/wake protection with `sleepWakeProtectionActive` (bool). It becomes true when either `screensDidSleepNotification` arrives or `loginwindow` becomes frontmost, and remains true until the wake pipeline completes. A separate `loginWindowIsActive` flag remembers whether the login screen initiated or overlaps the protected interval.
 
-When `screensAsleep = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events, and AX observer notifications such as focus changes). This prevents AX errors during the sleep transition from incorrectly pruning window references. Also AX observer notifications (e.g., `AXFocusedWindowChanged`, `AXMainWindowChanged`) can fire for several hundred milliseconds after the sleep notification. If processed, these trigger window validation which queries AX APIs that return transient errors during sleep, causing windows to be incorrectly pruned as "destroyed". Every delegate method that handles AX events must check `screensAsleep` and return early if true.
+When `sleepWakeProtectionActive = true`, we ignore all external events (workspace notifications, display changes, window lifecycle events, and AX observer notifications such as focus changes). AX observer notifications can continue for several hundred milliseconds after the sleep notification; processing them could start validation or other AX-dependent work while AX is unreliable. Every delegate method that handles AX events must check `sleepWakeProtectionActive` and return early if true.
 
-As long as `screensAsleep = true` we also "dim" the menu bar item for better user feedback (I know it's ironic since you might think that the screens would be asleep and the user won't see it, but screensDidWakeNotification might fire while the API is not completely ready as described below.)
+As long as `sleepWakeProtectionActive = true` we also "dim" the menu bar item for better user feedback (I know it's ironic since you might think that the screens would be asleep and the user won't see it, but screensDidWakeNotification might fire while the API is not completely ready as described below.)
 
 ## Context
 
@@ -20,9 +20,12 @@ Every non-empty zone saves the `CGWindowID` of the window it contains, and the c
 
 ## Going to sleep
 
-Triggered by: `NSWorkspace.screensDidSleepNotification`.
+Triggered by either:
 
-Set `screensAsleep = true` and cancel all pending timers/work items that perform AX operations or window management:
+- `NSWorkspace.screensDidSleepNotification`.
+- `loginwindow` (`com.apple.loginwindow`) becoming frontmost. Because workspace notifications can arrive out of order, check the current frontmost application before processing regular-application activation, deactivation, or hide events, and enter protection immediately when it is `loginwindow`.
+
+Set `sleepWakeProtectionActive = true` and cancel all pending timers/work items that perform AX operations or window management:
 
 - Validation retries (destroyed-window detection)
 - Wake readiness timer
@@ -35,14 +38,14 @@ This prevents timers scheduled just before sleep from firing during sleep when A
 
 ## Waking up
 
-Triggered by: `NSWorkspace.screensDidWakeNotification`.
+Triggered by either `NSWorkspace.screensDidWakeNotification` or `loginwindow` ceasing to be active. The returning regular application's activation can arrive before the `loginwindow` deactivation notification; either event starts the same readiness polling.
 
-When we receive this notifications, it's still possible that the screen is not ready and things like `_AXUIElementGetWindow` will err. We will wait for the following checks to pass:
+When we receive these notifications, the screen may still be unready and calls such as `_AXUIElementGetWindow` may fail. Wait for the following checks to pass:
     - Is the Display Asleep? (CGDisplayIsAsleep) => must not be
     - Is the Screen Locked? (CGSSessionScreenIsLocked) => must not be
-    - Does `NSWorkspace.shared.frontmostApplication` return non-nil? => must be yes (uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery)
+    - Does `NSWorkspace.shared.frontmostApplication` return a non-`loginwindow` application? => must be yes (uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery)
 We poll at 0.5 increments until this passes. At this point we assume that AX API is ready.
 
-set screensAsleep = false and undim the menubar icon
+Set `sleepWakeProtectionActive = false` and undim the menu bar icon.
 
-Finally do the same thing that happens during "screen-change recapture" (re-use same code). Any windows that were falsely pruned during the sleep transition (due to transient AX unavailability or spurious `AXUIElementDestroyed` notifications) are recovered via the deferred-prune mechanism (see SPECIFICATION-IMPLEMENTATION.md § Deferred Pruning). Tracked-but-unzoned windows are placed only when the recapture pass revalidates them as live; stale tracked records remain unplaced.
+Finally do the same thing that happens during "screen-change recapture" (re-use same code). Window liveness and recovery follow the general rules in SPECIFICATION-IMPLEMENTATION.md § Deferred Pruning. Tracked-but-unzoned windows are placed only when the recapture pass revalidates them as live; stale tracked records remain unplaced.

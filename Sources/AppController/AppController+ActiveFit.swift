@@ -475,8 +475,8 @@ extension AppController {
             }
             Logger.debug("ActiveFit: suppression cleared for windows \(windowIds)")
 
-            guard !self.screensAsleep else {
-                Logger.debug("ActiveFit: skipping post-restore reveal evaluation while screens are asleep")
+            guard !self.sleepWakeProtectionActive else {
+                Logger.debug("ActiveFit: skipping post-restore reveal evaluation while sleep/wake protection is active")
                 return
             }
 

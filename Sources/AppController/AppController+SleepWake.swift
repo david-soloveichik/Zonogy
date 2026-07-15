@@ -5,6 +5,8 @@ import OSLog
 
 /// Sleep/wake pipeline: screens-off event gating, AX readiness polling, and post-wake recapture.
 extension AppController {
+    private static let loginWindowBundleIdentifier = "com.apple.loginwindow"
+
     // MARK: - Public entry points from SystemEventMonitor
 
     internal func handleScreensDidSleep() {
@@ -13,12 +15,52 @@ extension AppController {
             "SleepWake: screensDidSleep received " +
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
-        screensAsleep = true
+        enterSleepWakeProtection(reason: "screensDidSleep")
+    }
+
+    internal func handleLoginWindowDidActivate(reason: String) {
+        let wasActive = loginWindowIsActive
+        loginWindowIsActive = true
+
+        guard !sleepWakeProtectionActive else {
+            if !wasActive {
+                Logger.debug("SleepWake: loginwindow became active while protection was already enabled (reason: \(reason))")
+            }
+            return
+        }
+
+        let (managedWindowCount, placeholderCount) = currentWindowCounts()
+        Logger.debug(
+            "SleepWake: loginwindow became active; entering protection " +
+            "(reason: \(reason), managed: \(managedWindowCount), placeholders: \(placeholderCount))"
+        )
+        enterSleepWakeProtection(reason: "loginwindow-active")
+    }
+
+    internal func handleLoginWindowDidDeactivate(reason: String) {
+        guard loginWindowIsActive else {
+            return
+        }
+
+        loginWindowIsActive = false
+        Logger.debug("SleepWake: loginwindow no longer active; starting wake readiness polling (reason: \(reason))")
         wakeLauncherFocusRequested = false
-        menuBarManager.setDimmed(true)
-        windowFocusNavigationInterceptor.resetEngagement()
-        cancelWindowFocusNavigation(reason: "screensDidSleep")
-        cancelSleepSensitiveAsyncWork(reason: "screensDidSleep")
+        if sleepWakeProtectionActive {
+            startWakeReadinessPolling(reason: "loginwindow-inactive")
+        }
+    }
+
+    @discardableResult
+    internal func enterLoginWindowProtectionIfFrontmost(reason: String) -> Bool {
+        guard isLoginWindowApplication(NSWorkspace.shared.frontmostApplication) else {
+            return false
+        }
+        handleLoginWindowDidActivate(reason: reason)
+        return true
+    }
+
+    internal func isLoginWindowApplication(_ application: NSRunningApplication?) -> Bool {
+        application?.bundleIdentifier == Self.loginWindowBundleIdentifier
     }
 
     internal func handleScreensDidWake() {
@@ -28,19 +70,28 @@ extension AppController {
             "(managed: \(managedWindowCount), placeholders: \(placeholderCount))"
         )
         wakeLauncherFocusRequested = false
-        startWakeReadinessPolling()
+        startWakeReadinessPolling(reason: "screensDidWake")
+    }
+
+    private func enterSleepWakeProtection(reason: String) {
+        sleepWakeProtectionActive = true
+        wakeLauncherFocusRequested = false
+        menuBarManager.setDimmed(true)
+        windowFocusNavigationInterceptor.resetEngagement()
+        cancelWindowFocusNavigation(reason: reason)
+        cancelSleepSensitiveAsyncWork(reason: reason)
     }
 
     // MARK: - Core wake pipeline
 
-    /// Polls for display, session, and AX focused-application readiness before running the wake pipeline.
+    /// Polls for display, session, and frontmost-application readiness before running the wake pipeline.
     /// Matches SPECIFICATION-WAKE: wait until the primary display is awake, the session is unlocked,
-    /// and AX can report an active application, polling in 0.5s increments.
-    private func startWakeReadinessPolling() {
+    /// and NSWorkspace reports a non-loginwindow application, polling in 0.5s increments.
+    private func startWakeReadinessPolling(reason: String) {
         cancelWakeReadinessTimer(reason: "restarted")
         wakeReadinessPollingStartedAt = Date()
         wakeReadinessPollingAttemptCount = 0
-        Logger.debug("SleepWake: wake readiness polling started (interval: 0.5s, leeway: 0.25s)")
+        Logger.debug("SleepWake: wake readiness polling started (reason: \(reason), interval: 0.5s, leeway: 0.25s)")
         ZonogySignposts.pointsOfInterest.emitEvent("WakeReadinessPollingStart")
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
@@ -54,8 +105,8 @@ extension AppController {
             guard let self else { return }
 
             // If we've already completed the wake pipeline (or weren't asleep), stop polling.
-            if !self.screensAsleep {
-                self.cancelWakeReadinessTimer(reason: "cancelled (screens already awake)")
+            if !self.sleepWakeProtectionActive {
+                self.cancelWakeReadinessTimer(reason: "cancelled (sleep/wake protection already inactive)")
                 return
             }
 
@@ -117,20 +168,21 @@ extension AppController {
         let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
         let screenLocked = isScreenLocked()
 
-        if displayAwake && !screenLocked,
-           launcherController.isActive,
-           !wakeLauncherFocusRequested {
-            wakeLauncherFocusRequested = true
-            launcherController.makeKeyIfActive()
-        }
-
         guard displayAwake && !screenLocked else {
             return false
         }
 
         // Use NSWorkspace to check for frontmost application instead of AX API,
         // which can hang indefinitely with some apps (e.g., VS Code/Electron).
-        guard NSWorkspace.shared.frontmostApplication != nil else { return false }
+        guard let frontmostApplication = NSWorkspace.shared.frontmostApplication,
+              !isLoginWindowApplication(frontmostApplication) else {
+            return false
+        }
+
+        if launcherController.isActive, !wakeLauncherFocusRequested {
+            wakeLauncherFocusRequested = true
+            launcherController.makeKeyIfActive()
+        }
 
         return true
     }
@@ -152,7 +204,8 @@ extension AppController {
         Logger.debug("SleepWake: wake readiness satisfied; scheduling screen-topology refresh and recapture")
 
         // Mark screens as awake so external events are processed again.
-        screensAsleep = false
+        sleepWakeProtectionActive = false
+        loginWindowIsActive = false
         menuBarManager.setDimmed(false)
 
         // Reuse the same code path that handles display changes:
@@ -163,7 +216,7 @@ extension AppController {
 
     // MARK: - Sleep-sensitive async work cancellation
 
-    /// Central cancellation funnel for timers/work items that must not run while screens are asleep.
+    /// Central cancellation funnel for timers/work items that must not run during sleep/wake protection.
     /// Any new delayed AX/window-state work should be cancelled from this path.
     internal func cancelSleepSensitiveAsyncWork(reason: String) {
         validationRetryManager.cancelAllValidationRetries()
@@ -231,10 +284,10 @@ extension AppController {
     /// Returns true when events should be ignored due to screens being asleep.
     /// Call this at the top of delegate handlers that respond to external notifications.
     internal func shouldIgnoreDueToSleepWake(event: String) -> Bool {
-        guard screensAsleep else {
+        guard sleepWakeProtectionActive else {
             return false
         }
-        Logger.debug("SleepWake: ignoring \(event) because screens are asleep")
+        Logger.debug("SleepWake: ignoring \(event) because sleep/wake protection is active")
         return true
     }
 }

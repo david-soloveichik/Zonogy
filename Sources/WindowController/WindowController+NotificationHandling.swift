@@ -104,7 +104,18 @@ extension WindowController {
         switch notificationName {
         case axDestroyedNotification:
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
-            if handleSpuriousDestroyIfWindowAlive(managed: managed, notificationElement: element) {
+            let livenessResolution = resolveWindowAfterAXFailure(
+                managed: managed,
+                staleElement: element,
+                reason: "AXUIElementDestroyed"
+            )
+            if livenessResolution != .prune {
+                if livenessResolution == .preserve {
+                    delegate?.windowController(
+                        self,
+                        didDeferPruneForPidValidation: managed.backing.pid
+                    )
+                }
                 break
             }
 
@@ -189,23 +200,35 @@ extension WindowController {
         return managed.windowId
     }
 
-    /// Handle a possibly-spurious `AXUIElementDestroyed` for a tracked window.
+    /// Preserve or repair a tracked window when its cached AX element may be stale.
     ///
-    /// An `AXUIElementDestroyed` notification reports that an *element* went away, not
-    /// necessarily the window. This gathers the facts `SpuriousDestroyPolicy` needs —
-    /// is the window still in the WindowServer, does our current element still resolve,
-    /// and (only if not) can a recycled replacement be found — then applies the policy.
-    /// Returns true when the window is still alive and was kept in place (the caller
-    /// must not prune); false when the caller should proceed with deferred pruning.
-    private func handleSpuriousDestroyIfWindowAlive(
+    /// An AX failure reports that an *element* is unavailable, not necessarily that the
+    /// window is gone. This gathers the WindowServer and fresh-element facts required by
+    /// `SpuriousDestroyPolicy`, then keeps, repairs, or authoritatively prunes the record.
+    /// Returns the applied liveness resolution so callers can schedule follow-up validation
+    /// when AX is temporarily unavailable.
+    internal func resolveWindowAfterAXFailure(
         managed: ManagedWindow,
-        notificationElement: AXUIElement
-    ) -> Bool {
+        staleElement: AXUIElement,
+        reason: String,
+        knownWindowStillListed: Bool? = nil
+    ) -> SpuriousDestroyPolicy.Resolution {
         let identifier = managed.externalIdentifier
-        let windowStillListed = WindowServerWindowList.containsWindow(
-            pid: identifier.pid,
-            cgWindowId: identifier.cgWindowId
-        )
+        let windowStillListed: Bool
+        if let knownWindowStillListed {
+            windowStillListed = knownWindowStillListed
+        } else {
+            guard let queriedPresence = WindowServerWindowList.containsWindow(
+                pid: identifier.pid,
+                cgWindowId: identifier.cgWindowId
+            ) else {
+                Logger.debug(
+                    "Deferring \(reason) for window \(managed.windowId): WindowServer list is temporarily unavailable"
+                )
+                return .preserve
+            }
+            windowStillListed = queriedPresence
+        }
 
         // A truly destroyed element fails `_AXUIElementGetWindow`; a spurious notification
         // for a still-valid element resolves the same CGWindowID. Checking our current
@@ -214,7 +237,7 @@ extension WindowController {
         let currentElementResolves = windowStillListed && cgWindowIdWithStatus(
             for: managed.backing.element,
             pid: identifier.pid,
-            context: "spurious-destroy-current"
+            context: "window-liveness-current"
         ).id.map { Int($0) == identifier.cgWindowId } ?? false
 
         // Only look for a recycled replacement when our element is dead but the window
@@ -238,30 +261,31 @@ extension WindowController {
         case .prune:
             // The closed-native-tab rebind runs in stagePendingPrunedWindow (the single prune
             // choke point), so both this notification path and the validation sweep are covered.
-            if windowStillListed {
-                Logger.debug(
-                    "AXUIElementDestroyed for window \(managed.windowId): listed in WindowServer but no live element resolved; treating as closed"
-                )
-            }
-            return false
+            return .prune
 
         case .keepCurrentElement:
             Logger.debug(
-                "Ignoring spurious AXUIElementDestroyed for window \(managed.windowId): current element still valid (CGWindowID \(identifier.cgWindowId))"
+                "Ignoring \(reason) for window \(managed.windowId): current element still valid (CGWindowID \(identifier.cgWindowId))"
             )
-            dropStaleElementMapping(notificationElement, keeping: managed)
-            return true
+            dropStaleElementMapping(staleElement, keeping: managed)
+            return .keepCurrentElement
 
         case .rebindToReplacement:
             guard let replacement else {
-                return false
+                return .preserve
             }
             Logger.debug(
-                "Ignoring spurious AXUIElementDestroyed for window \(managed.windowId): window still present in WindowServer (CGWindowID \(identifier.cgWindowId)); rebinding to recycled element"
+                "Ignoring \(reason) for window \(managed.windowId): window still present in WindowServer (CGWindowID \(identifier.cgWindowId)); rebinding to fresh AX element"
             )
             rebindElement(for: managed, newElement: replacement, appElement: appElement)
-            dropStaleElementMapping(notificationElement, keeping: managed)
-            return true
+            dropStaleElementMapping(staleElement, keeping: managed)
+            return .rebindToReplacement
+
+        case .preserve:
+            Logger.debug(
+                "Deferring \(reason) for window \(managed.windowId): WindowServer still lists CGWindowID \(identifier.cgWindowId), but AX is temporarily unavailable"
+            )
+            return .preserve
         }
     }
 

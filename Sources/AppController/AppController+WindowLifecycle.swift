@@ -164,27 +164,27 @@ extension AppController {
 
     func windowController(
         _ controller: WindowController,
-        didDeferNativeTabPruneForPidValidation pid: pid_t
+        didDeferPruneForPidValidation pid: pid_t
     ) {
-        guard pendingNativeTabPidValidationRequests.insert(pid).inserted else {
+        guard pendingPrunePidValidationRequests.insert(pid).inserted else {
             return
         }
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.pendingNativeTabPidValidationRequests.remove(pid)
+            self.pendingPrunePidValidationRequests.remove(pid)
 
-            if self.shouldIgnoreDueToSleepWake(event: "nativeTabPidValidation(pid: \(pid))") {
+            if self.shouldIgnoreDueToSleepWake(event: "deferredPrunePidValidation(pid: \(pid))") {
                 return
             }
             guard self.hasManagedWindows(for: pid) else {
                 return
             }
 
-            Logger.debug("Running PID-scoped native-tab validation for pid \(pid) after global sync deferral")
+            Logger.debug("Running PID-scoped validation for pid \(pid) after deferred prune decision")
             _ = self.validationRetryManager.validateWindowsForApplication(
                 pid: pid,
-                trigger: .syncNativeTabCandidate
+                trigger: .deferredPrune
             )
         }
     }

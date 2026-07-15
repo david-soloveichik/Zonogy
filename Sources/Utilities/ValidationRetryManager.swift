@@ -15,7 +15,7 @@ class ValidationRetryManager {
         case workspaceActivationPreviousApp = "workspace-activation-previous-app"
         case focusChanged = "focus-changed"
         case workspaceStateChange = "workspace-state-change"
-        case syncNativeTabCandidate = "sync-native-tab-candidate"
+        case deferredPrune = "deferred-prune"
     }
 
     private struct Retry {

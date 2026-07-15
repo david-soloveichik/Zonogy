@@ -1,17 +1,15 @@
 import Foundation
 
-/// Decides how to handle an `AXUIElementDestroyed` notification for a tracked window.
+/// Decides how to handle a tracked window whose cached Accessibility element may be stale.
 ///
-/// An `AXUIElementDestroyed` notification reports that an *accessibility element* went
-/// away — not necessarily the window. Some apps (e.g. Finder) emit it while the window
-/// stays open, sometimes keeping the same element valid and sometimes recycling in a
-/// fresh one. The WindowServer is the ground truth for whether the window still exists;
-/// combined with whether we can still hold a live element for it, this pure policy maps
-/// the situation to an action so the (OS-dependent) handler stays a thin shell over it.
+/// An `AXUIElementDestroyed` notification or failed AX read only proves that an
+/// *accessibility element* is unavailable — not necessarily that the window is gone.
+/// Some apps recycle elements in place, and AX can become temporarily unavailable while
+/// the login screen is active. WindowServer is the ground truth for whether the window
+/// still exists; this pure policy maps the available facts to a safe action.
 enum SpuriousDestroyPolicy {
     enum Resolution: Equatable {
-        /// The window is gone (or still listed but no live element can be bound):
-        /// proceed with deferred pruning.
+        /// WindowServer confirms that the window is gone: proceed with deferred pruning.
         case prune
         /// The window is still present and the element we already hold still works:
         /// keep it and leave the window in its zone.
@@ -19,6 +17,9 @@ enum SpuriousDestroyPolicy {
         /// The window is still present but our element is dead: rebind to the fresh
         /// element the application recycled in and leave the window in its zone.
         case rebindToReplacement
+        /// The window still exists, but AX cannot currently provide any usable element.
+        /// Keep its managed identity and zone until AX recovers or WindowServer removes it.
+        case preserve
     }
 
     /// - Parameters:
@@ -39,6 +40,6 @@ enum SpuriousDestroyPolicy {
         if replacementElementAvailable {
             return .rebindToReplacement
         }
-        return .prune
+        return .preserve
     }
 }

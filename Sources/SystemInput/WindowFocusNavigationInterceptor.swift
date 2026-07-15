@@ -11,7 +11,7 @@ import Carbon
 import Foundation
 
 protocol WindowFocusNavigationInterceptorDelegate: AnyObject {
-    /// Return false to ignore events entirely (e.g., while recording a shortcut, or screens asleep).
+    /// Return false to ignore events entirely (e.g., while recording a shortcut or sleep/wake protection is active).
     func windowFocusNavigationShouldHandleEvents(_ interceptor: WindowFocusNavigationInterceptor) -> Bool
 
     /// Return false to decline starting a gesture (e.g., a chooser is open); the chord then passes through.

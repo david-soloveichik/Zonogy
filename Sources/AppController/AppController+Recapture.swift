@@ -24,8 +24,8 @@ extension AppController {
             guard let self = self else { return }
 
             // Abort if screens went to sleep after this work item was scheduled
-            guard !self.screensAsleep else {
-                Logger.debug("SleepWake: aborting \(reason) recapture because screens are asleep")
+            guard !self.sleepWakeProtectionActive else {
+                Logger.debug("SleepWake: aborting \(reason) recapture because sleep/wake protection is active")
                 return
             }
 

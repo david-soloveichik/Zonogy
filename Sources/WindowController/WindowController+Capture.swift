@@ -791,8 +791,8 @@ extension WindowController {
     /// whose CGWindowID matches `cgWindowId`, skipping `excludedElement` (typically a
     /// just-destroyed element that may still linger in the enumeration). Returns nil
     /// when no live element can be resolved right now — i.e. the window is truly gone
-    /// or AX is transiently unavailable. Used to distinguish a real window close from
-    /// an app recycling a live window's AX element.
+    /// or AX is transiently unavailable. Used to repair stale managed-window backings
+    /// without vacating their zones.
     internal func liveWindowElement(
         forPid pid: pid_t,
         cgWindowId: Int,
@@ -811,7 +811,7 @@ extension WindowController {
             guard AccessibilityElementKey(element: element) != excludedKey else {
                 return false
             }
-            let result = cgWindowIdWithStatus(for: element, pid: pid, context: "spurious-destroy-rebind")
+            let result = cgWindowIdWithStatus(for: element, pid: pid, context: "window-liveness-rebind")
             guard let resolved = result.id else {
                 return false
             }

@@ -65,6 +65,19 @@ extension AppController {
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
         let appDescription = application.map { "\($0.localizedName ?? "Unknown"), pid \($0.processIdentifier), bundle \($0.bundleIdentifier ?? "nil")" } ?? "nil"
         Logger.debug("NSWorkspace notification received: didActivateApplication (\(appDescription))")
+
+        if isLoginWindowApplication(application) {
+            handleLoginWindowDidActivate(reason: "workspace-activation")
+            return
+        }
+        if enterLoginWindowProtectionIfFrontmost(reason: "application-activation") {
+            return
+        }
+        if loginWindowIsActive {
+            // macOS can deliver the returning app's activation before loginwindow's
+            // deactivation notification. Start the same readiness-gated recovery either way.
+            handleLoginWindowDidDeactivate(reason: "regular-application-activated")
+        }
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didActivateApplicationNotification") {
             return
         }
@@ -139,6 +152,13 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?) {
+        if isLoginWindowApplication(application) {
+            handleLoginWindowDidDeactivate(reason: "workspace-deactivation")
+            return
+        }
+        if enterLoginWindowProtectionIfFrontmost(reason: "application-deactivation") {
+            return
+        }
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didDeactivateApplicationNotification") {
             return
         }
@@ -146,6 +166,9 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?) {
+        if enterLoginWindowProtectionIfFrontmost(reason: "application-hide") {
+            return
+        }
         if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didHideApplicationNotification") {
             return
         }
@@ -319,7 +342,7 @@ extension AppController {
     }
 
     private func scheduleUnmanagedFocusRetry(for pid: pid_t, reason: String) {
-        guard !screensAsleep else {
+        guard !sleepWakeProtectionActive else {
             cancelUnmanagedFocusRetry()
             return
         }
@@ -356,7 +379,7 @@ extension AppController {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            guard !self.screensAsleep else {
+            guard !self.sleepWakeProtectionActive else {
                 self.cancelUnmanagedFocusRetry()
                 return
             }

@@ -42,15 +42,14 @@ class WindowController {
     internal var externalWindowsByElement: [AccessibilityElementKey: ManagedWindow] = [:]
     internal var programmaticUpdateWindowIds: Set<Int> = []
     internal var programmaticUpdateWorkItems: [Int: DispatchWorkItem] = [:]
-    /// Most recent moment each window was confirmed alive via a successful AX liveness check.
-    /// Used to skip redundant per-sync AX reads when the same window was just verified.
+    /// Most recent moment each window's cached AX element was confirmed usable.
+    /// Used to skip redundant per-sync AX reads when the same backing was just verified.
     internal var lastConfirmedAliveAt: [Int: Date] = [:]
     /// Window-liveness AX check is skipped if a positive result was recorded within this window.
-    /// CGWindowList removal is the primary destruction signal and runs unconditionally on every
-    /// prune; the AX check is a safety net for the rare "still in window list but AX-element
-    /// invalid" case. Empirical traces show this safety net almost never fires, so the TTL is
-    /// sized generously: 5s eliminates the bulk of redundant AX reads while bounding the
-    /// worst-case detection delay for that edge case to 5s.
+    /// CGWindowList removal is the destruction signal and runs unconditionally on every prune;
+    /// the AX check detects a stale backing so it can be rebound without vacating the zone.
+    /// Empirical traces show this repair path rarely fires, so the TTL is sized generously:
+    /// 5s eliminates the bulk of redundant AX reads while still repairing stale elements soon.
     internal static let aliveCheckCacheTTL: TimeInterval = 5.0
     internal static let frameRetryDelays: [TimeInterval] = [0.25, 0.5, 1.0, 3.0]
     internal var accessibilityFrameRetryStates: [Int: FrameRetryState] = [:]
@@ -250,7 +249,7 @@ class WindowController {
         }
 
         var stale: [(Int, ManagedWindow, String)] = []
-        var pidsNeedingNativeTabValidation: Set<pid_t> = []
+        var pidsNeedingDeferredPruneValidation: Set<pid_t> = []
         let now = Date()
 
         func deferWindowServerMissToPidValidationIfNeeded(
@@ -265,9 +264,9 @@ class WindowController {
                 return false
             }
 
-            pidsNeedingNativeTabValidation.insert(managed.backing.pid)
+            pidsNeedingDeferredPruneValidation.insert(managed.backing.pid)
             Logger.debug(
-                "Deferring stale placed window \(managed.windowId) pid \(managed.backing.pid) (reason: \(reason)) to PID-scoped native-tab validation"
+                "Deferring stale placed window \(managed.windowId) pid \(managed.backing.pid) (reason: \(reason)) to PID-scoped validation"
             )
             return true
         }
@@ -298,10 +297,8 @@ class WindowController {
             // Don't fire AX queries at parked windows (minimized or otherwise unplaced).
             // Parked windows aren't in zones, so we're not actively using their AX state,
             // and the target app may be App-Napping — an AX read here forces a wake-up
-            // for no observable user benefit. CGWindowList already covers the destruction
-            // path for parked windows; the AX safety-net only mattered for the rare
-            // "still listed but AX-element invalid" edge case, which is even rarer for
-            // a window the user has actively parked.
+            // for no observable user benefit. CGWindowList already covers their destruction;
+            // stale AX backing repair can wait until a parked window is captured again.
             //
             // Checked before the cache-hit branch so the `parkedSkips` counter cleanly
             // measures the skip-on-parked rule independent of cache state.
@@ -320,17 +317,29 @@ class WindowController {
             if !isAccessibilityElementAlive(managed) {
                 lastConfirmedAliveAt.removeValue(forKey: windowId)
                 staleByAX += 1
-                // Native-tab close deferral is intentionally limited to WindowServer misses.
-                // If the window is still listed but AX is invalid, handle it through the
-                // ordinary deferred-prune path instead of treating it as a tab-close signal.
-                stale.append((windowId, managed, "ax-element-invalid"))
+                // AX failures can be transient across lock/login transitions and can also mean
+                // that an application recycled the element for a still-live window. WindowServer
+                // remains the destruction authority: rebind when possible, otherwise preserve
+                // the managed identity and zone until AX recovers or the CGWindowID disappears.
+                let livenessResolution = resolveWindowAfterAXFailure(
+                    managed: managed,
+                    staleElement: managed.backing.element,
+                    reason: "AX-invalid validation",
+                    knownWindowStillListed: true
+                )
+                if livenessResolution == .preserve, pidFilter == nil {
+                    pidsNeedingDeferredPruneValidation.insert(windowPid)
+                }
+                // The current snapshot already established WindowServer presence, so AX failure
+                // can repair or preserve this record but cannot authoritatively prune it.
+                continue
             } else {
                 lastConfirmedAliveAt[windowId] = now
             }
         }
 
-        for pid in pidsNeedingNativeTabValidation.sorted() {
-            delegate?.windowController(self, didDeferNativeTabPruneForPidValidation: pid)
+        for pid in pidsNeedingDeferredPruneValidation.sorted() {
+            delegate?.windowController(self, didDeferPruneForPidValidation: pid)
         }
 
         guard !stale.isEmpty else {
@@ -375,7 +384,9 @@ class WindowController {
 
     private func makeWindowServerSnapshot(pidFilter: pid_t?) -> WindowServerSnapshot? {
         if let pidFilter {
-            let numbers = getCGWindowIdsFromWindowServer(forPid: pidFilter)
+            guard let numbers = getCGWindowIdsFromWindowServer(forPid: pidFilter) else {
+                return nil
+            }
             return .pid(pidFilter, numbers)
         }
 
@@ -396,11 +407,11 @@ class WindowController {
 
     /// Query the window server for actual CGWindowIDs for a given PID.
     /// This is the ground truth source for which windows exist.
-    private func getCGWindowIdsFromWindowServer(forPid pid: pid_t) -> Set<Int> {
+    private func getCGWindowIdsFromWindowServer(forPid pid: pid_t) -> Set<Int>? {
         var cgWindowIds = Set<Int>()
 
         guard let windowList = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-            return cgWindowIds
+            return nil
         }
 
         for windowInfo in windowList {
@@ -625,9 +636,9 @@ protocol WindowControllerDelegate: AnyObject {
     /// Called when pending-prune entries are permanently discarded (window truly gone).
     /// Staged windows restored via deferred-prune matching do NOT fire this callback.
     func windowController(_ controller: WindowController, didDiscardPendingPrunedWindowIds windowIds: [Int], reason: String)
-    /// Called when a global sweep sees a placed native-tab candidate missing from WindowServer.
-    /// The delegate should run PID-scoped validation so sibling selection uses a narrower snapshot.
-    func windowController(_ controller: WindowController, didDeferNativeTabPruneForPidValidation pid: pid_t)
+    /// Called when a destruction decision needs PID-scoped follow-up, either because a global
+    /// WindowServer snapshot needs narrower native-tab validation or AX is temporarily unavailable.
+    func windowController(_ controller: WindowController, didDeferPruneForPidValidation pid: pid_t)
     func windowCreationFailedRetryNeeded(forPid pid: pid_t)
     func debugTargetedZoneDescription() -> String?
     func isWindowManagedByActiveFit(windowId: Int) -> Bool

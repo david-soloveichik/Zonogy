@@ -17,7 +17,7 @@ extension AppController {
 
 extension AppController: WindowFocusNavigationInterceptorDelegate {
     func windowFocusNavigationShouldHandleEvents(_ interceptor: WindowFocusNavigationInterceptor) -> Bool {
-        !hotkeyService.isSuspended && !screensAsleep
+        !hotkeyService.isSuspended && !sleepWakeProtectionActive
     }
 
     func windowFocusNavigationShouldBegin(_ interceptor: WindowFocusNavigationInterceptor) -> Bool {

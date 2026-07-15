@@ -21,7 +21,7 @@
 import Foundation
 protocol DeferredMinimizationCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
-    var screensAsleep: Bool { get }
+    var sleepWakeProtectionActive: Bool { get }
     /// Returns `true` when the deferred minimization should proceed for this window/reason pair.
     /// Hosts can perform pre-minimization bookkeeping (or veto minimization entirely) here.
     func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool
@@ -92,10 +92,10 @@ final class DeferredMinimizationCoordinator {
             return
         }
 
-        guard !host.screensAsleep else {
+        guard !host.sleepWakeProtectionActive else {
             let count = pending.count
             pending.removeAll()
-            Logger.debug("Deferred minimization flush skipped while screens are asleep (\(count) pending)")
+            Logger.debug("Deferred minimization flush skipped while sleep/wake protection is active (\(count) pending)")
             return
         }
 

@@ -40,10 +40,11 @@ enum SpuriousDestroyPolicyTests {
             "a dead current element with a live replacement should rebind"
         )
 
-        // Window present but no usable element at all -> prune (fall back to deferred restore).
+        // Window present but AX is temporarily unable to provide any usable element -> defer.
+        // WindowServer remains the destruction authority, so the zone must stay occupied.
         assert(
-            SpuriousDestroyPolicy.resolve(windowStillListed: true, currentElementResolves: false, replacementElementAvailable: false) == .prune,
-            "a listed window with no bindable element should prune (deferred restore recovers it)"
+            SpuriousDestroyPolicy.resolve(windowStillListed: true, currentElementResolves: false, replacementElementAvailable: false) == .preserve,
+            "a listed window with no bindable element should remain managed until AX recovers"
         )
 
         if allPassed {

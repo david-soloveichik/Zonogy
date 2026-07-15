@@ -75,8 +75,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isSyncingWindows = false
     internal var pendingSync = false
     internal var pendingSyncRecentlyPlacedInFloatingZone: Int?
-    /// PIDs already queued for next-runloop native-tab validation after a global sync deferral.
-    internal var pendingNativeTabPidValidationRequests: Set<pid_t> = []
+    /// PIDs already queued for next-runloop validation after a prune decision was deferred.
+    internal var pendingPrunePidValidationRequests: Set<pid_t> = []
     /// Window IDs whose geometry reapply should be skipped for an immediate full sync pass.
     internal var pendingSyncSkipGeometryWindowIds: Set<Int> = []
     /// Next-runloop cleanup for unconsumed sync geometry-skip marks.
@@ -235,10 +235,12 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var wakeReadinessPollingAttemptCount: Int = 0
     /// Timer used to poll for AX window readiness during sleep/wake restoration.
     internal var wakeAXWindowPollingTimer: DispatchSourceTimer?
-    /// True between screensDidSleepNotification and completion of the wake pipeline.
-    /// When true, we ignore all external events to avoid reacting to AX errors
-    /// during the sleep/wake transition.
-    internal var screensAsleep: Bool = false
+    /// True from physical screen sleep or loginwindow activation until completion of the wake
+    /// pipeline. When true, external events are ignored because AX is temporarily unreliable.
+    internal var sleepWakeProtectionActive: Bool = false
+    /// Tracks the login-screen portion of sleep/wake protection so the first regular-app
+    /// activation can start recovery even when macOS emitted no physical screen-wake event.
+    internal var loginWindowIsActive: Bool = false
     /// Ensures we only re-key the Launcher once while waiting for wake readiness.
     internal var wakeLauncherFocusRequested: Bool = false
 
