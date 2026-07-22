@@ -46,8 +46,10 @@ class WindowController {
     /// Used to skip redundant per-sync AX reads when the same backing was just verified.
     internal var lastConfirmedAliveAt: [Int: Date] = [:]
     /// Window-liveness AX check is skipped if a positive result was recorded within this window.
-    /// CGWindowList removal is the destruction signal and runs unconditionally on every prune;
-    /// the AX check detects a stale backing so it can be rebound without vacating the zone.
+    /// CGWindowList removal is a definitive destruction signal and runs unconditionally on every
+    /// prune; the AX check replaces saved Accessibility window references that no longer work and
+    /// can confirm an explicit AX destroy even when an application leaves the closed window
+    /// registered with WindowServer.
     /// Empirical traces show this repair path rarely fires, so the TTL is sized generously:
     /// 5s eliminates the bulk of redundant AX reads while still repairing stale elements soon.
     internal static let aliveCheckCacheTTL: TimeInterval = 5.0
@@ -318,9 +320,10 @@ class WindowController {
                 lastConfirmedAliveAt.removeValue(forKey: windowId)
                 staleByAX += 1
                 // AX failures can be transient across lock/login transitions and can also mean
-                // that an application recycled the element for a still-live window. WindowServer
-                // remains the destruction authority: rebind when possible, otherwise preserve
-                // the managed identity and zone until AX recovers or the CGWindowID disappears.
+                // that an application recycled the element for a still-live window. This generic
+                // validation path cannot override a retained WindowServer entry: rebind when
+                // possible, otherwise preserve the managed identity and zone until stronger
+                // liveness evidence arrives.
                 let livenessResolution = resolveWindowAfterAXFailure(
                     managed: managed,
                     staleElement: managed.backing.element,
@@ -405,8 +408,9 @@ class WindowController {
         return .global(identifiers)
     }
 
-    /// Query the window server for actual CGWindowIDs for a given PID.
-    /// This is the ground truth source for which windows exist.
+    /// Query WindowServer for the compositing surfaces currently registered to a PID.
+    /// A missing identifier proves destruction; a retained surface alone does not prove that
+    /// the application still exposes a corresponding window.
     private func getCGWindowIdsFromWindowServer(forPid pid: pid_t) -> Set<Int>? {
         var cgWindowIds = Set<Int>()
 
@@ -613,6 +617,9 @@ internal struct FrameRetryState {
 
 /// Delegate protocol for window controller events
 protocol WindowControllerDelegate: AnyObject {
+    /// Gives the host a chance to suppress queued AX notifications while the login/session state
+    /// makes Accessibility unreliable, before WindowController mutates any window state.
+    func windowController(_ controller: WindowController, shouldIgnoreAXNotification notification: String) -> Bool
     func windowWillClose(windowId: Int)
     func windowDidMiniaturize(windowId: Int)
     func windowDidDeminiaturize(windowId: Int)

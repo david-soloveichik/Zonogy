@@ -4,12 +4,21 @@ import Foundation
 ///
 /// An `AXUIElementDestroyed` notification or failed AX read only proves that an
 /// *accessibility element* is unavailable — not necessarily that the window is gone.
-/// Some apps recycle elements in place, and AX can become temporarily unavailable while
-/// the login screen is active. WindowServer is the ground truth for whether the window
-/// still exists; this pure policy maps the available facts to a safe action.
+/// Some apps recycle elements in place, AX can become temporarily unavailable while the
+/// login screen is active, and some apps leave a closed window registered with WindowServer.
+/// This pure policy combines the available WindowServer and AX evidence into a safe action.
 enum SpuriousDestroyPolicy {
+    enum ReplacementLookup: Equatable {
+        /// A fresh AX element still resolves to the tracked CGWindowID.
+        case available
+        /// AX returned a complete application-window list without the tracked CGWindowID.
+        case absent
+        /// AX could not provide a complete, inspectable application-window list.
+        case unavailable
+    }
+
     enum Resolution: Equatable {
-        /// WindowServer confirms that the window is gone: proceed with deferred pruning.
+        /// The combined evidence confirms that the application window is gone.
         case prune
         /// The window is still present and the element we already hold still works:
         /// keep it and leave the window in its zone.
@@ -17,19 +26,22 @@ enum SpuriousDestroyPolicy {
         /// The window is still present but our element is dead: rebind to the fresh
         /// element the application recycled in and leave the window in its zone.
         case rebindToReplacement
-        /// The window still exists, but AX cannot currently provide any usable element.
-        /// Keep its managed identity and zone until AX recovers or WindowServer removes it.
+        /// WindowServer still lists the surface, but AX cannot provide conclusive evidence.
+        /// Keep the managed identity and zone until stronger liveness evidence arrives.
         case preserve
     }
 
     /// - Parameters:
     ///   - windowStillListed: Whether the WindowServer still lists the window's `(pid, CGWindowID)`.
     ///   - currentElementResolves: Whether the element we currently hold still resolves to the window.
-    ///   - replacementElementAvailable: Whether a *different* live element for the window could be found.
+    ///   - replacementLookup: Result of looking for a *different* live element for the window.
+    ///   - confirmedAXAbsenceIsAuthoritative: Whether a successful AX absence is backed by an
+    ///     explicit destroy notification and may therefore override a stale WindowServer entry.
     static func resolve(
         windowStillListed: Bool,
         currentElementResolves: Bool,
-        replacementElementAvailable: Bool
+        replacementLookup: ReplacementLookup,
+        confirmedAXAbsenceIsAuthoritative: Bool
     ) -> Resolution {
         guard windowStillListed else {
             return .prune
@@ -37,8 +49,11 @@ enum SpuriousDestroyPolicy {
         if currentElementResolves {
             return .keepCurrentElement
         }
-        if replacementElementAvailable {
+        if replacementLookup == .available {
             return .rebindToReplacement
+        }
+        if replacementLookup == .absent, confirmedAXAbsenceIsAuthoritative {
+            return .prune
         }
         return .preserve
     }

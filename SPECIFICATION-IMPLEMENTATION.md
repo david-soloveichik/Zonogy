@@ -2,7 +2,11 @@
 
 ## Destroyed Window Detection
 
-Beyond the self-evident path of app termination (which removes all windows for that PID immediately), Zonogy uses several mechanisms to detect individual window destruction. Not all applications emit AX destroy notifications (e.g., Find My), so we need to cast a wider net. AX notifications and failed AX reads prompt validation but do not prove that a window is gone. WindowServer (`CGWindowListCopyWindowInfo`) is the destruction authority: while it still lists the same `(pid, CGWindowID)`, Zonogy preserves that managed window's identity and zone occupancy.
+Beyond the self-evident path of app termination (which removes all windows for that PID immediately), Zonogy uses several mechanisms to detect individual window destruction.
+
+Not all applications emit AX destroy notifications (e.g., Find My), so we need to cast a wider net. A missing `(pid, CGWindowID)` in WindowServer (`CGWindowListCopyWindowInfo`) then can be used to confirm destruction.
+
+On the other hand, some applications leave a closed window registered with WindowServer. For windows that WindowServer still lists, Zonogy combines AX notifications with the application's current AX window list to decide whether the window is closed. If the available information is inconclusive, Zonogy preserves the window.
 
 - **Per-PID validation with retry (`ValidationRetryManager`):** After window focus changes within an app, app switches (validates the previous app), app deactivation/hide, and placed native-tab candidates that full sync does not find in WindowServer, runs a PID-scoped check. If no destroyed windows are found but the PID still has managed windows (i.e., AX may be temporarily stale), retries with exponential backoff (≈0.2–3.2 s). This tries to catch window closed as soon as possible so that its zone is emptied and UI updates.
 
@@ -10,7 +14,7 @@ Beyond the self-evident path of app termination (which removes all windows for t
 
 - **Native-tab close-rebind:** When validation confirms that a placed window no longer exists in WindowServer, Zonogy first attempts the native-tab close-rebind (see `SPECIFICATION.md`), keeping the window in its zone if a surviving sibling matches and pruning it only otherwise. The all-window `syncWindowsToZones()` sweep does not pick a sibling from the global `CGWindowListCopyWindowInfo` snapshot, because that snapshot can be transiently incomplete during wake or display changes. Instead, if full sync does not find a placed native-tab candidate in WindowServer, it leaves the window in place and asks for PID-scoped validation, which then runs the normal close-rebind/deferred-prune path.
 
-- **Native-tab last-tab merge:** When a placed window is moved or resized by its application, and the new frame coincides with another placed same-process window, Zonogy treats this as a possible native-tab merge. The destination managed window keeps its `windowId` and zone but is updated to track the source window; the source managed record is removed from its old zone without treating that window as closed. The same collapse can also happen from a focus/main-window capture immediately after the source changed frame, because some applications report the moved tab as the focused window before all Accessibility notifications settle.
+- **Native-tab last-tab merge:** When a placed window is moved or resized by its application, and the new frame coincides with another placed same-process window, Zonogy treats this as a possible native-tab merge. The destination managed window keeps its `windowId` and zone but is updated to track the source window; the source managed record is removed from its old zone without treating that window as closed. The same collapse can also happen from a focus/main-window capture immediately after the source changed frame, because some applications report the moved tab as the focused window before all AX notifications settle.
 
 ### Deferred Pruning
 
@@ -21,7 +25,7 @@ All window removal paths that confirm the window is gone **except app terminatio
 
 ## Floating Zone Protection Windows
 
-When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed. Exception: if the floating window is currently minimized (per the Accessibility API), the protection-driven re-raise is skipped, so a user who quickly minimizes a just-placed floating window is not fought by a spurious unminimize.
+When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed. Exception: if the floating window is currently minimized (per the AX API), the protection-driven re-raise is skipped, so a user who quickly minimizes a just-placed floating window is not fought by a spurious unminimize.
 
 The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
@@ -70,7 +74,7 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 
 ## Slow AX Call Logging
 
-Every synchronous Accessibility API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single `[SLOW-AX]` line with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
+Every synchronous AX API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single `[SLOW-AX]` line with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
 
 To inspect slow calls in `/tmp/zonogy-debug.log`:
 
@@ -79,17 +83,17 @@ To inspect slow calls in `/tmp/zonogy-debug.log`:
 
 ## Reducing Accessibility API Cost
 
-Each synchronous Accessibility API call is an inter-process request: the target application must be scheduled, read its own state, and reply. When Zonogy issues many such calls per second across many tracked windows, this drains battery both directly (Zonogy's own CPU work) and indirectly (waking applications that macOS's App Nap would otherwise leave idle). The mechanisms below keep that volume low without changing user-visible behavior.
+Each synchronous AX API call is an inter-process request: the target application must be scheduled, read its own state, and reply. When Zonogy issues many such calls per second across many tracked windows, this drains battery both directly (Zonogy's own CPU work) and indirectly (waking applications that macOS's App Nap would otherwise leave idle). The mechanisms below keep that volume low without changing user-visible behavior.
 
 ### Liveness-check cache for prune
 
-The destroyed-window prune pass runs on every full sync. For each tracked window it first checks `CGWindowListCopyWindowInfo` (cheap, no per-app accessibility IPC); if the window is still listed, it falls back to an accessibility safety-net read for the rare "still listed but accessibility element invalid" case.
+The destroyed-window prune pass runs on every full sync. For each tracked window it first checks `CGWindowListCopyWindowInfo` (cheap, no per-app AX IPC). If WindowServer still lists a placed window and Zonogy has not recently confirmed that its AX element works, Zonogy checks the AX element currently associated with the window by requesting its role and position. If those queries fail, Zonogy applies the AX window-validation logic described under [AX destroy notifications for WindowServer-listed windows](#ax-destroy-notifications-for-windowserver-listed-windows) below.
 
 The safety-net is throttled by a per-window timestamp cache with a 5-second time-to-live. The cache is also refreshed at notification dispatch time: any incoming AX move, resize, miniaturize, deminiaturize, focus-change, or main-window-change notification for a tracked window is itself proof the element is alive, so the corresponding cache entry is refreshed without an additional read.
 
 ### Skipping the safety-net for minimized windows
 
-Even with the cache, the safety-net still fires for windows that haven't received recent AX notifications. When such a window is minimized, the read is wasted work: Zonogy isn't acting on its accessibility state, and the target application is more likely to be in App Nap, so the read forces a wake-up to confirm something the user can't observe. The safety-net is skipped entirely for minimized windows. `CGWindowListCopyWindowInfo` still runs unconditionally, so the primary destruction signal is unchanged.
+Even with the cache, the safety-net still fires for windows that haven't received recent AX notifications. When such a window is minimized, the read is wasted work: Zonogy isn't acting on its AX state, and the target application is more likely to be in App Nap, so the read forces a wake-up to confirm something the user can't observe. The safety-net is skipped entirely for minimized windows. `CGWindowListCopyWindowInfo` still runs unconditionally, so the primary destruction signal is unchanged.
 
 ### Single-pass window placement when the first pass settles
 
@@ -115,7 +119,18 @@ Zonogy uses five narrowly scoped retry/verification mechanisms to cope with AX t
 
 Some applications can emit `AXWindowCreated` for a window Zonogy already tracks (same PID + `CGWindowID`) (eg Word). In these cases the notification may carry a fresh `AXUIElement` for the same underlying window. Zonogy must treat this as an element-rebind event (update the stored AX element, lookup mapping, and window notification registrations atomically), not as a new-window capture and not as a capture failure.
 
-Some applications (e.g. Finder) also emit `AXUIElementDestroyed` while the window stays open. Zonogy therefore consults WindowServer before pruning; if the window remains listed, it keeps the managed identity and zone and rebinds a fresh AX element when one becomes available.
+### AX destroy notifications for WindowServer-listed windows
+
+Some applications emit `AXUIElementDestroyed` while the window stays open; others emit it when closing the window but leave the window registered with WindowServer. When WindowServer still lists the window, Zonogy:
+
+- Keeps the window if its current AX element still identifies the same `CGWindowID`.
+- Otherwise, requests the application's current AX window list. If another AX element identifies the same `CGWindowID`, Zonogy updates the tracked window to use it, treating this as an AX-element change rather than a window close.
+- Prunes the window only if the AX window-list query succeeds, every current AX window can be matched to a `CGWindowID`, and none matches the tracked window's `CGWindowID`.
+- Preserves the window and retries later if the AX window-list query fails or any current AX window cannot be matched to a `CGWindowID`.
+
+The [full-sync destroyed-window prune pass](#liveness-check-cache-for-prune) uses these same checks, but because it was not triggered by `AXUIElementDestroyed`, it preserves a window that WindowServer still lists even when the AX window list does not contain it.
+
+A prune decision still passes through the native-tab close-rebind described above, which may adopt a visible sibling with a different `CGWindowID`. Sleep/wake gating follows [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 ### User vs programmatic move/resize attribution
 
@@ -158,7 +173,7 @@ When placing a window into the floating zone, the window may fail to receive foc
 
 ### Full-screen pause
 
-Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullScreen` accessibility attribute for native-full screen mode (ie green-button kind), and with additional detection for non-native-full screen. The big picture intent is to "pause" Zonogy (no UI, no targeting) on a screen in full-screen mode, and target another screen instead.
+Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullScreen` AX attribute for native-full screen mode (ie green-button kind), and with additional detection for non-native-full screen. The big picture intent is to "pause" Zonogy (no UI, no targeting) on a screen in full-screen mode, and target another screen instead.
 
 #### Native full-screen
 
@@ -170,7 +185,7 @@ When a screen has a native full-screen window, MacOS creates a new Space for it 
 
 #### Non-native (heuristic) full screen
 
-For managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their accessibility frame width matches the screen width exactly.
+For managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their AX frame width matches the screen width exactly.
 
 ### CGS Spaces membership query (native full-screen only)
 

@@ -58,6 +58,10 @@ extension WindowController {
     private func handleAXNotificationOnMain(element: AXUIElement, notification: CFString) {
         let notificationName = notification as String
 
+        if delegate?.windowController(self, shouldIgnoreAXNotification: notificationName) == true {
+            return
+        }
+
         Logger.debug("AX notification received: \(notificationName)")
 
         if notificationName == axWindowCreatedNotificationName {
@@ -107,7 +111,8 @@ extension WindowController {
             let livenessResolution = resolveWindowAfterAXFailure(
                 managed: managed,
                 staleElement: element,
-                reason: "AXUIElementDestroyed"
+                reason: "AXUIElementDestroyed",
+                confirmedAXAbsenceIsAuthoritative: true
             )
             if livenessResolution != .prune {
                 if livenessResolution == .preserve {
@@ -211,7 +216,8 @@ extension WindowController {
         managed: ManagedWindow,
         staleElement: AXUIElement,
         reason: String,
-        knownWindowStillListed: Bool? = nil
+        knownWindowStillListed: Bool? = nil,
+        confirmedAXAbsenceIsAuthoritative: Bool = false
     ) -> SpuriousDestroyPolicy.Resolution {
         let identifier = managed.externalIdentifier
         let windowStillListed: Bool
@@ -244,23 +250,36 @@ extension WindowController {
         // remains. (Excluding the dead backing is belt-and-suspenders: a dead element
         // wouldn't resolve the CGWindowID anyway.)
         let appElement = accessibilityWatcher.applicationElement(for: identifier.pid)
-        let replacement: AXUIElement? = (windowStillListed && !currentElementResolves)
+        let replacementLookup: LiveWindowElementLookup = (windowStillListed && !currentElementResolves)
             ? liveWindowElement(
                 forPid: identifier.pid,
                 cgWindowId: identifier.cgWindowId,
                 excluding: managed.backing.element,
                 appElement: appElement
             )
-            : nil
+            : .unavailable
+
+        let replacement: AXUIElement?
+        if case .found(let element) = replacementLookup {
+            replacement = element
+        } else {
+            replacement = nil
+        }
 
         switch SpuriousDestroyPolicy.resolve(
             windowStillListed: windowStillListed,
             currentElementResolves: currentElementResolves,
-            replacementElementAvailable: replacement != nil
+            replacementLookup: replacementLookup.policyValue,
+            confirmedAXAbsenceIsAuthoritative: confirmedAXAbsenceIsAuthoritative
         ) {
         case .prune:
             // The closed-native-tab rebind runs in stagePendingPrunedWindow (the single prune
             // choke point), so both this notification path and the validation sweep are covered.
+            if windowStillListed, replacementLookup.policyValue == .absent {
+                Logger.debug(
+                    "Treating \(reason) for window \(managed.windowId) as a real close: AX successfully enumerated pid \(identifier.pid) without CGWindowID \(identifier.cgWindowId), despite a retained WindowServer entry"
+                )
+            }
             return .prune
 
         case .keepCurrentElement:
@@ -282,9 +301,15 @@ extension WindowController {
             return .rebindToReplacement
 
         case .preserve:
-            Logger.debug(
-                "Deferring \(reason) for window \(managed.windowId): WindowServer still lists CGWindowID \(identifier.cgWindowId), but AX is temporarily unavailable"
-            )
+            if replacementLookup.policyValue == .absent {
+                Logger.debug(
+                    "Deferring \(reason) for window \(managed.windowId): AX no longer lists CGWindowID \(identifier.cgWindowId), but this validation path cannot treat AX absence as authoritative"
+                )
+            } else {
+                Logger.debug(
+                    "Deferring \(reason) for window \(managed.windowId): WindowServer still lists CGWindowID \(identifier.cgWindowId), but AX is temporarily unavailable"
+                )
+            }
             return .preserve
         }
     }

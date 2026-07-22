@@ -164,6 +164,16 @@ extension AppController {
 
     func windowController(
         _ controller: WindowController,
+        shouldIgnoreAXNotification notification: String
+    ) -> Bool {
+        if !sleepWakeProtectionActive, notification == axDestroyedNotification {
+            _ = enterLoginWindowProtectionIfFrontmost(reason: "AXUIElementDestroyed")
+        }
+        return shouldIgnoreDueToSleepWake(event: "AX notification \(notification)")
+    }
+
+    func windowController(
+        _ controller: WindowController,
         didDeferPruneForPidValidation pid: pid_t
     ) {
         guard pendingPrunePidValidationRequests.insert(pid).inserted else {

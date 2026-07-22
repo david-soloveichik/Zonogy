@@ -2,6 +2,24 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+/// Result of a fresh application-wide AX lookup for one tracked CGWindowID.
+enum LiveWindowElementLookup {
+    case found(AXUIElement)
+    case absent
+    case unavailable
+
+    var policyValue: SpuriousDestroyPolicy.ReplacementLookup {
+        switch self {
+        case .found:
+            return .available
+        case .absent:
+            return .absent
+        case .unavailable:
+            return .unavailable
+        }
+    }
+}
+
 /// Accessibility capture helpers and external window registry management.
 extension WindowController {
     /// Attempt to capture the frontmost standard window of the active application.
@@ -787,37 +805,44 @@ extension WindowController {
         return results
     }
 
-    /// Enumerate the application's current windows and return a *fresh* AX element
-    /// whose CGWindowID matches `cgWindowId`, skipping `excludedElement` (typically a
-    /// just-destroyed element that may still linger in the enumeration). Returns nil
-    /// when no live element can be resolved right now — i.e. the window is truly gone
-    /// or AX is transiently unavailable. Used to repair stale managed-window backings
-    /// without vacating their zones.
+    /// Enumerate the application's current windows and look for a *fresh* AX element whose
+    /// CGWindowID matches `cgWindowId`, skipping `excludedElement` (typically a just-destroyed
+    /// element that may still linger in the enumeration). A successful complete enumeration
+    /// that lacks the identifier is kept distinct from an unavailable or partial AX result.
     internal func liveWindowElement(
         forPid pid: pid_t,
         cgWindowId: Int,
         excluding excludedElement: AXUIElement,
         appElement: AXUIElement
-    ) -> AXUIElement? {
+    ) -> LiveWindowElementLookup {
         var windowsObject: CFTypeRef?
         let status = AXCall.copyAttribute(appElement, kAXWindowsAttribute as CFString, &windowsObject)
         guard status == .success, let windowsObject else {
-            return nil
+            return .unavailable
+        }
+
+        let isWindowArray = windowsObject is [AXUIElement]
+            || CFGetTypeID(windowsObject) == CFArrayGetTypeID()
+        guard isWindowArray else {
+            return .unavailable
         }
 
         let excludedKey = AccessibilityElementKey(element: excludedElement)
-
-        func matches(_ element: AXUIElement) -> Bool {
+        var encounteredUnresolvedElement = false
+        for element in windowElements(from: windowsObject) {
             guard AccessibilityElementKey(element: element) != excludedKey else {
-                return false
+                continue
             }
             let result = cgWindowIdWithStatus(for: element, pid: pid, context: "window-liveness-rebind")
             guard let resolved = result.id else {
-                return false
+                encounteredUnresolvedElement = true
+                continue
             }
-            return Int(resolved) == cgWindowId
+            if Int(resolved) == cgWindowId {
+                return .found(element)
+            }
         }
 
-        return windowElements(from: windowsObject).first(where: matches)
+        return encounteredUnresolvedElement ? .unavailable : .absent
     }
 }
