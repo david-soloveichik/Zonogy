@@ -66,10 +66,13 @@ extension AppController {
 
             let descriptor = context.descriptor
             for zone in context.zoneController.allZones {
+                let overlayFrame = zone.isEmpty
+                    ? frameWithMargin(for: zone, in: context.zoneController)
+                    : zone.frame
                 descriptors.append(
                     ZoneOverlayDescriptor(
                         key: ZoneKey(screenId: screenId, index: zone.index),
-                        cocoaFrame: descriptor.screenToCocoa(zone.frame),
+                        cocoaFrame: descriptor.screenToCocoa(overlayFrame),
                         isEmpty: zone.isEmpty
                     )
                 )

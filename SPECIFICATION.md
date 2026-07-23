@@ -281,7 +281,7 @@ If a window is dragged and dropped over an add-zone indicator ("new zone" pill),
 
 Placeholder windows and the add-zone indicator accept external drops so the user can route content directly into a zone.
 
-Dragging external content over an empty-zone placeholder shows the same full-screen blue zone-overlay UI used for tiled-window drags, with that placeholder's zone highlighted.
+Dragging external content over an empty-zone placeholder shows the same blue zone-overlay UI used for tiled-window drags, with that placeholder's zone highlighted.
 
 Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-screen zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
 

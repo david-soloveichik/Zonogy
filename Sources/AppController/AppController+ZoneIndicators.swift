@@ -233,7 +233,7 @@ extension AppController {
         }
 
         let width = min(max((bounds.width / 3).rounded(), 80), bounds.width)
-        let height: CGFloat = EdgeIndicatorPillSizing.baseThickness
+        let height = EdgeIndicatorPillSizing.baseThickness
         var originX = (bounds.midX - width / 2).rounded()
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
         // Flush with the true screen bottom — beneath a bottom Dock's icons, in the margin

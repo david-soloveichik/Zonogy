@@ -20,29 +20,6 @@ protocol AddZoneIndicatorManagerDelegate: AnyObject {
     )
 }
 
-// MARK: - Indicator Window
-
-class AddZoneIndicatorWindow: NSPanel {
-    init(contentRect: NSRect) {
-        super.init(
-            contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        // Above the Dock: a Dock sharing this screen edge must not capture the pill's
-        // hovers, clicks, or drops.
-        self.level = EdgeIndicatorWindowLevel.resting
-        // Follow the active space but avoid joining dedicated full-screen spaces.
-        self.collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
-        self.ignoresMouseEvents = false
-        self.hasShadow = false
-    }
-}
-
 // MARK: - Indicator View
 
 class AddZoneIndicatorView: NSView {
@@ -258,7 +235,7 @@ struct AddZoneIndicatorDescriptor {
 class AddZoneIndicatorManager {
     weak var delegate: AddZoneIndicatorManagerDelegate?
 
-    private var windows: [AddZonePillKey: AddZoneIndicatorWindow] = [:]
+    private var windows: [AddZonePillKey: EdgeIndicatorPanel] = [:]
     private var views: [AddZonePillKey: AddZoneIndicatorView] = [:]
     private var baseFrames: [AddZonePillKey: CGRect] = [:]
     private var dragHighlightedPill: AddZonePillKey?
@@ -296,7 +273,7 @@ class AddZoneIndicatorManager {
                 applyIndicatorFrame(for: descriptor.pill, animated: false)
             } else {
                 // Create new indicator
-                let window = AddZoneIndicatorWindow(contentRect: baseFrame)
+                let window = EdgeIndicatorPanel(contentRect: baseFrame)
                 let view = AddZoneIndicatorView(frame: CGRect(origin: .zero, size: baseFrame.size))
 
                 window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
@@ -307,7 +284,6 @@ class AddZoneIndicatorManager {
                 view.autoresizingMask = [.width, .height]
 
                 window.contentView = view
-                window.orderFront(nil)
 
                 windows[descriptor.pill] = window
                 views[descriptor.pill] = view
@@ -350,11 +326,9 @@ class AddZoneIndicatorManager {
         }
 
         let thickness = view.desiredThickness
-        let shouldFloatOnTop = thickness > EdgeIndicatorPillSizing.baseThickness
-
         // The bar stays anchored to its screen edge and grows inward toward the screen center.
         var targetFrame = baseFrame
-        if shouldFloatOnTop {
+        if thickness > EdgeIndicatorPillSizing.baseThickness {
             switch pill.side {
             case .right:
                 targetFrame.origin.x = baseFrame.maxX - thickness
@@ -364,15 +338,7 @@ class AddZoneIndicatorManager {
             targetFrame.size.width = thickness
         }
 
-        let targetLevel: NSWindow.Level = shouldFloatOnTop
-            ? EdgeIndicatorWindowLevel.raised
-            : EdgeIndicatorWindowLevel.resting
-        if window.level != targetLevel {
-            window.level = targetLevel
-        }
-        if shouldFloatOnTop {
-            window.orderFrontRegardless()
-        }
+        window.orderFrontRegardless()
 
         if targetFrame == window.frame {
             return

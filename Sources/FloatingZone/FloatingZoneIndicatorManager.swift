@@ -27,35 +27,6 @@ private enum FloatingIndicatorPulse {
 }
 
 final class FloatingZoneIndicatorManager {
-    private final class IndicatorWindow: NSPanel {
-        init(frame: NSRect) {
-            super.init(
-                contentRect: frame,
-                styleMask: [.borderless, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-            isReleasedWhenClosed = false
-            isFloatingPanel = false
-            becomesKeyOnlyIfNeeded = false
-            ignoresMouseEvents = false
-            isOpaque = false
-            hasShadow = false
-            backgroundColor = .clear
-            // Above the Dock: a Dock sharing the bottom edge must not capture the bar's
-            // hovers, clicks, or drops.
-            level = EdgeIndicatorWindowLevel.resting
-            collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
-        }
-
-        override var canBecomeKey: Bool { false }
-        override var canBecomeMain: Bool { false }
-
-        override func makeKeyAndOrderFront(_ sender: Any?) {
-            orderFront(sender)
-        }
-    }
-
     private final class IndicatorView: NSView {
         weak var delegate: FloatingZoneIndicatorManagerDelegate?
         weak var manager: FloatingZoneIndicatorManager?
@@ -85,6 +56,7 @@ final class FloatingZoneIndicatorManager {
         }
 
         var interactionStateChanged: ((CGDirectDisplayID) -> Void)?
+        override var acceptsFirstResponder: Bool { false }
 
         private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
         private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
@@ -295,11 +267,11 @@ final class FloatingZoneIndicatorManager {
     }
 
     private final class IndicatorHandle {
-        let window: IndicatorWindow
+        let window: EdgeIndicatorPanel
         let view: IndicatorView
         var baseFrame: CGRect
 
-        init(window: IndicatorWindow, view: IndicatorView, baseFrame: CGRect) {
+        init(window: EdgeIndicatorPanel, view: IndicatorView, baseFrame: CGRect) {
             self.window = window
             self.view = view
             self.baseFrame = baseFrame
@@ -342,7 +314,7 @@ final class FloatingZoneIndicatorManager {
                 continue
             }
 
-            let window = IndicatorWindow(frame: baseFrame)
+            let window = EdgeIndicatorPanel(contentRect: baseFrame)
             window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
             let view = IndicatorView(
                 frame: NSRect(origin: .zero, size: baseFrame.size),
@@ -358,7 +330,6 @@ final class FloatingZoneIndicatorManager {
                 self?.applyIndicatorFrame(for: screenId, animated: true)
             }
             window.contentView = view
-            window.orderFrontRegardless()
 
             handles[descriptor.screenId] = IndicatorHandle(window: window, view: view, baseFrame: baseFrame)
             pendingRemoval.remove(descriptor.screenId)
@@ -400,10 +371,7 @@ final class FloatingZoneIndicatorManager {
     /// where to land.
     private func restingFrame(for handle: IndicatorHandle) -> CGRect {
         var frame = handle.baseFrame
-        let thickness = handle.view.desiredThickness()
-        if thickness > EdgeIndicatorPillSizing.baseThickness {
-            frame.size.height = thickness
-        }
+        frame.size.height = handle.view.desiredThickness()
         return frame
     }
 
@@ -428,8 +396,7 @@ final class FloatingZoneIndicatorManager {
             height: FloatingIndicatorPulse.peakThickness
         ).standardized
 
-        // Float above neighboring windows for the pop so it reads clearly, then animate back down.
-        handle.window.level = EdgeIndicatorWindowLevel.raised
+        // Reassert front ordering for the pop so it reads clearly, then animate back down.
         handle.window.orderFrontRegardless()
         handle.window.setFrame(popped, display: true)
 
@@ -460,17 +427,7 @@ final class FloatingZoneIndicatorManager {
         }
 
         let targetFrame = restingFrame(for: handle)
-        let shouldFloatOnTop = targetFrame.height > EdgeIndicatorPillSizing.baseThickness
-
-        let targetLevel: NSWindow.Level = shouldFloatOnTop
-            ? EdgeIndicatorWindowLevel.raised
-            : EdgeIndicatorWindowLevel.resting
-        if handle.window.level != targetLevel {
-            handle.window.level = targetLevel
-        }
-        if shouldFloatOnTop || handle.view.isTargeted || handle.view.isDragHighlighted {
-            handle.window.orderFrontRegardless()
-        }
+        handle.window.orderFrontRegardless()
 
         if targetFrame == handle.window.frame {
             return
