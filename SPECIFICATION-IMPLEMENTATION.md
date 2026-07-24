@@ -178,7 +178,7 @@ On screens placed above or left of the primary screen (negative global coordinat
 Two measures compensate:
 
 - **External-drag tracking:** Zonogy follows an external drag's cursor itself. It highlights the bar under the cursor, and holds a boundary-pinned drag a couple of points inside the edge so the system's own delivery finds the bar again — the drop then lands normally, and the drag image does not fly back to its origin as an unaccepted drop. If delivery misses anyway, Zonogy performs the drop on the bar directly on release (never for a drag cancelled with Escape).
-- **Hit overhang:** each edge bar's hit rectangle invisibly extends a couple of points past its screen edge. This serves Zonogy's own cursor tests — targeting when a managed window is dragged onto the bar, and the external-drag tracking above — which would otherwise miss a cursor pinned exactly on the boundary of a flush rectangle. The overhang applies only where the space past the edge is empty, never where another display adjoins (there the cursor travels through instead of pinning).
+- **Hit overhang:** each edge bar's hit rectangle invisibly extends a couple of points past its screen edge. This serves Zonogy's own cursor tests: targeting when a managed window is dragged onto the bar (which has no nudge), and the external-drag tracking above — the tracking must first recognize a pinned cursor as being on the bar before it can highlight, nudge, or drop, and a rectangle ending flush at the edge would not contain a cursor pinned exactly on the boundary coordinate. The overhang applies only where the space past the edge is empty, never where another display adjoins (there the cursor travels through instead of pinning).
 
 ### Full-screen pause
 
