@@ -61,13 +61,18 @@ extension AppController {
     /// The screen-edge line of a resolved edge-pill target, along the axis perpendicular to the
     /// pill: the edge coordinate, whether the screen interior lies below (smaller than) it, and
     /// whether that axis is vertical. Derived from the pill's tracked hit rectangle, whose
-    /// overhang past the edge is `width/height - baseThickness`.
+    /// overhang past the edge is `width/height - baseThickness`. Returns nil for a pill without
+    /// overhang (its edge adjoins another display): the cursor does not pin there, so no
+    /// boundary dead band exists and neither the snap-in nor the drop rescue may act — a slow
+    /// drag crossing onto the neighbor must not be yanked back, and drops near that edge belong
+    /// to whatever the system delivers them to.
     private func edgePillEdgeGeometry(
         pill: AddZonePillKey?,
         floatingScreenId: CGDirectDisplayID?
     ) -> (edge: CGFloat, interiorIsBelowEdge: Bool, axisIsVertical: Bool)? {
         if let pill, let hitRect = addIndicatorTracker.hitAreas[pill] {
-            let overhang = max(0, hitRect.width - EdgeIndicatorPillSizing.baseThickness)
+            let overhang = hitRect.width - EdgeIndicatorPillSizing.baseThickness
+            guard overhang > 0 else { return nil }
             switch pill.side {
             case .right:
                 return (edge: hitRect.maxX - overhang, interiorIsBelowEdge: true, axisIsVertical: false)
@@ -76,7 +81,8 @@ extension AppController {
             }
         }
         if let floatingScreenId, let hitRect = floatingIndicatorTracker.hitAreas[floatingScreenId] {
-            let overhang = max(0, hitRect.height - EdgeIndicatorPillSizing.baseThickness)
+            let overhang = hitRect.height - EdgeIndicatorPillSizing.baseThickness
+            guard overhang > 0 else { return nil }
             return (edge: hitRect.maxY - overhang, interiorIsBelowEdge: true, axisIsVertical: true)
         }
         return nil
