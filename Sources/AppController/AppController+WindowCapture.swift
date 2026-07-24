@@ -81,14 +81,26 @@ extension AppController {
             hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
         ),
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
-              let cursorPoint,
-              let key = EdgePillDragPolicy.effectiveZoneHover(
-                hoveredZoneKey: resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
-                hoveredAddZonePill: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
-                hoveredFloatingScreenId: resolveFloatingDropTarget(cursorPoint: cursorPoint)
-              ),
+              let cursorPoint else {
+            return
+        }
+
+        let hoveredKey = EdgePillDragPolicy.effectiveZoneHover(
+            hoveredZoneKey: resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
+            hoveredAddZonePill: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
+            hoveredFloatingScreenId: resolveFloatingDropTarget(cursorPoint: cursorPoint)
+        )
+
+        guard let key = hoveredKey,
               placeholderCoordinator.hasPlaceholder(for: key),
               !isScreenPausedForFullScreen(key.screenId) else {
+            // The drag has left every empty zone (e.g. it is over an occupied zone or an edge
+            // pill). Resuming inside a zone's margin ring cancels the placeholder-exit teardown,
+            // so without this the overlay would stay highlighted for the rest of the drag.
+            if let staleKey = placeholderExternalDragOverlayKey,
+               placeholderExternalDragOverlayTeardownWorkItem == nil {
+                schedulePlaceholderExternalDragOverlayTearDown(from: staleKey, reason: "drag-left-empty-zones")
+            }
             return
         }
 

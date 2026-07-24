@@ -105,3 +105,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: A window that disappears mid floating-zone-drag (e.g. a Chrome tab tears out into a new window, or the window is minimized while being dragged) can leave the blue zone overlays stuck on screen until the app restarts, and a stale drag session can hijack the next drag.
   - Think about: Floating-zone drags and tiled drags keep separate state and overlays, so any path that ends a drag — including the window vanishing mid-drag — must tear down whichever kind is active.
+
+- Bug report: Fast external drags slammed to the bottom edge of a screen sitting above/left of the primary screen (negative global coordinates) missed the floating zone bar entirely — no expansion, no drop — while the same gesture worked on the primary screen.
+  - Think about: AppKit drag delivery structurally misses a cursor pinned on a screen boundary (drag regions are clipped to the on-screen area), so the edge pills need app-side hover/drop handling keyed off precise cursor positions. A synthesized drop must fire only where AppKit provably cannot deliver, and never for a cancelled drag session; hit areas may overhang a screen edge only into void, never into an adjoining display.

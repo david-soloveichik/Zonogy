@@ -50,6 +50,15 @@ class AddZoneIndicatorView: NSView {
     weak var delegate: AddZoneIndicatorManagerDelegate?
     var pill = AddZonePillKey(screenId: 0, side: .right)
     var manager: AddZoneIndicatorManager?
+    /// Offscreen hit strip past the screen edge (on the pill's outer side). The pill is drawn
+    /// inset off this strip so the on-screen shape matches a flush pill of the visible width.
+    var edgeOverhang: CGFloat = 0 {
+        didSet {
+            if edgeOverhang != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -84,9 +93,17 @@ class AddZoneIndicatorView: NSView {
             borderColor = NSColor.white.withAlphaComponent(borderAlpha)
         }
 
-        // Create rounded rectangle path
-        let cornerRadius = bounds.width / 2
-        let path = NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius)
+        // Create rounded rectangle path over the on-screen slice (excluding the offscreen hit
+        // overhang on the outer side), so the visible pill shape matches a flush pill exactly.
+        let inset = min(edgeOverhang, bounds.width)
+        let pillRect = CGRect(
+            x: pill.side == .left ? bounds.minX + inset : bounds.minX,
+            y: bounds.minY,
+            width: bounds.width - inset,
+            height: bounds.height
+        )
+        let cornerRadius = pillRect.width / 2
+        let path = NSBezierPath(roundedRect: pillRect, xRadius: cornerRadius, yRadius: cornerRadius)
 
         // Fill
         context.saveGState()
@@ -264,10 +281,12 @@ class AddZoneIndicatorManager {
             let baseFrame = descriptor.frame.standardized
             baseFrames[descriptor.pill] = baseFrame
 
+            let overhang = max(0, baseFrame.width - EdgeIndicatorPillSizing.baseThickness)
             if let existingView = views[descriptor.pill],
                let existingWindow = windows[descriptor.pill] {
                 // Update existing indicator
                 existingWindow.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+                existingView.edgeOverhang = overhang
                 existingView.isDragHighlighted = (dragHighlightedPill == descriptor.pill)
                 existingView.autoresizingMask = [.width, .height]
                 applyIndicatorFrame(for: descriptor.pill, animated: false)
@@ -280,6 +299,7 @@ class AddZoneIndicatorManager {
                 view.delegate = delegate
                 view.pill = descriptor.pill
                 view.manager = self
+                view.edgeOverhang = overhang
                 view.isDragHighlighted = (dragHighlightedPill == descriptor.pill)
                 view.autoresizingMask = [.width, .height]
 
@@ -325,18 +345,20 @@ class AddZoneIndicatorManager {
             return
         }
 
-        let thickness = view.desiredThickness
         // The bar stays anchored to its screen edge and grows inward toward the screen center.
+        // The base frame may carry an offscreen hit overhang past the edge (zero when another
+        // display adjoins); keep it at every thickness so a cursor pinned on the screen
+        // boundary still hits the window.
+        let overhang = max(0, baseFrame.width - EdgeIndicatorPillSizing.baseThickness)
+        let width = view.desiredThickness + overhang
         var targetFrame = baseFrame
-        if thickness > EdgeIndicatorPillSizing.baseThickness {
-            switch pill.side {
-            case .right:
-                targetFrame.origin.x = baseFrame.maxX - thickness
-            case .left:
-                targetFrame.origin.x = baseFrame.minX
-            }
-            targetFrame.size.width = thickness
+        switch pill.side {
+        case .right:
+            targetFrame.origin.x = baseFrame.maxX - width
+        case .left:
+            targetFrame.origin.x = baseFrame.minX
         }
+        targetFrame.size.width = width
 
         window.orderFrontRegardless()
 

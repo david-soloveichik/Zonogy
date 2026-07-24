@@ -42,6 +42,9 @@ enum GuardrailTests {
         if !ZoneResizeHandleVisibilityPolicyTests.run() {
             allPassed = false
         }
+        if !EdgePillDropRescuePolicyTests.run() {
+            allPassed = false
+        }
         if !EdgeIndicatorHoverExitPolicyTests.run() {
             allPassed = false
         }

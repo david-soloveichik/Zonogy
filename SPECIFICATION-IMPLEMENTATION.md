@@ -171,6 +171,15 @@ To focus a specific window, we set the window's `kAXMainAttribute`, perform `kAX
 
 When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before the make-main / raise / `app.activate()` sequence described above.
 
+### Edge-pill drags at screen boundaries
+
+On screens placed above or left of the primary screen (negative global coordinates), the system pins a hard-slammed cursor essentially on the screen's boundary coordinate, and drag-session hit-testing treats that position as the boundary row itself — outside every on-screen window region, since drag regions are clipped to the visible screen area. A fast external drag to such an edge therefore never reaches the edge bar's normal drop handlers, no matter how the bar's window is framed.
+
+Two measures compensate:
+
+- **External-drag rescue:** during an external drag, Zonogy tracks the cursor itself: it highlights the bar under the cursor and, when the drop is released pinned at the boundary where the system cannot deliver it, performs the drop on the bar directly. (The rescue stands down when the system delivered the drop normally or the drag was cancelled with Escape.)
+- **Hit overhang:** each edge bar invisibly extends a couple of points past its screen edge. The rescue does not make this redundant: Zonogy's own cursor tests — window-drag targeting and the rescue's aim itself — would still miss a cursor pinned exactly on the boundary of a flush bar. The overhang applies only where the space past the edge is empty, never where another display adjoins (there the cursor travels through instead of pinning).
+
 ### Full-screen pause
 
 Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullScreen` AX attribute for native-full screen mode (ie green-button kind), and with additional detection for non-native-full screen. The big picture intent is to "pause" Zonogy (no UI, no targeting) on a screen in full-screen mode, and target another screen instead.

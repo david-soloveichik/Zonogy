@@ -58,6 +58,18 @@ final class FloatingZoneIndicatorManager {
         var interactionStateChanged: ((CGDirectDisplayID) -> Void)?
         override var acceptsFirstResponder: Bool { false }
 
+        /// Offscreen hit strip below the visible pill (window bottom sits this far past the
+        /// screen edge). The pill visual is drawn on `pillLayer`, inset above this strip, so the
+        /// on-screen shape is identical to a flush pill of the visible thickness.
+        var edgeOverhang: CGFloat = 0 {
+            didSet {
+                if edgeOverhang != oldValue {
+                    needsLayout = true
+                }
+            }
+        }
+        private let pillLayer = CALayer()
+
         private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
         private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
         private let targetedFillColor = IndicatorPalette.targetedFillColor
@@ -79,9 +91,10 @@ final class FloatingZoneIndicatorManager {
             self.isDragHighlighted = dragHighlighted
             super.init(frame: frameRect)
             wantsLayer = true
+            layer?.addSublayer(pillLayer)
             ForceClickSuppression.apply(to: self)
             if #available(macOS 10.15, *) {
-                layer?.cornerCurve = .continuous
+                pillLayer.cornerCurve = .continuous
             }
             registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
             applyStyle()
@@ -98,7 +111,20 @@ final class FloatingZoneIndicatorManager {
 
         override func layout() {
             super.layout()
-            layer?.cornerRadius = bounds.height / 2
+            // Pill occupies the on-screen part of the bounds; the bottom `edgeOverhang` strip is
+            // offscreen hit area only. Radius derives from the visible thickness so the visible
+            // shape matches a flush pill exactly.
+            let pillRect = CGRect(
+                x: 0,
+                y: min(edgeOverhang, bounds.height),
+                width: bounds.width,
+                height: max(0, bounds.height - edgeOverhang)
+            )
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            pillLayer.frame = pillRect
+            pillLayer.cornerRadius = pillRect.height / 2
+            CATransaction.commit()
         }
 
         override func updateTrackingAreas() {
@@ -175,7 +201,7 @@ final class FloatingZoneIndicatorManager {
         }
 
         private func applyStyle() {
-            guard let layer else { return }
+            let layer = pillLayer
             let background: NSColor
             let border: NSColor
             let shadowColor: CGColor
@@ -301,6 +327,7 @@ final class FloatingZoneIndicatorManager {
             if let handle = handles[descriptor.screenId] {
                 handle.baseFrame = baseFrame
                 handle.window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+                handle.view.edgeOverhang = edgeOverhang(of: handle)
                 handle.view.isTargeted = descriptor.isTargeted
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
@@ -331,7 +358,9 @@ final class FloatingZoneIndicatorManager {
             }
             window.contentView = view
 
-            handles[descriptor.screenId] = IndicatorHandle(window: window, view: view, baseFrame: baseFrame)
+            let handle = IndicatorHandle(window: window, view: view, baseFrame: baseFrame)
+            handles[descriptor.screenId] = handle
+            view.edgeOverhang = edgeOverhang(of: handle)
             pendingRemoval.remove(descriptor.screenId)
 
             applyIndicatorFrame(for: descriptor.screenId, animated: false)
@@ -366,12 +395,19 @@ final class FloatingZoneIndicatorManager {
         dragHighlightedScreenId = nil
     }
 
+    /// A pill's hit overhang past the screen edge, as baked into its base frame (zero when the
+    /// bar's edge adjoins another display).
+    private func edgeOverhang(of handle: IndicatorHandle) -> CGFloat {
+        max(0, handle.baseFrame.height - EdgeIndicatorPillSizing.baseThickness)
+    }
+
     /// The frame the pill settles to for its current interaction state: hover/drag grow its
     /// thickness, otherwise it rests at its base frame. The pulse animation reads this to know
-    /// where to land.
+    /// where to land. The base frame's origin already sits the hit overhang below the screen
+    /// edge, so growth keeps that overhang and extends the visible pill upward.
     private func restingFrame(for handle: IndicatorHandle) -> CGRect {
         var frame = handle.baseFrame
-        frame.size.height = handle.view.desiredThickness()
+        frame.size.height = handle.view.desiredThickness() + edgeOverhang(of: handle)
         return frame
     }
 
@@ -393,7 +429,7 @@ final class FloatingZoneIndicatorManager {
             x: resting.midX - poppedWidth / 2,
             y: resting.origin.y,
             width: poppedWidth,
-            height: FloatingIndicatorPulse.peakThickness
+            height: FloatingIndicatorPulse.peakThickness + edgeOverhang(of: handle)
         ).standardized
 
         // Reassert front ordering for the pop so it reads clearly, then animate back down.

@@ -118,6 +118,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var hasObservedRealPlaceholderExternalDragThisGesture = false
     /// Captured bundle identifier for the app that started the current external drag gesture.
     internal var externalDragSourceBundleIdentifier: String?
+    /// When an edge pill (add-zone or floating) last received an external drop through AppKit.
+    /// The monitor-side drop rescue checks this so the same gesture is never handled twice.
+    internal var lastEdgePillExternalDropAt: Date?
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
     internal let minimizeLoopGuard = MinimizeLoopGuard()

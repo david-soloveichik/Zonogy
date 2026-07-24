@@ -199,6 +199,19 @@ extension AppController {
         }
     }
 
+    /// The hit overhang to apply past a pill's screen edge: the full constant when the strip just
+    /// beyond the edge is void (no display owns it — exactly where the OS pins a slammed cursor),
+    /// and zero where another display adjoins (the cursor travels through instead of pinning, and
+    /// an overhang there would reach into the neighbor's territory).
+    private func edgeHitOverhang(pastCocoaStrip strip: CGRect, of descriptor: ScreenDescriptor) -> CGFloat {
+        for (screenId, context) in screenContexts where screenId != descriptor.displayId {
+            if context.descriptor.cocoaBounds.intersects(strip) {
+                return 0
+            }
+        }
+        return EdgeIndicatorPillSizing.edgeHitOverhang
+    }
+
     private func addZoneIndicatorFrames(
         for descriptor: ScreenDescriptor,
         side: ZoneSide
@@ -208,15 +221,21 @@ extension AppController {
             return nil
         }
 
-        // Width: match the default pill thickness used by edge indicators.
-        let indicatorWidth: CGFloat = EdgeIndicatorPillSizing.baseThickness
-
         // Height: 1/3 of screen height
         let indicatorHeight = (bounds.height / 3).rounded()
-
-        // Position on the bar's screen edge, vertically centered
-        let originX = side == .right ? bounds.maxX - indicatorWidth : bounds.minX
         let originY = (bounds.midY - indicatorHeight / 2).rounded()
+
+        // Width: the visible pill thickness plus the offscreen hit overhang past the screen edge.
+        let outerStrip = side == .right
+            ? CGRect(x: bounds.maxX, y: originY, width: EdgeIndicatorPillSizing.edgeHitOverhang, height: indicatorHeight)
+            : CGRect(x: bounds.minX - EdgeIndicatorPillSizing.edgeHitOverhang, y: originY, width: EdgeIndicatorPillSizing.edgeHitOverhang, height: indicatorHeight)
+        let overhang = edgeHitOverhang(pastCocoaStrip: outerStrip, of: descriptor)
+        let indicatorWidth = EdgeIndicatorPillSizing.baseThickness + overhang
+
+        // Position on the bar's screen edge, vertically centered, with the overhang outside the edge
+        let originX = side == .right
+            ? bounds.maxX - EdgeIndicatorPillSizing.baseThickness
+            : bounds.minX - overhang
 
         let cocoaFrame = CGRect(x: originX, y: originY, width: indicatorWidth, height: indicatorHeight).standardized
         let screenFrame = descriptor.cocoaToScreen(cocoaFrame).standardized
@@ -227,18 +246,28 @@ extension AppController {
     /// Canonical Cocoa and global (accessibility-coordinate) frames of a screen's floating-zone bar.
     internal func floatingIndicatorFrames(for descriptor: ScreenDescriptor) -> (cocoa: CGRect, accessibility: CGRect)? {
         let bounds = descriptor.visibleScreenBounds.standardized
+        let cocoaBounds = descriptor.cocoaBounds.standardized
         let fullBounds = descriptor.cocoaToScreen(descriptor.cocoaBounds).standardized
         guard bounds.width > 0, bounds.height > 0 else {
             return nil
         }
 
         let width = min(max((bounds.width / 3).rounded(), 80), bounds.width)
-        let height = EdgeIndicatorPillSizing.baseThickness
         var originX = (bounds.midX - width / 2).rounded()
         originX = max(bounds.minX, min(originX, bounds.maxX - width))
-        // Flush with the true screen bottom — beneath a bottom Dock's icons, in the margin
+        // originX is screen-local; the void-strip test runs in global Cocoa coordinates.
+        let outerStrip = CGRect(
+            x: cocoaBounds.minX + originX,
+            y: cocoaBounds.minY - EdgeIndicatorPillSizing.edgeHitOverhang,
+            width: width,
+            height: EdgeIndicatorPillSizing.edgeHitOverhang
+        )
+        let overhang = edgeHitOverhang(pastCocoaStrip: outerStrip, of: descriptor)
+        let height = EdgeIndicatorPillSizing.baseThickness + overhang
+        // Visibly flush with the true screen bottom — beneath a bottom Dock's icons, in the margin
         // between them and the screen edge, just as the add-zone bars share a side Dock's edge.
-        let originY = fullBounds.maxY - height
+        // The hit overhang extends past the edge so a cursor pinned on the boundary still hits.
+        let originY = fullBounds.maxY - EdgeIndicatorPillSizing.baseThickness
         let screenFrame = CGRect(x: originX, y: originY, width: width, height: height).standardized
         let cocoaFrame = descriptor.screenToCocoa(screenFrame).standardized
         let accessibilityFrame = descriptor.screenToAccessibility(screenFrame).standardized
