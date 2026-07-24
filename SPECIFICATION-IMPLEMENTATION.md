@@ -173,12 +173,12 @@ When placing a window into the floating zone, the window may fail to receive foc
 
 ### Edge-pill drags at screen boundaries
 
-On screens placed above or left of the primary screen (negative global coordinates), the system pins a hard-slammed cursor essentially on the screen's boundary coordinate, and drag-session hit-testing treats that position as the boundary row itself — outside every on-screen window region, since drag regions are clipped to the visible screen area. A fast external drag to such an edge therefore never reaches the edge bar's normal drop handlers, no matter how the bar's window is framed.
+On screens placed above or left of the primary screen (negative global coordinates), the system pins a hard-slammed cursor essentially on the screen's boundary coordinate. Drag-session hit-testing resolves that position to the row just past the screen, which no window's drag region can cover (regions are clipped to the visible screen area) — so a fast external drag to such an edge never reaches the edge bar's drop handlers, no matter how the bar's window is framed.
 
 Two measures compensate:
 
-- **External-drag rescue:** during an external drag, Zonogy tracks the cursor itself: it highlights the bar under the cursor and, when the drop is released pinned at the boundary where the system cannot deliver it, performs the drop on the bar directly. (The rescue stands down when the system delivered the drop normally or the drag was cancelled with Escape.)
-- **Hit overhang:** each edge bar invisibly extends a couple of points past its screen edge. The rescue does not make this redundant: Zonogy's own cursor tests — window-drag targeting and the rescue's aim itself — would still miss a cursor pinned exactly on the boundary of a flush bar. The overhang applies only where the space past the edge is empty, never where another display adjoins (there the cursor travels through instead of pinning).
+- **External-drag tracking:** Zonogy follows an external drag's cursor itself. It highlights the bar under the cursor, and holds a boundary-pinned drag a couple of points inside the edge so the system's own delivery finds the bar again — the drop then lands normally, and the drag image does not fly back to its origin as an unaccepted drop. If delivery misses anyway, Zonogy performs the drop on the bar directly on release (never for a drag cancelled with Escape).
+- **Hit overhang:** each edge bar's hit rectangle invisibly extends a couple of points past its screen edge. This serves Zonogy's own cursor tests — targeting when a managed window is dragged onto the bar, and the external-drag tracking above — which would otherwise miss a cursor pinned exactly on the boundary of a flush rectangle. The overhang applies only where the space past the edge is empty, never where another display adjoins (there the cursor travels through instead of pinning).
 
 ### Full-screen pause
 

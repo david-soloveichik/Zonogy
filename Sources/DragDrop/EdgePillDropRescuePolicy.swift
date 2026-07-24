@@ -13,6 +13,17 @@ enum EdgePillDropRescuePolicy {
     /// edge; a little slack covers quantization variants.
     static let deadBandInset: CGFloat = 1.5
 
+    /// Where the snap-in nudge places a dead-band cursor: far enough inside the edge that drag
+    /// hit-testing (which truncates toward zero) lands on an on-screen row, and strictly deeper
+    /// than `deadBandInset` so the nudged position never re-triggers the nudge from our own
+    /// event monitor. Must stay under the pill's visible thickness.
+    static let snapInInset: CGFloat = 2
+
+    /// The coordinate a dead-band cursor is nudged to along the axis perpendicular to the edge.
+    static func snapInCoordinate(edge: CGFloat, interiorIsBelowEdge: Bool) -> CGFloat {
+        interiorIsBelowEdge ? edge - snapInInset : edge + snapInInset
+    }
+
     /// Whether the release coordinate (along the axis perpendicular to the pill's edge) sits in
     /// the boundary dead band: at/past the screen edge, or within `inset` inside it.
     /// `interiorIsBelowEdge` says the screen interior has smaller coordinates than the edge

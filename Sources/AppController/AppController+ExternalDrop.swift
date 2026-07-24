@@ -45,13 +45,81 @@ extension AppController {
     // MARK: - Edge-pill hover/drop rescue (ExternalZoneDropInterceptorHost)
 
     /// Highlights the edge pill under a live external drag from the monitor's precise cursor
-    /// position. This shadows the pills' own AppKit drag tracking, which cannot see a cursor
-    /// pinned exactly on a screen-boundary coordinate (see `edgeHitOverhang`).
+    /// position, and snaps a boundary-pinned drag back inside the edge so the system's own
+    /// delivery can reach the pill. This shadows the pills' AppKit drag tracking, which cannot
+    /// see a cursor pinned exactly on a screen-boundary coordinate (see `edgeHitOverhang`).
     func updateExternalDragEdgePillHover(cursorPoint: CGPoint?) {
         let pill = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
         let floatingScreenId = pill == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
         updateAddZoneIndicatorHighlight(pill: pill)
         updateFloatingIndicatorHighlight(screenId: floatingScreenId)
+        if let cursorPoint, pill != nil || floatingScreenId != nil {
+            snapInBoundaryPinnedExternalDrag(cursorPoint: cursorPoint, pill: pill, floatingScreenId: floatingScreenId)
+        }
+    }
+
+    /// The screen-edge line of a resolved edge-pill target, along the axis perpendicular to the
+    /// pill: the edge coordinate, whether the screen interior lies below (smaller than) it, and
+    /// whether that axis is vertical. Derived from the pill's tracked hit rectangle, whose
+    /// overhang past the edge is `width/height - baseThickness`.
+    private func edgePillEdgeGeometry(
+        pill: AddZonePillKey?,
+        floatingScreenId: CGDirectDisplayID?
+    ) -> (edge: CGFloat, interiorIsBelowEdge: Bool, axisIsVertical: Bool)? {
+        if let pill, let hitRect = addIndicatorTracker.hitAreas[pill] {
+            let overhang = max(0, hitRect.width - EdgeIndicatorPillSizing.baseThickness)
+            switch pill.side {
+            case .right:
+                return (edge: hitRect.maxX - overhang, interiorIsBelowEdge: true, axisIsVertical: false)
+            case .left:
+                return (edge: hitRect.minX + overhang, interiorIsBelowEdge: false, axisIsVertical: false)
+            }
+        }
+        if let floatingScreenId, let hitRect = floatingIndicatorTracker.hitAreas[floatingScreenId] {
+            let overhang = max(0, hitRect.height - EdgeIndicatorPillSizing.baseThickness)
+            return (edge: hitRect.maxY - overhang, interiorIsBelowEdge: true, axisIsVertical: true)
+        }
+        return nil
+    }
+
+    /// While a live external drag sits pinned in a pill's boundary dead band, AppKit drag
+    /// delivery cannot reach the pill, and a drop released there would be performed by the
+    /// rescue — with the source app animating the drag image back as if nothing accepted it.
+    /// Nudging the drag a couple of points inside the edge lets the system find the pill again,
+    /// so the drop lands through the normal AppKit path (highlight, drop, no fly-back) and the
+    /// rescue remains a backstop. The nudged position lies outside the dead band, so observing
+    /// our own posted event cannot re-trigger the nudge.
+    private func snapInBoundaryPinnedExternalDrag(
+        cursorPoint: CGPoint,
+        pill: AddZonePillKey?,
+        floatingScreenId: CGDirectDisplayID?
+    ) {
+        guard let geometry = edgePillEdgeGeometry(pill: pill, floatingScreenId: floatingScreenId) else {
+            return
+        }
+        let coordinate = geometry.axisIsVertical ? cursorPoint.y : cursorPoint.x
+        guard EdgePillDropRescuePolicy.isInDeadBand(
+            cursor: coordinate,
+            edge: geometry.edge,
+            interiorIsBelowEdge: geometry.interiorIsBelowEdge
+        ) else {
+            return
+        }
+
+        let snapped = EdgePillDropRescuePolicy.snapInCoordinate(
+            edge: geometry.edge,
+            interiorIsBelowEdge: geometry.interiorIsBelowEdge
+        )
+        let target = geometry.axisIsVertical
+            ? CGPoint(x: cursorPoint.x, y: snapped)
+            : CGPoint(x: snapped, y: cursorPoint.y)
+        let event = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDragged,
+            mouseCursorPosition: target,
+            mouseButton: .left
+        )
+        event?.post(tap: .cghidEventTap)
     }
 
     /// True when the release position sits in the pill's screen-boundary dead band — the only
@@ -61,26 +129,14 @@ extension AppController {
         pill: AddZonePillKey?,
         floatingScreenId: CGDirectDisplayID?
     ) -> Bool {
-        if let pill, let hitRect = addIndicatorTracker.hitAreas[pill] {
-            let overhang = max(0, hitRect.width - EdgeIndicatorPillSizing.baseThickness)
-            switch pill.side {
-            case .right:
-                return EdgePillDropRescuePolicy.isInDeadBand(
-                    cursor: cursorPoint.x, edge: hitRect.maxX - overhang, interiorIsBelowEdge: true
-                )
-            case .left:
-                return EdgePillDropRescuePolicy.isInDeadBand(
-                    cursor: cursorPoint.x, edge: hitRect.minX + overhang, interiorIsBelowEdge: false
-                )
-            }
+        guard let geometry = edgePillEdgeGeometry(pill: pill, floatingScreenId: floatingScreenId) else {
+            return false
         }
-        if let floatingScreenId, let hitRect = floatingIndicatorTracker.hitAreas[floatingScreenId] {
-            let overhang = max(0, hitRect.height - EdgeIndicatorPillSizing.baseThickness)
-            return EdgePillDropRescuePolicy.isInDeadBand(
-                cursor: cursorPoint.y, edge: hitRect.maxY - overhang, interiorIsBelowEdge: true
-            )
-        }
-        return false
+        return EdgePillDropRescuePolicy.isInDeadBand(
+            cursor: geometry.axisIsVertical ? cursorPoint.y : cursorPoint.x,
+            edge: geometry.edge,
+            interiorIsBelowEdge: geometry.interiorIsBelowEdge
+        )
     }
 
     /// Performs an edge-pill external drop that AppKit's drag session missed because the release
