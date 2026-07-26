@@ -77,8 +77,15 @@ if [[ "${CI:-}" == "true" \
 fi
 security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY" \
   || { echo "Signing identity not found: $SIGN_IDENTITY"; exit 1; }
-xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
-  || { echo "Notary profile '$NOTARY_PROFILE' not configured. Run xcrun notarytool store-credentials."; exit 1; }
+NOTARY_CHECK_OUTPUT=""
+if ! NOTARY_CHECK_OUTPUT="$(xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" 2>&1)"; then
+  echo "Notarization credential check failed for keychain profile '$NOTARY_PROFILE':" >&2
+  printf '%s\n' "$NOTARY_CHECK_OUTPUT" >&2
+  echo >&2
+  echo "If the profile is missing, configure it with:" >&2
+  echo "  xcrun notarytool store-credentials '$NOTARY_PROFILE'" >&2
+  exit 1
+fi
 [[ -f "$ENTITLEMENTS" ]] || { echo "Missing entitlements file: $ENTITLEMENTS"; exit 1; }
 
 mkdir -p "$DIST_DIR"
