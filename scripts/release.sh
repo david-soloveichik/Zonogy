@@ -12,6 +12,7 @@
 #   ZONOGY_SIGN_IDENTITY  - codesign identity string (default reads from security find-identity)
 #   ZONOGY_NOTARY_PROFILE - notarytool keychain profile name (default: zonogy-notary)
 #   ZONOGY_VERSION        - version string used in artifact filenames (default: CFBundleShortVersionString)
+#   ZONOGY_ALLOW_DIRTY=1  - allow releasing from a dirty working tree
 
 set -euo pipefail
 
@@ -28,7 +29,6 @@ VERSION="${ZONOGY_VERSION:-$(plutil -extract CFBundleShortVersionString raw "$IN
 
 DIST_DIR="$PROJECT_DIR/dist"
 DMG_PATH="$DIST_DIR/$APP_NAME-$VERSION.dmg"
-APP_ZIP_PATH="$DIST_DIR/$APP_NAME-$VERSION.zip"
 
 step() { printf '\n==> %s\n' "$1"; }
 
@@ -37,8 +37,7 @@ step() { printf '\n==> %s\n' "$1"; }
 # through `notarytool history` manually.
 notarize() {
   local artifact="$1"
-  local submit_log
-  submit_log="$(mktemp)"
+  local submit_log="$WORK_DIR/notary-submit.log"
   set +e
   xcrun notarytool submit "$artifact" \
     --keychain-profile "$NOTARY_PROFILE" \
@@ -52,10 +51,8 @@ notarize() {
       printf '\nNotarization failed. Detailed log for submission %s:\n' "$sid"
       xcrun notarytool log "$sid" --keychain-profile "$NOTARY_PROFILE" || true
     fi
-    rm -f "$submit_log"
     return "$rc"
   fi
-  rm -f "$submit_log"
 }
 
 step "Sanity checks"
@@ -75,7 +72,27 @@ if [[ "${CI:-}" == "true" \
   echo "Set ZONOGY_RELEASE_OVERRIDE=1 to bypass intentionally."
   exit 1
 fi
-security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY" \
+# Released builds must be reproducible from history: build.sh stamps the git
+# hash into the bundle and marks a dirty tree with a trailing "+", so refuse
+# to sign a build with uncommitted changes or unverifiable git state.
+if [[ "${ZONOGY_ALLOW_DIRTY:-}" != "1" ]]; then
+  GIT_STATUS="$(git -C "$PROJECT_DIR" status --porcelain)" || {
+    echo "Cannot determine git status; refusing to release."
+    echo "Set ZONOGY_ALLOW_DIRTY=1 to bypass intentionally."
+    exit 1
+  }
+  if [[ -n "$GIT_STATUS" ]]; then
+    echo "Refusing to release from a dirty working tree."
+    echo "Commit (or stash) changes so the stamped git hash matches the released code."
+    echo "Set ZONOGY_ALLOW_DIRTY=1 to bypass intentionally."
+    exit 1
+  fi
+fi
+# Captured for the publish command printed at the end: tagging --target this
+# commit pins the release tag to the exact code packaged into the DMG (and
+# fails if the commit was never pushed).
+GIT_HEAD_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || true)"
+security find-identity -v -p codesigning | grep -qF "$SIGN_IDENTITY" \
   || { echo "Signing identity not found: $SIGN_IDENTITY"; exit 1; }
 NOTARY_CHECK_OUTPUT=""
 if ! NOTARY_CHECK_OUTPUT="$(xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" 2>&1)"; then
@@ -90,14 +107,18 @@ fi
 
 mkdir -p "$DIST_DIR"
 
+# Scratch space for the notarization zip, submit log, and DMG staging;
+# cleaned up on any exit.
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+APP_ZIP_PATH="$WORK_DIR/$APP_NAME-$VERSION.zip"
+
 step "Building app bundle (release)"
 "$SCRIPT_DIR/build.sh"
 
 step "Signing $APP_NAME.app with Developer ID + hardened runtime"
-codesign --force --options runtime --timestamp \
-  --sign "$SIGN_IDENTITY" \
-  --entitlements "$ENTITLEMENTS" \
-  "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+# The bundle signature covers and seals the main executable. If nested code
+# (helpers, frameworks) is ever added to the bundle, sign it first, inside-out.
 codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" \
   --entitlements "$ENTITLEMENTS" \
@@ -105,7 +126,6 @@ codesign --force --options runtime --timestamp \
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
 step "Submitting app for notarization (waits for result)"
-rm -f "$APP_ZIP_PATH"
 ditto -c -k --keepParent "$APP_BUNDLE" "$APP_ZIP_PATH"
 notarize "$APP_ZIP_PATH"
 
@@ -115,8 +135,8 @@ spctl -a -vv -t execute "$APP_BUNDLE"
 
 step "Building DMG"
 rm -f "$DMG_PATH"
-DMG_STAGE="$(mktemp -d)"
-trap 'rm -rf "$DMG_STAGE"' EXIT
+DMG_STAGE="$WORK_DIR/dmg"
+mkdir "$DMG_STAGE"
 cp -R "$APP_BUNDLE" "$DMG_STAGE/"
 ln -s /Applications "$DMG_STAGE/Applications"
 hdiutil create -volname "$APP_NAME $VERSION" \
@@ -134,18 +154,13 @@ step "Stapling notarization ticket onto DMG"
 xcrun stapler staple "$DMG_PATH"
 spctl -a -t open --context context:primary-signature -vv "$DMG_PATH"
 
-step "Computing SHA-256 (for Homebrew cask)"
-shasum -a 256 "$DMG_PATH"
-
 cat <<EOF
 
 Done.
 
-Artifacts:
+Artifact:
   $DMG_PATH
-  $APP_ZIP_PATH  (intermediate; can be deleted)
 
-Next steps:
-  1. Upload $DMG_PATH to a GitHub Release tagged v$VERSION.
-  2. Update the Homebrew cask file with the new version, URL, and SHA-256.
+Next step — publish the GitHub release for this exact commit (must be pushed):
+  gh release create v$VERSION "$DMG_PATH" --target ${GIT_HEAD_SHA:-<commit>} --title "Zonogy $VERSION" --notes "What changed..."
 EOF
