@@ -51,6 +51,9 @@ enum GuardrailTests {
         if !WindowOcclusionPolicyTests.run() {
             allPassed = false
         }
+        if !PlaceholderPassThroughPolicyTests.run() {
+            allPassed = false
+        }
         if !FloatingZoneOverlapPolicyTests.run() {
             allPassed = false
         }

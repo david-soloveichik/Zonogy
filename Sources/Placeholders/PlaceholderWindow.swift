@@ -59,6 +59,21 @@ final class PlaceholderWindow {
         contentView?.isTargeted = targeted
     }
 
+    /// Punch pass-through holes into the click-catching background so clicks over unmanaged
+    /// windows behind this placeholder reach them. Rects are in Cocoa screen coordinates;
+    /// pass an empty array to restore the fully click-catching background.
+    /// Returns true when the holes actually changed.
+    @discardableResult
+    func setPassThroughRegions(cocoaScreenRects: [CGRect]) -> Bool {
+        guard let contentView else {
+            return false
+        }
+        let viewRects = cocoaScreenRects.map { rect in
+            contentView.convert(panel.convertFromScreen(rect), from: nil)
+        }
+        return contentView.setPassThroughHoles(viewRects)
+    }
+
     /// Flash a vivid blue border to confirm a gesture-modifier click targeting gesture.
     func flashBorder() {
         contentView?.flashBorder()

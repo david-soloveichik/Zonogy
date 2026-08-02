@@ -10,12 +10,21 @@ let package = Package(
         .executable(
             name: "Zonogy",
             targets: ["Zonogy"]
+        ),
+        // Dev-only test tool; never packaged into Zonogy.app (build.sh copies only the Zonogy binary).
+        .executable(
+            name: "unrulywin",
+            targets: ["unrulywin"]
         )
     ],
     targets: [
         .executableTarget(
             name: "Zonogy",
             path: "Sources"
+        ),
+        .executableTarget(
+            name: "unrulywin",
+            path: "TestTools/UnrulyWin"
         )
     ]
 )

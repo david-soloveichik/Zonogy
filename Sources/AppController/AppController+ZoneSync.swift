@@ -406,6 +406,9 @@ extension AppController {
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         refreshIndicators()
         refreshResizeHandles()
+        // Placeholders were just re-fronted in Phase 4, possibly above unmanaged windows:
+        // recompute where their backgrounds must let clicks pass through.
+        schedulePlaceholderPassThroughRefresh(reason: "sync")
         launcherController.repositionIfNeeded()
         // Refresh Launcher's zone-derived row data; it's snapshotted at open time
         // and would otherwise stay stale after the optimistic auto-show.

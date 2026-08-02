@@ -162,6 +162,11 @@ final class PlaceholderCoordinator {
         activePlaceholders[key]?.flashBorder()
     }
 
+    /// Returns all active placeholder windows (unordered).
+    func allActivePlaceholders() -> [PlaceholderWindow] {
+        Array(activePlaceholders.values)
+    }
+
     /// Returns the active placeholder windows on the given screen.
     func placeholders(on screenId: CGDirectDisplayID) -> [PlaceholderWindow] {
         activePlaceholders.compactMap { key, placeholder in

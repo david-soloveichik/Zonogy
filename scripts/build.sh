@@ -15,7 +15,8 @@ echo "Building $APP_NAME..."
 
 # Build release executable
 cd "$PROJECT_DIR"
-swift build -c release
+# Build only the app product so dev-only tools (e.g. unrulywin) can't break packaging.
+swift build -c release --product Zonogy
 
 # Remove existing app bundle if present
 rm -rf "$APP_BUNDLE"

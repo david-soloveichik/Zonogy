@@ -11,6 +11,13 @@ private final class FirstClickButton: NSButton {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         return true
     }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        // Control tracking swallows the mouse-up before the panel's sendEvent can see it;
+        // super returns once the press ends, so report it here instead.
+        (window as? PlaceholderPanel)?.onLeftPressEnded?()
+    }
 }
 
 /// Delegate protocol for placeholder UI events.
@@ -23,6 +30,10 @@ protocol PlaceholderManagerDelegate: AnyObject {
 
     /// Called when the search pill is clicked (opens Launcher).
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int)
+
+    /// Called after a placeholder finishes handling a left mouse-up. The click has raised the
+    /// placeholder's panel by then, possibly over an unmanaged window.
+    func placeholderPressEnded()
 
     /// Called when external content (files/URLs) is dropped on a placeholder.
     func placeholderReceivedExternalDrop(
@@ -96,6 +107,9 @@ final class PlaceholderManager {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.onLeftPressEnded = { [weak self] in
+            self?.delegate?.placeholderPressEnded()
+        }
 
         // Create content view with placeholder UI
         let contentView = PlaceholderContentView(
@@ -184,9 +198,10 @@ final class PlaceholderManager {
     }
 
     private func applyPanelGlassStyle(to layer: CALayer) {
-        // Visually transparent, but a tiny alpha is required so the window server
-        // treats the interior as part of the window for click/drag hit-testing.
-        layer.backgroundColor = NSColor.black.withAlphaComponent(1.0 / 255.0).cgColor
+        // The click-catching interior fill lives in the content view's hit-test background
+        // layer (see PlaceholderContentView), which can punch pass-through holes over
+        // unmanaged windows stuck behind the placeholder. The root layer only draws the border.
+        layer.backgroundColor = NSColor.clear.cgColor
         layer.cornerRadius = windowCornerRadius
         layer.borderWidth = 1.5
         layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
@@ -358,6 +373,18 @@ final class PlaceholderContentView: NSView {
     private var closeButton: NSButton?
     private var searchPill: NSButton?
     private var searchPillIconView: NSImageView?
+
+    /// Visually imperceptible fill that makes the window server treat the interior as part of
+    /// the window for click/drag hit-testing (fully transparent pixels would pass clicks through).
+    private static let hitTestFillColor = NSColor.black.withAlphaComponent(1.0 / 255.0).cgColor
+
+    /// Draws the click-catching interior. Its path is the rounded placeholder shape minus the
+    /// current pass-through holes, so clicks over those holes reach the window behind while the
+    /// rest of the placeholder (and its buttons, which are opaque subviews) keeps catching clicks.
+    private let hitTestBackgroundLayer = CAShapeLayer()
+
+    /// Pass-through hole rects in view coordinates.
+    private var passThroughHoles: [CGRect] = []
     private var isDropHighlighted = false {
         didSet {
             if isDropHighlighted != oldValue {
@@ -384,11 +411,66 @@ final class PlaceholderContentView: NSView {
         wantsLayer = true
         ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+        setUpHitTestBackgroundLayer()
         updateBorderAppearance()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setUpHitTestBackgroundLayer() {
+        hitTestBackgroundLayer.fillColor = Self.hitTestFillColor
+        hitTestBackgroundLayer.strokeColor = nil
+        // Disable implicit animations: an animating path would briefly hit-test stale geometry.
+        hitTestBackgroundLayer.actions = [
+            "path": NSNull(),
+            "bounds": NSNull(),
+            "position": NSNull()
+        ]
+        layer?.insertSublayer(hitTestBackgroundLayer, at: 0)
+        rebuildHitTestBackgroundPath()
+    }
+
+    /// Replace the pass-through holes (rects in view coordinates) punched out of the
+    /// hit-test background. Returns true when the holes actually changed.
+    @discardableResult
+    func setPassThroughHoles(_ holes: [CGRect]) -> Bool {
+        guard !rectsApproximatelyEqual(holes, passThroughHoles) else {
+            return false
+        }
+        passThroughHoles = holes
+        rebuildHitTestBackgroundPath()
+        return true
+    }
+
+    private func rebuildHitTestBackgroundPath() {
+        hitTestBackgroundLayer.frame = bounds
+        let roundedBounds = CGPath(
+            roundedRect: bounds,
+            cornerWidth: windowCornerRadius,
+            cornerHeight: windowCornerRadius,
+            transform: nil
+        )
+        guard !passThroughHoles.isEmpty else {
+            hitTestBackgroundLayer.path = roundedBounds
+            return
+        }
+        let holesPath = CGMutablePath()
+        for hole in passThroughHoles {
+            holesPath.addRect(hole)
+        }
+        hitTestBackgroundLayer.path = roundedBounds.subtracting(holesPath)
+    }
+
+    private func rectsApproximatelyEqual(_ lhs: [CGRect], _ rhs: [CGRect], tolerance: CGFloat = 0.5) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            abs(left.origin.x - right.origin.x) <= tolerance &&
+            abs(left.origin.y - right.origin.y) <= tolerance &&
+            abs(left.width - right.width) <= tolerance &&
+            abs(left.height - right.height) <= tolerance
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -419,6 +501,7 @@ final class PlaceholderContentView: NSView {
             layer.cornerRadius = windowCornerRadius
             updateBorderAppearance()
         }
+        rebuildHitTestBackgroundPath()
         updateSearchPillLayout()
     }
 

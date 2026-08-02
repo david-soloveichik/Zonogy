@@ -1,8 +1,48 @@
 import Foundation
 import ApplicationServices
 
+/// One on-screen window as reported by the WindowServer.
+struct WindowServerWindowRow {
+    let windowNumber: Int
+    let ownerPid: pid_t
+    let layer: Int
+    let alpha: CGFloat
+    /// Bounds in global screen coordinates (y:0 at the primary screen's top-left).
+    let frame: CGRect
+}
+
 /// Lightweight helpers for querying the WindowServer via `CGWindowListCopyWindowInfo`.
 enum WindowServerWindowList {
+    /// Returns on-screen windows ordered front-to-back with the attributes needed for
+    /// z-order/overlap policies (excluding desktop elements), or nil if the list cannot be read.
+    static func onScreenWindowRowsFrontToBack() -> [WindowServerWindowRow]? {
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        var rows: [WindowServerWindowRow] = []
+        rows.reserveCapacity(windowList.count)
+        for windowInfo in windowList {
+            guard let windowNumber = (windowInfo[kCGWindowNumber as String] as? NSNumber)?.intValue,
+                  let ownerPid = pid(from: windowInfo),
+                  let boundsDict = windowInfo[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: boundsDict) else {
+                continue
+            }
+            let layer = (windowInfo[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            let alpha = (windowInfo[kCGWindowAlpha as String] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 1
+            rows.append(WindowServerWindowRow(
+                windowNumber: windowNumber,
+                ownerPid: ownerPid,
+                layer: layer,
+                alpha: alpha,
+                frame: frame
+            ))
+        }
+
+        return rows
+    }
+
     /// Returns on-screen CG window numbers ordered front-to-back, or nil if the list cannot be read.
     static func onScreenWindowNumbersFrontToBack() -> [Int]? {
         guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {

@@ -81,6 +81,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingSyncSkipGeometryWindowIds: Set<Int> = []
     /// Next-runloop cleanup for unconsumed sync geometry-skip marks.
     internal var pendingSyncSkipGeometryCleanupWorkItem: DispatchWorkItem?
+    /// Coalesces scheduled placeholder pass-through refreshes onto the next runloop turn.
+    internal var placeholderPassThroughRefreshScheduled = false
+    /// True while any placeholder currently has pass-through holes; gates the global
+    /// mouse-up re-check so it costs nothing in the common hole-free state.
+    internal var placeholderPassThroughHasHoles = false
+    /// Global left-mouse-up monitor that re-checks pass-through regions after clicks
+    /// land in other apps (such clicks can raise windows or hit stale regions without
+    /// producing any focus or sync event).
+    internal var placeholderPassThroughMouseUpMonitor: Any?
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
     internal var liveResizingZoneKey: ZoneKey?
@@ -402,6 +411,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
         self.placeholderManager.delegate = self
+        installPlaceholderPassThroughClickMonitor()
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
         self.floatingIndicatorManager.delegate = self
