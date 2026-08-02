@@ -16,7 +16,6 @@ enum PlaceholderPassThroughPolicyTests {
         }
 
         let zonogyPid: pid_t = 100
-        let otherPid: pid_t = 200
 
         func row(
             _ windowNumber: Int,
@@ -31,40 +30,27 @@ enum PlaceholderPassThroughPolicyTests {
         let placeholderFrame = CGRect(x: 100, y: 100, width: 400, height: 400)
         let placeholder = row(1, placeholderFrame, pid: zonogyPid)
 
-        // Unmanaged window behind the placeholder → hole over the overlap.
+        // Window behind the placeholder → hole over the overlap. Managed and unmanaged windows
+        // punch alike; the window server routes clicks to whichever window is topmost there.
         do {
-            let unmanaged = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
+            let behind = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, unmanaged],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                rowsFrontToBack: [placeholder, behind],
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [CGRect(x: 300, y: 300, width: 200, height: 200)], label: "behind-overlapping")
         }
 
         // Same window in front of the placeholder → no hole.
         do {
-            let unmanaged = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
+            let inFront = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
-                rowsFrontToBack: [unmanaged, placeholder],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                rowsFrontToBack: [inFront, placeholder],
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "in-front-no-hole")
-        }
-
-        // Managed window behind → no hole.
-        do {
-            let managed = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, managed],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: [2]
-            )
-            assertEqual(holes, [], label: "managed-excluded")
         }
 
         // Zonogy's own window behind (another placeholder/overlay) → no hole.
@@ -73,8 +59,7 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, ownWindow],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "own-pid-excluded")
         }
@@ -85,8 +70,7 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, floating],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "non-normal-layer-excluded")
         }
@@ -97,8 +81,7 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, invisible],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "zero-alpha-excluded")
         }
@@ -109,8 +92,7 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, sliver],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "sliver-overlap-ignored")
         }
@@ -121,8 +103,7 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, elsewhere],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "no-overlap-no-hole")
         }
@@ -133,21 +114,19 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, tiny],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "tiny-window-ignored")
         }
 
-        // Two qualifying windows behind → two holes, in z-order (front first).
+        // Two disjoint qualifying windows behind → two holes, in z-order (front first).
         do {
             let first = row(2, CGRect(x: 150, y: 150, width: 100, height: 100))
             let second = row(3, CGRect(x: 350, y: 350, width: 300, height: 300))
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, first, second],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(
                 holes,
@@ -159,26 +138,58 @@ enum PlaceholderPassThroughPolicyTests {
             )
         }
 
-        // Candidate fully covering the placeholder → hole equals the whole placeholder frame.
+        // Overlapping windows each punch their full overlap; the regions simply overlap
+        // (the content view unions them into one path).
+        do {
+            let near = row(2, CGRect(x: 150, y: 150, width: 100, height: 100))
+            let deep = row(3, CGRect(x: 150, y: 150, width: 300, height: 300))
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder, near, deep],
+                zonogyPid: zonogyPid
+            )
+            assertEqual(
+                holes,
+                [
+                    CGRect(x: 150, y: 150, width: 100, height: 100),
+                    CGRect(x: 150, y: 150, width: 300, height: 300)
+                ],
+                label: "overlapping-windows-overlapping-holes"
+            )
+        }
+
+        // An excluded row (here: a sliver) above a deeper qualifying window does not clip the
+        // deeper window's hole. Clicks over the sliver reach the sliver window (topmost there),
+        // which is consistent with delegating routing to the window server.
+        do {
+            let sliver = row(2, CGRect(x: 495, y: 100, width: 300, height: 400))
+            let deep = row(3, CGRect(x: 300, y: 100, width: 400, height: 400))
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder, sliver, deep],
+                zonogyPid: zonogyPid
+            )
+            assertEqual(holes, [CGRect(x: 300, y: 100, width: 200, height: 400)], label: "excluded-row-above-deeper-candidate")
+        }
+
+        // Window fully covering the placeholder → hole equals the whole placeholder frame.
         do {
             let covering = row(2, CGRect(x: 0, y: 0, width: 1000, height: 1000))
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [placeholder, covering],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [placeholderFrame], label: "full-cover-full-hole")
         }
 
         // Placeholder missing from the z-order snapshot → no holes.
         do {
-            let unmanaged = row(2, CGRect(x: 300, y: 300, width: 400, height: 300), pid: otherPid)
+            let behind = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
-                rowsFrontToBack: [unmanaged],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                rowsFrontToBack: [behind],
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [], label: "placeholder-missing")
         }
@@ -190,94 +201,9 @@ enum PlaceholderPassThroughPolicyTests {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: 1,
                 rowsFrontToBack: [inFront, placeholder, behind],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
+                zonogyPid: zonogyPid
             )
             assertEqual(holes, [CGRect(x: 300, y: 300, width: 200, height: 200)], label: "mixed-stack")
-        }
-
-        // Managed window between placeholder and candidate blocks its part of the hole:
-        // clicks there belong to the managed window's own surface, not the pass-through.
-        do {
-            let managedBetween = row(2, CGRect(x: 250, y: 250, width: 100, height: 300))
-            let unmanaged = row(3, CGRect(x: 300, y: 300, width: 400, height: 300))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, managedBetween, unmanaged],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: [2]
-            )
-            assertEqual(holes, [CGRect(x: 350, y: 300, width: 150, height: 200)], label: "managed-blocker-clips-hole")
-        }
-
-        // Blocker fully covering the candidate's overlap → no hole at all.
-        do {
-            let managedBetween = row(2, CGRect(x: 250, y: 250, width: 300, height: 300))
-            let unmanaged = row(3, CGRect(x: 300, y: 300, width: 200, height: 200))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, managedBetween, unmanaged],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: [2]
-            )
-            assertEqual(holes, [], label: "blocker-covers-candidate")
-        }
-
-        // Blocker strictly inside the hole → four remainder pieces (top, bottom, left, right).
-        do {
-            let managedIsland = row(2, CGRect(x: 250, y: 250, width: 100, height: 100))
-            let covering = row(3, CGRect(x: 0, y: 0, width: 1000, height: 1000))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, managedIsland, covering],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: [2]
-            )
-            assertEqual(
-                holes,
-                [
-                    CGRect(x: 100, y: 100, width: 400, height: 150),
-                    CGRect(x: 100, y: 350, width: 400, height: 150),
-                    CGRect(x: 100, y: 250, width: 150, height: 100),
-                    CGRect(x: 350, y: 250, width: 150, height: 100)
-                ],
-                label: "blocker-island"
-            )
-        }
-
-        // A sliver that fails the overlap test still blocks deeper candidates: clicks over the
-        // sliver would reach the sliver window, which was deliberately not made pass-through.
-        do {
-            let sliver = row(2, CGRect(x: 495, y: 100, width: 300, height: 400))
-            let deep = row(3, CGRect(x: 300, y: 100, width: 400, height: 400))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, sliver, deep],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
-            )
-            assertEqual(holes, [CGRect(x: 300, y: 100, width: 195, height: 400)], label: "non-qualifying-sliver-blocks-deeper")
-        }
-
-        // Overlapping candidates: the nearer one blocks the deeper one, keeping regions disjoint.
-        do {
-            let near = row(2, CGRect(x: 150, y: 150, width: 100, height: 100))
-            let deep = row(3, CGRect(x: 150, y: 150, width: 300, height: 300))
-            let holes = PlaceholderPassThroughPolicy.holeRects(
-                placeholderCgWindowId: 1,
-                rowsFrontToBack: [placeholder, near, deep],
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: []
-            )
-            assertEqual(
-                holes,
-                [
-                    CGRect(x: 150, y: 150, width: 100, height: 100),
-                    CGRect(x: 150, y: 250, width: 300, height: 200),
-                    CGRect(x: 250, y: 150, width: 200, height: 100)
-                ],
-                label: "candidate-blocks-deeper-candidate"
-            )
         }
 
         if allPassed {

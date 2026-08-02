@@ -52,8 +52,8 @@ extension AppController {
         clearUnmanagedWindowEdgeState(forPid: application.processIdentifier, reason: "application-termination")
 
         capturePipeline.cancelRetry(forPid: application.processIdentifier)
-        // A terminated app's unmanaged windows vanish with it: retire any pass-through holes
-        // they earned, even when the app had no managed windows (no sync runs then).
+        // A terminated app's windows vanish with it: retire any pass-through holes they
+        // earned, even when the app had no managed windows (no sync runs then).
         schedulePlaceholderPassThroughRefresh(reason: "application-termination")
         // When an application terminates, remove all of its managed windows immediately
         let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)

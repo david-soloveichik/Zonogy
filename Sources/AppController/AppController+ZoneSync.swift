@@ -406,7 +406,7 @@ extension AppController {
         targetedZoneManager.ensureTargetedZone(reason: "sync")
         refreshIndicators()
         refreshResizeHandles()
-        // Placeholders were just re-fronted in Phase 4, possibly above unmanaged windows:
+        // Placeholders were just re-fronted in Phase 4, possibly above other windows:
         // recompute where their backgrounds must let clicks pass through.
         schedulePlaceholderPassThroughRefresh(reason: "sync")
         launcherController.repositionIfNeeded()

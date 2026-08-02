@@ -319,8 +319,8 @@ extension AppController {
     }
 
     func placeholderPressEnded() {
-        // The click raised the placeholder's panel, possibly above an unmanaged window that
-        // was in front until now. The window server applies that raise asynchronously and no
+        // The click raised the placeholder's panel, possibly above a window that was in
+        // front until now. The window server applies that raise asynchronously and no
         // in-process event marks its completion (a next-turn snapshot after mouse-up still
         // saw the old order in testing), so re-check shortly after the release.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in

@@ -59,8 +59,8 @@ final class PlaceholderWindow {
         contentView?.isTargeted = targeted
     }
 
-    /// Punch pass-through holes into the click-catching background so clicks over unmanaged
-    /// windows behind this placeholder reach them. Rects are in Cocoa screen coordinates;
+    /// Punch pass-through holes into the click-catching background so clicks over windows
+    /// behind this placeholder reach them. Rects are in Cocoa screen coordinates;
     /// pass an empty array to restore the fully click-catching background.
     /// Returns true when the holes actually changed.
     @discardableResult

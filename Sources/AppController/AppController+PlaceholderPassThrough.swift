@@ -1,16 +1,16 @@
 import Foundation
 import AppKit
 
-/// Detects unmanaged windows stuck behind placeholder windows and punches pass-through holes
+/// Detects windows stuck behind placeholder windows and punches pass-through holes
 /// into the placeholders' click-catching background so those windows remain clickable.
 extension AppController {
     /// Schedule a pass-through refresh for the next runloop turn (coalescing repeated requests).
     /// Event-driven (no polling): requested after full zone syncs (which re-front placeholders),
     /// after unmanaged-focus state updates (which follow app activation and focused-window
     /// changes), shortly after a placeholder press ends (the click raises its panel; see
-    /// `placeholderPressEnded`), after app terminations (which can remove unmanaged windows
+    /// `placeholderPressEnded`), after app terminations (which can remove windows
     /// without any sync), and shortly after any global click while holes are active (see
-    /// `installPlaceholderPassThroughClickMonitor`). Unmanaged windows that move or close
+    /// `installPlaceholderPassThroughClickMonitor`). Windows that move or close
     /// without any such event leave a stale region until the next trigger — at worst until
     /// the next click anywhere, since stale regions only matter when clicked.
     /// The refresh must not run in the same runloop turn that issues an ordering change:
@@ -39,7 +39,6 @@ extension AppController {
             return
         }
 
-        let managedCgWindowIds = Set(windowController.allWindows.map { $0.backing.cgWindowId })
         let zonogyPid = getpid()
 
         var anyHoles = false
@@ -47,8 +46,7 @@ extension AppController {
             let holes = PlaceholderPassThroughPolicy.holeRects(
                 placeholderCgWindowId: placeholder.cgWindowId,
                 rowsFrontToBack: rows,
-                zonogyPid: zonogyPid,
-                managedCgWindowIds: managedCgWindowIds
+                zonogyPid: zonogyPid
             )
             anyHoles = anyHoles || !holes.isEmpty
             let cocoaScreenRects = holes.map {
@@ -78,7 +76,7 @@ extension AppController {
         guard placeholderPassThroughMouseUpMonitor == nil else {
             return
         }
-        placeholderPassThroughMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
+        placeholderPassThroughMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]) { [weak self] _ in
             guard let self, self.placeholderPassThroughHasHoles else {
                 return
             }

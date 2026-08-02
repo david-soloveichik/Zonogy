@@ -86,9 +86,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// True while any placeholder currently has pass-through holes; gates the global
     /// mouse-up re-check so it costs nothing in the common hole-free state.
     internal var placeholderPassThroughHasHoles = false
-    /// Global left-mouse-up monitor that re-checks pass-through regions after clicks
-    /// land in other apps (such clicks can raise windows or hit stale regions without
-    /// producing any focus or sync event).
+    /// Global mouse-up monitor (all buttons) that re-checks pass-through regions after
+    /// clicks land in other apps (such clicks can raise windows or hit stale regions
+    /// without producing any focus or sync event).
     internal var placeholderPassThroughMouseUpMonitor: Any?
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
@@ -500,6 +500,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        if let monitor = placeholderPassThroughMouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         windowFocusNavigationInterceptor.stop()

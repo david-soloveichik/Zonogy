@@ -321,7 +321,7 @@ extension AppController {
         unmanagedFocusedWindowScreenId = newScreenId
 
         // Focus/activation changes reorder windows relative to placeholders (e.g. a clicked
-        // unmanaged window rises above one): recompute placeholder pass-through regions.
+        // window rises above one): recompute placeholder pass-through regions.
         schedulePlaceholderPassThroughRefresh(reason: "focus-update")
 
         if previousScreenId != newScreenId {

@@ -32,7 +32,7 @@ protocol PlaceholderManagerDelegate: AnyObject {
     func placeholderSearchPillClicked(screenId: CGDirectDisplayID, zoneIndex: Int)
 
     /// Called after a placeholder finishes handling a left mouse-up. The click has raised the
-    /// placeholder's panel by then, possibly over an unmanaged window.
+    /// placeholder's panel by then, possibly over another window.
     func placeholderPressEnded()
 
     /// Called when external content (files/URLs) is dropped on a placeholder.
@@ -200,7 +200,7 @@ final class PlaceholderManager {
     private func applyPanelGlassStyle(to layer: CALayer) {
         // The click-catching interior fill lives in the content view's hit-test background
         // layer (see PlaceholderContentView), which can punch pass-through holes over
-        // unmanaged windows stuck behind the placeholder. The root layer only draws the border.
+        // windows stuck behind the placeholder. The root layer only draws the border.
         layer.backgroundColor = NSColor.clear.cgColor
         layer.cornerRadius = windowCornerRadius
         layer.borderWidth = 1.5
