@@ -1,7 +1,8 @@
 import Foundation
 import AppKit
 
-/// Shared lookup helpers for retrieving focused managed windows and their zone metadata.
+/// Shared lookup helpers for focused-window retrieval, zone metadata, and classifying
+/// whether frontmost focus is managed or unmanaged.
 extension AppController {
     /// Returns the currently focused managed window for the frontmost application when it is eligible for automation.
     /// - Parameter logPrefix: Text prepended to debug logs when lookup fails so callers can retain their context.
@@ -74,7 +75,9 @@ extension AppController {
     }
 
     /// Resolves whether frontmost focus is managed, confirmed unmanaged, or unresolved.
-    /// Unmanaged focus requires positive confirmation; transient AX failures stay unresolved.
+    /// Unmanaged focus requires positive confirmation — the frontmost app failing app-level
+    /// capture policy (`shouldManage`) or the focused window failing window-level management
+    /// criteria; transient AX failures stay unresolved.
     internal func resolveUnmanagedFocusState() -> UnmanagedFocusResolution {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
             return .managedUnknown
@@ -100,12 +103,17 @@ extension AppController {
             return .managed(window: tracked, pid: pid, focusedElement: focusedWindow)
         }
 
-        if let bundleId = frontmostApp.bundleIdentifier,
-           configuration.ignoredBundleIdentifiers.contains(bundleId) {
-            guard let screenId = screenId(forWindowElement: focusedWindow) else {
-                return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "ignored-bundle-screen-unavailable")
+        // An app currently rejected by app-level capture policy (ignored bundle, non-regular
+        // activation policy without an exception, XPC/helper process, no derivable bundle
+        // identifier) cannot have this window captured, so its focus is confirmed unmanaged
+        // even when the focused window itself would pass the window-level criteria. Should the
+        // app later become manageable (e.g. it promotes its activation policy), the next
+        // focus/activation event re-resolves.
+        if !shouldManage(application: frontmostApp) {
+            guard let screenId = detectScreenId(for: focusedWindow) else {
+                return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "unmanageable-app-screen-unavailable")
             }
-            return .unmanaged(screenId: screenId, pid: pid, focusedElement: focusedWindow, reason: "ignored-bundle")
+            return .unmanaged(screenId: screenId, pid: pid, focusedElement: focusedWindow, reason: "app-fails-management-criteria")
         }
 
         guard let externalIdentifier = windowController.externalIdentifier(for: focusedWindow) else {
@@ -124,7 +132,7 @@ extension AppController {
             return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "window-appears-manageable")
         }
 
-        guard let screenId = screenId(forWindowElement: focusedWindow) else {
+        guard let screenId = detectScreenId(for: focusedWindow) else {
             return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "unmanaged-screen-unavailable")
         }
 
@@ -174,18 +182,5 @@ extension AppController {
         }
 
         return nil
-    }
-
-    private func screenId(forWindowElement windowElement: AXUIElement) -> CGDirectDisplayID? {
-        guard let position = ManagedWindow.copyCGPointValue(element: windowElement, attribute: kAXPositionAttribute as CFString),
-              let size = ManagedWindow.copyCGSizeValue(element: windowElement, attribute: kAXSizeAttribute as CFString) else {
-            return nil
-        }
-        let accessibilityFrame = CGRect(origin: position, size: size)
-        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-            accessibilityFrame: accessibilityFrame,
-            primaryScreenBounds: primaryScreenBounds
-        )
-        return screenIdForCocoaFrame(cocoaFrame)
     }
 }
