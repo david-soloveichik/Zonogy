@@ -239,7 +239,7 @@ If the front-most managed window on a screen would overlap a zone resize bar, th
 
 When the floating zone is occupied on a screen, hide the zone resize bars that the floating zone window would overlap. Bars that do not intersect the floating window remain visible. (During an active resize drag, the dragged bar is never hidden by this rule.)
 
-When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window.
+When an unmanaged window has focus on a screen, hide all zone resize bars on that screen to avoid overlapping the unmanaged window. (Hide-all rather than per-bar avoidance: it would go stale as the unmanaged window moves or resizes, and we avoid AX move/resize subscriptions for unmanaged apps.)
 For this rule, and Launcher auto-show suppression, unmanaged focus must be confirmed (with retries) as described in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
 
 **Pinned resize bar mode:** When a placeholder is activated (e.g. clicked), zone resize bars on that screen enter pinned mode (per-screen). We still avoid having resize bars that (substantially) overlap any managed window by resizing them, but a bar cannot shrink below the extent of its adjacent placeholder windows or be hidden entirely—placeholder boundaries serve as the minimum visible region for each bar. Pinned mode exits when (1) a managed window becomes active, or (2) the user clicks outside any visible Zonogy-owned window.
