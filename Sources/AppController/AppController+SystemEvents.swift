@@ -133,6 +133,13 @@ extension AppController {
             return
         }
 
+        // A Finder relaunch rebuilds the desktop hierarchy (the cached snapshot carried the
+        // icon holes across the restart). Run the desktop-change notification path — its
+        // debounce plus follow-up waits out the hierarchy rebuild before recomputing.
+        if application?.bundleIdentifier == "com.apple.finder" {
+            desktopChangeWatchService.notifyDesktopChanged()
+        }
+
         // Dismiss Launcher only when a manageable application launches
         if launcherController.isActive,
            let application,
@@ -501,6 +508,12 @@ extension AppController {
            rebuildResult.visibleFrameChangedDisplayIds.isEmpty,
            !rebuildResult.orderChanged {
             Logger.debug("Screen topology unchanged after refresh request (\(reason))")
+        } else {
+            // Display changes reflow desktop icons: drop the cached icon frames so the
+            // pass-through refreshes triggered by the syncs below read fresh geometry, and
+            // run the desktop-change notification path to catch Finder's settled reflow.
+            lastDesktopIconFramesReadTime = nil
+            desktopChangeWatchService.notifyDesktopChanged()
         }
 
         if !rebuildResult.addedDisplayIds.isEmpty {

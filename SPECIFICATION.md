@@ -115,6 +115,8 @@ Placeholders stay anchored to their zone: dragging their surface does not reposi
 
 **Click-through over covered windows.** An unmanaged window can get stuck behind a placeholder. To keep such a window user-reachable, the placeholder allows clicks and drags to pass through to the window beneath where it overlaps that window. (Unmanaged windows are the motivation, but handling all windows uniformly is simpler and harmless.) Placeholder border, blue button, and search pill don't pass through. Mechanism: macOS routes mouse events through fully transparent window pixels, so the placeholder interior is painted at an imperceptible opacity everywhere except those overlaps. The pass-through region is recomputed as windows change (focus changes, layout syncs, clicks on the placeholder itself, and any click while a region is active) and disappears once no window remains behind the placeholder.
 
+**Click-through over desktop icons.** Desktop icons covered by a placeholder stay reachable through the same pass-through mechanism (icon plus a small fixed-size band below it for its filename label). In addition to the recomputation triggers above, icon regions follow Desktop changes (icons added, removed, or moved), disk mounts, display changes, and Finder relaunches. Icon move is detected by .DS_Store update file system event.
+
 ### Adding and Removing Zones
 
 There are several ways to remove a zone, the main ones being:
@@ -176,7 +178,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Target selection:**
 
-- Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher. (Within a placeholder's click-through region, clicks go to the window beneath instead; see **Placeholders**.)
+- Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher. (Within a placeholder's click-through region, clicks go to the window or desktop icon beneath instead; see **Placeholders**.)
 - Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
 - When a new tiling zone is created on a screen: always target the lowest-index empty tiling zone on that screen.
@@ -404,7 +406,7 @@ Zonogy Preferences includes a **Debug** tab with six independent debug toggles, 
 
 Changes apply immediately while Zonogy is running.
 
-The "Show placeholder pass-through holes" toggle paints the placeholder's normally imperceptible click-catching interior at a visible opacity, so the pass-through holes over covered windows (see **Placeholders**) stand out as clear cut-outs.
+The "Show placeholder pass-through holes" toggle paints the placeholder's normally imperceptible click-catching interior at a visible opacity, so the pass-through holes over covered windows and desktop icons (see **Placeholders**) stand out as clear cut-outs.
 
 The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
 

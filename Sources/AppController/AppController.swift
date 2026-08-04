@@ -90,6 +90,17 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// clicks land in other apps (such clicks can raise windows or hit stale regions
     /// without producing any focus or sync event).
     internal var placeholderPassThroughMouseUpMonitor: Any?
+    /// Watches the Desktop folder and volume mounts so pass-through holes track desktop
+    /// icon changes that produce no click or focus event.
+    internal let desktopChangeWatchService = DesktopChangeWatchService()
+    /// Last successfully read desktop icon frames; also the fallback while Finder's
+    /// hierarchy is transiently unreadable (see `currentDesktopIconFrames`).
+    internal var lastKnownDesktopIconFrames: [CGRect] = []
+    /// When the icon frames were last read successfully; nil forces the next pass-through
+    /// refresh to re-read. Cleared whenever icons may have changed: desktop-change
+    /// notifications (Desktop file events including Finder's icon-position writes, volume
+    /// mounts, Finder relaunch) and display changes.
+    internal var lastDesktopIconFramesReadTime: Date?
     internal var lastSyncKnownZoneKeys: Set<ZoneKey> = []
     internal var lastSyncEmptyZoneKeys: Set<ZoneKey> = []
     internal var liveResizingZoneKey: ZoneKey?
@@ -412,6 +423,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.placeholderCoordinator.delegate = self
         self.placeholderManager.delegate = self
         installPlaceholderPassThroughClickMonitor()
+        desktopChangeWatchService.changeHandler = { [weak self] in
+            guard let self else { return }
+            // The desktop's icons just changed; don't serve the pre-change cached frames.
+            self.lastDesktopIconFramesReadTime = nil
+            self.schedulePlaceholderPassThroughRefresh(reason: "desktop-changed")
+        }
+        desktopChangeWatchService.start()
         self.windowController.delegate = self
         self.indicatorManager.delegate = self
         self.floatingIndicatorManager.delegate = self
@@ -503,6 +521,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         if let monitor = placeholderPassThroughMouseUpMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        desktopChangeWatchService.stop()
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
         windowFocusNavigationInterceptor.stop()

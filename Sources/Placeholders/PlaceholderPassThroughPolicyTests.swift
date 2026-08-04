@@ -206,6 +206,105 @@ enum PlaceholderPassThroughPolicyTests {
             assertEqual(holes, [CGRect(x: 300, y: 300, width: 200, height: 200)], label: "mixed-stack")
         }
 
+        let labelOutset = PlaceholderPassThroughPolicy.iconLabelBandOutset
+        let labelHeight = PlaceholderPassThroughPolicy.iconLabelBandHeight
+
+        // Desktop icon fully under the placeholder → its frame and its label band both punch.
+        do {
+            let icon = CGRect(x: 200, y: 200, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(
+                holes,
+                [
+                    icon,
+                    CGRect(x: 200 - labelOutset, y: 264, width: 64 + 2 * labelOutset, height: labelHeight)
+                ],
+                label: "icon-and-label-band"
+            )
+        }
+
+        // Icon straddling the placeholder edge → both holes clipped to the placeholder;
+        // here the label band falls entirely below the placeholder and contributes nothing.
+        do {
+            let icon = CGRect(x: 480, y: 460, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(holes, [CGRect(x: 480, y: 460, width: 20, height: 40)], label: "icon-clipped-at-edge")
+        }
+
+        // Icon whose image misses the placeholder but whose label band reaches under it
+        // (labels are wider than their icons) → only the band's overlap punches.
+        do {
+            let icon = CGRect(x: 100 - 64 - 10, y: 150, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(
+                holes,
+                [CGRect(x: 100, y: 214, width: labelOutset - 10, height: labelHeight)],
+                label: "label-band-only"
+            )
+        }
+
+        // Icon away from the placeholder → no holes.
+        do {
+            let icon = CGRect(x: 600, y: 600, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(holes, [], label: "icon-no-overlap")
+        }
+
+        // Icons need the placeholder's frame too: placeholder missing from the snapshot → no holes.
+        do {
+            let icon = CGRect(x: 200, y: 200, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(holes, [], label: "icon-placeholder-missing")
+        }
+
+        // Windows and icons combine: window holes first (z-order), then per-icon holes.
+        // A window covering an icon does not suppress the icon's holes; the regions
+        // overlap and the window server routes clicks to whichever window is topmost.
+        do {
+            let behind = row(2, CGRect(x: 300, y: 300, width: 400, height: 300))
+            let icon = CGRect(x: 320, y: 320, width: 64, height: 64)
+            let holes = PlaceholderPassThroughPolicy.holeRects(
+                placeholderCgWindowId: 1,
+                rowsFrontToBack: [placeholder, behind],
+                zonogyPid: zonogyPid,
+                desktopIconFrames: [icon]
+            )
+            assertEqual(
+                holes,
+                [
+                    CGRect(x: 300, y: 300, width: 200, height: 200),
+                    icon,
+                    CGRect(x: 320 - labelOutset, y: 384, width: 64 + 2 * labelOutset, height: labelHeight)
+                ],
+                label: "window-and-icon-combine"
+            )
+        }
+
         if allPassed {
             print("PlaceholderPassThroughPolicyTests: all tests passed")
         }

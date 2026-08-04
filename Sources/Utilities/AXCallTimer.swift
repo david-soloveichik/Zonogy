@@ -41,6 +41,22 @@ enum AXCall {
     }
 
     @discardableResult
+    static func copyMultipleAttributes(
+        _ element: AXUIElement,
+        _ attributes: CFArray,
+        _ options: AXCopyMultipleAttributeOptions,
+        _ values: UnsafeMutablePointer<CFArray?>
+    ) -> AXError {
+        let start = DispatchTime.now()
+        let detail = ((attributes as? [String]) ?? []).joined(separator: ",")
+        let interval = beginAXInterval("AXCopyMultipleAttributes", detail: detail)
+        let status = AXUIElementCopyMultipleAttributeValues(element, attributes, options, values)
+        endAXInterval("AXCopyMultipleAttributes", interval, status: status)
+        report(start: start, function: "AXUIElementCopyMultipleAttributeValues", detail: detail, element: element, status: status)
+        return status
+    }
+
+    @discardableResult
     static func setAttribute(
         _ element: AXUIElement,
         _ attribute: CFString,
