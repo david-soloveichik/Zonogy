@@ -393,15 +393,18 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 
 ### Debug Preferences
 
-Zonogy Preferences includes a **Debug** tab with five independent debug toggles, all **off by default**:
+Zonogy Preferences includes a **Debug** tab with six independent debug toggles, all **off by default**:
 
 - Save debug log to file (`/tmp/zonogy-debug.log`)
 - Show Dock debug rectangle
 - Show full-screen debug rectangles
+- Show placeholder pass-through holes
 - Disable pre-position of minimized windows prior to unminimize
 - Disable native macOS tab handling
 
 Changes apply immediately while Zonogy is running.
+
+The "Show placeholder pass-through holes" toggle paints the placeholder's normally imperceptible click-catching interior at a visible opacity, so the pass-through holes over covered windows (see **Placeholders**) stand out as clear cut-outs.
 
 The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
 

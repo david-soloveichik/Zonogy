@@ -6,6 +6,10 @@ extension AppController {
         DebugPreferencesStore.loadLogToFileEnabled()
     }
 
+    internal var isShowPlaceholderPassThroughHolesInSettings: Bool {
+        DebugPreferencesStore.loadShowPlaceholderPassThroughHoles()
+    }
+
     internal var isDisablePrePositionBeforeUnminimizeInSettings: Bool {
         DebugPreferencesStore.loadDisablePrePositionBeforeUnminimize()
     }
@@ -31,6 +35,14 @@ extension AppController {
             Logger.debug("Debug file logging disabled")
         }
         Logger.logToFile = false
+    }
+
+    internal func setShowPlaceholderPassThroughHolesFromSettings(_ enabled: Bool) {
+        Logger.debug("Debug: show placeholder pass-through holes=\(enabled)")
+        DebugPreferencesStore.saveShowPlaceholderPassThroughHoles(enabled)
+        for placeholder in placeholderCoordinator.allActivePlaceholders() {
+            placeholder.refreshPassThroughDebugFill()
+        }
     }
 
     internal func setDisablePrePositionBeforeUnminimizeFromSettings(_ enabled: Bool) {

@@ -13,34 +13,50 @@ enum DebugPreferencesStoreTests {
             }
         }
 
+        let boolPreferences: [(name: String, key: String, load: () -> Bool, save: (Bool) -> Void)] = [
+            (
+                "disable native tab handling",
+                UserDefaultsKeys.disableNativeTabHandling,
+                DebugPreferencesStore.loadDisableNativeTabHandling,
+                DebugPreferencesStore.saveDisableNativeTabHandling
+            ),
+            (
+                "show placeholder pass-through holes",
+                UserDefaultsKeys.showPlaceholderPassThroughHoles,
+                DebugPreferencesStore.loadShowPlaceholderPassThroughHoles,
+                DebugPreferencesStore.saveShowPlaceholderPassThroughHoles
+            )
+        ]
+
         let defaults = UserDefaults.standard
-        let key = UserDefaultsKeys.disableNativeTabHandling
-        let previousValue = defaults.object(forKey: key)
-        defer {
-            if let previousValue {
-                defaults.set(previousValue, forKey: key)
-            } else {
-                defaults.removeObject(forKey: key)
+        for preference in boolPreferences {
+            let previousValue = defaults.object(forKey: preference.key)
+            defer {
+                if let previousValue {
+                    defaults.set(previousValue, forKey: preference.key)
+                } else {
+                    defaults.removeObject(forKey: preference.key)
+                }
             }
+
+            defaults.removeObject(forKey: preference.key)
+            assert(
+                !preference.load(),
+                "\(preference.name) should default to off when unset"
+            )
+
+            preference.save(true)
+            assert(
+                preference.load(),
+                "saved \(preference.name) preference should round-trip true"
+            )
+
+            preference.save(false)
+            assert(
+                !preference.load(),
+                "saved \(preference.name) preference should round-trip false"
+            )
         }
-
-        defaults.removeObject(forKey: key)
-        assert(
-            !DebugPreferencesStore.loadDisableNativeTabHandling(),
-            "native tab handling should default to enabled when unset"
-        )
-
-        DebugPreferencesStore.saveDisableNativeTabHandling(true)
-        assert(
-            DebugPreferencesStore.loadDisableNativeTabHandling(),
-            "saved native tab handling disable preference should round-trip true"
-        )
-
-        DebugPreferencesStore.saveDisableNativeTabHandling(false)
-        assert(
-            !DebugPreferencesStore.loadDisableNativeTabHandling(),
-            "saved native tab handling disable preference should round-trip false"
-        )
 
         if allPassed {
             print("DebugPreferencesStoreTests: all tests passed")

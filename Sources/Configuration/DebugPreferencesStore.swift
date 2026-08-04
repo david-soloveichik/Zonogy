@@ -5,6 +5,7 @@ enum DebugPreferencesStore {
     private static let defaultLogToFileEnabled = false
     private static let defaultDockMenusOverlayEnabled = false
     private static let defaultFullScreenOverlayEnabled = false
+    private static let defaultShowPlaceholderPassThroughHoles = false
     private static let defaultDisablePrePositionBeforeUnminimize = false
     private static let defaultDisableNativeTabHandling = false
 
@@ -39,6 +40,17 @@ enum DebugPreferencesStore {
 
     static func saveFullScreenOverlayEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.fullScreenDebugOverlay)
+    }
+
+    static func loadShowPlaceholderPassThroughHoles() -> Bool {
+        loadBool(
+            forKey: UserDefaultsKeys.showPlaceholderPassThroughHoles,
+            defaultValue: defaultShowPlaceholderPassThroughHoles
+        )
+    }
+
+    static func saveShowPlaceholderPassThroughHoles(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.showPlaceholderPassThroughHoles)
     }
 
     static func loadDisablePrePositionBeforeUnminimize() -> Bool {

@@ -74,6 +74,11 @@ final class PlaceholderWindow {
         return contentView.setPassThroughHoles(viewRects)
     }
 
+    /// Re-apply the hit-test background fill after the pass-through debug setting changes.
+    func refreshPassThroughDebugFill() {
+        contentView?.refreshHitTestFillColor()
+    }
+
     /// Flash a vivid blue border to confirm a gesture-modifier click targeting gesture.
     func flashBorder() {
         contentView?.flashBorder()

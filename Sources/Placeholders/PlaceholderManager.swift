@@ -374,9 +374,16 @@ final class PlaceholderContentView: NSView {
     private var searchPill: NSButton?
     private var searchPillIconView: NSImageView?
 
-    /// Visually imperceptible fill that makes the window server treat the interior as part of
-    /// the window for click/drag hit-testing (fully transparent pixels would pass clicks through).
-    private static let hitTestFillColor = NSColor.black.withAlphaComponent(1.0 / 255.0).cgColor
+    /// Fill that makes the window server treat the interior as part of the window for
+    /// click/drag hit-testing (fully transparent pixels would pass clicks through). Normally
+    /// visually imperceptible; the debug toggle (Preferences → Debug) paints it visibly so
+    /// the pass-through holes stand out as clear cut-outs. Any nonzero alpha catches clicks,
+    /// so the visible debug fill hit-tests identically. AppController refreshes live
+    /// placeholders when the toggle changes; new views read the persisted setting here.
+    private static var hitTestFillColor: CGColor {
+        let debugShowsHoles = DebugPreferencesStore.loadShowPlaceholderPassThroughHoles()
+        return NSColor.black.withAlphaComponent(debugShowsHoles ? 0.35 : 1.0 / 255.0).cgColor
+    }
 
     /// Draws the click-catching interior. Its path is the rounded placeholder shape minus the
     /// current pass-through holes, so clicks over those holes reach the window behind while the
@@ -422,14 +429,21 @@ final class PlaceholderContentView: NSView {
     private func setUpHitTestBackgroundLayer() {
         hitTestBackgroundLayer.fillColor = Self.hitTestFillColor
         hitTestBackgroundLayer.strokeColor = nil
-        // Disable implicit animations: an animating path would briefly hit-test stale geometry.
+        // Disable implicit animations: an animating path would briefly hit-test stale
+        // geometry, and the debug fill toggle should switch instantly, not crossfade.
         hitTestBackgroundLayer.actions = [
             "path": NSNull(),
+            "fillColor": NSNull(),
             "bounds": NSNull(),
             "position": NSNull()
         ]
         layer?.insertSublayer(hitTestBackgroundLayer, at: 0)
         rebuildHitTestBackgroundPath()
+    }
+
+    /// Re-apply the hit-test fill after the debug visualization setting changes.
+    func refreshHitTestFillColor() {
+        hitTestBackgroundLayer.fillColor = Self.hitTestFillColor
     }
 
     /// Replace the pass-through holes (rects in view coordinates) punched out of the

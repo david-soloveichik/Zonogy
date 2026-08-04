@@ -5,11 +5,12 @@ final class DebugPreferencesViewController: NSViewController {
     private var saveLogCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
+    private var showPassThroughHolesCheckbox: NSButton?
     private var disablePrePositionCheckbox: NSButton?
     private var disableNativeTabsCheckbox: NSButton?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 500))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 560))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
@@ -66,6 +67,23 @@ final class DebugPreferencesViewController: NSViewController {
         fullScreenOverlayHintLabel.textColor = .secondaryLabelColor
         fullScreenOverlayHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(fullScreenOverlayHintLabel)
+
+        let showPassThroughHolesCheckbox = NSButton(
+            checkboxWithTitle: "Show placeholder pass-through holes",
+            target: self,
+            action: #selector(showPassThroughHolesToggled(_:))
+        )
+        showPassThroughHolesCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(showPassThroughHolesCheckbox)
+        self.showPassThroughHolesCheckbox = showPassThroughHolesCheckbox
+
+        let showPassThroughHolesHintLabel = NSTextField(
+            wrappingLabelWithString: "Paints the placeholder click-catching background visibly, so pass-through holes over covered windows appear as clear cut-outs."
+        )
+        showPassThroughHolesHintLabel.font = NSFont.systemFont(ofSize: 12)
+        showPassThroughHolesHintLabel.textColor = .secondaryLabelColor
+        showPassThroughHolesHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(showPassThroughHolesHintLabel)
 
         let disablePrePositionCheckbox = NSButton(
             checkboxWithTitle: "Disable pre-position of minimized windows prior to unminimize",
@@ -155,7 +173,14 @@ final class DebugPreferencesViewController: NSViewController {
             fullScreenOverlayHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             fullScreenOverlayHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            disablePrePositionCheckbox.topAnchor.constraint(equalTo: fullScreenOverlayHintLabel.bottomAnchor, constant: 14),
+            showPassThroughHolesCheckbox.topAnchor.constraint(equalTo: fullScreenOverlayHintLabel.bottomAnchor, constant: 14),
+            showPassThroughHolesCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            showPassThroughHolesHintLabel.topAnchor.constraint(equalTo: showPassThroughHolesCheckbox.bottomAnchor, constant: 6),
+            showPassThroughHolesHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            showPassThroughHolesHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            disablePrePositionCheckbox.topAnchor.constraint(equalTo: showPassThroughHolesHintLabel.bottomAnchor, constant: 14),
             disablePrePositionCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             disablePrePositionHintLabel.topAnchor.constraint(equalTo: disablePrePositionCheckbox.bottomAnchor, constant: 6),
@@ -186,7 +211,7 @@ final class DebugPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 500)
+        self.preferredContentSize = NSSize(width: 580, height: 560)
         syncControls()
     }
 
@@ -208,6 +233,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func showPassThroughHolesToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setShowPlaceholderPassThroughHolesFromSettings(enabled)
+        syncControls()
+    }
+
     @objc private func disablePrePositionToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setDisablePrePositionBeforeUnminimizeFromSettings(enabled)
@@ -224,6 +255,7 @@ final class DebugPreferencesViewController: NSViewController {
         saveLogCheckbox?.state = AppController.shared.isDebugLogToFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
+        showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off
         disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
         disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off
     }
