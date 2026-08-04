@@ -433,6 +433,12 @@ extension AppController {
         }
         manualResizeDetachedWindowIds.remove(windowId)
         selfResizeSnapDebouncer.clear(windowId: windowId)
+        // This notification fires once the minimize animation completes and the window has
+        // left the on-screen window list; a pass-through refresh that ran during the
+        // animation punched a hole over the window that is now stale. Must precede the
+        // suppression return below: programmatic minimizes suppress this event and skip
+        // the sync whose refresh would otherwise heal the hole.
+        schedulePlaceholderPassThroughRefresh(reason: "window-miniaturized")
         let managed = windowController.window(withId: windowId)
 
         if let managed, isEventSuppressed(windowId: managed.windowId, event: .miniaturized) {

@@ -9,7 +9,11 @@ extension AppController {
     /// after unmanaged-focus state updates (which follow app activation and focused-window
     /// changes), shortly after a placeholder press ends (the click raises its panel; see
     /// `placeholderPressEnded`), after app terminations (which can remove windows
-    /// without any sync), shortly after any global click while holes are active (see
+    /// without any sync), after a managed window finishes miniaturizing (a minimizing
+    /// window stays in the on-screen list until its animation ends, so a refresh during
+    /// the animation punches a hole over it; programmatic minimizes suppress the
+    /// notification's zone-removal sync, leaving that trigger as the only heal),
+    /// shortly after any global click while holes are active (see
     /// `installPlaceholderPassThroughClickMonitor`), and after debounced Desktop folder or
     /// volume-mount changes (see `DesktopChangeWatchService`). Windows that move or close
     /// without any such event leave a stale region until the next trigger — at worst until
