@@ -19,7 +19,7 @@ extension AppController {
     func menuBarManagerDidRequestCheckForUpdates() {
         // While the menu already advertises an update, its item is a direct link to the release.
         if let update = updateChecker.availableUpdate {
-            NSWorkspace.shared.open(update.pageURL)
+            AppLinks.open(update.pageURL)
             return
         }
         updateChecker.checkManually { [weak self] outcome in
@@ -56,7 +56,7 @@ extension AppController {
         guard let response = runUpdateCheckAlert(alert) else { return false }
         switch response {
         case .alertFirstButtonReturn:
-            NSWorkspace.shared.open(update.pageURL)
+            AppLinks.open(update.pageURL)
         case .alertThirdButtonReturn:
             updateChecker.skipVersion(update.version)
         default:

@@ -60,52 +60,30 @@ class MenuBarManager: NSObject {
         versionItem.isEnabled = false
         menu.addItem(versionItem)
 
-        let checkForUpdatesItem = NSMenuItem(
-            title: "Check for Updates...",
-            action: #selector(handleCheckForUpdates),
-            keyEquivalent: ""
-        )
-        checkForUpdatesItem.target = self
-        menu.addItem(checkForUpdatesItem)
-        self.checkForUpdatesItem = checkForUpdatesItem
-
-        let preferencesItem = NSMenuItem(
-            title: "Preferences...",
-            action: #selector(handlePreferences),
-            keyEquivalent: ","
-        )
-        preferencesItem.target = self
-        menu.addItem(preferencesItem)
+        checkForUpdatesItem = addItem(to: menu, title: "Check for Updates...", action: #selector(handleCheckForUpdates))
+        addItem(to: menu, title: "Preferences...", action: #selector(handlePreferences), keyEquivalent: ",")
 
         menu.addItem(NSMenuItem.separator())
 
-        let clearSnapshotsItem = NSMenuItem(
-            title: "Clear All Snapshots",
-            action: #selector(handleClearAllSnapshots),
-            keyEquivalent: ""
-        )
-        clearSnapshotsItem.target = self
-        menu.addItem(clearSnapshotsItem)
-
-        let saveSnapshotItem = NSMenuItem(
-            title: "Save Snapshot",
-            action: #selector(handleSaveSnapshot),
-            keyEquivalent: ""
-        )
-        saveSnapshotItem.target = self
-        menu.addItem(saveSnapshotItem)
-        self.saveSnapshotItem = saveSnapshotItem
+        addItem(to: menu, title: "Clear All Snapshots", action: #selector(handleClearAllSnapshots))
+        saveSnapshotItem = addItem(to: menu, title: "Save Snapshot", action: #selector(handleSaveSnapshot))
         updateSaveSnapshotShortcut()
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(
-            title: "Quit Zonogy",
-            action: #selector(handleQuit),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
+        // Feedback comes in two flavors: public on the issue tracker, or private by email.
+        let helpMenu = NSMenu()
+        addItem(to: helpMenu, title: "GitHub", action: #selector(handleOpenGitHub))
+        addItem(to: helpMenu, title: "Feedback on GitHub...", action: #selector(handleFeedbackOnGitHub))
+        addItem(to: helpMenu, title: "Feedback by Email...", action: #selector(handleFeedbackByEmail))
+
+        let helpItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
+        menu.addItem(helpItem)
+        menu.setSubmenu(helpMenu, for: helpItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        addItem(to: menu, title: "Quit Zonogy", action: #selector(handleQuit), keyEquivalent: "q")
 
         statusItem.menu = menu
 
@@ -113,6 +91,16 @@ class MenuBarManager: NSObject {
         setDimmed(false)
 
         Logger.debug("Menu bar icon initialized")
+    }
+
+    /// Appends an item targeting this manager, and returns it for the few callers that keep a
+    /// reference to retitle or re-shortcut it later.
+    @discardableResult
+    private func addItem(to menu: NSMenu, title: String, action: Selector, keyEquivalent: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = self
+        menu.addItem(item)
+        return item
     }
 
     private func createIconImage() -> NSImage? {
@@ -178,6 +166,18 @@ class MenuBarManager: NSObject {
     @objc private func handleClearAllSnapshots() {
         Logger.debug("Clear all snapshots requested from menu bar")
         delegate?.menuBarManagerDidRequestClearAllSnapshots()
+    }
+
+    @objc private func handleOpenGitHub() {
+        AppLinks.open(AppLinks.repository)
+    }
+
+    @objc private func handleFeedbackOnGitHub() {
+        AppLinks.open(AppLinks.feedbackIssue)
+    }
+
+    @objc private func handleFeedbackByEmail() {
+        AppLinks.open(AppLinks.feedbackEmail)
     }
 
     /// Reflects the current (user-configurable) Save Snapshot shortcut beside its menu item so the

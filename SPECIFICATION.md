@@ -381,14 +381,24 @@ For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATIO
 
 For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFICATION-CMDTAB.md)**.
 
+## Menu Bar Menu
+
+Zonogy runs from a menu bar icon, and that menu is where the app's own commands live: the running version, then "Check for Updates..." (see **Software Updates**), "Preferences...", "Clear All Snapshots" and "Save Snapshot" (see **WinShot Snapshots**), a "Help" submenu, and "Quit Zonogy".
+
+The Help submenu holds the repository link and two ways to send feedback, one public and one private:
+
+- **GitHub** opens the Zonogy repository in the default browser.
+- **Feedback on GitHub...** opens a new issue on the repository.
+- **Feedback by Email...** opens the default email app with a new message to the maintainer and a prefilled "Zonogy Feedback" subject.
+
 ## Software Updates
 
 Zonogy can check GitHub Releases for a newer version. (The check requests only the latest release's metadata; nothing about the user or system is sent.) The process for publishing a release is documented in [SPECIFICATION-RELEASE.md](SPECIFICATION-RELEASE.md).
 
-- The menu bar menu has a "Check for Updates..." item.
+- **Manual checks:** Choosing "Check for Updates..." checks immediately and reports the result.
 - **Automatic checks:** When "Automatically check for updates" is enabled in Preferences → General (default on), Zonogy checks shortly after launch and once a day. The first time a run discovers a given newer version, it shows the new-version alert (at most once per version per run, so relaunching can re-alert).
 - **New-version alert:** Offers "View Release" (opens the release page in the browser), "Later", and "Skip This Version".
-- While a newer, non-skipped version is known, the menu item instead reads "Update Available (version)..." and choosing it opens the release page directly.
+- While a newer, non-skipped version is known, the "Check for Updates..." item instead reads "Update Available (version)..." and choosing it opens the release page directly.
 - **Skipping:** "Skip This Version" suppresses the automatic alert and the menu hint for that version only; a later release triggers normally. A manual check still reports a skipped version.
 - **Version comparison:** The release tag (with any leading "v" removed) is compared to the installed version numerically per dot-separated component, so 1.10 is newer than 1.9. Missing components count as zero. A version may carry a pre-release suffix after a hyphen (such as `1.0-beta.1`); such a version orders before the same version without the suffix (so `1.0-beta.2` is older than `1.0`), and two pre-releases of the same version order by their dot-separated identifiers (numeric identifiers compared as numbers, so `beta.10` is newer than `beta.2`). This lets successive betas supersede one another and the final release supersede them all.
 

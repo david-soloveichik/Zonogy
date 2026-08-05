@@ -19,8 +19,6 @@ enum UpdateCheckOutcome {
 }
 
 final class UpdateChecker {
-    private static let latestReleaseAPI = URL(string: "https://api.github.com/repos/david-soloveichik/Zonogy/releases/latest")!
-    private static let releasesPage = URL(string: "https://github.com/david-soloveichik/Zonogy/releases/latest")!
     private static let launchCheckDelay: TimeInterval = 10
     private static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
 
@@ -77,7 +75,7 @@ final class UpdateChecker {
     }
 
     private func performCheck(completion: @escaping (UpdateCheckOutcome) -> Void) {
-        var request = URLRequest(url: Self.latestReleaseAPI)
+        var request = URLRequest(url: AppLinks.latestReleaseAPI)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         // GitHub's API requires a User-Agent identifying the calling app.
         request.setValue("Zonogy/\(AppVersion.marketingVersion)", forHTTPHeaderField: "User-Agent")
@@ -122,7 +120,7 @@ final class UpdateChecker {
             refreshAvailableUpdate()
             return .upToDate
         }
-        let pageURL = release.htmlURL.flatMap(URL.init(string:)) ?? Self.releasesPage
+        let pageURL = release.htmlURL.flatMap(URL.init(string:)) ?? AppLinks.latestReleasePage
         let update = UpdateInfo(version: version, pageURL: pageURL)
         Logger.debug("Update check: version \(version) available (current \(current))")
         latestKnown = update
