@@ -96,7 +96,10 @@ extension AppController {
               CFGetTypeID(windowObject) == AXUIElementGetTypeID() else {
             return .unresolved(pid: pid, focusedElement: nil, reason: "focused-window-\(focusedWindowResult.logDescription)")
         }
-        let focusedWindow = unsafeBitCast(windowObject, to: AXUIElement.self)
+        // An open sheet is reported as the focused window; classify by its containing window.
+        let focusedWindow = windowController.focusTargetElement(
+            for: unsafeBitCast(windowObject, to: AXUIElement.self)
+        )
 
         if let tracked = windowController.managedWindow(matching: focusedWindow),
            tracked.zoneIndex != nil || isWindowInFloatingZone(tracked.windowId) {

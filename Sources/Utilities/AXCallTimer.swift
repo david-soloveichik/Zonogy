@@ -22,9 +22,32 @@ private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMut
 /// Output is grep-able under the literal tag `[SLOW-AX]` and includes the call
 /// name, attribute/action, duration, AX status, target pid, bundle ID, and the
 /// thread the call ran on.
+///
+/// `AXCall` also hosts small shared AX value-decoding helpers (e.g. element arrays), so
+/// call sites pair the instrumented calls with one canonical way to interpret results.
 enum AXCall {
     /// Calls slower than this are logged. Anything below is silent.
     static var thresholdSeconds: TimeInterval = 0.1
+
+    /// Decode an attribute value expected to hold an array of AX elements (e.g. kAXWindows,
+    /// kAXChildren). Bridged NSArray and raw CFArray representations are toll-free bridged, so
+    /// one CFArray walk covers both; each entry is type-checked (a Swift `as? [AXUIElement]`
+    /// cast would not check CF element types) and non-element entries are skipped. Returns nil
+    /// when the value is not an array at all, so callers can tell a malformed value from an
+    /// empty list.
+    static func elementArray(from value: CFTypeRef) -> [AXUIElement]? {
+        guard CFGetTypeID(value) == CFArrayGetTypeID() else {
+            return nil
+        }
+        let array = unsafeBitCast(value, to: CFArray.self)
+        return (0..<CFArrayGetCount(array)).compactMap { index in
+            let item = unsafeBitCast(CFArrayGetValueAtIndex(array, index), to: CFTypeRef.self)
+            guard CFGetTypeID(item) == AXUIElementGetTypeID() else {
+                return nil
+            }
+            return unsafeBitCast(item, to: AXUIElement.self)
+        }
+    }
 
     @discardableResult
     static func copyAttribute(

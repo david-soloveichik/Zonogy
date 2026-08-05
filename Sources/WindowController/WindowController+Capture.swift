@@ -92,8 +92,8 @@ extension WindowController {
             return nil
         }
 
-        let windowElement = unsafeBitCast(windowObject, to: AXUIElement.self)
-        let focusedExisting = existingManagedWindow(for: windowElement)
+        let windowElement = focusTargetElement(for: unsafeBitCast(windowObject, to: AXUIElement.self))
+        let focusedExisting = managedWindow(matching: windowElement)
 
         if let focusedExisting, focusedExisting.isPlacedInZone {
             Logger.debug("captureFocusedWindow: returning existing managed window \(focusedExisting.windowId) for pid \(pid)")
@@ -115,19 +115,58 @@ extension WindowController {
         )
     }
 
-    private func existingManagedWindow(for element: AXUIElement) -> ManagedWindow? {
-        let elementKey = AccessibilityElementKey(element: element)
-        if let existing = externalWindowsByElement[elementKey] {
-            return existing
+    /// Read an element's AX role, or nil if it cannot be read.
+    internal func accessibilityRole(of element: AXUIElement) -> String? {
+        var roleObject: CFTypeRef?
+        guard AXCall.copyAttribute(element, kAXRoleAttribute as CFString, &roleObject) == .success else {
+            return nil
         }
+        return roleObject as? String
+    }
 
-        if let identifier = externalIdentifier(for: element),
-           let existing = externalWindows[identifier] {
-            externalWindowsByElement[elementKey] = existing
-            return existing
+    /// While a sheet (e.g. a save dialog) is open, the Accessibility API reports the sheet — not
+    /// its window — as the application's focused window. This resolves a sheet element to the
+    /// containing window element by walking up the parent chain (nested sheets included), so
+    /// focus-driven behavior applies to the window underneath. Returns nil when the element is
+    /// not a sheet or no window ancestor is found.
+    internal func sheetParentWindowElement(for element: AXUIElement) -> AXUIElement? {
+        guard accessibilityRole(of: element) == kAXSheetRole as String else {
+            return nil
         }
-
+        var current = element
+        for _ in 0..<4 {
+            var parentObject: CFTypeRef?
+            guard AXCall.copyAttribute(current, kAXParentAttribute as CFString, &parentObject) == .success,
+                  let parentObject,
+                  CFGetTypeID(parentObject) == AXUIElementGetTypeID() else {
+                return nil
+            }
+            let parent = unsafeBitCast(parentObject, to: AXUIElement.self)
+            let role = accessibilityRole(of: parent)
+            if role == kAXWindowRole as String {
+                Logger.debug("AX focused element is a sheet; resolved its containing window")
+                return parent
+            }
+            guard role == kAXSheetRole as String else {
+                return nil
+            }
+            current = parent
+        }
         return nil
+    }
+
+    /// Resolves an element reported as a "focused window" to the element focus semantics should
+    /// apply to: a sheet resolves to its containing window; everything else resolves to itself.
+    /// The fast path requires CFEqual identity with a tracked window's backing element (never
+    /// true for a sheet). A dictionary hit alone is not enough — `managedWindow(matching:)`
+    /// caches alias keys after `(pid, CGWindowID)` fallback, and apps are not guaranteed to
+    /// report a distinct `CGWindowID` for a sheet, so an alias must not skip the sheet check.
+    internal func focusTargetElement(for element: AXUIElement) -> AXUIElement {
+        if let managed = externalWindowsByElement[AccessibilityElementKey(element: element)],
+           CFEqual(managed.backing.element, element) {
+            return element
+        }
+        return sheetParentWindowElement(for: element) ?? element
     }
 
     /// Capture all top-level windows for the specified application.
@@ -234,7 +273,7 @@ extension WindowController {
         }
 
         let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
-        let existing = existingManagedWindow(for: element)
+        let existing = managedWindow(matching: element)
 
         if let existing,
            existing.externalIdentifier == identifier,
@@ -626,19 +665,9 @@ extension WindowController {
         String(format: "%.1f", Double(value))
     }
 
-    /// Extract an `[AXUIElement]` from the value of a `kAXWindowsAttribute` query, handling both
-    /// the bridged-array and raw-CFArray representations the Accessibility API may return.
+    /// Extract an `[AXUIElement]` from the value of a `kAXWindowsAttribute` query.
     private func windowElements(from windowsObject: CFTypeRef) -> [AXUIElement] {
-        if let windowElements = windowsObject as? [AXUIElement] {
-            return windowElements
-        }
-        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
-            let array = unsafeBitCast(windowsObject, to: CFArray.self)
-            return (0..<CFArrayGetCount(array)).map {
-                unsafeBitCast(CFArrayGetValueAtIndex(array, $0), to: AXUIElement.self)
-            }
-        }
-        return []
+        AXCall.elementArray(from: windowsObject) ?? []
     }
 
     /// Drop a redundant managed window that already tracks `element` before another window adopts
@@ -646,7 +675,7 @@ extension WindowController {
     /// the same tab group — the switch path only adopts an unplaced incoming window, and the close
     /// path filters out siblings placed in a zone of their own — so removing it never vacates a zone.
     private func dropRedundantManagedWindow(for element: AXUIElement, keeping managed: ManagedWindow) {
-        guard let redundant = existingManagedWindow(for: element),
+        guard let redundant = managedWindow(matching: element),
               redundant.windowId != managed.windowId else {
             return
         }
@@ -782,7 +811,7 @@ extension WindowController {
             }
             // Never steal a window Zonogy already manages in a zone of its own; only untracked tabs
             // or redundant unplaced duplicates of this tab group are valid rebind targets.
-            if let tracked = existingManagedWindow(for: element), tracked.isPlacedInZone {
+            if let tracked = managedWindow(matching: element), tracked.isPlacedInZone {
                 continue
             }
             guard let cgWindowId = cgWindowIdWithStatus(for: element, pid: pid, context: "native-tab-close-sibling").id else {

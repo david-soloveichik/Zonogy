@@ -632,6 +632,53 @@ extension WindowController {
         return max(0, frameArea - intersectionArea)
     }
 
+    /// Frames (screen coordinates) of the sheets attached to the window, including sheets
+    /// nested on other sheets. A sheet travels with its window but can extend past the window's
+    /// own frame (e.g. a save dialog wider than a narrow zone window), so ActiveFit measures
+    /// these to reveal the window and sheet together.
+    ///
+    /// Returns nil when the Accessibility API cannot answer reliably (transient read failures).
+    /// Callers must not treat nil as "no sheets" — doing so could exit reveal mode and snap an
+    /// open sheet off screen.
+    internal func attachedSheetFrames(for managed: ManagedWindow, on screen: ScreenDescriptor) -> [CGRect]? {
+        collectSheetFrames(under: managed.backing.element, on: screen, depth: 0)
+    }
+
+    /// Depth bound matching `sheetParentWindowElement`'s parent-hop bound, so any sheet whose
+    /// focus resolves to the window is also measured.
+    private static let sheetCollectionMaxDepth = 4
+
+    private func collectSheetFrames(under element: AXUIElement, on screen: ScreenDescriptor, depth: Int) -> [CGRect]? {
+        guard depth < Self.sheetCollectionMaxDepth else {
+            return []
+        }
+        var childrenObject: CFTypeRef?
+        let status = AXCall.copyAttribute(element, kAXChildrenAttribute as CFString, &childrenObject)
+        if status == .noValue {
+            return []
+        }
+        guard status == .success, let childrenObject,
+              let children = AXCall.elementArray(from: childrenObject) else {
+            return nil
+        }
+        var frames: [CGRect] = []
+        for child in children {
+            guard let role = accessibilityRole(of: child) else {
+                return nil
+            }
+            guard role == kAXSheetRole as String else {
+                continue
+            }
+            guard let frame = ManagedWindow.frame(of: child),
+                  let nested = collectSheetFrames(under: child, on: screen, depth: depth + 1) else {
+                return nil
+            }
+            frames.append(screen.accessibilityToScreen(frame))
+            frames.append(contentsOf: nested)
+        }
+        return frames
+    }
+
     /// Current window frame in screen coordinates, or nil if it cannot be read.
     internal func accessibilityFrameForWindow(element: AXUIElement, on screen: ScreenDescriptor) -> CGRect? {
         guard let position = ManagedWindow.copyCGPointValue(element: element, attribute: kAXPositionAttribute as CFString),

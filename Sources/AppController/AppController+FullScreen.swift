@@ -440,24 +440,7 @@ extension AppController {
             return []
         }
 
-        if let windowElements = windowsObject as? [AXUIElement] {
-            return windowElements
-        }
-
-        if CFGetTypeID(windowsObject) == CFArrayGetTypeID() {
-            let array = unsafeBitCast(windowsObject, to: CFArray.self)
-            let count = CFArrayGetCount(array)
-            var elements: [AXUIElement] = []
-            elements.reserveCapacity(count)
-            for index in 0..<count {
-                let rawElement = CFArrayGetValueAtIndex(array, index)
-                let element = unsafeBitCast(rawElement, to: AXUIElement.self)
-                elements.append(element)
-            }
-            return elements
-        }
-
-        return []
+        return AXCall.elementArray(from: windowsObject) ?? []
     }
 
     private func handleFullScreenPauseStateChange(for displayId: CGDirectDisplayID) {

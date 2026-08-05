@@ -208,11 +208,35 @@ extension AppController {
         let screenBounds = descriptor.visibleScreenBounds
         let candidateSize = frameResolution.usesRememberedSize ? effectiveCandidateFrame.size : actualFrame.size
 
-        // Check if window would overflow in rest mode and needs reveal mode
+        // An attached sheet (e.g. a save dialog) travels with the window but can extend past
+        // its frame, so its overhang counts toward the overflow check and the reveal shift.
+        // When measurement is transiently unavailable it must not read as "no sheets": for a
+        // window already in reveal mode that would exit reveal and snap its sheet off screen,
+        // so keep the current reveal state instead.
+        let measuredSheetFrames = windowController.attachedSheetFrames(for: managed, on: descriptor)
+        if measuredSheetFrames == nil,
+           let existing = activeFitState, existing.windowId == managed.windowId {
+            Logger.debug("ActiveFit: keeping reveal state for window \(managed.windowId); sheet measurement unavailable")
+            return
+        }
+        let sheetOverhang = ActiveFitPolicy.attachmentOverhang(
+            windowFrame: actualFrame,
+            attachedFrames: measuredSheetFrames ?? []
+        )
+        if sheetOverhang != .none {
+            Logger.debug(
+                "ActiveFit: window \(managed.windowId) has sheet overhang " +
+                "(left: \(sheetOverhang.left), right: \(sheetOverhang.right), " +
+                "top: \(sheetOverhang.top), bottom: \(sheetOverhang.bottom))"
+            )
+        }
+
+        // Check if window (plus sheet overhang) would overflow in rest mode and needs reveal mode
         guard let revealFrame = ActiveFitPolicy.revealFrameIfNeeded(
             zoneFrame: zone.frame,
             zoneOrigin: candidateFrame.origin,
             windowSize: candidateSize,
+            overhang: sheetOverhang,
             screenBounds: screenBounds,
             tolerance: activeFitOverflowTolerance
         ) else {

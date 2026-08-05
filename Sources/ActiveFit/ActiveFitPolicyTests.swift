@@ -100,6 +100,79 @@ enum ActiveFitPolicyTests {
         )
         assert(tinyOverflow == nil, "ActiveFit should ignore sub-tolerance overflow")
 
+        // Sheet overhang measurement: sheets wider than the window overhang left and right;
+        // edges inside the window contribute nothing.
+        let overhangWindow = CGRect(x: 1200, y: 100, width: 300, height: 900)
+        let measured = ActiveFitPolicy.attachmentOverhang(
+            windowFrame: overhangWindow,
+            attachedFrames: [
+                CGRect(x: 1100, y: 120, width: 600, height: 500),
+                CGRect(x: 1250, y: 150, width: 200, height: 900)
+            ]
+        )
+        assert(measured.left == 100, "sheet extending left of the window should measure left overhang (expected 100, got \(measured.left))")
+        assert(measured.right == 200, "sheet extending right of the window should measure right overhang (expected 200, got \(measured.right))")
+        assert(measured.top == 0, "sheet starting below the window top should not measure top overhang")
+        assert(measured.bottom == 50, "sheet ending below the window bottom should measure bottom overhang (expected 50, got \(measured.bottom))")
+        assert(
+            ActiveFitPolicy.attachmentOverhang(windowFrame: overhangWindow, attachedFrames: []) == .none,
+            "no attached frames should measure no overhang"
+        )
+
+        // A window that fits by itself still reveals when its sheet overhang pokes off screen.
+        if let frame = ActiveFitPolicy.revealFrameIfNeeded(
+            zoneFrame: rightTop,
+            zoneOrigin: CGPoint(x: 1300, y: 0),
+            windowSize: CGSize(width: 300, height: 500),
+            overhang: ActiveFitPolicy.AttachmentOverhang(left: 400, right: 400),
+            screenBounds: bounds,
+            tolerance: tolerance
+        ) {
+            assert(frame.origin.x == 1220, "sheet overhang overflow should shift the window left (expected 1220, got \(frame.origin.x))")
+            assert(frame.origin.y == 0, "horizontal sheet overhang should not shift vertically")
+        } else {
+            assert(false, "expected ActiveFit to reveal for sheet overhang past the right screen edge")
+        }
+
+        let sheetFits = ActiveFitPolicy.revealFrameIfNeeded(
+            zoneFrame: rightTop,
+            zoneOrigin: CGPoint(x: 1300, y: 0),
+            windowSize: CGSize(width: 300, height: 500),
+            overhang: ActiveFitPolicy.AttachmentOverhang(left: 100, right: 100),
+            screenBounds: bounds,
+            tolerance: tolerance
+        )
+        assert(sheetFits == nil, "ActiveFit should not trigger when window and sheet overhang both fit on screen")
+
+        // The reveal shift stops where the sheet's own left edge would leave the screen.
+        if let frame = ActiveFitPolicy.revealFrameIfNeeded(
+            zoneFrame: rightTop,
+            zoneOrigin: CGPoint(x: 960, y: 0),
+            windowSize: CGSize(width: 300, height: 500),
+            overhang: ActiveFitPolicy.AttachmentOverhang(left: 200, right: 1600),
+            screenBounds: bounds,
+            tolerance: tolerance
+        ) {
+            assert(frame.origin.x == 200, "reveal shift should clamp so the sheet's left edge stays on screen (expected 200, got \(frame.origin.x))")
+        } else {
+            assert(false, "expected ActiveFit to reveal for an oversized sheet overhang")
+        }
+
+        // A sheet taller than its window reveals with an upward shift.
+        if let frame = ActiveFitPolicy.revealFrameIfNeeded(
+            zoneFrame: rightBottom,
+            zoneOrigin: CGPoint(x: 1280, y: 640),
+            windowSize: CGSize(width: 500, height: 400),
+            overhang: ActiveFitPolicy.AttachmentOverhang(bottom: 100),
+            screenBounds: bounds,
+            tolerance: tolerance
+        ) {
+            assert(frame.origin.y == 580, "bottom sheet overhang should shift the window up (expected 580, got \(frame.origin.y))")
+            assert(frame.origin.x == 1280, "vertical sheet overhang should not shift horizontally")
+        } else {
+            assert(false, "expected ActiveFit to reveal for sheet overhang past the bottom screen edge")
+        }
+
         if allPassed {
             print("ActiveFitPolicyTests: all tests passed")
         }

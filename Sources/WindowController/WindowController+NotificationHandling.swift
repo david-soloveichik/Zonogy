@@ -413,14 +413,14 @@ extension WindowController {
         }
     }
 
-    private func handleMainWindowChangedNotification(element: AXUIElement) {
+    private func handleMainWindowChangedNotification(element reportedElement: AXUIElement) {
         var pid: pid_t = 0
-        let status = AXUIElementGetPid(element, &pid)
+        let status = AXUIElementGetPid(reportedElement, &pid)
 
         var resolvedPid: pid_t?
         if status == .success {
             resolvedPid = pid
-        } else if let managed = managedWindow(matching: element) {
+        } else if let managed = managedWindow(matching: reportedElement) {
             resolvedPid = managed.backing.pid
         }
 
@@ -429,6 +429,7 @@ extension WindowController {
         }
 
         Logger.debug("AX main window changed for pid \(targetPid)")
+        let element = focusTargetElement(for: reportedElement)
 
         let appElement = accessibilityWatcher.applicationElement(for: targetPid)
         var focusedWindowId: Int?
@@ -461,13 +462,14 @@ extension WindowController {
         delegate?.windowFocusChanged(pid: targetPid, focusedWindowId: focusedWindowId)
     }
 
-    private func handleFocusedWindowChangedNotification(element: AXUIElement) {
+    private func handleFocusedWindowChangedNotification(element reportedElement: AXUIElement) {
         // When focus changes, validate windows for the application
         // This catches window closures that didn't fire destroy notifications
         var pid: pid_t = 0
-        let status = AXUIElementGetPid(element, &pid)
+        let status = AXUIElementGetPid(reportedElement, &pid)
         if status == .success, pid != getpid() {
             Logger.debug("Focus changed in app pid \(pid), validating windows")
+            let element = focusTargetElement(for: reportedElement)
             var focusedWindowId: Int?
             let appElement = accessibilityWatcher.applicationElement(for: pid)
             var needsCaptureRetry = false

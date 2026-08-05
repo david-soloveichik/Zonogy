@@ -129,6 +129,9 @@ enum GuardrailTests {
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }
+        if !AXElementArrayDecodingTests.run() {
+            allPassed = false
+        }
         if !ActiveFitRevealStatePolicyTests.run() {
             allPassed = false
         }

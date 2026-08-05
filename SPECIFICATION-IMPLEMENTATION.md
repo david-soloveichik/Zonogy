@@ -155,6 +155,10 @@ This attribution work is used by:
 - manual resize detachment + snapback on focus loss/layout sync, and
 - app-specific self-resize snap-to-zone behavior (e.g., Zoom panels) without fighting deliberate user resizes.
 
+### Sheets reported as the focused window
+
+While a sheet (such as a save dialog) is open, the Accessibility API reports the sheet, not its window, as the application's focused window, and the sheet's role is `AXSheet`. Zonogy resolves a focused sheet to its containing window by walking up the sheet's parent chain, so focus-driven behavior (ActiveFit, frontmost-window tracking, unmanaged-focus classification, recency ordering, WinShot active-window resolution) applies to the managed window underneath. For the ActiveFit reveal itself, Zonogy also measures the frames of the window's attached sheets so the shift accounts for a sheet that extends past the window's frame (see ActiveFit in `SPECIFICATION.md`).
+
 ### Window subrole for minimized windows
 
 Some applications report the subrole for their minimized windows as AXDialogSubrole even if it later becomes kAXStandardWindowSubrole upon un-minimization. So for enumeration of windows to manage, we don't check subrole for minimized windows.

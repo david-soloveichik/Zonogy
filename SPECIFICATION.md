@@ -327,11 +327,12 @@ Some applications refuse to shrink below their minimum width/height, which means
 
 **Implementation requirements:**
 
-1. ActiveFit applies to non-placeholder windows in any tiling zone except one anchored at the screen's top-left corner — reveal shifts move left/up, so that zone's window cannot be helped. (With the default right-bar layout, the exempt zone is zone 1; a single full-screen zone is always exempt.)
+1. ActiveFit applies to windows in any tiling zone except the zone at the screen's top-left corner. (The exception is because reveal shifts move left/up, so that zone's window cannot be helped. With the default right-bar layout the exempt zone is zone 1; in the left-bar layout it is zone 2, the top-left zone. A single full-screen zone is always exempt.)
 2. Determine the candidate active size for the window. Normally this is the window's actual *post-resize* size after the standard zone-aligned move/resize. However, if the Sticky Resize option is enabled, and this zone has a remembered manual size for its current occupant, use that remembered size instead. Anchor the candidate size to the zone's content origin (after margins) and determine whether the resulting predicted frame would extend beyond the screen's visible bounds (allow a ≤1 px tolerance). If it would, the window qualifies for ActiveFit.
 3. When a qualifying window becomes the active/key window, enter **reveal mode**: first apply the candidate active size (zone size or remembered manual size), then shift it left and/or upward just enough for the full frame to sit inside the screen's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
 4. Reveal mode ends — and the window returns to **rest mode** (moved back to its normal zone-anchored position so other zones reclaim their space) — when another managed window becomes active, or when the revealed window leaves its zone, is minimized, or closes. (Focusing a window that Zonogy does not manage does not end reveal mode.)
 5. ActiveFit adjustments should not fight the main zone-sync loop. While a window is in reveal mode, zone sync must skip reapplying the normal frame for that specific zone so the temporary positioning is preserved until it exits reveal mode.
+6. Attached sheets count as part of the window. A sheet (for example, a save dialog) can be wider than its window and stick out past the screen edge even when the window itself fits its zone, so the overflow check and the reveal shift include the sheet. Clicking a sheet counts as activating its window.
 
 This behavior makes oversized right-column windows usable without permanently disrupting the zone layout. The user-facing name of this capability is **ActiveFit**.
 
