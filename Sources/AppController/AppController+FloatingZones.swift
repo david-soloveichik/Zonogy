@@ -27,6 +27,7 @@ extension AppController {
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool = true,
+        activate: Bool = true,
         reason: String,
         displacement: DisplacementStrategy = .synchronous
     ) {
@@ -39,6 +40,7 @@ extension AppController {
             managed,
             to: screenId,
             centerWindow: centerWindow,
+            activate: activate,
             reason: reason,
             displacement: displacement
         )

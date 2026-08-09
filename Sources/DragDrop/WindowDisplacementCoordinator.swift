@@ -13,6 +13,7 @@ protocol DisplacedWindowCoordinatorHost: AnyObject {
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool,
+        activate: Bool,
         reason: String,
         displacement: DisplacementStrategy
     )
@@ -55,6 +56,7 @@ final class DisplacedWindowCoordinator {
             displacedWindow,
             on: screenId,
             centerWindow: true,
+            activate: true,
             reason: fallbackFloatingReason,
             displacement: .synchronous
         )

@@ -30,14 +30,6 @@ extension AppController {
             Logger.debug("Hotkey clear or reset zones triggered")
         case .clearOrResetZonesAtCursor:
             Logger.debug("Hotkey clear or reset zones at cursor triggered")
-        case .navigateDown:
-            Logger.debug("Hotkey navigate down triggered")
-        case .navigateUp:
-            Logger.debug("Hotkey navigate up triggered")
-        case .navigateLeft:
-            Logger.debug("Hotkey navigate left triggered")
-        case .navigateRight:
-            Logger.debug("Hotkey navigate right triggered")
         case .minimizeActiveWindow:
             Logger.debug("Hotkey minimize active window triggered")
         case .minimizeWindowOrRemoveZoneAtCursor:
@@ -48,8 +40,6 @@ extension AppController {
             Logger.debug("Hotkey show WinShot chooser triggered")
         case .showLauncher:
             Logger.debug("Hotkey show launcher triggered")
-        case .focusTargetedWindow:
-            Logger.debug("Hotkey focus targeted window triggered")
         case .toggleTargetZoneWithFocusedWindow:
             Logger.debug("Hotkey toggle target zone w/ focused window triggered")
         }
@@ -460,6 +450,9 @@ extension AppController {
         affectedDisplayIds: Set<CGDirectDisplayID> = [],
         includesWake: Bool = false
     ) {
+        // A display change invalidates the zone-navigation snapshot; drop any in-flight gesture.
+        zoneNavigationInterceptor.resetEngagement()
+        cancelZoneNavigation(reason: "screen-topology-refresh")
         suppressManualMoveHandling(for: manualMoveSuppressionDuration, reason: reason)
         if let existingReason = pendingScreenChangeReason {
             pendingScreenChangeReason = "\(existingReason),\(reason)"
@@ -495,6 +488,9 @@ extension AppController {
         includesWake: Bool
     ) {
         Logger.debug("Performing screen topology refresh due to \(reason) (hinted display ids: \(hintedDisplayIds.count))")
+        // The schedule-time cancel can be outrun by a held arrow re-engaging during the debounce;
+        // cancel again at the rebuild itself so no gesture snapshot survives it.
+        cancelZoneNavigationForTopologyChange(reason: "screen-topology-refresh")
 
         let screens = NSScreen.screens
         let rebuildResult = screenContextStore.rebuild(with: screens)

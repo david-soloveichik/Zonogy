@@ -1,14 +1,13 @@
 import CoreGraphics
 
-/// The four arrow directions, shared by Control-Command target navigation and window-focus
-/// navigation.
+/// The four arrow directions of Control-Command zone navigation.
 enum ZoneNavigationDirection {
     case up
     case down
     case left
     case right
 
-    /// The reverse direction, used by window-focus navigation to back out of a pass-through stop.
+    /// The reverse direction, used by zone navigation to back out of a pass-through stop.
     var opposite: ZoneNavigationDirection {
         switch self {
         case .up: return .down
@@ -26,8 +25,7 @@ enum ZoneNavigationDirection {
 /// returns the id of the nearest eligible candidate strictly ahead in that direction. The selection
 /// is deterministic and OS-free so it is covered by `--self-test`.
 ///
-/// Both Control-Command gestures build on this: `DirectionalZoneNavigation` (target navigation over
-/// zones) and `WindowFocusNavigation` (focus navigation over window rectangles).
+/// `ZoneNavigation` builds its zone selection on this.
 enum DirectionalRectNavigation {
     /// A candidate rectangle and its identity on the shared global plane.
     struct Item<ID> {
@@ -42,17 +40,16 @@ enum DirectionalRectNavigation {
     /// Minimum perpendicular overlap for a candidate to count as edge-aligned with the source.
     private static let overlapTolerance: CGFloat = 1.0
 
-    /// Returns the id of the nearest eligible item strictly ahead of `sourceFrame` in `direction`,
-    /// or nil if none qualifies. Prefers a candidate that overlaps the source along the
-    /// perpendicular edge (nearest by primary-axis gap, then same-screen, then perpendicular center
-    /// distance); otherwise falls back to nearest by center distance so diagonally-placed displays
-    /// stay reachable. Exact ties are broken by `tieBreak`.
+    /// Returns the id of the nearest item strictly ahead of `sourceFrame` in `direction`, or nil
+    /// if none qualifies. Prefers a candidate that overlaps the source along the perpendicular
+    /// edge (nearest by primary-axis gap, then same-screen, then perpendicular center distance);
+    /// otherwise falls back to nearest by center distance so diagonally-placed displays stay
+    /// reachable. Exact ties are broken by `tieBreak`.
     static func nearest<ID>(
         from sourceFrame: CGRect,
         sourceScreenId: CGDirectDisplayID,
         direction: ZoneNavigationDirection,
         among items: [Item<ID>],
-        isEligible: (ID) -> Bool = { _ in true },
         isExcluded: (ID) -> Bool,
         tieBreak: (Item<ID>, Item<ID>) -> Bool
     ) -> ID? {
@@ -105,7 +102,7 @@ enum DirectionalRectNavigation {
             screenId == sourceScreenId ? 0 : 1
         }
 
-        let ahead = items.filter { !isExcluded($0.id) && isAhead($0.frame) && isEligible($0.id) }
+        let ahead = items.filter { !isExcluded($0.id) && isAhead($0.frame) }
         if ahead.isEmpty {
             return nil
         }

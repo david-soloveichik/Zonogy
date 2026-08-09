@@ -77,8 +77,8 @@ extension AppController {
         sleepWakeProtectionActive = true
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
-        windowFocusNavigationInterceptor.resetEngagement()
-        cancelWindowFocusNavigation(reason: reason)
+        zoneNavigationInterceptor.resetEngagement()
+        cancelZoneNavigation(reason: reason)
         cancelSleepSensitiveAsyncWork(reason: reason)
     }
 

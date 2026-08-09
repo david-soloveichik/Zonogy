@@ -9,17 +9,12 @@ final class HotkeyService {
         case collapseToOneZone = 17
         case captureTimeTravelLogs = 3
         case clearOrResetZones = 5
-        case navigateDown = 6
-        case navigateUp = 7
-        case navigateLeft = 8
-        case navigateRight = 9
         case clearOrResetZonesAtCursor = 10
         case minimizeActiveWindow = 11
         case minimizeWindowOrRemoveZoneAtCursor = 12
         case saveWinShotSnapshot = 13
         case showWinShotChooser = 14
         case showLauncher = 15
-        case focusTargetedWindow = 16
         case toggleTargetZoneWithFocusedWindow = 18
 
         /// Maps to the corresponding preferences action
@@ -30,12 +25,7 @@ final class HotkeyService {
             case .collapseToOneZone: return .collapseToOneZone
             case .captureTimeTravelLogs: return .captureTimeTravelLogs
             case .clearOrResetZones: return .clearOrResetZones
-            case .navigateDown: return .navigateDown
-            case .navigateUp: return .navigateUp
-            case .focusTargetedWindow: return .focusTargetedWindow
             case .toggleTargetZoneWithFocusedWindow: return .toggleTargetZoneWithFocusedWindow
-            case .navigateLeft: return .navigateLeft
-            case .navigateRight: return .navigateRight
             case .clearOrResetZonesAtCursor: return .clearOrResetZonesAtCursor
             case .minimizeActiveWindow: return .minimizeActiveWindow
             case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor

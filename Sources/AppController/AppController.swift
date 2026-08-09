@@ -58,10 +58,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()
     internal let cmdTabKeyInterceptor = CmdTabKeyInterceptor()
-    internal let windowFocusNavigationInterceptor = WindowFocusNavigationInterceptor()
-    internal let windowFocusDotOverlay = WindowFocusDotOverlay()
-    /// Live state for an in-progress Control-Command window-focus gesture, or nil when idle.
-    internal var windowFocusNavigationState: WindowFocusNavigationState?
+    internal let zoneNavigationInterceptor = ZoneNavigationInterceptor()
+    internal let zoneNavigationDotOverlay = ZoneNavigationDotOverlay()
+    /// Live state for an in-progress Control-Command zone-navigation gesture, or nil when idle.
+    internal var zoneNavigationState: ZoneNavigationState?
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
@@ -293,7 +293,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// original target and the currently active window's destination while Launcher is open.
     internal var launcherRetargetSession: TemporaryRetargetSession?
     /// Set (via `performTargetChangeKeepingLauncherVisible`) by target-changing keyboard shortcuts —
-    /// directional navigation (Control-Cmd-arrows) and "Toggle Target Zone w/ Focused Window" — so the
+    /// zone navigation's empty-zone commit and "Toggle Target Zone w/ Focused Window" — so the
     /// retarget keeps an already-visible Launcher anchored to the new target, even when that target is
     /// an occupied tiling zone, rather than dismissing it. Restored after the retarget is processed.
     internal var keepLauncherVisibleAcrossTargetNavigation: Bool = false
@@ -456,7 +456,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         zoneClickInterceptor.start(delegate: self)
         externalZoneDropInterceptor.start()
         cmdTabKeyInterceptor.start(delegate: self)
-        windowFocusNavigationInterceptor.start(delegate: self)
+        zoneNavigationInterceptor.start(delegate: self)
         startDockMenusIfConfigured()
         startUpdateChecker()
 
@@ -524,8 +524,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         desktopChangeWatchService.stop()
         capturePipeline.cancelAllRetries()
         hotkeyService.stop()
-        windowFocusNavigationInterceptor.stop()
-        windowFocusDotOverlay.hide()
+        zoneNavigationInterceptor.stop()
+        zoneNavigationDotOverlay.hide()
         systemEventMonitor.stop()
         displayMonitor.stop()
         zoneClickInterceptor.stop()

@@ -55,6 +55,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
         centerWindow: Bool,
+        activate: Bool,
         reason: String,
         displacement: DisplacementStrategy
     )
@@ -380,9 +381,13 @@ class WindowPlacementManager {
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
     ///   - retargetOnRemoval: If `managed` is currently placed in another zone, consider retargeting to the old
-    ///     zone per spec since it's now becoming empty. 
+    ///     zone per spec since it's now becoming empty.
     ///   - forceRetargetAfterFill: Even if the destination zone isn't currently targeted, pretend like it is for
     ///     the purposes of applying the spec's "retarget after filling a targeted tiling zone" rule.
+    ///   - activate: Whether to present the placed window as the active one — floating placements
+    ///     activate/raise it (with protection), tiled placements raise it and record its recency.
+    ///     Pass `false` when another window must keep focus and z-order, e.g. the swap partner of
+    ///     a zone-navigation move.
     ///   - logIfUnassignedOnRemoval: Whether to log when the pre-placement cleanup finds that the window wasn't
     ///     assigned to any zone (use `false` for common expected cases like brand-new window placement).
     ///   - afterPlacementAction: Optional action to run after `managed` is placed (or no-op if it's already there), 
@@ -397,6 +402,7 @@ class WindowPlacementManager {
         forceRetargetAfterFill: Bool = false,
         logIfUnassignedOnRemoval: Bool = true,
         afterPlacementAction: (() -> Void)? = nil,
+        activate: Bool = true,
         displacement: DisplacementStrategy = .synchronous
     ) {
         guard let delegate = delegate else {
@@ -434,6 +440,7 @@ class WindowPlacementManager {
                 managed,
                 on: screenId,
                 centerWindow: centerFloatingWindow,
+                activate: activate,
                 reason: reason,
                 displacement: displacement
             )
@@ -444,6 +451,7 @@ class WindowPlacementManager {
                 reason: reason,
                 forceRetargetAfterFill: forceRetargetAfterFill,
                 afterPlacementAction: afterPlacementAction,
+                activate: activate,
                 displacement: displacement
             )
         }
@@ -460,6 +468,7 @@ class WindowPlacementManager {
         reason: String,
         forceRetargetAfterFill: Bool,
         afterPlacementAction: (() -> Void)?,
+        activate: Bool = true,
         displacement: DisplacementStrategy
     ) {
         guard let delegate = delegate,
@@ -500,7 +509,8 @@ class WindowPlacementManager {
                     screenId: zoneKey.screenId,
                     descriptor: descriptor,
                     forceRetargetAfterFill: forceRetargetAfterFill,
-                    retargetReason: retargetReason
+                    retargetReason: retargetReason,
+                    activate: activate
                 )
             },
             afterAssignIncoming: {
@@ -509,14 +519,17 @@ class WindowPlacementManager {
         )
     }
 
-    /// Assigns a managed window to a zone and updates targeted-zone bookkeeping.
+    /// Assigns a managed window to a zone and updates targeted-zone bookkeeping. `activate: false`
+    /// places passively — no raise and no recency recording — for a window that must stay behind
+    /// the active one (e.g. the swap partner of a zone-navigation move).
     private func assignWindowToZone(
         _ managed: ManagedWindow,
         zone: Zone,
         screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor,
         forceRetargetAfterFill: Bool = false,
-        retargetReason: String = "zone-filled"
+        retargetReason: String = "zone-filled",
+        activate: Bool = true
     ) {
         guard let delegate = delegate else { return }
 
@@ -529,8 +542,11 @@ class WindowPlacementManager {
             reason: "tiled-placement"
         )
 
-        // Record activity for windows placed into zones so they appear in CmdTab/Launcher recency lists.
-        delegate.windowController.recordWindowActivity(windowId: managed.windowId)
+        // Record activity for windows placed into zones so they appear in CmdTab/Launcher recency
+        // lists — unless the placement is passive.
+        if activate {
+            delegate.windowController.recordWindowActivity(windowId: managed.windowId)
+        }
 
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
@@ -546,7 +562,7 @@ class WindowPlacementManager {
         // Update both sides: zone's record and window's record of the assignment
         controller.assignWindow(windowId: managed.windowId, toZoneIndex: zone.index)
         let displayFrame = delegate.frameWithMargin(for: zone, in: controller)
-        delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor)
+        delegate.windowController.showWindow(managed, at: displayFrame, on: descriptor, raise: activate)
         // The assignment path already applied geometry; let the next full sync skip
         // one immediate reapply for this window to avoid redundant AX writes.
         delegate.markWindowForNextSyncGeometrySkip(windowId: managed.windowId)

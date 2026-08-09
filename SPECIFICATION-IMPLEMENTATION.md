@@ -43,10 +43,15 @@ Implementation notes:
 
 ## Directional Navigation Geometry
 
-Both Control-Command directional gestures share one pure geometric selector, `DirectionalRectNavigation`: given a source rectangle and a direction, it returns the nearest rectangle ahead, preferring a neighbor that overlaps the source along the perpendicular edge and falling back to center distance so diagonally-placed displays stay reachable.
+Zone navigation's selection policy is pure geometry built on `DirectionalRectNavigation`: given a source rectangle and a direction, it returns the nearest rectangle ahead, preferring a neighbor that overlaps the source along the perpendicular edge and falling back to center distance so diagonally-placed displays stay reachable.
 
-- **Target navigation** (Vim keys K/J/H/L) selects over the zones — every tiling zone plus each screen's floating-zone bar. Left and Right stay within one layer (tiling-to-tiling or floating-to-floating); Up and Down cross between tiling and floating.
-- **Window focus navigation** (arrow keys) selects over the actual rectangles of the windows in filled zones, starting from the focused window or, when none is focused, the targeted zone. Because the floating-zone window overlaps the tiled windows, it is typically the first stop in a direction that crosses it; presses from there move relative to where the dot arrived from, so the same direction continues past the floating window and the opposite direction goes back. Because the marked window is focused when the modifier is released, the gesture runs through a keyboard event tap rather than an ordinary hotkey — and the four directions therefore share one modifier.
+The candidates are the zones themselves: every tiling zone — filled or empty — by its zone frame, plus each screen's floating zone, represented by its occupant window's actual rectangle when filled or by the bottom-edge bar when empty. Exact geometric ties prefer a tiling zone over a floating zone, then a lower zone index, then a lower display id.
+
+A selection that arrived on a filled floating zone remembers the zone it was entered from: the entry direction continues past the floating window (which would otherwise trap crossings, since it overlaps the tiled zones), the opposite direction backs out to the entry zone, and other directions move relative to it. The empty floating zone's bar is spatially disjoint from the tiled zones, so it navigates from its own rectangle like any other zone.
+
+Because commits happen on modifier release, the gesture runs through a keyboard event tap rather than ordinary hotkeys — and the four directions (plus the Return move key) therefore share one modifier combination. The in-gesture Launcher key is borrowed from the Show Launcher shortcut's binding: only its key code matters, since the gesture's modifier is already held (and swallowing it keeps the chord from doubling as the global Show Launcher hotkey). After an action key ends the gesture, its auto-repeats are swallowed until the modifiers are released.
+
+The gesture snapshots zone geometry when it engages; commits re-check live occupancy. Anything that could invalidate the snapshot mid-gesture — another Zonogy shortcut firing, or a display change — cancels the gesture rather than letting a commit act on stale zones.
 
 ## Displacement Minimization Strategy
 

@@ -286,6 +286,10 @@ extension AppController {
             // A real change flashes via `targetedZoneDidChange`; flash here only when re-affirming the
             // already-targeted zone so the click is still confirmed without double-flashing.
             let wasAlreadyTargeted = targetedZoneManager.targetedDestination == .tiled(key)
+            // An explicit zone click commits CmdTab's tentative retarget session — including when
+            // it re-affirms the session's current target, which fires no change event for the
+            // refresh path's commit-on-change to act on.
+            cmdTabRetargetSession = nil
             targetedZoneManager.setTargetedZone(key, reason: "cmdtab-click-retarget")
             if wasAlreadyTargeted {
                 flashTargetFeedback(for: key)

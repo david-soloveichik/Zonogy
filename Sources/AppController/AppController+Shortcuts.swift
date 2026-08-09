@@ -6,6 +6,15 @@ extension AppController {
     internal func triggerShortcut(_ action: HotkeyService.Action) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            // Any global shortcut firing mid zone-navigation (zone add/remove/clear, retargeting,
+            // etc.) can invalidate the snapshot the circle is navigating; drop the gesture rather
+            // than let a later commit act on stale zones. (The gesture's own keys are swallowed by
+            // its interceptor and never reach here.) The time-travel debug capture is exempt: it
+            // changes no zone state, and cancelling would perturb the input state being captured.
+            if action != .captureTimeTravelLogs {
+                self.zoneNavigationInterceptor.resetEngagement()
+                self.cancelZoneNavigation(reason: "hotkey-\(action)")
+            }
             switch action {
             case .addZone:
                 self.addZone()
@@ -19,16 +28,6 @@ extension AppController {
                 self.clearOrResetZones()
             case .clearOrResetZonesAtCursor:
                 self.clearOrResetZonesAtCursor()
-            case .navigateUp:
-                self.navigateTarget(.up)
-            case .navigateDown:
-                self.navigateTarget(.down)
-            case .navigateLeft:
-                self.navigateTarget(.left)
-            case .navigateRight:
-                self.navigateTarget(.right)
-            case .focusTargetedWindow:
-                self.focusTargetedWindow()
             case .toggleTargetZoneWithFocusedWindow:
                 self.toggleTargetZoneWithFocusedWindow()
             case .minimizeActiveWindow:

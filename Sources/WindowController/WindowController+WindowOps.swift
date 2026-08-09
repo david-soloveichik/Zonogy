@@ -36,8 +36,10 @@ extension WindowController {
         return windowRegistry.window(withId: windowId)
     }
 
-    /// Show a window at the specified frame (frame is in screen-local coordinates)
-    func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor) {
+    /// Show a window at the specified frame (frame is in screen-local coordinates). Pass
+    /// `raise: false` to position without raising (e.g. a zone-navigation swap partner that must
+    /// stay behind the moved, focused window).
+    func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor, raise: Bool = true) {
         let effectiveTargetScreenFrame = resolvedTargetScreenFrame(
             for: managedWindow,
             requestedFrame: frame,
@@ -58,9 +60,11 @@ extension WindowController {
                 screen: screen
             )
         }
-        _ = AXCall.performAction(element, kAXRaiseAction as CFString)
+        if raise {
+            _ = AXCall.performAction(element, kAXRaiseAction as CFString)
+        }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame)")
+        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame) (raise: \(raise))")
     }
 
     /// Minimize a window

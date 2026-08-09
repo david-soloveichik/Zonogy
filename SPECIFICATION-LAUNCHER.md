@@ -14,6 +14,7 @@ The Launcher opens via:
   - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default off), the first shortcut press uses that same active-window retarget behavior before opening the Launcher. When disabled, the first press opens on the current target and the toggle behavior begins on the second shortcut press.
   - Exception: if CmdTab is visible when the shortcut is pressed, CmdTab is dismissed and Launcher opens on CmdTab's current target without any further retarget. CmdTab's retarget session (if any) is inherited by the Launcher so a subsequent Launcher cancel restores the pre-CmdTab target under the usual rules.
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
+- Pressing the **Show Launcher key during zone navigation** — targets the marked zone (occupied or not) and opens the Launcher there (see the main specification's **Zone Navigation**)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
@@ -21,10 +22,11 @@ The Launcher opens via:
     For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a screen whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
+  - Zone navigation is released over an empty tiling zone (targeting it).
   - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
-  Exceptions: (a) after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed; (b) the target-navigation keyboard shortcuts (Control-Cmd-Up, Control-Cmd-Down, Control-Cmd-Left, Control-Cmd-Right) never open or close the Launcher (even if new target is a filled tiling zone).
+  Exceptions: (a) after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed; (b) during zone navigation, arrow presses never open or close the Launcher — only the gesture's end does: releasing over an empty zone re-anchors (or auto-shows) it, the Show Launcher key opens it on the marked zone, and focusing a filled zone's window dismisses it.
 
 ## Dismissal
 
@@ -33,7 +35,7 @@ The launcher dismisses when user:
 - Presses Escape
 - Activates an item (Enter on selection or double-click)
 - Completes a row drag-and-drop
-- **Target restoration:** A retarget made while the Launcher is open — pressing the Launcher shortcut again, or the "Toggle Target Zone with Focused Window" shortcut — is tentative. It commits if you activate an item, complete a row drag, or move the target yourself (e.g. arrow navigation); otherwise, cancelling (Escape, outside click, or a cancelled row drag) restores the target the Launcher started with.
+- **Target restoration:** A retarget made while the Launcher is open — pressing the Launcher shortcut again, or the "Toggle Target Zone with Focused Window" shortcut — is tentative. It commits if you activate an item, complete a row drag, or move the target yourself (e.g. releasing zone navigation over an empty zone, or Control-Command-clicking a zone); otherwise, cancelling (Escape, outside click, or a cancelled row drag) restores the target the Launcher started with.
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
 So the launcher automatically dismisses when:

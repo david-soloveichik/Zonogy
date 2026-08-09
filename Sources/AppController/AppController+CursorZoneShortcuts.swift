@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Zone navigation: keyboard shortcuts and cursor-based zone operations.
+/// Screen-scoped zone shortcuts: clear/reset zones and cursor-driven zone operations.
 extension AppController {
 
     // MARK: - Keyboard Shortcuts
@@ -26,6 +26,7 @@ extension AppController {
             Logger.debug("Clear/reset zones (\(reason)): screen context unavailable")
             return
         }
+        cancelZoneNavigationForTopologyChange(reason: "clear-or-reset-zones")
 
         // Any clear/reset that operates on this screen should exit UnderCovers for it.
         endUnderCovers(on: screenId, reason: "clear-or-reset-zones-\(reason)", recreatePlaceholders: false)
@@ -289,95 +290,6 @@ extension AppController {
 
         let candidate = candidates[0]
         return (candidate.managed, candidate.pid)
-    }
-
-    // MARK: - Directional Target Navigation
-
-    /// Control-Command + an arrow key moves the target to the nearest zone in that physical
-    /// direction. Every tiling zone and each screen's floating zone is treated as a rectangle on
-    /// one global plane; the selection itself lives in `DirectionalZoneNavigation`.
-    internal func navigateTarget(_ direction: ZoneNavigationDirection) {
-        performTargetChangeKeepingLauncherVisible {
-            applyDirectionalNavigation(direction)
-        }
-    }
-
-    private func applyDirectionalNavigation(_ direction: ZoneNavigationDirection) {
-        guard let current = currentNavigableZoneIdentifier() else {
-            Logger.debug("Directional navigation (\(direction)): no zone targeted; ignoring")
-            return
-        }
-
-        guard let next = DirectionalZoneNavigation.nextZone(
-            from: current,
-            direction: direction,
-            among: navigableZones()
-        ) else {
-            Logger.debug("Directional navigation (\(direction)): no zone in that direction; staying put")
-            return
-        }
-
-        switch next {
-        case let .tiling(screenId, index):
-            Logger.debug("Directional navigation (\(direction)): targeting zone \(index) on screen \(screenContextStore.loggingIndex(for: screenId))")
-            targetedZoneManager.setTargetedZone(
-                ZoneKey(screenId: screenId, index: index),
-                reason: "shortcut-navigate-\(direction)"
-            )
-        case let .floating(screenId):
-            Logger.debug("Directional navigation (\(direction)): targeting floating zone on screen \(screenContextStore.loggingIndex(for: screenId))")
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: "shortcut-navigate-\(direction)")
-        }
-    }
-
-    /// The currently targeted zone expressed as a navigation identifier.
-    private func currentNavigableZoneIdentifier() -> NavigableZoneIdentifier? {
-        if let key = targetedZoneManager.targetedZoneKey {
-            return .tiling(screenId: key.screenId, index: key.index)
-        }
-        if let screenId = targetedZoneManager.targetedFloatingScreenId {
-            return .floating(screenId: screenId)
-        }
-        return nil
-    }
-
-    /// Every currently targetable zone, as rectangles on the shared global (accessibility-
-    /// coordinate) plane: each tiling zone plus the screen's floating-zone bar.
-    private func navigableZones() -> [NavigableZone] {
-        var zones: [NavigableZone] = []
-        for screenId in screenOrder {
-            // Reuse the canonical targetability policy so navigation reaches exactly the zones the
-            // rest of targeting considers valid (this also keeps the all-screens-full-screen
-            // fallback screen reachable).
-            guard targetedZoneManager.isScreenTargetable(screenId),
-                  let context = screenContexts[screenId] else {
-                continue
-            }
-            let descriptor = context.descriptor
-            for zone in context.zoneController.allZones {
-                zones.append(
-                    NavigableZone(
-                        id: .tiling(screenId: screenId, index: zone.index),
-                        frame: descriptor.screenToAccessibility(zone.frame)
-                    )
-                )
-            }
-            if let floatingFrame = floatingIndicatorFrames(for: descriptor)?.accessibility {
-                zones.append(NavigableZone(id: .floating(screenId: screenId), frame: floatingFrame))
-            }
-        }
-        return zones
-    }
-
-    /// Wrap a target-changing keyboard shortcut so a visible Launcher follows the new target
-    /// instead of dismissing on occupied tiling zones, and a closed Launcher stays closed (no
-    /// auto-show is triggered). Used by directional navigation and "Toggle Target Zone w/ Focused
-    /// Window".
-    internal func performTargetChangeKeepingLauncherVisible(_ block: () -> Void) {
-        let previous = keepLauncherVisibleAcrossTargetNavigation
-        keepLauncherVisibleAcrossTargetNavigation = launcherController.isActive
-        defer { keepLauncherVisibleAcrossTargetNavigation = previous }
-        block()
     }
 
 }

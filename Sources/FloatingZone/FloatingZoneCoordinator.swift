@@ -88,6 +88,7 @@ final class FloatingZoneCoordinator {
         _ managed: ManagedWindow,
         to screenId: CGDirectDisplayID,
         centerWindow: Bool = true,
+        activate: Bool = true,
         reason: String,
         displacement: DisplacementStrategy = .synchronous
     ) {
@@ -144,7 +145,7 @@ final class FloatingZoneCoordinator {
                 if centerWindow,
                    let descriptor = host.descriptor(for: screenId) {
                     let frame = placementFrame(for: managed, on: descriptor)
-                    host.windowController.showWindow(managed, at: frame, on: descriptor)
+                    host.windowController.showWindow(managed, at: frame, on: descriptor, raise: activate)
                     committedSize = frame.size
                 } else {
                     let actual = managed.actualFrame.size
@@ -161,8 +162,14 @@ final class FloatingZoneCoordinator {
                 }
             },
             afterAssignIncoming: {
-                host.activateFloatingZoneWindow(managed, reason: reason)
-                host.scheduleFloatingZoneProtection(windowId: managed.windowId)
+                // `activate: false` places the window without raising it (e.g. the swap partner of
+                // a zone-navigation move, which must stay behind the moved, focused window).
+                // Protection is skipped too: it records activation recency and re-raises the
+                // window when it expires, both of which would steal focus back.
+                if activate {
+                    host.activateFloatingZoneWindow(managed, reason: reason)
+                    host.scheduleFloatingZoneProtection(windowId: managed.windowId)
+                }
             }
         )
 

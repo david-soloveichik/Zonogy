@@ -1,0 +1,108 @@
+import AppKit
+
+/// A large translucent blue circle drawn at the center of the zone currently marked by
+/// Control-Command zone navigation — or, for an empty floating zone, the upper half of that circle
+/// resting on the screen's bottom edge over the floating-zone bar. It is a non-interactive floating
+/// panel shown only while the gesture is in progress and torn down when the gesture commits or
+/// cancels. Mirrors `OccupiedZoneTargetOverlay`'s floating-panel approach.
+///
+/// Both modes render the same full circle (a max-radius rounded square). The half-circle mode uses
+/// a half-height panel with the circle's lower half hanging below the panel's bottom edge: the
+/// window surface clips it, leaving an exact dome. (Shaping the view itself with `cornerRadius`
+/// cannot produce a semicircle — Core Animation clamps the radius to half the layer's smaller
+/// dimension, which flattens the sides.)
+final class ZoneNavigationDotOverlay {
+    private static let fillColor = NSColor.systemBlue.withAlphaComponent(0.45)
+    /// Circle diameter is this fraction of the reference rectangle's shorter side, clamped below.
+    private static let diameterFraction: CGFloat = 0.32
+    private static let minDiameter: CGFloat = 70
+    private static let maxDiameter: CGFloat = 170
+
+    private var panel: NSPanel?
+    private var dotView: NSView?
+
+    /// Show (or move) the circle centered within `cocoaFrame` (a zone frame or the floating
+    /// window's frame), sizing it relative to that rectangle.
+    func show(centeredIn cocoaFrame: CGRect) {
+        let diameter = Self.diameter(for: cocoaFrame)
+        let panelFrame = CGRect(
+            x: cocoaFrame.midX - diameter / 2,
+            y: cocoaFrame.midY - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+        apply(panelFrame: panelFrame, circleOrigin: .zero, diameter: diameter)
+    }
+
+    /// Show (or move) the upper half of the circle with its flat edge on the screen's bottom edge,
+    /// centered on the empty floating zone's bar. `screenCocoaFrame` supplies the diameter so the
+    /// half circle matches the full circles shown over that screen's zones.
+    func showHalfCircle(onBar barCocoaFrame: CGRect, screenCocoaFrame: CGRect) {
+        let diameter = Self.diameter(for: screenCocoaFrame)
+        let panelFrame = CGRect(
+            x: barCocoaFrame.midX - diameter / 2,
+            y: barCocoaFrame.minY,
+            width: diameter,
+            height: diameter / 2
+        )
+        // The circle's lower half sits below the panel; the window edge clips it into a dome.
+        apply(panelFrame: panelFrame, circleOrigin: CGPoint(x: 0, y: -diameter / 2), diameter: diameter)
+    }
+
+    /// Tear down the overlay (the gesture committed or was cancelled).
+    func hide() {
+        panel?.orderOut(nil)
+        panel?.close()
+        panel = nil
+        dotView = nil
+    }
+
+    private static func diameter(for referenceFrame: CGRect) -> CGFloat {
+        let shorterSide = min(referenceFrame.width, referenceFrame.height)
+        return max(minDiameter, min(shorterSide * diameterFraction, maxDiameter))
+    }
+
+    private func apply(panelFrame: CGRect, circleOrigin: CGPoint, diameter: CGFloat) {
+        let panel = ensurePanel()
+        panel.setFrame(panelFrame, display: true)
+        dotView?.frame = CGRect(x: circleOrigin.x, y: circleOrigin.y, width: diameter, height: diameter)
+        dotView?.layer?.cornerRadius = diameter / 2
+    }
+
+    private func ensurePanel() -> NSPanel {
+        if let panel { return panel }
+
+        let p = NSPanel(
+            contentRect: .zero,
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        p.isFloatingPanel = true
+        // Above the Launcher (.popUpMenu): the gesture runs while the Launcher is open, and the
+        // circle must stay visible over it (as well as over the normal-level windows it marks).
+        p.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+        p.backgroundColor = .clear
+        p.isOpaque = false
+        p.hasShadow = false
+        p.titleVisibility = .hidden
+        p.titlebarAppearsTransparent = true
+        p.isReleasedWhenClosed = false
+        p.ignoresMouseEvents = true
+        p.collectionBehavior = [.canJoinAllSpaces, .stationary]
+
+        let view = NSView(frame: .zero)
+        view.wantsLayer = true
+        view.layer?.backgroundColor = Self.fillColor.cgColor
+        p.contentView?.addSubview(view)
+        p.orderFront(nil)
+
+        self.panel = p
+        self.dotView = view
+        return p
+    }
+
+    deinit {
+        hide()
+    }
+}

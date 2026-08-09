@@ -171,6 +171,11 @@ extension AppController {
             for: destination,
             willOpenLauncher: trigger != nil
         )
+        // An explicit gesture commits any tentative chooser retarget session outright — including
+        // when it re-affirms the session's current target, which fires no change event for the
+        // refresh path's commit-on-change to act on.
+        launcherRetargetSession = nil
+        cmdTabRetargetSession = nil
         applyTargetedDestination(destination, reason: reason)
         // Re-affirming the already-targeted zone fires no change event, so flash here to confirm the
         // gesture — unless flashes are suppressed (e.g. the second click of a double-click).

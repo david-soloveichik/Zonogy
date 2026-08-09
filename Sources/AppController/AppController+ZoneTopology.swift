@@ -18,6 +18,7 @@ extension AppController {
         announce: Bool = true,
         promoteFloatingOccupant: Bool = true
     ) -> Zone? {
+        cancelZoneNavigationForTopologyChange(reason: "add-zone")
         // Special-case: if this screen is in UnderCovers and has a single empty zone 1,
         // treat the first "add zone" invocation as exiting UnderCovers without changing zone count.
         if let context = screenContexts[screenId] {
@@ -110,6 +111,7 @@ extension AppController {
         announce: Bool,
         context: ScreenContext? = nil
     ) -> ZoneController.RemovalResult? {
+        cancelZoneNavigationForTopologyChange(reason: "remove-zone")
         // Removing a zone on this screen should clear any UnderCovers state there.
         endUnderCovers(on: screenId, reason: "remove-zone", recreatePlaceholders: false)
 

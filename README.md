@@ -82,7 +82,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 - **ActiveFit** — windows that can't shrink to fit their zone are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
 - **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
-- **Window Focus Navigation** (`Control-Cmd-Arrows`, hold) — each arrow press hops a blue dot to the nearest window in that direction; release to focus it. Zonogy's geometric arrangement of windows makes directional navigation unambiguous.
+- **Zone Navigation** (`Control-Cmd-Arrows`, hold) — each arrow press hops a blue circle to the nearest zone in that direction (empty zones included). Release to focus that zone's window — or, on an empty zone, to make it the destination. Press `Return` while holding to move the focused window there, swapping with any occupant; press `Space` to make the marked zone the destination and open the Launcher there. Zonogy's geometric arrangement of zones makes directional navigation unambiguous.
 
 ## Mouse Controls
 
@@ -114,10 +114,8 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
-| `Control-Cmd-H/J/K/L` | Change destination zone (Vim keys: left/down/up/right) |
-| `Control-Cmd-Arrows` (hold) | Focus a window: arrows move a dot across windows, release to focus |
+| `Control-Cmd-Arrows` (hold) | Zone navigation: arrows move a circle across zones (filled and empty). Release to focus the zone's window, or to make an empty zone the destination. While holding: `Return` moves the focused window into the marked zone (swapping if occupied); `Space` makes the marked zone the destination and opens the Launcher there |
 | `Control-Cmd-\` | Toggle destination with focused window |
-| `Control-Cmd-Return` | Focus the destination zone's window |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
 

@@ -103,6 +103,17 @@ extension AppController {
         }
     }
 
+    /// Wrap a target-changing keyboard shortcut so a visible Launcher follows the new target
+    /// instead of dismissing on occupied tiling zones, and a closed Launcher stays closed (no
+    /// auto-show is triggered). Used by zone navigation's empty-zone commit and "Toggle Target
+    /// Zone w/ Focused Window".
+    internal func performTargetChangeKeepingLauncherVisible(_ block: () -> Void) {
+        let previous = keepLauncherVisibleAcrossTargetNavigation
+        keepLauncherVisibleAcrossTargetNavigation = launcherController.isActive
+        defer { keepLauncherVisibleAcrossTargetNavigation = previous }
+        block()
+    }
+
     /// Runs a tentative in-chooser retarget `block`: keeps a visible Launcher/CmdTab following the new
     /// target, and (re)binds the active chooser's retarget session so cancelling restores the
     /// pre-retarget target. Outside a chooser it just performs the retarget.

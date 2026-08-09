@@ -50,7 +50,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Activate:** Releasing the modifier key dismisses CmdTab and activates the selected window
 - **Cancel:** Pressing Escape dismisses CmdTab without activating any window (even if the modifier key is still held)
 - **Cancel:** Clicking outside every tiling zone and Zonogy UI dismisses CmdTab.
-- **Target restoration:** While CmdTab is open, both its open-time retarget and any "Toggle Target Zone with Focused Window" retarget are tentative. They commit if your selection places a window, or if you move the target yourself (e.g. arrow navigation); otherwise, cancelling or activating an already-open window restores the target CmdTab started with.
+- **Target restoration:** While CmdTab is open, both its open-time retarget and any "Toggle Target Zone with Focused Window" retarget are tentative. They commit if your selection places a window, or if you move the target yourself (e.g. clicking a zone); otherwise, cancelling or activating an already-open window restores the target CmdTab started with.
 - **Launcher shortcut:** Pressing the Launcher keyboard shortcut while CmdTab is visible dismisses CmdTab and opens the Launcher. The target remains wherever CmdTab had it (no additional retarget), and CmdTab's retarget session is inherited by the Launcher so a subsequent Launcher cancel follows the same pre-CmdTab restoration rule above.
 - CmdTab dismisses if its screen enters full-screen pause.
 
