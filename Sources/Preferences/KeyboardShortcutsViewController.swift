@@ -8,6 +8,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     private var scrollView: NSScrollView!
     private var resetAllButton: NSButton!
     private var mouseModifiersButton: NSButton!
+    private var zoneNavigationButton: NSButton!
     private let actions = KeyboardShortcutPreferences.ShortcutAction.allCases
     private var recordingRow: Int?
     private var recordingInterceptor: ShortcutRecordingInterceptor?
@@ -24,7 +25,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 
         setupTableView(in: containerView)
         setupResetButton(in: containerView)
-        setupMouseModifiersButton(in: containerView)
+        setupGestureModifierButtons(in: containerView)
 
         self.view = containerView
         self.preferredContentSize = NSSize(width: 580, height: 525)
@@ -84,17 +85,24 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         ])
     }
 
-    /// Button (bottom-left) opening the editor for the mouse-gesture modifiers — the keyboard
-    /// modifiers that activate Zonogy's click/drag gestures, which aren't part of the table above.
-    private func setupMouseModifiersButton(in container: NSView) {
+    /// Buttons (bottom-left) opening the editors for the two held-modifier gestures — mouse
+    /// gestures and keyboard zone navigation — which aren't part of the table above.
+    private func setupGestureModifierButtons(in container: NSView) {
         mouseModifiersButton = NSButton(title: "Mouse Modifiers…", target: self, action: #selector(editMouseModifiers))
         mouseModifiersButton.translatesAutoresizingMaskIntoConstraints = false
         mouseModifiersButton.bezelStyle = .rounded
         container.addSubview(mouseModifiersButton)
 
+        zoneNavigationButton = NSButton(title: "Zone Navigation…", target: self, action: #selector(editZoneNavigationModifiers))
+        zoneNavigationButton.translatesAutoresizingMaskIntoConstraints = false
+        zoneNavigationButton.bezelStyle = .rounded
+        container.addSubview(zoneNavigationButton)
+
         NSLayoutConstraint.activate([
             mouseModifiersButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
             mouseModifiersButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            zoneNavigationButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
+            zoneNavigationButton.leadingAnchor.constraint(equalTo: mouseModifiersButton.trailingAnchor, constant: 10),
         ])
     }
 
@@ -350,6 +358,17 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 
         let shortcut = KeyboardShortcut(keyCode: UInt32(keyCode), modifiers: carbonModifiers)
 
+        // The zone-navigation gesture claims its selection keys and Return under its modifiers; a
+        // table shortcut on one of those chords would be swallowed by the gesture's event tap
+        // before its hotkey could fire, so keep recording instead of accepting it.
+        let reserved = ZoneNavigationInterceptor.reservedShortcuts(
+            for: ModifierCombinationPreferences.zoneNavigation.modifiers,
+            keyset: ZoneNavigationKeysetPreferences.shared.keyset
+        )
+        guard !reserved.contains(shortcut) else {
+            return
+        }
+
         // Clear any existing assignment of this shortcut to another action
         if let conflictingAction = KeyboardShortcutPreferences.shared.action(for: shortcut),
            conflictingAction != action {
@@ -401,9 +420,30 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     @objc private func editMouseModifiers() {
-        let modifiersVC = MouseGestureModifierViewController()
-        modifiersVC.onSave = { modifiers in
-            MouseGestureModifierPreferences.shared.update(modifiers)
+        let modifiersVC = ModifierCombinationSheetViewController.mouseGestures()
+        modifiersVC.onSave = { modifiers, _ in
+            ModifierCombinationPreferences.mouseGestures.update(modifiers)
+        }
+        presentAsSheet(modifiersVC)
+    }
+
+    @objc private func editZoneNavigationModifiers() {
+        let modifiersVC = ModifierCombinationSheetViewController.zoneNavigation()
+        modifiersVC.onSave = { [weak self] modifiers, keysetIndex in
+            let keyset = ZoneNavigationKeyset.allCases[keysetIndex]
+            ModifierCombinationPreferences.zoneNavigation.update(modifiers)
+            ZoneNavigationKeysetPreferences.shared.update(keyset)
+            // The gesture now claims its selection keys and Return under these modifiers; steal
+            // any table shortcut sitting on one of those chords (mirroring how recording a shortcut
+            // steals it from its previous action), since the gesture's event tap would swallow it
+            // anyway.
+            let prefs = KeyboardShortcutPreferences.shared
+            for reserved in ZoneNavigationInterceptor.reservedShortcuts(for: modifiers, keyset: keyset) {
+                if let conflictingAction = prefs.action(for: reserved) {
+                    prefs.clearShortcut(for: conflictingAction)
+                }
+            }
+            self?.tableView.reloadData()
         }
         presentAsSheet(modifiersVC)
     }

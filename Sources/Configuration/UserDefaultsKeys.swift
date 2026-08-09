@@ -17,6 +17,10 @@ enum UserDefaultsKeys {
     // MARK: - Mouse Gestures
     static let mouseGestureModifiers = "Zonogy.mouseGestures.modifiers"
 
+    // MARK: - Zone Navigation
+    static let zoneNavigationModifiers = "Zonogy.zoneNavigation.modifiers"
+    static let zoneNavigationKeyset = "Zonogy.zoneNavigation.keyset"
+
     // MARK: - Software Update
     static let updateAutomaticCheckEnabled = "Zonogy.update.automaticCheckEnabled"
     static let updateSkippedVersion = "Zonogy.update.skippedVersion"

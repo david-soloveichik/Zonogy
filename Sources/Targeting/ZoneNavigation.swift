@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Pure selection policy for Control-Command + arrow-key zone navigation.
+/// Pure selection policy for keyboard zone navigation.
 ///
 /// Navigation considers every zone: each tiling zone — filled or empty — by its zone frame, plus
 /// each screen's floating zone, represented by its occupant window's actual rectangle when filled

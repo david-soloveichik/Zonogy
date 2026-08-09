@@ -2,8 +2,8 @@ import Carbon
 import Foundation
 
 /// Guardrail test locking which shortcut actions require a modifier — the hold-to-commit choosers
-/// (CmdTab, WinShot) and zone navigation. These commit on modifier release, so a modifier-free
-/// binding (e.g. a bare function key) would have no release to detect.
+/// (CmdTab, WinShot). These commit on modifier release, so a modifier-free binding (e.g. a bare
+/// function key) would have no release to detect.
 enum ShortcutActionModifierRequirementTests {
     @discardableResult
     static func run() -> Bool {
@@ -20,8 +20,6 @@ enum ShortcutActionModifierRequirementTests {
 
         let expectedRequiresModifier: Set<Action> = [
             .showCmdTab, .showCmdTabCurrentApp, .showWinShotChooser,
-            .selectZoneUp, .selectZoneDown, .selectZoneLeft, .selectZoneRight,
-            .moveWindowToSelectedZone,
         ]
 
         for action in Action.allCases {

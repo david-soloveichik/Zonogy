@@ -33,6 +33,11 @@ struct KeyboardShortcut: Codable, Equatable {
         return flags
     }
 
+    /// Human-readable representation of the key alone (no modifiers), e.g. "Space" or "↩".
+    var keyDisplayString: String {
+        keyCodeToString(keyCode)
+    }
+
     /// Human-readable representation of the shortcut
     var displayString: String {
         var parts: [String] = []

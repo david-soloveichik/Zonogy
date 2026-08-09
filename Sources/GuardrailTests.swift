@@ -105,6 +105,9 @@ enum GuardrailTests {
         if !ZoneNavigationTests.run() {
             allPassed = false
         }
+        if !ZoneNavigationChordPolicyTests.run() {
+            allPassed = false
+        }
         if !ActiveWindowTriggeredTargetPolicyTests.run() {
             allPassed = false
         }
@@ -162,7 +165,7 @@ enum GuardrailTests {
         if !UpdateVersionComparisonTests.run() {
             allPassed = false
         }
-        if !MouseGestureModifierPreferencesTests.run() {
+        if !ModifierCombinationPreferencesTests.run() {
             allPassed = false
         }
         if !ShortcutActionModifierRequirementTests.run() {

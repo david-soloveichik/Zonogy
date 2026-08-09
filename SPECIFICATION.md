@@ -91,7 +91,7 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 ## User Interactions
 
-> Note: For simplicity, this specification refers to keyboard shortcuts and mouse-gesture modifiers by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
+> Note: For simplicity, this specification refers to keyboard shortcuts and gesture modifiers (mouse gestures and zone navigation) by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
 
 ### Tiling Layout and Spacing
 
@@ -199,7 +199,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 ### Zone Navigation
 
-Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone: focus its window, target it, or move the focused window into it. Each press moves a large translucent blue circle to the nearest zone in that physical direction; how the gesture ends decides what happens:
+Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone: focus its window, target it, or move the focused window into it. A preference can add a letter keyset — HJKL, WASD, or IJKL — that selects zones alongside the arrow keys. Each press moves a large translucent blue circle to the nearest zone in that physical direction; how the gesture ends decides what happens:
 
 - **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty tiling zone is targeted, and the Launcher auto-shows per its preference. An empty floating zone is targeted.
 - **Pressing Return while still holding** moves the currently focused managed window into the selected zone and ends the gesture. If the selected zone is occupied, the two windows swap zones. The moved window keeps focus; targeting follows the normal placement rules.

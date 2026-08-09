@@ -5,7 +5,7 @@ import Foundation
 extension AppController {
     /// True while the configured gesture modifiers (Control-Command by default) are all held.
     internal var areGestureModifiersHeld: Bool {
-        NSEvent.modifierFlags.contains(MouseGestureModifierPreferences.shared.modifiers.nsEventFlags)
+        NSEvent.modifierFlags.contains(ModifierCombinationPreferences.mouseGestures.modifiers.nsEventFlags)
     }
 
     internal func shouldPassThroughGestureModifierClick(at location: CGPoint) -> Bool {

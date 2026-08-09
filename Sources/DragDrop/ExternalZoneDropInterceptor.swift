@@ -115,7 +115,7 @@ final class ExternalZoneDropInterceptor {
         guard let host,
               !host.isManagedWindowDragInProgress,
               MouseButtons.isLeftMouseButtonDown(),
-              NSEvent.modifierFlags.contains(MouseGestureModifierPreferences.shared.modifiers.nsEventFlags),
+              NSEvent.modifierFlags.contains(ModifierCombinationPreferences.mouseGestures.modifiers.nsEventFlags),
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint else {
             tearDownOverlays()

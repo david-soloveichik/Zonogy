@@ -235,7 +235,7 @@ extension AppController {
         }
 
         // Not in CmdTab mode: only a gesture-modifier click (Control-Command by default) targets.
-        guard modifiers.contains(MouseGestureModifierPreferences.shared.modifiers.cgEventFlags) else {
+        guard modifiers.contains(ModifierCombinationPreferences.mouseGestures.modifiers.cgEventFlags) else {
             return false
         }
 

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// Control-Command + arrow-key zone navigation: builds the navigable zone set, resolves the
+/// Keyboard zone navigation: builds the navigable zone set, resolves the
 /// selection as the gesture proceeds, shows it with the blue-circle overlay, and commits on release
 /// (focus a filled zone's window, or target an empty zone), on the move key (move the focused
 /// window into the selected zone), or on the Show Launcher key (target the selected zone and open the

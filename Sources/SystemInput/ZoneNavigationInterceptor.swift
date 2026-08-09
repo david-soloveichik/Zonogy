@@ -1,14 +1,14 @@
-/// Intercepts the Control-Command + arrow-key zone-navigation chord via a global CGEventTap.
+/// Intercepts the zone-navigation chord (held modifiers + a selection key) via a global CGEventTap.
 ///
-/// Mirrors `CmdTabKeyInterceptor`: it engages on the chord, swallows the arrow keys while held so
-/// they don't leak to the focused app, lets each arrow press move the selection, and — because the
-/// commit action triggers on modifier release — commits when the shared modifier is released. The
-/// four direction shortcuts (and the move key) therefore share one modifier combination (enforced
-/// in `KeyboardShortcutPreferences`); a per-direction modifier could never be detected on release.
-/// While engaged, the configurable move key (default Return) asks the delegate to move the focused
-/// window into the selected zone, and the Show Launcher shortcut's key (Space by default) asks it to
-/// target the selected zone and open the Launcher there — each ending the gesture when the delegate
-/// performs it.
+/// Mirrors `CmdTabKeyInterceptor`: it engages on the chord, swallows the selection keys while held
+/// so they don't leak to the focused app, lets each press move the selection, and — because the
+/// commit action triggers on modifier release — commits when the modifiers are released. The
+/// selection keys are the arrows plus the chosen letter preset (`ZoneNavigationKeysetPreferences`),
+/// Return always moves the focused window, and the modifier combination is configurable
+/// (`ModifierCombinationPreferences.zoneNavigation`). While engaged, Return asks the delegate to
+/// move the focused window into the selected zone, and the Show Launcher shortcut's key (Space by
+/// default) asks it to target the selected zone and open the Launcher there — each ending the
+/// gesture when the delegate performs it.
 
 import ApplicationServices
 import Carbon
@@ -46,13 +46,29 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
 }
 
 final class ZoneNavigationInterceptor {
-    /// The four configurable direction actions, paired with the direction each represents.
-    private static let directionActions: [(action: KeyboardShortcutPreferences.ShortcutAction, direction: ZoneNavigationDirection)] = [
-        (.selectZoneUp, .up),
-        (.selectZoneDown, .down),
-        (.selectZoneLeft, .left),
-        (.selectZoneRight, .right),
-    ]
+    /// The gesture's move key: Return moves the focused window into the selected zone.
+    static let moveKeyCode = CGKeyCode(kVK_Return)
+
+    /// The chords the gesture claims under a given modifier combination and keyset (the selection
+    /// keys and Return, plus those modifiers). The shortcut editors keep table shortcuts off these,
+    /// since the gesture's event tap would swallow them before any hotkey fires.
+    static func reservedShortcuts(
+        for modifiers: ModifierCombination,
+        keyset: ZoneNavigationKeyset
+    ) -> [KeyboardShortcut] {
+        (Array(keyset.directionKeys.keys) + [moveKeyCode]).map {
+            KeyboardShortcut(keyCode: UInt32($0), modifiers: modifiers.carbonModifiers)
+        }
+    }
+
+    /// Whether `keyCode` already has an in-gesture meaning (selection, move, or cancel) under the
+    /// given keyset. Those branches run before the borrowed Show Launcher key is consulted, so a
+    /// Show Launcher shortcut on one of these keys can't open the Launcher mid-gesture — the editor
+    /// sheet shows that step as unavailable.
+    static func shadowsLauncherKey(_ keyCode: CGKeyCode, keyset: ZoneNavigationKeyset) -> Bool {
+        keyset.directionKeys[keyCode] != nil || keyCode == moveKeyCode || keyCode == escapeKeyCode
+    }
+
     private static let escapeKeyCode = CGKeyCode(kVK_Escape)
     private static let relevantModifierFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
 
@@ -60,11 +76,10 @@ final class ZoneNavigationInterceptor {
 
     private var eventTap: EventTapController?
     private var isEngaged = false
+    /// The modifiers, selection keys, and Show Launcher key binding captured at engage time, so
+    /// mid-gesture edits can't confuse the session.
     private var requiredModifiers: CGEventFlags = []
-    /// The direction- and move-key bindings captured at engage time, so mid-gesture rebinds can't
-    /// confuse it.
     private var engagedDirectionKeys: [CGKeyCode: ZoneNavigationDirection] = [:]
-    private var engagedMoveKey: CGKeyCode?
     private var engagedLauncherKey: CGKeyCode?
     /// After an action key (move or Launcher) ends the gesture, its auto-repeats are swallowed
     /// until the chord's modifiers are released — otherwise a slightly-long press leaks repeats
@@ -103,7 +118,6 @@ final class ZoneNavigationInterceptor {
         isEngaged = false
         requiredModifiers = []
         engagedDirectionKeys = [:]
-        engagedMoveKey = nil
         engagedLauncherKey = nil
     }
 
@@ -192,7 +206,7 @@ final class ZoneNavigationInterceptor {
 
             // Move the focused window into the selected zone. The delegate decides synchronously
             // whether there is a move to perform; if so, the gesture is over.
-            if keyCode == engagedMoveKey {
+            if keyCode == Self.moveKeyCode {
                 if delegate?.zoneNavigationDidPressMoveKey(self) == true {
                     drainingKey = (keyCode, requiredModifiers)
                     resetEngagement()
@@ -219,73 +233,34 @@ final class ZoneNavigationInterceptor {
             return .swallow
         }
 
-        // Fast path for ordinary typing: every chord requires a modifier, so a modifier-free key
-        // can't start a gesture and needn't consult preferences.
-        guard !relevantFlags.isEmpty else {
+        // Fast paths for ordinary typing, checked cheapest-first: the chord requires modifiers
+        // (the store guarantees a valid combination), and they must match exactly, before the
+        // selection keys are even consulted.
+        guard !relevantFlags.isEmpty,
+              relevantFlags == ModifierCombinationPreferences.zoneNavigation.modifiers.cgEventFlags else {
             return .pass
         }
 
-        guard let match = matchingChord(keyCode: keyCode, relevantFlags: relevantFlags),
+        let directionKeys = ZoneNavigationKeysetPreferences.shared.keyset.directionKeys
+        guard let direction = directionKeys[keyCode],
               delegate?.zoneNavigationShouldBegin(self) == true else {
             return .pass
         }
 
         // Engage immediately so repeated presses are swallowed even though the UI work is async.
+        // The Launcher key is borrowed from the Show Launcher shortcut — only its key code matters,
+        // since the gesture's modifiers are already held.
         isEngaged = true
-        requiredModifiers = match.modifiers
-        engagedDirectionKeys = match.directionKeys
-        engagedMoveKey = match.moveKey
-        engagedLauncherKey = match.launcherKey
+        requiredModifiers = relevantFlags
+        engagedDirectionKeys = directionKeys
+        engagedLauncherKey = KeyboardShortcutPreferences.shared.shortcut(for: .showLauncher)
+            .map { CGKeyCode($0.keyCode) }
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.delegate?.zoneNavigation(self, didBegin: match.direction)
+            self.delegate?.zoneNavigation(self, didBegin: direction)
         }
         return .swallow
-    }
-
-    private struct ChordMatch {
-        let direction: ZoneNavigationDirection
-        let modifiers: CGEventFlags
-        let directionKeys: [CGKeyCode: ZoneNavigationDirection]
-        let moveKey: CGKeyCode?
-        let launcherKey: CGKeyCode?
-    }
-
-    /// Resolve the current direction bindings and, if `keyCode`+`relevantFlags` exactly matches one,
-    /// return the match (along with every direction's key, the move key, and the Show Launcher key,
-    /// captured for the engaged session).
-    private func matchingChord(keyCode: CGKeyCode, relevantFlags: CGEventFlags) -> ChordMatch? {
-        let preferences = KeyboardShortcutPreferences.shared
-        var directionKeys: [CGKeyCode: ZoneNavigationDirection] = [:]
-        var matched: (direction: ZoneNavigationDirection, modifiers: CGEventFlags)?
-
-        for (action, direction) in Self.directionActions {
-            guard let shortcut = preferences.shortcut(for: action) else { continue }
-            let modifiers = shortcut.cgEventFlags
-            // A modifier is required: without one we could never detect "release to commit".
-            guard !modifiers.isEmpty else { continue }
-
-            let code = CGKeyCode(shortcut.keyCode)
-            directionKeys[code] = direction
-            if code == keyCode, relevantFlags == modifiers {
-                matched = (direction, modifiers)
-            }
-        }
-
-        guard let matched else { return nil }
-        // The move key shares the gesture's modifier group, and the Launcher key is borrowed from
-        // the Show Launcher shortcut — in both cases only the key code matters here, since the
-        // gesture's modifiers are already held.
-        let moveKey = preferences.shortcut(for: .moveWindowToSelectedZone).map { CGKeyCode($0.keyCode) }
-        let launcherKey = preferences.shortcut(for: .showLauncher).map { CGKeyCode($0.keyCode) }
-        return ChordMatch(
-            direction: matched.direction,
-            modifiers: matched.modifiers,
-            directionKeys: directionKeys,
-            moveKey: moveKey,
-            launcherKey: launcherKey
-        )
     }
 
     deinit {
