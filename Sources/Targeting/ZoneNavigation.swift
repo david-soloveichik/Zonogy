@@ -60,7 +60,7 @@ enum ZoneNavigation {
         let screenId: CGDirectDisplayID
     }
 
-    /// A marked zone. When the marked zone is a filled floating zone reached by a directional
+    /// A selected zone. When the selected zone is a filled floating zone reached by a directional
     /// move, `entry` records where that move started so later presses can pass beyond the floating
     /// window or reverse out of it.
     struct Selection: Equatable {
@@ -81,7 +81,7 @@ enum ZoneNavigation {
     ///
     /// - When a managed window is focused, the press moves off its zone to the nearest zone in the
     ///   pressed direction.
-    /// - Otherwise navigation starts from the targeted zone: a filled target is marked in place
+    /// - Otherwise navigation starts from the targeted zone: a filled target is selected in place
     ///   (regardless of direction, so tap-and-release focuses its window); an empty target moves
     ///   immediately.
     /// - `fallbackAnchor` covers the remaining no-focus, no-resolvable-target case.

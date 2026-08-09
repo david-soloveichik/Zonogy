@@ -1,6 +1,6 @@
 import AppKit
 
-/// A large translucent blue circle drawn at the center of the zone currently marked by
+/// A large translucent blue circle drawn at the center of the zone currently selected by
 /// Control-Command zone navigation — or, for an empty floating zone, the upper half of that circle
 /// resting on the screen's bottom edge over the floating-zone bar. It is a non-interactive floating
 /// panel shown only while the gesture is in progress and torn down when the gesture commits or
@@ -80,7 +80,7 @@ final class ZoneNavigationDotOverlay {
         )
         p.isFloatingPanel = true
         // Above the Launcher (.popUpMenu): the gesture runs while the Launcher is open, and the
-        // circle must stay visible over it (as well as over the normal-level windows it marks).
+        // circle must stay visible over it (as well as over the normal-level windows beneath it).
         p.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
         p.backgroundColor = .clear
         p.isOpaque = false

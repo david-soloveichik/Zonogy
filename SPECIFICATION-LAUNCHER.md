@@ -14,7 +14,7 @@ The Launcher opens via:
   - When the `Launcher keyboard shortcut targets zone with active window` Targeting preference is enabled (default off), the first shortcut press uses that same active-window retarget behavior before opening the Launcher. When disabled, the first press opens on the current target and the toggle behavior begins on the second shortcut press.
   - Exception: if CmdTab is visible when the shortcut is pressed, CmdTab is dismissed and Launcher opens on CmdTab's current target without any further retarget. CmdTab's retarget session (if any) is inherited by the Launcher so a subsequent Launcher cancel restores the pre-CmdTab target under the usual rules.
 - Clicking the **search pill** on any placeholder window (targets that zone and opens the Launcher, even if already targeted)
-- Pressing the **Show Launcher key during zone navigation** — targets the marked zone (occupied or not) and opens the Launcher there (see the main specification's **Zone Navigation**)
+- Pressing the **Show Launcher key during zone navigation** — targets the selected zone and opens the Launcher there (see the main specification's **Zone Navigation**)
 - **Automatically** when:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
@@ -25,7 +25,7 @@ The Launcher opens via:
   - Zone navigation is released over an empty tiling zone (targeting it).
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
-  Exceptions: (a) after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed; (b) during zone navigation, arrow presses never open or close the Launcher — only the gesture's end does: releasing over an empty zone re-anchors (or auto-shows) it, the Show Launcher key opens it on the marked zone, and focusing a filled zone's window dismisses it.
+  Exceptions to dismissal on occupied-target: the Launcher shortcut's toggle retarget (above), and gestures that explicitly open the Launcher on a zone of the user's choosing even when it is occupied (Control-Command-double-click, zone navigation's Show Launcher key).
 
 ## Dismissal
 

@@ -195,22 +195,22 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 **Targeting shortcuts:**
 
 - Control-Cmd-[backslash]: Toggle Target Zone with Focused Window. If the currently targeted zone is a filled tiling zone, re-target as if that zone was just filled. Otherwise, if a managed window is focused in a non-targeted zone, target that zone. It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
-- Targeting a zone from the keyboard is part of **Zone Navigation** below: releasing the gesture over an empty zone targets it, and the Show Launcher key targets any marked zone.
+- Targeting a zone from the keyboard is part of **Zone Navigation** below: releasing the gesture over an empty zone targets it, and the Show Launcher key targets any selected zone.
 
 ### Zone Navigation
 
 Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone: focus its window, target it, or move the focused window into it. Each press moves a large translucent blue circle to the nearest zone in that physical direction; how the gesture ends decides what happens:
 
-- **Releasing Control-Command** commits the marked zone. A filled zone's window is focused (targeting is unchanged). An empty tiling zone is targeted, and the Launcher auto-shows per its preference. An empty floating zone is targeted.
-- **Pressing Return while still holding** moves the currently focused managed window into the marked zone and ends the gesture. If the marked zone is occupied, the two windows swap zones — including between a tiling zone and the floating zone. The moved window keeps focus; targeting follows the normal placement rules. With no focused managed window, or with the focused window's own zone marked, the press does nothing.
-- **Pressing the Show Launcher key (Space) while still holding** targets the marked zone — filled or empty — and opens the Launcher there, ending the gesture. The key follows the Show Launcher shortcut's key.
+- **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty tiling zone is targeted, and the Launcher auto-shows per its preference. An empty floating zone is targeted.
+- **Pressing Return while still holding** moves the currently focused managed window into the selected zone and ends the gesture. If the selected zone is occupied, the two windows swap zones. The moved window keeps focus; targeting follows the normal placement rules.
+- **Pressing the Show Launcher key (Space) while still holding** targets the selected zone and opens the Launcher there, ending the gesture. The key follows the Show Launcher shortcut's key.
 - **Escape** cancels.
 
-The circle navigates every zone on every screen (skipping screens paused for full-screen, with the same all-screens-full-screen fallback as targeting): each tiling zone — filled or empty — by its zone frame, with the circle centered on the zone. A filled floating zone participates as its occupant window's actual rectangle, with the circle centered on the window; an empty floating zone sits at its bottom-edge bar, marked by the upper half of the circle resting on the screen's bottom edge. Because the filled floating window overlaps the tiled zones, it is typically the first stop in a direction that crosses it; presses from there move relative to where the circle arrived from, so the same direction continues past the floating window and the opposite direction goes back. If no zone lies in the pressed direction the circle stays put. (See [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md) for the precise candidate-selection and tie-breaking rules.)
+The circle navigates every zone on every screen (skipping screens paused for full-screen), staying put when no zone lies in the pressed direction. It centers on the selected tiling zone — or, for a filled floating zone, on its occupant window — and shows a selected empty floating zone as the upper half of the circle resting on the screen's bottom edge over its bar. The selection geometry, including how crossings of the overlapping filled floating window resolve, is specified in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
 
-The gesture starts from the focused managed window's zone, and the first press moves off it. When no managed window is focused it starts from the targeted zone: if that zone is filled, the first press marks it in place — so tapping any arrow and releasing focuses the targeted zone's window; if it is empty, the first press moves immediately.
+The gesture starts from the focused managed window's zone, and the first press moves off it. When no managed window is focused it starts from the targeted zone: if that zone is filled, the first press selects it in place — so tapping any arrow and releasing focuses the targeted zone's window; if it is empty, the first press moves immediately.
 
-The gesture works while the Launcher is open (the Launcher keeps its plain arrow keys, and the circle draws above the Launcher): retargeting by releasing over an empty zone re-anchors the Launcher, and focusing a filled zone's window dismisses it. The CmdTab and WinShot choosers block the gesture while visible.
+The gesture works while the Launcher is open: the Launcher keeps its plain arrow keys, the circle draws above it, and the gesture's commits show, move, or dismiss it per [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md). The CmdTab and WinShot choosers block the gesture while visible.
 
 ### Floating Zone Behavior
 

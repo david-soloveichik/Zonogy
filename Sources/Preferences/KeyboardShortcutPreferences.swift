@@ -57,7 +57,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .selectZoneDown: return "Select Zone Down"
             case .selectZoneLeft: return "Select Zone Left"
             case .selectZoneRight: return "Select Zone Right"
-            case .moveWindowToSelectedZone: return "Move Focused Window to Selected Zone"
+            case .moveWindowToSelectedZone: return "Move Focused Window to Selected Zone (while selecting)"
             // Targeting
             case .toggleTargetZoneWithFocusedWindow: return "Toggle Destination w/ Focused Window"
             // Window Switchers

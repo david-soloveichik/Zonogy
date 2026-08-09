@@ -2,9 +2,9 @@ import AppKit
 import Foundation
 
 /// Control-Command + arrow-key zone navigation: builds the navigable zone set, resolves the
-/// selection as the gesture proceeds, marks it with the blue-circle overlay, and commits on release
+/// selection as the gesture proceeds, shows it with the blue-circle overlay, and commits on release
 /// (focus a filled zone's window, or target an empty zone), on the move key (move the focused
-/// window into the marked zone), or on the Show Launcher key (target the marked zone and open the
+/// window into the selected zone), or on the Show Launcher key (target the selected zone and open the
 /// Launcher there). The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
 /// geometry is the pure `ZoneNavigation`.
 extension AppController {
@@ -101,7 +101,7 @@ extension AppController {
         updateZoneNavigationDot(selection: next)
     }
 
-    /// Modifier release: focus the marked zone's window, or target the marked zone when empty.
+    /// Modifier release: focus the selected zone's window, or target the selected zone when empty.
     /// Occupancy is re-read live at commit time (the snapshot only drives geometry).
     private func commitZoneNavigation() {
         guard let state = zoneNavigationState else { return }
@@ -272,10 +272,10 @@ extension AppController {
         zoneNavigationDotOverlay.show(centeredIn: cocoaFrame)
     }
 
-    // MARK: - Move key (move the focused window into the marked zone)
+    // MARK: - Move key (move the focused window into the selected zone)
 
     /// Synchronous decision for the interceptor's move key: with a focused managed window and a
-    /// marked zone other than its own, clear the gesture and hand the actual move to the main
+    /// selected zone other than its own, clear the gesture and hand the actual move to the main
     /// queue, returning true so the interceptor ends the gesture. Returning false leaves the
     /// gesture engaged (nothing to move).
     private func requestZoneNavigationMove() -> Bool {
@@ -395,11 +395,11 @@ extension AppController {
         syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone)
     }
 
-    // MARK: - Show Launcher key (target the marked zone and open the Launcher)
+    // MARK: - Show Launcher key (target the selected zone and open the Launcher)
 
-    /// Synchronous decision for the interceptor's Show Launcher key: with a marked zone, clear the
+    /// Synchronous decision for the interceptor's Show Launcher key: with a selected zone, clear the
     /// gesture and hand the retarget + Launcher show to the main queue, returning true so the
-    /// interceptor ends the gesture. Returning false leaves it engaged (nothing marked).
+    /// interceptor ends the gesture. Returning false leaves it engaged (nothing selected).
     private func requestZoneNavigationLauncherShow() -> Bool {
         guard let state = zoneNavigationState,
               let selection = state.selection else {
@@ -414,7 +414,7 @@ extension AppController {
         return true
     }
 
-    /// Target the marked zone — occupied or not — and open the Launcher anchored there, via the
+    /// Target the selected zone — occupied or not — and open the Launcher anchored there, via the
     /// same explicit-gesture path as Control-Command-double-click.
     private func performZoneNavigationLauncherShow(at destination: TargetedZoneManager.TargetedDestination) {
         guard destinationExists(destination) else {

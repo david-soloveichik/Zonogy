@@ -116,12 +116,12 @@ enum ZoneNavigationTests {
         assertSel(reversed, z3.id, "reverse: z3→float→down backs out to empty z3")
         assertEntry(reversed, sourceId: nil, direction: nil, "reverse: backing out clears the entry")
 
-        // MARK: No focus, filled targeted zone — the first press marks it in place (any direction),
+        // MARK: No focus, filled targeted zone — the first press selects it in place (any direction),
         // and moving on navigates from its own rectangle.
-        let markedTarget = initial(.left, targeted: z2)
-        assertSel(markedTarget, z2.id, "filled target: first press marks z2 in place")
-        assertEntry(markedTarget, sourceId: nil, direction: nil, "filled target: marking records no entry")
-        assertSel(next(.left, from: markedTarget, anchor: anchor(at: z2)), floatA.id, "marked target: left → float (overlap wins)")
+        let selectedTarget = initial(.left, targeted: z2)
+        assertSel(selectedTarget, z2.id, "filled target: first press selects z2 in place")
+        assertEntry(selectedTarget, sourceId: nil, direction: nil, "filled target: selecting records no entry")
+        assertSel(next(.left, from: selectedTarget, anchor: anchor(at: z2)), floatA.id, "selected target: left → float (overlap wins)")
 
         // MARK: A float selected without a directional entry navigates from its own rectangle;
         // exact ties prefer the lower zone index.

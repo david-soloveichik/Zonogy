@@ -6,8 +6,8 @@
 /// four direction shortcuts (and the move key) therefore share one modifier combination (enforced
 /// in `KeyboardShortcutPreferences`); a per-direction modifier could never be detected on release.
 /// While engaged, the configurable move key (default Return) asks the delegate to move the focused
-/// window into the marked zone, and the Show Launcher shortcut's key (Space by default) asks it to
-/// target the marked zone and open the Launcher there — each ending the gesture when the delegate
+/// window into the selected zone, and the Show Launcher shortcut's key (Space by default) asks it to
+/// target the selected zone and open the Launcher there — each ending the gesture when the delegate
 /// performs it.
 
 import ApplicationServices
@@ -27,18 +27,18 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
     /// Move the selection one step in the given direction.
     func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didMove direction: ZoneNavigationDirection)
 
-    /// Move key pressed while engaged. The delegate moves the focused window into the marked zone
+    /// Move key pressed while engaged. The delegate moves the focused window into the selected zone
     /// and returns true — ending the gesture — or returns false to leave it engaged (nothing to
     /// move). Runs synchronously in the event-tap callback, so the decision must stay cheap.
     func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor) -> Bool
 
-    /// Show Launcher key pressed while engaged. The delegate targets the marked zone and opens the
+    /// Show Launcher key pressed while engaged. The delegate targets the selected zone and opens the
     /// Launcher there, returning true — ending the gesture — or returns false to leave it engaged
-    /// (nothing marked). Runs synchronously in the event-tap callback, so the decision must stay
+    /// (nothing selected). Runs synchronously in the event-tap callback, so the decision must stay
     /// cheap.
     func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) -> Bool
 
-    /// Required modifiers released — commit the currently marked zone.
+    /// Required modifiers released — commit the currently selected zone.
     func zoneNavigationDidCommit(_ interceptor: ZoneNavigationInterceptor)
 
     /// Cancelled (Escape, or events became unavailable) — drop the gesture without committing.
@@ -151,7 +151,7 @@ final class ZoneNavigationInterceptor {
             return .pass
         }
 
-        // The gesture ends — and the marked zone is committed — when any required modifier is released.
+        // The gesture ends — and the selected zone is committed — when any required modifier is released.
         if !relevantFlags.contains(requiredModifiers) {
             resetEngagement()
             DispatchQueue.main.async { [weak self] in
@@ -190,7 +190,7 @@ final class ZoneNavigationInterceptor {
                 return .swallow
             }
 
-            // Move the focused window into the marked zone. The delegate decides synchronously
+            // Move the focused window into the selected zone. The delegate decides synchronously
             // whether there is a move to perform; if so, the gesture is over.
             if keyCode == engagedMoveKey {
                 if delegate?.zoneNavigationDidPressMoveKey(self) == true {
@@ -200,7 +200,7 @@ final class ZoneNavigationInterceptor {
                 return .swallow
             }
 
-            // Target the marked zone and open the Launcher there. Swallowing also keeps the chord
+            // Target the selected zone and open the Launcher there. Swallowing also keeps the chord
             // from doubling as the global Show Launcher hotkey.
             if keyCode == engagedLauncherKey {
                 if delegate?.zoneNavigationDidPressShowLauncherKey(self) == true {
