@@ -263,8 +263,7 @@ extension AppController {
 
     /// Updates `unmanagedFocusedWindowScreenId` based on the current frontmost window.
     /// If the focused window is confirmed unmanaged, stores its screen ID; otherwise clears the state.
-    /// Calls `refreshResizeHandles()` when the state changes, and hides the Launcher if it's
-    /// on the screen where an unmanaged window now has focus.
+    /// Calls `refreshResizeHandles()` when the state changes (the state drives resize-bar hiding).
     internal func updateUnmanagedFocusState() {
         let previousScreenId = unmanagedFocusedWindowScreenId
         let resolution = resolveUnmanagedFocusState()
@@ -323,17 +322,6 @@ extension AppController {
 
         if previousScreenId != newScreenId {
             refreshResizeHandles()
-
-            // Hide Launcher if it's on the screen where an unmanaged window now has focus
-            if let newScreenId = newScreenId,
-               launcherController.isActive,
-               targetedScreenId() == newScreenId {
-                if dismissLauncherIfActiveRespectingAutoShowGrace() {
-                    Logger.debug("Launcher: Hidden because unmanaged window gained focus on screen \(screenContextStore.loggingIndex(for: newScreenId))")
-                } else if launcherController.isInAutoShowGracePeriod {
-                    Logger.debug("Launcher: Skipping hide for unmanaged focus during auto-show grace on screen \(screenContextStore.loggingIndex(for: newScreenId))")
-                }
-            }
         }
     }
 

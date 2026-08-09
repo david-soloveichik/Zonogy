@@ -213,8 +213,8 @@ extension AppController {
     /// - A tiled zone becomes empty (window closed, minimized, or moved away)
     /// - After a zone is added
     /// - After clear/reset zones shortcut empties zones
+    /// - Zone navigation is released over an empty tiling zone
     /// - Only when the "Auto-show Launcher for empty tiling zones" preference is enabled
-    /// - Not when an unmanaged window has focus on the targeted zone's screen
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
         guard autoShowLauncherForEmptyTilingZonesEnabled,
               !launcherController.isActive,
@@ -225,12 +225,6 @@ extension AppController {
 
         guard canShowLauncherOnCurrentTarget() else {
             Logger.debug("Launcher: Skipping auto-show because target screen is full-screen")
-            return
-        }
-
-        // Don't auto-show if the targeted zone's screen has an unmanaged focused window
-        if unmanagedFocusedWindowScreenId == targetedKey.screenId {
-            Logger.debug("Launcher: Skipping auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: targetedKey.screenId))")
             return
         }
 
@@ -254,10 +248,6 @@ extension AppController {
 
         if isScreenPausedForFullScreen(zoneKey.screenId) {
             Logger.debug("Launcher: Skipping optimistic auto-show because target screen is full-screen")
-            return
-        }
-        if unmanagedFocusedWindowScreenId == zoneKey.screenId {
-            Logger.debug("Launcher: Skipping optimistic auto-show because unmanaged window has focus on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
             return
         }
 

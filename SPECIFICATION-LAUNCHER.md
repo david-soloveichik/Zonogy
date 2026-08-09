@@ -23,7 +23,6 @@ The Launcher opens via:
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
   - Zone navigation is released over an empty tiling zone (targeting it).
-  - Exception: Auto-show is suppressed when an unmanaged window has focus on the targeted zone's screen.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
   Exceptions: (a) after repeated Launcher shortcut presses establish the toggle behavior above, Launcher remains visible on the current shortcut-owned occupied target until the target changes again or Launcher is dismissed; (b) during zone navigation, arrow presses never open or close the Launcher — only the gesture's end does: releasing over an empty zone re-anchors (or auto-shows) it, the Show Launcher key opens it on the marked zone, and focusing a filled zone's window dismisses it.
@@ -43,7 +42,6 @@ So the launcher automatically dismisses when:
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
 - Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it)
-- An unmanaged window gains focus on the Launcher's screen (to avoid overlapping it)
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
 - Zonogy opens its own Preferences window or an update-check alert (so the Launcher does not cover them)

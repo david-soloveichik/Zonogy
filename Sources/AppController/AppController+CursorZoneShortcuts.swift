@@ -77,7 +77,7 @@ extension AppController {
             // Optimistically target tiling zone 1 and show the Launcher before kicking off
             // the bulk AX minimize. The post-minimize retarget + auto-show inside the
             // dispatched block below remains as an idempotent safety net for when the
-            // optimistic path is skipped (preference off, full-screen pause, unmanaged-focused-window).
+            // optimistic path is skipped (preference off, full-screen pause).
             if context.zoneController.zone(at: 1) != nil {
                 optimisticallyShowLauncher(
                     targetingZone: ZoneKey(screenId: screenId, index: 1),

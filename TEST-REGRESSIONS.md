@@ -50,7 +50,7 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
   - Think about: WinShot restore must remove/minimize non-snapshot windows before its sync pass so placeholder reconciliation sees the final occupancy state.
 
 - Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
-  - Think about: Preserve a real post-open grace window and/or require unmanaged-focus state to stabilize (short debounce or repeated confirmation) before dismissing.
+  - Think about: Preserve a real post-open grace window so focus-based dismissals (e.g. macOS auto-focusing another window after a close/minimize) cannot race the panel open.
 
 - Bug report: Holding Control-Command after an external drag stops moving can show the intercepted zone overlay, but releasing without another mouse move drops nothing.
   - Think about: `flagsChanged` alone must not arm the intercepted overlay. Only a subsequent drag move should promote to Control-Command interception; otherwise keep the stationary UI truthful (including leaving empty-zone placeholder behavior unchanged).
