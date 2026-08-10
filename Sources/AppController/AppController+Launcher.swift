@@ -216,7 +216,7 @@ extension AppController {
     /// - Zone navigation is released over an empty tiling zone
     /// - Only when the "Auto-show Launcher for empty tiling zones" preference is enabled
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
-        guard autoShowLauncherForEmptyTilingZonesEnabled,
+        guard autoShowLauncherForEmptyZonesEnabled,
               !launcherController.isActive,
               case .tiled(let targetedKey) = targetedZoneManager.targetedDestination,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
@@ -233,6 +233,28 @@ extension AppController {
         }
     }
 
+    /// Floating counterpart for zone-navigation commits only: releasing the gesture over an empty
+    /// floating zone shows the Launcher there, honoring the same auto-show preference. Passive
+    /// retargets to a floating zone (occupant minimized, target repair) deliberately do not
+    /// auto-show.
+    internal func autoShowLauncherIfEmptyTargetedFloatingZone() {
+        guard autoShowLauncherForEmptyZonesEnabled,
+              !launcherController.isActive,
+              case .floating(let screenId) = targetedZoneManager.targetedDestination,
+              floatingZoneOccupant(on: screenId) == nil else {
+            return
+        }
+
+        guard canShowLauncherOnCurrentTarget() else {
+            Logger.debug("Launcher: Skipping auto-show because target screen is full-screen")
+            return
+        }
+
+        if showLauncherIfAllowed(trigger: "auto-show-empty-targeted-floating-zone", autoShow: true) {
+            Logger.debug("Launcher: Auto-shown for empty floating zone on screen \(screenContextStore.loggingIndex(for: screenId))")
+        }
+    }
+
     /// Retargets to `zoneKey` and shows the Launcher synchronously — without touching zone
     /// bookkeeping — ahead of a multi-step operation (AX minimize, bulk clear) that would
     /// otherwise delay the Launcher appearing. Same-target `setTargetedZone` fires no
@@ -241,7 +263,7 @@ extension AppController {
     /// (e.g., app declines AX minimize), the Launcher stays up over the durably-targeted zone
     /// — acceptable since the user can Escape to dismiss.
     internal func optimisticallyShowLauncher(targetingZone zoneKey: ZoneKey, reason: String) {
-        guard autoShowLauncherForEmptyTilingZonesEnabled,
+        guard autoShowLauncherForEmptyZonesEnabled,
               !launcherController.isActive else {
             return
         }

@@ -62,12 +62,12 @@ final class ZonesPreferencesViewController: NSViewController {
         zoneLayoutSeparator.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(zoneLayoutSeparator)
 
-        let autoShowLauncherCheckbox = NSButton(checkboxWithTitle: "Automatically show Launcher for empty tiling zones", target: self, action: #selector(autoShowLauncherToggled(_:)))
+        let autoShowLauncherCheckbox = NSButton(checkboxWithTitle: "Automatically show Launcher for empty zones", target: self, action: #selector(autoShowLauncherToggled(_:)))
         autoShowLauncherCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(autoShowLauncherCheckbox)
         self.autoShowLauncherCheckbox = autoShowLauncherCheckbox
 
-        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, Launcher opens automatically.")
+        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, or Zone Navigation selects an empty zone, Launcher opens automatically.")
         autoShowLauncherHintLabel.font = NSFont.systemFont(ofSize: 12)
         autoShowLauncherHintLabel.textColor = .secondaryLabelColor
         autoShowLauncherHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -141,12 +141,12 @@ final class ZonesPreferencesViewController: NSViewController {
 
     @objc private func autoShowLauncherToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
-        AppController.shared.setAutoShowLauncherForEmptyTilingZonesEnabledFromSettings(enabled)
+        AppController.shared.setAutoShowLauncherForEmptyZonesEnabledFromSettings(enabled)
         syncAutoShowLauncherCheckbox()
     }
 
     private func syncAutoShowLauncherCheckbox() {
-        let enabled = AppController.shared.isAutoShowLauncherForEmptyTilingZonesEnabledInSettings
+        let enabled = AppController.shared.isAutoShowLauncherForEmptyZonesEnabledInSettings
         autoShowLauncherCheckbox?.state = enabled ? .on : .off
     }
 

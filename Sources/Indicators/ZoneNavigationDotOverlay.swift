@@ -1,10 +1,10 @@
 import AppKit
 
-/// A large translucent blue circle drawn at the center of the zone currently selected by
-/// Control-Command zone navigation — or, for an empty floating zone, the upper half of that circle
-/// resting on the screen's bottom edge over the floating-zone bar. It is a non-interactive floating
-/// panel shown only while the gesture is in progress and torn down when the gesture commits or
-/// cancels. Mirrors `OccupiedZoneTargetOverlay`'s floating-panel approach.
+/// A large translucent blue circle drawn at the center of the tiling zone currently selected by
+/// Control-Command zone navigation — or, for a selected floating zone, the upper half of that
+/// circle resting on the screen's bottom edge over the floating-zone bar. It is a non-interactive
+/// floating panel shown only while the gesture is in progress and torn down when the gesture
+/// commits or cancels. Mirrors `OccupiedZoneTargetOverlay`'s floating-panel approach.
 ///
 /// Both modes render the same full circle (a max-radius rounded square). The half-circle mode uses
 /// a half-height panel with the circle's lower half hanging below the panel's bottom edge: the
@@ -21,8 +21,8 @@ final class ZoneNavigationDotOverlay {
     private var panel: NSPanel?
     private var dotView: NSView?
 
-    /// Show (or move) the circle centered within `cocoaFrame` (a zone frame or the floating
-    /// window's frame), sizing it relative to that rectangle.
+    /// Show (or move) the circle centered within `cocoaFrame` (a tiling zone frame), sizing it
+    /// relative to that rectangle.
     func show(centeredIn cocoaFrame: CGRect) {
         let diameter = Self.diameter(for: cocoaFrame)
         let panelFrame = CGRect(
@@ -35,13 +35,15 @@ final class ZoneNavigationDotOverlay {
     }
 
     /// Show (or move) the upper half of the circle with its flat edge on the screen's bottom edge,
-    /// centered on the empty floating zone's bar. `screenCocoaFrame` supplies the diameter so the
-    /// half circle matches the full circles shown over that screen's zones.
+    /// centered on the floating zone's bar. `screenCocoaFrame` supplies the diameter so the half
+    /// circle matches the full circles shown over that screen's zones.
     func showHalfCircle(onBar barCocoaFrame: CGRect, screenCocoaFrame: CGRect) {
         let diameter = Self.diameter(for: screenCocoaFrame)
+        // The bar's canonical frame can overhang past the screen edge (edge-pinned cursor hits);
+        // the dome's flat edge belongs on the screen bottom itself.
         let panelFrame = CGRect(
             x: barCocoaFrame.midX - diameter / 2,
-            y: barCocoaFrame.minY,
+            y: screenCocoaFrame.minY,
             width: diameter,
             height: diameter / 2
         )

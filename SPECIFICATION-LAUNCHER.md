@@ -22,7 +22,7 @@ The Launcher opens via:
     For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a screen whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
-  - Zone navigation is released over an empty tiling zone (targeting it).
+  - Zone navigation is released over an empty zone, tiling or floating (targeting it).
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
   Exceptions to dismissal on occupied-target: the Launcher shortcut's toggle retarget (above), and gestures that explicitly open the Launcher on a zone of the user's choosing even when it is occupied (Control-Command-double-click, zone navigation's Show Launcher key).

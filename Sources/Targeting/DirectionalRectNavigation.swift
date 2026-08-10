@@ -7,7 +7,8 @@ enum ZoneNavigationDirection {
     case left
     case right
 
-    /// The reverse direction, used by zone navigation to back out of a pass-through stop.
+    /// The reverse direction; a press in this direction backs zone navigation's trail out of its
+    /// last move.
     var opposite: ZoneNavigationDirection {
         switch self {
         case .up: return .down
@@ -40,6 +41,17 @@ enum DirectionalRectNavigation {
     /// Minimum perpendicular overlap for a candidate to count as edge-aligned with the source.
     private static let overlapTolerance: CGFloat = 1.0
 
+    /// Whether `frame` lies ahead of `source` in `direction` (center comparison, shared epsilon).
+    /// Exposed for policy-level ordering rules layered on the generic selector.
+    static func isAhead(_ frame: CGRect, of source: CGRect, direction: ZoneNavigationDirection) -> Bool {
+        switch direction {
+        case .right: return frame.midX > source.midX + directionEpsilon
+        case .left:  return frame.midX < source.midX - directionEpsilon
+        case .down:  return frame.midY > source.midY + directionEpsilon
+        case .up:    return frame.midY < source.midY - directionEpsilon
+        }
+    }
+
     /// Returns the id of the nearest item strictly ahead of `sourceFrame` in `direction`, or nil
     /// if none qualifies. Prefers a candidate that overlaps the source along the perpendicular
     /// edge (nearest by primary-axis gap, then same-screen, then perpendicular center distance);
@@ -57,12 +69,7 @@ enum DirectionalRectNavigation {
         let isVertical = (direction == .up || direction == .down)
 
         func isAhead(_ frame: CGRect) -> Bool {
-            switch direction {
-            case .right: return frame.midX > source.midX + directionEpsilon
-            case .left:  return frame.midX < source.midX - directionEpsilon
-            case .down:  return frame.midY > source.midY + directionEpsilon
-            case .up:    return frame.midY < source.midY - directionEpsilon
-            }
+            Self.isAhead(frame, of: source, direction: direction)
         }
 
         /// Edge-to-edge travel distance along the press axis (clamped to ≥ 0 for adjacent or

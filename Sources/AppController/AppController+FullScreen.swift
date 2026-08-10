@@ -444,6 +444,9 @@ extension AppController {
     }
 
     private func handleFullScreenPauseStateChange(for displayId: CGDirectDisplayID) {
+        // A pause change alters which screens are navigable; an in-flight gesture's snapshot
+        // would keep offering (or hiding) that screen's zones, so drop it.
+        cancelZoneNavigationForTopologyChange(reason: "full-screen-pause-change")
         let isFullScreen = fullScreenTracker.isFullScreen(displayId: displayId)
 
         if isFullScreen {

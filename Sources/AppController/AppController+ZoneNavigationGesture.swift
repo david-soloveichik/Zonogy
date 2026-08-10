@@ -13,8 +13,7 @@ extension AppController {
     /// live occupancy.
     struct ZoneNavigationState {
         let candidates: [ZoneNavigation.Candidate]
-        let anchor: ZoneNavigation.Anchor
-        var selection: ZoneNavigation.Selection?
+        var selection: ZoneNavigation.Selection
     }
 }
 
@@ -71,21 +70,22 @@ extension AppController {
         }
 
         let start = zoneNavigationStart(candidates: candidates)
-        let selection = ZoneNavigation.initialSelection(
+        guard let selection = ZoneNavigation.initialSelection(
             direction: direction,
             focusedZoneId: start.focusedZoneId,
             targetedZoneId: start.targetedZoneId,
-            fallbackAnchor: start.anchor,
+            fallbackZoneId: start.fallbackZoneId,
             candidates: candidates
-        )
+        ) else {
+            // Unreachable with non-empty candidates (the fallback start always resolves).
+            zoneNavigationInterceptor.resetEngagement()
+            clearZoneNavigation()
+            return
+        }
 
-        zoneNavigationState = ZoneNavigationState(
-            candidates: candidates,
-            anchor: start.anchor,
-            selection: selection
-        )
-        updateZoneNavigationDot(selection: selection)
-        Logger.debug("Zone navigation begun (\(direction)); selection: \(selection.map { String(describing: $0.id) } ?? "none")")
+        zoneNavigationState = ZoneNavigationState(candidates: candidates, selection: selection)
+        updateZoneNavigationDot(selection: selection.id)
+        Logger.debug("Zone navigation begun (\(direction)); selection: \(selection.id)")
     }
 
     private func moveZoneNavigation(direction: ZoneNavigationDirection) {
@@ -93,12 +93,11 @@ extension AppController {
         let next = ZoneNavigation.nextSelection(
             direction: direction,
             currentSelection: state.selection,
-            anchor: state.anchor,
             candidates: state.candidates
         )
         state.selection = next
         zoneNavigationState = state
-        updateZoneNavigationDot(selection: next)
+        updateZoneNavigationDot(selection: next.id)
     }
 
     /// Modifier release: focus the selected zone's window, or target the selected zone when empty.
@@ -107,11 +106,7 @@ extension AppController {
         guard let state = zoneNavigationState else { return }
         clearZoneNavigation()
 
-        guard let selection = state.selection else {
-            Logger.debug("Zone navigation committed with no selection")
-            return
-        }
-
+        let selection = state.selection
         let destination = zoneDestination(for: selection.id)
         if let occupant = occupant(of: destination) {
             Logger.debug("Zone navigation focusing window \(occupant.windowId) in \(selection.id)")
@@ -154,6 +149,7 @@ extension AppController {
             if wasAlreadyTargeted {
                 pulseFloatingTargetFeedback(for: screenId)
             }
+            autoShowLauncherIfEmptyTargetedFloatingZone()
         }
     }
 
@@ -187,9 +183,9 @@ extension AppController {
     }
 
     /// Every navigable zone by its rectangle in accessibility coordinates: each tiling zone —
-    /// filled or empty — by its zone frame, plus each screen's floating zone (occupant window
-    /// rectangle when filled, bottom-edge bar when empty). Reuses the canonical targetability
-    /// policy so navigation reaches exactly the zones the rest of targeting considers valid.
+    /// filled or empty — by its zone frame, plus each screen's floating zone at its bottom-edge
+    /// bar, occupied or not. Reuses the canonical targetability policy so navigation reaches
+    /// exactly the zones the rest of targeting considers valid.
     private func zoneNavigationCandidates() -> [ZoneNavigation.Candidate] {
         var candidates: [ZoneNavigation.Candidate] = []
         for screenId in screenOrder {
@@ -202,74 +198,55 @@ extension AppController {
                 candidates.append(.init(
                     id: .tiling(screenId: screenId, index: zone.index),
                     frame: descriptor.screenToAccessibility(zone.frame),
-                    occupantWindowId: zone.occupantWindowId
+                    isOccupied: zone.occupantWindowId != nil
                 ))
             }
 
-            let occupant = floatingZoneOccupant(on: screenId)
-            if let occupant,
-               let frame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) {
-                candidates.append(.init(
-                    id: .floating(screenId: screenId),
-                    frame: frame,
-                    occupantWindowId: occupant.windowId
-                ))
-            } else if let barFrame = floatingIndicatorFrames(for: descriptor)?.accessibility {
-                // Empty floating zone — or a filled one whose window frame is unreadable — sits at
-                // its bottom-edge bar.
+            // The bar is the floating zone's fixed home in the gesture; occupancy only matters
+            // for what a commit does (and for selecting a filled target in place).
+            if let barFrame = floatingIndicatorFrames(for: descriptor)?.accessibility {
                 candidates.append(.init(
                     id: .floating(screenId: screenId),
                     frame: barFrame,
-                    occupantWindowId: occupant?.windowId
+                    isOccupied: floatingZoneOccupant(on: screenId) != nil
                 ))
             }
         }
         return candidates
     }
 
-    /// Resolves where navigation starts: the focused managed window's zone when it is among the
-    /// candidates, otherwise the targeted zone. The anchor rectangle backs `nextSelection` when
-    /// nothing is selected yet.
+    /// Resolves where navigation starts. While the Launcher is open the gesture starts from the
+    /// Launcher's zone — the targeted zone it is anchored to — rather than the focused window's.
+    /// Otherwise it starts from the focused managed window's zone when it is among the candidates,
+    /// else the targeted zone; the first candidate covers the remaining case.
     private func zoneNavigationStart(
         candidates: [ZoneNavigation.Candidate]
-    ) -> (focusedZoneId: NavigableZoneIdentifier?, targetedZoneId: NavigableZoneIdentifier?, anchor: ZoneNavigation.Anchor) {
+    ) -> (focusedZoneId: NavigableZoneIdentifier?, targetedZoneId: NavigableZoneIdentifier?, fallbackZoneId: NavigableZoneIdentifier?) {
         var focusedZoneId: NavigableZoneIdentifier?
-        if let focusedId = currentFrontmostManagedWindowId,
+        if !launcherController.isActive,
+           let focusedId = currentFrontmostManagedWindowId,
            let managed = windowController.window(withId: focusedId),
            let destination = targetedDestination(for: managed) {
             focusedZoneId = navigableZoneIdentifier(for: destination)
         }
 
         let targetedZoneId = targetedZoneManager.targetedDestination.map(navigableZoneIdentifier(for:))
-
-        func anchor(at id: NavigableZoneIdentifier?) -> ZoneNavigation.Anchor? {
-            guard let id, let candidate = candidates.first(where: { $0.id == id }) else { return nil }
-            return .init(frame: candidate.frame, screenId: id.screenId)
-        }
-
-        let fallback = ZoneNavigation.Anchor(frame: candidates[0].frame, screenId: candidates[0].id.screenId)
-        return (
-            focusedZoneId,
-            targetedZoneId,
-            anchor(at: focusedZoneId) ?? anchor(at: targetedZoneId) ?? fallback
-        )
+        return (focusedZoneId, targetedZoneId, candidates.first?.id)
     }
 
-    private func updateZoneNavigationDot(selection: ZoneNavigation.Selection?) {
-        guard let selection,
-              let candidate = zoneNavigationState?.candidates.first(where: { $0.id == selection.id }),
-              let descriptor = descriptor(for: selection.id.screenId) else {
+    private func updateZoneNavigationDot(selection: NavigableZoneIdentifier) {
+        guard let candidate = zoneNavigationState?.candidates.first(where: { $0.id == selection }),
+              let descriptor = descriptor(for: selection.screenId) else {
             zoneNavigationDotOverlay.hide()
-            return
-        }
-        if selection.id.isFloating, candidate.occupantWindowId == nil,
-           let barCocoaFrame = floatingIndicatorFrames(for: descriptor)?.cocoa {
-            zoneNavigationDotOverlay.showHalfCircle(onBar: barCocoaFrame, screenCocoaFrame: descriptor.cocoaBounds)
             return
         }
         let screenFrame = descriptor.accessibilityToScreen(candidate.frame)
         let cocoaFrame = descriptor.screenToCocoa(screenFrame)
-        zoneNavigationDotOverlay.show(centeredIn: cocoaFrame)
+        if selection.isFloating {
+            zoneNavigationDotOverlay.showHalfCircle(onBar: cocoaFrame, screenCocoaFrame: descriptor.cocoaBounds)
+        } else {
+            zoneNavigationDotOverlay.show(centeredIn: cocoaFrame)
+        }
     }
 
     // MARK: - Move key (move the focused window into the selected zone)
@@ -280,13 +257,12 @@ extension AppController {
     /// gesture engaged (nothing to move).
     private func requestZoneNavigationMove() -> Bool {
         guard let state = zoneNavigationState,
-              let selection = state.selection,
               let focusedId = currentFrontmostManagedWindowId,
               let managed = windowController.window(withId: focusedId) else {
             return false
         }
 
-        let destination = zoneDestination(for: selection.id)
+        let destination = zoneDestination(for: state.selection.id)
         if let origin = targetedDestination(for: managed), origin == destination {
             return false
         }
@@ -397,16 +373,15 @@ extension AppController {
 
     // MARK: - Show Launcher key (target the selected zone and open the Launcher)
 
-    /// Synchronous decision for the interceptor's Show Launcher key: with a selected zone, clear the
-    /// gesture and hand the retarget + Launcher show to the main queue, returning true so the
-    /// interceptor ends the gesture. Returning false leaves it engaged (nothing selected).
+    /// Synchronous decision for the interceptor's Show Launcher key: clear the gesture and hand
+    /// the retarget + Launcher show to the main queue, returning true so the interceptor ends the
+    /// gesture. Returning false leaves it engaged (no gesture state).
     private func requestZoneNavigationLauncherShow() -> Bool {
-        guard let state = zoneNavigationState,
-              let selection = state.selection else {
+        guard let state = zoneNavigationState else {
             return false
         }
 
-        let destination = zoneDestination(for: selection.id)
+        let destination = zoneDestination(for: state.selection.id)
         clearZoneNavigation()
         DispatchQueue.main.async { [weak self] in
             self?.performZoneNavigationLauncherShow(at: destination)

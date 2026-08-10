@@ -215,8 +215,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var fullScreenCheckWorkItemsByWindowId: [Int: DispatchWorkItem] = [:]
     internal var fullScreenCheckWorkItemsByElement: [AccessibilityElementKey: DispatchWorkItem] = [:]
     internal var pendingFullScreenSpaceChangeWorkItem: DispatchWorkItem?
-    /// True when Launcher should auto-show for empty tiling zones.
-    internal var autoShowLauncherForEmptyTilingZonesEnabled: Bool
+    /// True when the Launcher should auto-show for empty zones: tiling zones as they empty or are
+    /// added, and the floating zone when a zone-navigation commit targets it empty.
+    internal var autoShowLauncherForEmptyZonesEnabled: Bool
     /// True when manually resized tiled windows should restore their remembered size on re-activation.
     internal var stickyResizeEnabled: Bool
     /// True when DockMenus should use the active window's zone for placement-oriented actions.
@@ -356,7 +357,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
 
         let configuration = Configuration.load()
         self.configuration = configuration
-        self.autoShowLauncherForEmptyTilingZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()
+        self.autoShowLauncherForEmptyZonesEnabled = LauncherBehaviorPreferencesStore.loadAutoShowForEmptyZones()
         self.stickyResizeEnabled = StickyResizePreferencesStore.loadEnabled()
         self.dockMenusTargetsZoneWithActiveWindowEnabled = DockMenusBehaviorPreferencesStore.loadTargetsZoneWithActiveWindow()
         self.cmdTabActiveWindowTargetingMode = CmdTabBehaviorPreferencesStore.loadTargetingMode()

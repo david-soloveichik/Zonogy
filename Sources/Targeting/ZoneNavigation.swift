@@ -3,14 +3,24 @@ import CoreGraphics
 /// Pure selection policy for keyboard zone navigation.
 ///
 /// Navigation considers every zone: each tiling zone — filled or empty — by its zone frame, plus
-/// each screen's floating zone, represented by its occupant window's actual rectangle when filled
-/// or by its bottom-edge bar when empty. All four directions navigate uniformly among those
-/// rectangles. Because a filled floating window overlaps the tiled zones, it is usually the first
-/// stop in any direction that crosses it; to keep that crossing coherent, such a selection
-/// remembers the zone it was entered from. Pressing on then moves relative to the entry, so the
-/// same direction continues past the floating window and the reverse of the entry direction backs
-/// out to the entry zone. The empty floating bar is spatially disjoint from the tiled zones, so it
-/// navigates from its own rectangle like any other zone.
+/// each screen's floating zone at its bottom-edge bar, occupied or not. The bar is its screen's
+/// bottom-most stop on the vertical axis: down reaches it from that screen's zones (and crossing
+/// to a screen below stops at it first), and up reaches it when entering the screen from a screen
+/// below — enforced as an explicit boundary-bar priority, since generic nearest-rectangle racing
+/// can skip a bar. Horizontal geometric moves skip bars — a bar grazes the zone frames when the
+/// visible area reaches the true screen bottom (hidden or side Dock), and the overlap would
+/// otherwise let it steal left/right moves from real zone neighbors — though a selection can
+/// still land on a bar without a vertical press: a reverse press pops back onto it, and a gesture
+/// that starts on the floating zone selects it in place when it is occupied and targeted (any
+/// direction) or when nothing lies in the pressed direction. Keeping the floating
+/// zone at the bar rather than at its occupant window also keeps selection independent of where
+/// that window sits (concentric with a tiling zone, neither would be reachable from the other —
+/// no direction strictly leads between coincident centers).
+///
+/// Every selection carries the trail of moves that produced it: pressing the exact opposite of the
+/// move that arrived somewhere backs out to that move's source, step by step, all the way to the
+/// gesture's start. Nearest-ahead geometry is lossy (left then right can land on a third zone), so
+/// reversal is remembered, not recomputed.
 ///
 /// Deterministic and OS-free so it is covered by `--self-test`. The live gesture, the blue-circle
 /// overlay, and the commit actions are wired up in `AppController+ZoneNavigationGesture`, driven by
@@ -49,176 +59,113 @@ enum ZoneNavigation {
     struct Candidate: Equatable {
         let id: NavigableZoneIdentifier
         let frame: CGRect
-        /// The window occupying this zone; nil for an empty zone.
-        let occupantWindowId: Int?
+        /// Whether a window occupies this zone (geometry-time snapshot; commits re-read live
+        /// occupancy).
+        let isOccupied: Bool
     }
 
-    /// Fallback starting rectangle for when neither the focused window's zone nor the targeted
-    /// zone resolves to a candidate.
-    struct Anchor {
-        let frame: CGRect
-        let screenId: CGDirectDisplayID
+    /// One recorded move: the zone it started from and the pressed direction.
+    struct Move: Equatable {
+        let source: NavigableZoneIdentifier
+        let direction: ZoneNavigationDirection
     }
 
-    /// A selected zone. When the selected zone is a filled floating zone reached by a directional
-    /// move, `entry` records where that move started so later presses can pass beyond the floating
-    /// window or reverse out of it.
+    /// A selected zone plus the trail of moves that led to it. Pressing the opposite of the
+    /// trail's last move backs out to that move's source instead of running the geometry.
     struct Selection: Equatable {
         let id: NavigableZoneIdentifier
-        let entry: Entry?
-    }
-
-    /// How a filled floating selection was entered: the source of the move that landed on it.
-    struct Entry: Equatable {
-        let frame: CGRect
-        let screenId: CGDirectDisplayID
-        /// The zone the move started from, when it was a zone (nil for a bare anchor).
-        let sourceId: NavigableZoneIdentifier?
-        let direction: ZoneNavigationDirection
+        let trail: [Move]
     }
 
     /// Selection produced by the first (engaging) arrow press.
     ///
-    /// - When a managed window is focused, the press moves off its zone to the nearest zone in the
-    ///   pressed direction.
+    /// - When a managed window is focused, the press moves off its zone to the nearest zone in
+    ///   the pressed direction. (While the Launcher is open the caller passes no focused zone, so
+    ///   the gesture starts from the Launcher's zone — the targeted zone below.)
     /// - Otherwise navigation starts from the targeted zone: a filled target is selected in place
     ///   (regardless of direction, so tap-and-release focuses its window); an empty target moves
     ///   immediately.
-    /// - `fallbackAnchor` covers the remaining no-focus, no-resolvable-target case.
+    /// - `fallbackZoneId` covers the remaining no-focus, no-resolvable-target case.
     ///
-    /// Returns nil when nothing is selectable.
+    /// A press with no zone in the pressed direction selects the start zone in place — the circle
+    /// appears where the gesture starts rather than nothing happening. Returns nil only when no
+    /// start resolves (no candidates).
     static func initialSelection(
         direction: ZoneNavigationDirection,
         focusedZoneId: NavigableZoneIdentifier?,
         targetedZoneId: NavigableZoneIdentifier?,
-        fallbackAnchor: Anchor?,
+        fallbackZoneId: NavigableZoneIdentifier?,
         candidates: [Candidate]
     ) -> Selection? {
         if let focusedZoneId,
            let focused = candidates.first(where: { $0.id == focusedZoneId }) {
-            return resolveMove(
-                direction: direction,
-                sourceFrame: focused.frame,
-                sourceScreenId: focused.id.screenId,
-                sourceId: focused.id,
-                excluding: focused.id,
-                candidates: candidates
-            )
+            return move(from: focused, direction: direction, candidates: candidates)
         }
 
         if let targetedZoneId,
            let target = candidates.first(where: { $0.id == targetedZoneId }) {
-            if target.occupantWindowId != nil {
-                return Selection(id: target.id, entry: nil)
+            if target.isOccupied {
+                return Selection(id: target.id, trail: [])
             }
-            return resolveMove(
-                direction: direction,
-                sourceFrame: target.frame,
-                sourceScreenId: target.id.screenId,
-                sourceId: target.id,
-                excluding: target.id,
-                candidates: candidates
-            )
+            return move(from: target, direction: direction, candidates: candidates)
         }
 
-        guard let fallbackAnchor else { return nil }
-        return resolveMove(
-            direction: direction,
-            sourceFrame: fallbackAnchor.frame,
-            sourceScreenId: fallbackAnchor.screenId,
-            sourceId: nil,
-            excluding: nil,
-            candidates: candidates
-        )
-    }
-
-    /// Selection produced by a subsequent arrow press: move from the current selection (or, when
-    /// nothing is selected yet, from the fixed anchor). Stays on the current selection when no zone
-    /// lies in the pressed direction.
-    static func nextSelection(
-        direction: ZoneNavigationDirection,
-        currentSelection: Selection?,
-        anchor: Anchor,
-        candidates: [Candidate]
-    ) -> Selection? {
-        guard let currentSelection,
-              let current = candidates.first(where: { $0.id == currentSelection.id }) else {
-            let next = resolveMove(
-                direction: direction,
-                sourceFrame: anchor.frame,
-                sourceScreenId: anchor.screenId,
-                sourceId: nil,
-                excluding: currentSelection?.id,
-                candidates: candidates
-            )
-            return next ?? currentSelection
-        }
-
-        if let entry = currentSelection.entry {
-            // Reversing the entry direction backs out to the zone the gesture came from — never
-            // past it. When the entry was a bare anchor rather than a zone, there is nothing to
-            // back out to, so the selection stays on the floating zone.
-            if direction == entry.direction.opposite {
-                guard let sourceId = entry.sourceId else { return currentSelection }
-                return Selection(id: sourceId, entry: nil)
-            }
-            // Any other press moves relative to where the floating zone was entered, skipping the
-            // floating zone itself — so the entry direction continues past it.
-            let next = resolveMove(
-                direction: direction,
-                sourceFrame: entry.frame,
-                sourceScreenId: entry.screenId,
-                sourceId: entry.sourceId,
-                excluding: currentSelection.id,
-                candidates: candidates
-            )
-            return next ?? currentSelection
-        }
-
-        let next = resolveMove(
-            direction: direction,
-            sourceFrame: current.frame,
-            sourceScreenId: current.id.screenId,
-            sourceId: current.id,
-            excluding: current.id,
-            candidates: candidates
-        )
-        return next ?? currentSelection
-    }
-
-    /// Runs the geometric move and, when it lands on a filled floating zone, records the move's
-    /// source as that selection's entry so later presses can pass beyond it or reverse out of it.
-    /// (The empty floating bar needs no entry: it does not overlap the tiled zones.)
-    private static func resolveMove(
-        direction: ZoneNavigationDirection,
-        sourceFrame: CGRect,
-        sourceScreenId: CGDirectDisplayID,
-        sourceId: NavigableZoneIdentifier?,
-        excluding excludedId: NavigableZoneIdentifier?,
-        candidates: [Candidate]
-    ) -> Selection? {
-        guard let next = nearest(
-            from: sourceFrame,
-            screenId: sourceScreenId,
-            direction: direction,
-            excluding: excludedId,
-            candidates: candidates
-        ) else {
+        guard let fallbackZoneId,
+              let fallback = candidates.first(where: { $0.id == fallbackZoneId }) else {
             return nil
         }
+        return move(from: fallback, direction: direction, candidates: candidates)
+    }
 
-        guard next.id.isFloating, next.occupantWindowId != nil else {
-            return Selection(id: next.id, entry: nil)
+    /// Selection produced by a subsequent arrow press. Pressing the opposite of the move that
+    /// arrived at the current selection pops back to that move's source; any other press moves
+    /// geometrically from the current selection. Stays on the current selection when no zone lies
+    /// in the pressed direction.
+    static func nextSelection(
+        direction: ZoneNavigationDirection,
+        currentSelection: Selection,
+        candidates: [Candidate]
+    ) -> Selection {
+        guard let current = candidates.first(where: { $0.id == currentSelection.id }) else {
+            return currentSelection
+        }
+
+        if let last = currentSelection.trail.last, direction == last.direction.opposite {
+            return Selection(id: last.source, trail: Array(currentSelection.trail.dropLast()))
+        }
+
+        guard let next = nearest(
+            from: current.frame,
+            screenId: current.id.screenId,
+            direction: direction,
+            excluding: current.id,
+            candidates: candidates
+        ) else {
+            return currentSelection
         }
         return Selection(
-            id: next.id,
-            entry: Entry(
-                frame: sourceFrame,
-                screenId: sourceScreenId,
-                sourceId: sourceId,
-                direction: direction
-            )
+            id: next,
+            trail: currentSelection.trail + [Move(source: current.id, direction: direction)]
         )
+    }
+
+    /// Geometric move off `source`, recording it as the selection's trail — or `source` itself
+    /// selected in place when no zone lies in the pressed direction.
+    private static func move(
+        from source: Candidate,
+        direction: ZoneNavigationDirection,
+        candidates: [Candidate]
+    ) -> Selection {
+        guard let next = nearest(
+            from: source.frame,
+            screenId: source.id.screenId,
+            direction: direction,
+            excluding: source.id,
+            candidates: candidates
+        ) else {
+            return Selection(id: source.id, trail: [])
+        }
+        return Selection(id: next, trail: [Move(source: source.id, direction: direction)])
     }
 
     private static func nearest(
@@ -227,17 +174,55 @@ enum ZoneNavigation {
         direction: ZoneNavigationDirection,
         excluding excludedId: NavigableZoneIdentifier?,
         candidates: [Candidate]
-    ) -> Candidate? {
-        DirectionalRectNavigation.nearest(
+    ) -> NavigableZoneIdentifier? {
+        // Bars join only vertical geometric races (see the header).
+        let vertical = direction == .up || direction == .down
+        let eligible = vertical ? candidates : candidates.filter { !$0.id.isFloating }
+        let winner = DirectionalRectNavigation.nearest(
             from: frame,
             sourceScreenId: screenId,
             direction: direction,
-            among: candidates.map {
-                DirectionalRectNavigation.Item(id: $0, frame: $0.frame, screenId: $0.id.screenId)
+            among: eligible.map {
+                DirectionalRectNavigation.Item(id: $0.id, frame: $0.frame, screenId: $0.id.screenId)
             },
-            isExcluded: { $0.id == excludedId },
-            tieBreak: { tieBreakLess($0.id.id, $1.id.id) }
+            isExcluded: { $0 == excludedId },
+            tieBreak: { tieBreakLess($0.id, $1.id) }
         )
+        guard let winner, vertical else { return winner }
+        return boundaryBar(
+            from: frame,
+            sourceScreenId: screenId,
+            pastBy: winner,
+            direction: direction,
+            excluding: excludedId,
+            candidates: candidates
+        ) ?? winner
+    }
+
+    /// A screen's bar sits on that screen's bottom boundary: moving down out of a screen crosses
+    /// its own bar first, and moving up into a screen arrives at that screen's bar first. The
+    /// generic selector can skip that boundary bar — a grazing bar ties with a flush neighbor
+    /// screen's zone and loses the tiling-first tie-break, and a source too narrow to overlap the
+    /// centered bar loses it to any row-aligned zone — so a cross-screen vertical winner is
+    /// redirected to the boundary bar it passed.
+    private static func boundaryBar(
+        from sourceFrame: CGRect,
+        sourceScreenId: CGDirectDisplayID,
+        pastBy winner: NavigableZoneIdentifier,
+        direction: ZoneNavigationDirection,
+        excluding excludedId: NavigableZoneIdentifier?,
+        candidates: [Candidate]
+    ) -> NavigableZoneIdentifier? {
+        guard !winner.isFloating, winner.screenId != sourceScreenId else { return nil }
+        let barId = NavigableZoneIdentifier.floating(
+            screenId: direction == .down ? sourceScreenId : winner.screenId
+        )
+        guard barId != excludedId,
+              let bar = candidates.first(where: { $0.id == barId }),
+              DirectionalRectNavigation.isAhead(bar.frame, of: sourceFrame, direction: direction) else {
+            return nil
+        }
+        return barId
     }
 
     private static func tieBreakLess(_ lhs: NavigableZoneIdentifier, _ rhs: NavigableZoneIdentifier) -> Bool {

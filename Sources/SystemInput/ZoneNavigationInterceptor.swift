@@ -76,6 +76,15 @@ final class ZoneNavigationInterceptor {
 
     private var eventTap: EventTapController?
     private var isEngaged = false
+    /// Bumped by external `resetEngagement` (topology cancels, `stop`) so the queued begin
+    /// callback of an invalidated engagement recognizes itself as stale: such a cancel can land
+    /// on the main queue between the tap thread engaging and the queued begin running, and an
+    /// unvalidated begin would then recreate gesture state with no engaged interceptor left to
+    /// end it. Normal gesture endings (modifier release, Escape, action keys) deliberately do
+    /// not bump: their queued begin must still run so a fast tap-and-release begins and then
+    /// commits in FIFO order. Only the begin needs validation — the other queued callbacks are
+    /// no-ops against cleared state.
+    private var engagementGeneration: UInt64 = 0
     /// The modifiers, selection keys, and Show Launcher key binding captured at engage time, so
     /// mid-gesture edits can't confuse the session.
     private var requiredModifiers: CGEventFlags = []
@@ -114,7 +123,17 @@ final class ZoneNavigationInterceptor {
         drainingKey = nil
     }
 
+    /// External invalidation (topology change, `stop`): disengage and invalidate any queued
+    /// begin — the gesture it would start belongs to a snapshot that no longer exists.
     func resetEngagement() {
+        engagementGeneration &+= 1
+        endEngagement()
+    }
+
+    /// Gesture endings on the tap thread (modifier release, Escape, action keys, tap disable):
+    /// disengage without invalidating a queued begin, so its state is created and the queued
+    /// commit or cancel that follows finds it.
+    private func endEngagement() {
         isEngaged = false
         requiredModifiers = []
         engagedDirectionKeys = [:]
@@ -127,7 +146,7 @@ final class ZoneNavigationInterceptor {
     private func cancelEngagement() {
         drainingKey = nil
         guard isEngaged else { return }
-        resetEngagement()
+        endEngagement()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.delegate?.zoneNavigationDidCancel(self)
@@ -167,7 +186,7 @@ final class ZoneNavigationInterceptor {
 
         // The gesture ends — and the selected zone is committed — when any required modifier is released.
         if !relevantFlags.contains(requiredModifiers) {
-            resetEngagement()
+            endEngagement()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.delegate?.zoneNavigationDidCommit(self)
@@ -182,7 +201,7 @@ final class ZoneNavigationInterceptor {
         if isEngaged {
             // Cancel without committing.
             if keyCode == Self.escapeKeyCode {
-                resetEngagement()
+                endEngagement()
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     self.delegate?.zoneNavigationDidCancel(self)
@@ -209,7 +228,7 @@ final class ZoneNavigationInterceptor {
             if keyCode == Self.moveKeyCode {
                 if delegate?.zoneNavigationDidPressMoveKey(self) == true {
                     drainingKey = (keyCode, requiredModifiers)
-                    resetEngagement()
+                    endEngagement()
                 }
                 return .swallow
             }
@@ -219,7 +238,7 @@ final class ZoneNavigationInterceptor {
             if keyCode == engagedLauncherKey {
                 if delegate?.zoneNavigationDidPressShowLauncherKey(self) == true {
                     drainingKey = (keyCode, requiredModifiers)
-                    resetEngagement()
+                    endEngagement()
                 }
                 return .swallow
             }
@@ -256,8 +275,9 @@ final class ZoneNavigationInterceptor {
         engagedLauncherKey = KeyboardShortcutPreferences.shared.shortcut(for: .showLauncher)
             .map { CGKeyCode($0.keyCode) }
 
+        let generation = engagementGeneration
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self, self.engagementGeneration == generation else { return }
             self.delegate?.zoneNavigation(self, didBegin: direction)
         }
         return .swallow

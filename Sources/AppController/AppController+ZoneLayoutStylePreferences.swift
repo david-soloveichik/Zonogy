@@ -21,6 +21,7 @@ extension AppController {
     /// and layout-driven UI refreshes.
     private func applyZoneLayoutStyle(_ style: ZoneLayoutStyle) {
         Logger.debug("Applying zone layout style \(style.rawValue) to all screens")
+        cancelZoneNavigationForTopologyChange(reason: "layout-style-change")
         windowController.cancelAllAccessibilityFrameRetries()
 
         for (screenId, context) in screenContexts {
