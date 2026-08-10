@@ -23,17 +23,16 @@ enum ZoneNavigationDirection {
 ///
 /// Every candidate is a rectangle on one coordinate space (accessibility coordinates: origin at the
 /// primary display's top-left, y increasing downward). Given a source rectangle and a direction, it
-/// returns the id of the nearest eligible candidate strictly ahead in that direction. The selection
-/// is deterministic and OS-free so it is covered by `--self-test`.
+/// returns the id of the nearest candidate strictly ahead in that direction. The selection is
+/// deterministic and OS-free so it is covered by `--self-test`.
 ///
-/// `ZoneNavigation` builds its zone selection on this.
+/// `ZoneNavigation` uses this for its cross-screen exits; moves within a screen are structural and
+/// never race rectangles.
 enum DirectionalRectNavigation {
     /// A candidate rectangle and its identity on the shared global plane.
     struct Item<ID> {
         let id: ID
         let frame: CGRect
-        /// The display this candidate lives on, used only for the same-screen tie-break.
-        let screenId: CGDirectDisplayID
     }
 
     /// Absorbs floating-point noise when deciding whether a candidate is "ahead".
@@ -54,15 +53,13 @@ enum DirectionalRectNavigation {
 
     /// Returns the id of the nearest item strictly ahead of `sourceFrame` in `direction`, or nil
     /// if none qualifies. Prefers a candidate that overlaps the source along the perpendicular
-    /// edge (nearest by primary-axis gap, then same-screen, then perpendicular center distance);
-    /// otherwise falls back to nearest by center distance so diagonally-placed displays stay
-    /// reachable. Exact ties are broken by `tieBreak`.
+    /// edge (nearest by primary-axis gap, then perpendicular center distance); otherwise falls
+    /// back to nearest by center distance so diagonally-placed displays stay reachable. Exact
+    /// ties are broken by `tieBreak`.
     static func nearest<ID>(
         from sourceFrame: CGRect,
-        sourceScreenId: CGDirectDisplayID,
         direction: ZoneNavigationDirection,
         among items: [Item<ID>],
-        isExcluded: (ID) -> Bool,
         tieBreak: (Item<ID>, Item<ID>) -> Bool
     ) -> ID? {
         let source = sourceFrame
@@ -73,8 +70,8 @@ enum DirectionalRectNavigation {
         }
 
         /// Edge-to-edge travel distance along the press axis (clamped to ≥ 0 for adjacent or
-        /// overlapping candidates), so "nearest in the pressed direction" prefers same-screen
-        /// neighbors over the next display.
+        /// overlapping candidates), so "nearest in the pressed direction" prefers the closest
+        /// display's zones.
         func primaryGap(_ frame: CGRect) -> CGFloat {
             switch direction {
             case .right: return max(0, frame.minX - source.maxX)
@@ -102,14 +99,7 @@ enum DirectionalRectNavigation {
             return (dx * dx + dy * dy).squareRoot()
         }
 
-        /// 0 when the candidate is on the same screen as the source, 1 otherwise. Used as a
-        /// tie-break so an equally-near same-screen candidate wins over one on an adjacent display
-        /// whose edge coincides with this one's.
-        func sameScreenRank(_ screenId: CGDirectDisplayID) -> CGFloat {
-            screenId == sourceScreenId ? 0 : 1
-        }
-
-        let ahead = items.filter { !isExcluded($0.id) && isAhead($0.frame) }
+        let ahead = items.filter { isAhead($0.frame) }
         if ahead.isEmpty {
             return nil
         }
@@ -119,7 +109,6 @@ enum DirectionalRectNavigation {
         let aligned = ahead.filter { perpendicularOverlap($0.frame) > overlapTolerance }
         if let best = bestItem(aligned, keyedBy: [
             { primaryGap($0.frame) },
-            { sameScreenRank($0.screenId) },
             { perpendicularCenterDistance($0.frame) },
         ], tieBreak: tieBreak) {
             return best
@@ -128,7 +117,6 @@ enum DirectionalRectNavigation {
         // Fallback so diagonally-placed displays stay reachable: nearest ahead candidate by center.
         return bestItem(ahead, keyedBy: [
             { centerDistance($0.frame) },
-            { sameScreenRank($0.screenId) },
         ], tieBreak: tieBreak)
     }
 

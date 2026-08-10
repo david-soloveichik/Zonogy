@@ -2,15 +2,18 @@ import CoreGraphics
 
 /// Guardrail assertions for the pure zone-navigation selection policy.
 ///
-/// Frames are in the shared global coordinate space (y increases downward), mirroring the
-/// accessibility coordinates AppController feeds the navigator at runtime.
+/// Each tiling fixture carries its structural place (column side and stack row) exactly as the
+/// gesture builder derives it from the zone model; frames only matter for the geometric
+/// cross-screen exits. Frames are in the shared global coordinate space (y increases downward),
+/// mirroring the accessibility coordinates AppController feeds the navigator at runtime.
 ///
 /// Fixture: screen A holds a 2×2 grid of tiling zones (zones 1–4: 1 top-left filled, 2 top-right
 /// filled, 3 bottom-left EMPTY, 4 bottom-right filled) plus its floating zone's bottom-edge bar,
 /// occupied and clear of the grid (a bottom-Dock layout). Screen B sits to the right with one
-/// empty tiling zone and an empty floating bar. Local fixtures cover the grazing-bar layouts
-/// (hidden/side Dock), a screen stacked above, and the reported gesture annoyances, plus the
-/// Add Zone key's side preference and the reselection after the Remove Zone key.
+/// empty full-screen tiling zone and an empty floating bar. Local fixtures cover the
+/// full-column-beside-a-stack layout (the reported diagonal-move annoyance), uneven splits,
+/// screens stacked above and below, grazing bars (hidden/side Dock), and the Add Zone key's side
+/// preference plus the reselection after the Remove Zone key.
 enum ZoneNavigationTests {
     private static let screenA: CGDirectDisplayID = 10
     private static let screenB: CGDirectDisplayID = 20
@@ -18,24 +21,34 @@ enum ZoneNavigationTests {
     private static let screenU: CGDirectDisplayID = 40
 
     private static func tiledZone(
-        _ index: Int, _ frame: CGRect, on screenId: CGDirectDisplayID = screenA, occupied: Bool = false
+        _ index: Int,
+        _ frame: CGRect,
+        on screenId: CGDirectDisplayID = screenA,
+        _ side: ZoneSide,
+        _ row: ZoneNavigation.StackRow,
+        occupied: Bool = false
     ) -> ZoneNavigation.Candidate {
-        .init(id: .tiling(screenId: screenId, index: index), frame: frame, isOccupied: occupied)
+        .init(
+            id: .tiling(screenId: screenId, index: index),
+            frame: frame,
+            isOccupied: occupied,
+            place: .init(side: side, row: row)
+        )
     }
 
     private static func floatingZone(
         _ frame: CGRect, on screenId: CGDirectDisplayID = screenA, occupied: Bool = false
     ) -> ZoneNavigation.Candidate {
-        .init(id: .floating(screenId: screenId), frame: frame, isOccupied: occupied)
+        .init(id: .floating(screenId: screenId), frame: frame, isOccupied: occupied, place: nil)
     }
 
-    private static let z1 = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 480), occupied: true)
-    private static let z2 = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 480), occupied: true)
-    private static let z3 = tiledZone(3, CGRect(x: 0, y: 520, width: 480, height: 480))
-    private static let z4 = tiledZone(4, CGRect(x: 520, y: 520, width: 480, height: 480), occupied: true)
+    private static let z1 = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 480), .left, .top, occupied: true)
+    private static let z2 = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 480), .right, .top, occupied: true)
+    private static let z3 = tiledZone(3, CGRect(x: 0, y: 520, width: 480, height: 480), .left, .bottom)
+    private static let z4 = tiledZone(4, CGRect(x: 520, y: 520, width: 480, height: 480), .right, .bottom, occupied: true)
     private static let barA = floatingZone(CGRect(x: 300, y: 1044, width: 400, height: 16), occupied: true)
 
-    private static let zB1 = tiledZone(1, CGRect(x: 1000, y: 0, width: 1000, height: 940), on: screenB)
+    private static let zB1 = tiledZone(1, CGRect(x: 1000, y: 0, width: 1000, height: 940), on: screenB, .left, .full)
     private static let barB = floatingZone(CGRect(x: 1300, y: 1060, width: 400, height: 16), on: screenB)
 
     private static let singleScreen = [z1, z2, z3, z4, barA]
@@ -84,52 +97,109 @@ enum ZoneNavigationTests {
             .init(id: candidate.id, trail: [])
         }
 
-        // MARK: The occupied bar is a first-class vertical stop below the grid: down from a bottom
-        // zone reaches it (filled or empty source alike), and up climbs back out — an exactly
-        // centered bar ties between the bottom zones and the lower index wins.
+        // MARK: Up and down walk a column's stack, with the bar as the bottom-most stop — filled
+        // and empty zones alike — and up from the bar climbs into the bottom row, where the
+        // lower zone index wins between the two columns.
+        assertSel(initial(.down, focused: z2), z4.id, "down z2→z4 walks the right stack")
+        assertSel(initial(.up, focused: z4), z2.id, "up z4→z2 climbs it")
         assertSel(initial(.down, focused: z4), barA.id, "down z4→occupied bar")
         assertSel(initial(.down, targeted: z3), barA.id, "empty target: down z3→bar (moves immediately)")
-        assertSel(next(.up, from: selected(barA)), z3.id, "up bar→z3 (equidistant tie prefers lower index)")
+        assertSel(next(.up, from: selected(barA)), z3.id, "up bar→z3 (lower index between bottom zones)")
 
-        // MARK: The motivating degenerate case: one tiling zone spanning the screen plus an
-        // occupied floating zone. The bar keeps the two mutually reachable even though the
-        // occupant window itself may sit concentric with the zone (where no direction is
-        // "ahead"). The bar here grazes the zone's bottom edge — the hidden/side-Dock layout,
-        // where the visible area reaches the true screen bottom — and overlap still resolves
-        // vertically (it clamps the travel gap to zero; it does not disqualify).
-        let soloZone = tiledZone(1, CGRect(x: 0, y: 0, width: 1000, height: 1000), occupied: true)
+        // MARK: The degenerate single-zone screen: down reaches the bar even when it grazes the
+        // zone's bottom edge (hidden/side Dock), and up climbs back out — the bar keeps the zone
+        // and the floating occupant mutually reachable regardless of where that occupant's
+        // window sits.
+        let soloZone = tiledZone(1, CGRect(x: 0, y: 0, width: 1000, height: 1000), .left, .full, occupied: true)
         let soloBar = floatingZone(CGRect(x: 300, y: 994, width: 400, height: 16), occupied: true)
         let solo = [soloZone, soloBar]
         assertSel(initial(.down, focused: soloZone, candidates: solo), soloBar.id, "solo: down zone→occupied bar")
         assertSel(initial(.up, focused: soloBar, candidates: solo), soloZone.id, "solo: up from focused float→zone")
 
-        // MARK: Horizontal presses never land on a bar — even one that grazes the zone frames and
-        // would otherwise win the race outright (zero gap against the neighbor's margin gap) —
-        // and the trail makes the return press retrace exactly, where raw geometry would tie
-        // toward the lower zone index. Layout: full-height left zone, two stacked right zones,
-        // grazing occupied bar.
-        let lrL1 = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000), occupied: true)
-        let lrR2 = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 480), occupied: true)
-        let lrR3 = tiledZone(3, CGRect(x: 520, y: 520, width: 480, height: 480), occupied: true)
+        // MARK: A full-height column counts as a bottom zone for the bar's climb — in the
+        // mirrored layout (full right column, stacked left) the lower index wins across columns.
+        let mirror1 = tiledZone(1, CGRect(x: 520, y: 0, width: 480, height: 1000), .right, .full, occupied: true)
+        let mirror2 = tiledZone(2, CGRect(x: 0, y: 0, width: 480, height: 480), .left, .top)
+        let mirror3 = tiledZone(3, CGRect(x: 0, y: 520, width: 480, height: 480), .left, .bottom)
+        let mirrorBar = floatingZone(CGRect(x: 300, y: 1044, width: 400, height: 16))
+        let mirror = [mirror1, mirror2, mirror3, mirrorBar]
+        assertSel(next(.up, from: selected(mirrorBar), candidates: mirror), mirror1.id, "bar-up: the full column is a bottom zone and its lower index wins")
+
+        // MARK: The reported diagonal annoyance: a full-height column has nothing above it on its
+        // own screen — up NEVER selects the neighboring stack's top zone. With no screen above
+        // the press is dead; with one, it exits to that screen (bar first). Down still reaches
+        // the (grazing) bar.
+        let lrL1 = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000), .left, .full, occupied: true)
+        let lrR2 = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 480), .right, .top, occupied: true)
+        let lrR3 = tiledZone(3, CGRect(x: 520, y: 520, width: 480, height: 480), .right, .bottom, occupied: true)
         let lrBar = floatingZone(CGRect(x: 300, y: 994, width: 400, height: 16), occupied: true)
         let lr = [lrL1, lrR2, lrR3, lrBar]
+        assertSel(initial(.up, focused: lrL1, candidates: lr), lrL1.id, "up from a full column: dead press, not the stack's top")
+        assertSel(initial(.down, focused: lrL1, candidates: lr), lrBar.id, "down from a full column: the bar")
+        let lrT = tiledZone(1, CGRect(x: 0, y: -1060, width: 1000, height: 940), on: screenT, .left, .full)
+        let lrBarT = floatingZone(CGRect(x: 300, y: -16, width: 400, height: 16), on: screenT)
+        assertSel(
+            initial(.up, focused: lrL1, candidates: lr + [lrT, lrBarT]),
+            lrBarT.id,
+            "up from a full column exits to the screen above (bar first)"
+        )
+
+        // MARK: Left and right cross between the columns, staying in the same row; a single-zone
+        // column takes both rows, and a full-height column enters a stack at its top.
+        assertSel(initial(.left, focused: z2), z1.id, "left z2→z1 stays in the top row")
+        assertSel(initial(.left, focused: z4), z3.id, "left z4→z3 stays in the bottom row")
+        assertSel(initial(.left, focused: lrR3, candidates: lr), lrL1.id, "left from the stack's bottom → the full column")
+        assertSel(next(.right, from: selected(lrL1), candidates: lr), lrR2.id, "right from the full column enters the stack at the top")
+
+        // MARK: Dragged split ratios never change where a press lands: rows match positionally
+        // even when geometry disagrees. (Left column split 20/80, right column 80/20: the tall
+        // bottom-left zone faces mostly the tall top-right zone, but Right still lands on the
+        // bottom-right sliver.)
+        let u1 = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 192), .left, .top)
+        let u2 = tiledZone(2, CGRect(x: 0, y: 208, width: 480, height: 792), .left, .bottom, occupied: true)
+        let u3 = tiledZone(3, CGRect(x: 520, y: 0, width: 480, height: 792), .right, .top, occupied: true)
+        let u4 = tiledZone(4, CGRect(x: 520, y: 808, width: 480, height: 192), .right, .bottom)
+        let uneven = [u1, u2, u3, u4, floatingZone(CGRect(x: 300, y: 1044, width: 400, height: 16))]
+        assertSel(initial(.right, focused: u2, candidates: uneven), u4.id, "bottom stays bottom despite the ratios")
+        assertSel(initial(.left, focused: u3, candidates: uneven), u1.id, "top stays top despite the ratios")
+
+        // MARK: From the bar, left and right go to that column's bottom-most zone; a fresh move
+        // never lands on a bar horizontally, but the reverse press pops back onto it (retracing
+        // is remembered, not resolved), and a press with no stop that way is dead.
+        let offBar = next(.right, from: selected(barA))
+        assertSel(offBar, z4.id, "right from the bar → the right column's bottom zone")
+        assertSel(next(.left, from: offBar), barA.id, "horizontal reverse pops back onto the bar")
+        assertSel(next(.left, from: selected(barA)), z3.id, "left from the bar → the left column's bottom zone")
+        let loneZone = tiledZone(1, CGRect(x: 0, y: 0, width: 100, height: 100), .left, .full)
+        let loneBar = floatingZone(CGRect(x: 200, y: 0, width: 100, height: 100), occupied: true)
+        assertSel(
+            initial(.right, targeted: loneZone, candidates: [loneZone, loneBar]),
+            loneZone.id,
+            "horizontal press toward a lone bar stays in place (bars barred horizontally)"
+        )
+        assertSel(next(.down, from: selected(barA)), barA.id, "dead direction: down from the bar stays put")
+
+        // MARK: A single-zone screen — the only layout where a side is empty (multi-zone screens
+        // always occupy both sides) — has no column to cross: horizontal presses from its zone
+        // or its bar exit the screen, landing on the neighbor's zone (bars stay out of
+        // horizontal races). The dead no-neighbor variants are covered above and below.
+        let soloPair = solo + [zB1, barB]
+        assertSel(initial(.right, focused: soloZone, candidates: soloPair), zB1.id, "single zone: right exits to the neighboring screen")
+        assertSel(next(.right, from: selected(soloBar), candidates: soloPair), zB1.id, "single zone: right from the bar exits to the neighbor's zone")
+
+        // MARK: Reversal is remembered, not recomputed: moves are lossy (the full column reached
+        // from the stack's bottom re-enters at the top), so the exact opposite press retraces the
+        // trail step by step, and a dead press keeps it intact.
         let lrLeft = initial(.left, focused: lrR3, candidates: lr)
-        assertSel(lrLeft, lrL1.id, "left from bottom-right → the zone, never the grazing bar")
-        assertSel(initial(.down, focused: lrR3, candidates: lr), lrBar.id, "down from bottom-right → the bar")
-        assertSel(next(.right, from: lrLeft, candidates: lr), lrR3.id, "reverse press returns to the start zone")
-        assertSel(next(.right, from: selected(lrL1), candidates: lr), lrR2.id, "without a trail, right from the left column ties to the lower index")
+        assertSel(next(.right, from: lrLeft, candidates: lr), lrR3.id, "reverse press returns to the bottom, not the top")
         let lrDown = next(.down, from: lrLeft, candidates: lr)
         assertSel(lrDown, lrBar.id, "trail: left then down reaches the bar")
         let lrBack1 = next(.up, from: lrDown, candidates: lr)
-        assertSel(lrBack1, lrL1.id, "trail: first reverse pops to the left zone")
+        assertSel(lrBack1, lrL1.id, "trail: first reverse pops to the full column")
         assertSel(next(.right, from: lrBack1, candidates: lr), lrR3.id, "trail: second reverse pops to the start")
-        let lrDead = next(.left, from: lrLeft, candidates: lr)
+        let lrDead = next(.up, from: lrLeft, candidates: lr)
         assertSel(lrDead, lrL1.id, "dead press keeps the selection…")
         assertSel(next(.right, from: lrDead, candidates: lr), lrR3.id, "…and keeps the trail: the reverse still pops")
-
-        // MARK: Moves across the grid are direct — the floating occupant never sits between zones
-        // (it navigates at the bar, not at its window rectangle).
-        assertSel(initial(.up, focused: z4), z2.id, "grid: up z4→z2 is direct")
 
         // MARK: No focus, filled targeted zone — the first press selects it in place (any
         // direction). An occupied floating target works the same, so tap-and-release focuses the
@@ -141,60 +211,73 @@ enum ZoneNavigationTests {
         assertSel(offTarget, z1.id, "selected target: left → z1")
         assertSel(next(.right, from: offTarget), z2.id, "selected target: reverse returns")
 
-        // MARK: Empty zones are first-class stops: cross-screen moves reach them.
+        // MARK: Exits are geometric: a press past the layout's edge crosses to the next screen
+        // in that direction. Empty zones are first-class stops, and bars never join horizontal
+        // races.
         assertSel(initial(.right, focused: z4, candidates: twoScreens), zB1.id, "cross-screen: right z4→empty zB1")
 
-        // MARK: The empty floating bar is the same vertical stop: reached from above, and the
-        // reverse press pops back out.
+        // MARK: The empty floating bar is the same bottom-most stop, and the reverse press pops
+        // back out.
         let downToBar = initial(.down, targeted: zB1, candidates: twoScreens)
         assertSel(downToBar, barB.id, "bar: down zB1→empty bar")
         assertSel(next(.up, from: downToBar, candidates: twoScreens), zB1.id, "bar: up pops back to zB1")
 
         // MARK: Entering a screen from below lands on its bar first — the bar is that screen's
-        // bottom-most vertical stop — and the next press continues into its zones.
-        let zT = tiledZone(1, CGRect(x: 0, y: -1060, width: 1000, height: 940), on: screenT)
+        // bottom-most stop — and the next press continues into its zones.
+        let zT = tiledZone(1, CGRect(x: 0, y: -1060, width: 1000, height: 940), on: screenT, .left, .full)
         let barT = floatingZone(CGRect(x: 300, y: -16, width: 400, height: 16), on: screenT)
         let stacked = [z1, z2, z3, z4, barA, zT, barT]
         let upToBarT = initial(.up, focused: z1, candidates: stacked)
         assertSel(upToBarT, barT.id, "stacked screens: up from below lands on the upper bar")
         assertSel(next(.up, from: upToBarT, candidates: stacked), zT.id, "stacked screens: up again continues into the zones")
 
-        // MARK: The boundary-bar priority: generic racing can skip a bar — a grazing bar ties
-        // with a flush neighbor screen's zone and loses the tiling-first tie-break, and a narrow
-        // source zone may not row-align with the centered bar — but a cross-screen vertical move
-        // still stops at the boundary bar it passes.
-        let zFlushT = tiledZone(1, CGRect(x: 0, y: -1060, width: 1000, height: 1060), on: screenT, occupied: true)
+        // MARK: The upward entry-bar rule holds even where raw racing would skip the bar: a
+        // grazing bar on a flush screen boundary, and a source too narrow to row-align with the
+        // centered bar.
+        let zFlushT = tiledZone(1, CGRect(x: 0, y: -1060, width: 1000, height: 1060), on: screenT, .left, .full, occupied: true)
         let barFlushT = floatingZone(CGRect(x: 300, y: -16, width: 400, height: 16), on: screenT, occupied: true)
         assertSel(
             initial(.up, focused: z1, candidates: [z1, z2, z3, z4, barA, zFlushT, barFlushT]),
             barFlushT.id,
-            "flush screens: up still stops at the grazing upper bar (would tie to its zone)"
+            "flush screens: up still stops at the grazing upper bar"
         )
-        let narrowSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 200, height: 900), occupied: true)
+        let narrowSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 200, height: 900), .left, .full, occupied: true)
         assertSel(
             initial(.up, focused: narrowSrc, candidates: [narrowSrc, zFlushT, barFlushT]),
             barFlushT.id,
             "narrow source: up stops at the bar it does not row-align with"
         )
-        let flushSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 200, height: 1010), occupied: true)
+
+        // MARK: Leaving a screen downward stops at its own bar structurally — even one the
+        // source does not overlap horizontally — and down from the bar itself continues into the
+        // screen below.
+        let flushSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 200, height: 1010), .left, .full, occupied: true)
         let flushSrcBar = floatingZone(CGRect(x: 300, y: 994, width: 400, height: 16), occupied: true)
-        let zBelow = tiledZone(1, CGRect(x: 0, y: 1010, width: 1000, height: 900), on: screenU)
+        let zBelow = tiledZone(1, CGRect(x: 0, y: 1010, width: 1000, height: 900), on: screenU, .left, .full)
         assertSel(
             initial(.down, focused: flushSrc, candidates: [flushSrc, flushSrcBar, zBelow]),
             flushSrcBar.id,
             "down out of a screen stops at its own bar even without row alignment"
         )
-
-        // MARK: …and its escape branches: moving off a bar crosses to the next screen (the bar is
-        // the excluded source), a diagonal screen's bar that is not ahead is not forced, and a
-        // missing bar candidate leaves the geometric winner.
         assertSel(
             next(.down, from: selected(flushSrcBar), candidates: [flushSrc, flushSrcBar, zBelow]),
             zBelow.id,
             "down from the bar itself continues into the screen below"
         )
-        let diagSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 400, height: 400), occupied: true)
-        let diagZone = tiledZone(1, CGRect(x: 1200, y: -800, width: 800, height: 700), on: screenB, occupied: true)
+
+        // MARK: A screen missing its bar candidate (a defensive state — every real screen has a
+        // floating zone) degrades gracefully: down from its bottom zone exits directly.
+        let noBarZone = tiledZone(1, CGRect(x: 0, y: 0, width: 1000, height: 1000), .left, .full, occupied: true)
+        assertSel(
+            initial(.down, focused: noBarZone, candidates: [noBarZone, zBelow]),
+            zBelow.id,
+            "a missing source bar falls through to the screen below"
+        )
+
+        // MARK: …and the entry-bar rule's escape branches: a diagonal screen's bar that is not
+        // ahead is not forced, and a missing bar candidate leaves the geometric winner.
+        let diagSrc = tiledZone(1, CGRect(x: 0, y: 0, width: 400, height: 400), .left, .full, occupied: true)
+        let diagZone = tiledZone(1, CGRect(x: 1200, y: -800, width: 800, height: 700), on: screenB, .left, .full, occupied: true)
         let diagBar = floatingZone(CGRect(x: 1400, y: 284, width: 400, height: 16), on: screenB, occupied: true)
         assertSel(
             initial(.up, focused: diagSrc, candidates: [diagSrc, diagZone, diagBar]),
@@ -207,16 +290,9 @@ enum ZoneNavigationTests {
             "a missing boundary bar leaves the geometric winner"
         )
 
-        // MARK: Horizontal presses from a bar move among tiling zones only — but the reverse
-        // press pops back onto the bar (retracing is remembered, not raced).
-        let offBar = next(.right, from: selected(barA))
-        assertSel(offBar, z4.id, "right from the bar → nearest zone (bars barred horizontally)")
-        assertSel(next(.left, from: offBar), barA.id, "horizontal reverse pops back onto the bar")
-
         // MARK: A first press with no zone in the pressed direction selects the start zone in
         // place — the circle appears rather than nothing happening — for focused, targeted, and
-        // bar starts alike (horizontal bar starts included: in-place selection is not a race);
-        // a dead subsequent press stays put.
+        // bar starts alike.
         assertSel(initial(.left, focused: z1), z1.id, "dead first press: the focused zone is selected in place")
         assertSel(initial(.right, targeted: barB, candidates: twoScreens), barB.id, "dead horizontal first press from an empty bar target selects it in place")
         assertSel(initial(.left, focused: soloBar, candidates: solo), soloBar.id, "dead horizontal first press from the focused float selects its bar in place")
@@ -225,32 +301,12 @@ enum ZoneNavigationTests {
         let recovered = next(.left, from: deadRight, candidates: twoScreens)
         assertSel(recovered, z2.id, "moving on from an in-place selection works")
         assertSel(next(.right, from: recovered, candidates: twoScreens), zB1.id, "…and reverses back to it")
-        let loneZone = tiledZone(1, CGRect(x: 0, y: 0, width: 100, height: 100))
-        let loneBar = floatingZone(CGRect(x: 200, y: 0, width: 100, height: 100), occupied: true)
-        assertSel(
-            initial(.right, targeted: loneZone, candidates: [loneZone, loneBar]),
-            loneZone.id,
-            "horizontal press toward a lone bar stays in place (bars barred horizontally)"
-        )
-        assertSel(next(.down, from: selected(barA)), barA.id, "dead direction: down from the bar stays put")
 
         // MARK: No focus and no resolvable target: the first press moves from the fallback start
         // (z1, the first candidate) and is reversible like any other move.
         let fromFallback = initial(.right)
         assertSel(fromFallback, z2.id, "fallback start: right from z1 → z2")
         assertSel(next(.left, from: fromFallback), z1.id, "fallback start: reverse returns to z1")
-
-        // MARK: Exact geometric ties (vertical, where bars compete) prefer a tiling zone over the
-        // floating zone, then the lower zone index.
-        let tieSource = tiledZone(1, CGRect(x: 0, y: 0, width: 100, height: 100))
-        let tieTiledLow = tiledZone(2, CGRect(x: 0, y: 200, width: 100, height: 100))
-        let tieTiledHigh = tiledZone(3, CGRect(x: 0, y: 200, width: 100, height: 100))
-        let tieFloat = floatingZone(CGRect(x: 0, y: 200, width: 100, height: 100), occupied: true)
-        assertSel(
-            initial(.down, targeted: tieSource, candidates: [tieSource, tieFloat, tieTiledHigh, tieTiledLow]),
-            tieTiledLow.id,
-            "tie-break: tiled beats floating, lower index beats higher"
-        )
 
         // MARK: No zones — nothing is selectable.
         assertSel(initial(.right, candidates: []), nil, "empty candidates → nil")
@@ -288,8 +344,8 @@ enum ZoneNavigationTests {
             }
         }
         let removedBottomRight = CGRect(x: 520, y: 520, width: 480, height: 480)
-        let leftColumn = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000))
-        let rightColumn = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 1000), occupied: true)
+        let leftColumn = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000), .left, .full)
+        let rightColumn = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 1000), .right, .full, occupied: true)
         assertReselect(
             ZoneNavigation.selectionAfterRemoval(
                 removedFrame: removedBottomRight, screenId: screenA,
@@ -306,7 +362,7 @@ enum ZoneNavigationTests {
             leftColumn.id,
             "an equal-overlap tie prefers the lower zone index"
         )
-        let coveringOtherScreenZone = tiledZone(1, removedBottomRight, on: screenB, occupied: true)
+        let coveringOtherScreenZone = tiledZone(1, removedBottomRight, on: screenB, .left, .full, occupied: true)
         let coveringBar = floatingZone(removedBottomRight, occupied: true)
         assertReselect(
             ZoneNavigation.selectionAfterRemoval(

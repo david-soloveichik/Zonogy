@@ -8,7 +8,7 @@ import Foundation
 /// Launcher there). The Add Zone and Remove Zone keys change the topology under the gesture — add
 /// a zone for the selected zone, or remove the selected zone — and the gesture continues around
 /// the result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
-/// geometry is the pure `ZoneNavigation`.
+/// policy is the pure `ZoneNavigation`.
 extension AppController {
     /// Live state for an in-progress zone-navigation gesture. Candidates are snapshotted at engage
     /// time so the circle stays stable for the (brief) duration of the gesture; commits re-check
@@ -111,7 +111,7 @@ extension AppController {
     }
 
     /// Modifier release: focus the selected zone's window, or target the selected zone when empty.
-    /// Occupancy is re-read live at commit time (the snapshot only drives geometry).
+    /// Occupancy is re-read live at commit time (the snapshot only drives selection).
     private func commitZoneNavigation() {
         guard let state = zoneNavigationState else { return }
         clearZoneNavigation()
@@ -199,10 +199,11 @@ extension AppController {
         screenOrder.contains { targetedZoneManager.isScreenTargetable($0) && screenContexts[$0] != nil }
     }
 
-    /// Every navigable zone by its rectangle in accessibility coordinates: each tiling zone —
-    /// filled or empty — by its zone frame, plus each screen's floating zone at its bottom-edge
-    /// bar, occupied or not. Reuses the canonical targetability policy so navigation reaches
-    /// exactly the zones the rest of targeting considers valid.
+    /// Every navigable zone: each tiling zone — filled or empty — with its rectangle in
+    /// accessibility coordinates and its structural place (column side and stack row, driving the
+    /// within-screen moves), plus each screen's floating zone at its bottom-edge bar, occupied or
+    /// not. Reuses the canonical targetability policy so navigation reaches exactly the zones the
+    /// rest of targeting considers valid.
     private func zoneNavigationCandidates() -> [ZoneNavigation.Candidate] {
         var candidates: [ZoneNavigation.Candidate] = []
         for screenId in screenOrder {
@@ -211,11 +212,20 @@ extension AppController {
                 continue
             }
             let descriptor = context.descriptor
-            for zone in context.zoneController.allZones {
+            // Within a side, the lower index stacks on top (mirroring `ZoneLayout`).
+            let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
+            var stackedAbove: [ZoneSide: Int] = [:]
+            for zone in zones {
+                let position = stackedAbove[zone.side, default: 0]
+                stackedAbove[zone.side] = position + 1
+                let row: ZoneNavigation.StackRow = context.zoneController.zoneCount(on: zone.side) == 1
+                    ? .full
+                    : (position == 0 ? .top : .bottom)
                 candidates.append(.init(
                     id: .tiling(screenId: screenId, index: zone.index),
                     frame: descriptor.screenToAccessibility(zone.frame),
-                    isOccupied: zone.occupantWindowId != nil
+                    isOccupied: zone.occupantWindowId != nil,
+                    place: .init(side: zone.side, row: row)
                 ))
             }
 
@@ -225,7 +235,8 @@ extension AppController {
                 candidates.append(.init(
                     id: .floating(screenId: screenId),
                     frame: barFrame,
-                    isOccupied: floatingZoneOccupant(on: screenId) != nil
+                    isOccupied: floatingZoneOccupant(on: screenId) != nil,
+                    place: nil
                 ))
             }
         }
