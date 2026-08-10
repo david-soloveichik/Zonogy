@@ -3,7 +3,7 @@ import Foundation
 
 /// Guardrail tests for the zone-navigation key policy: the keyset presets' direction maps, the
 /// reserved chords the shortcut editors keep table shortcuts off, the keys that shadow a borrowed
-/// key (Show Launcher, Add Zone, Remove Zone), and keyset persistence.
+/// key (Show Launcher, Add Zone, Remove Zone, Minimize Focused Window), and keyset persistence.
 enum ZoneNavigationChordPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -123,6 +123,25 @@ enum ZoneNavigationChordPolicyTests {
             ),
             "distinct earlier-borrowed keys should not shadow an unrelated borrowed key"
         )
+
+        // The default borrowed keys — Space, =, -, M, in claim order — must stay reachable out
+        // of the box under every keyset preset: no preset may include one of them, and no
+        // default may shadow a later one. (The claim order itself is hand-maintained, in the
+        // interceptor's dispatch and the walkthrough's line order.)
+        let defaultBorrowedKeys = [
+            CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal), CGKeyCode(kVK_ANSI_Minus), CGKeyCode(kVK_ANSI_M),
+        ]
+        for keyset in ZoneNavigationKeyset.allCases {
+            for (claimIndex, keyCode) in defaultBorrowedKeys.enumerated() {
+                assert(
+                    !ZoneNavigationInterceptor.shadowsBorrowedKey(
+                        keyCode, keyset: keyset,
+                        earlierBorrowedKeys: Array(defaultBorrowedKeys.prefix(claimIndex))
+                    ),
+                    "default borrowed key \(keyCode) should stay reachable under \(keyset.rawValue)"
+                )
+            }
+        }
 
         // MARK: - Keyset persistence: default when unset, round-trip, invalid fallback
 

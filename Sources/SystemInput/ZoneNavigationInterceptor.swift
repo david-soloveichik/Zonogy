@@ -9,8 +9,10 @@
 /// move the focused window into the selected zone, and the Show Launcher shortcut's key (Space by
 /// default) asks it to target the selected zone and open the Launcher there — each ending the
 /// gesture when the delegate performs it. The Add Zone and Remove Zone shortcuts' keys (= and -
-/// by default) ask the delegate to add a zone for the selected zone or remove the selected zone;
-/// those keep the gesture engaged so it continues around the new topology.
+/// by default) ask the delegate to add a zone for the selected zone or remove the selected zone,
+/// and the Minimize Focused Window shortcut's key (M by default) asks it to minimize the selected
+/// zone's window (or remove an empty tiling zone); those keep the gesture engaged so it continues
+/// around the result.
 
 import ApplicationServices
 import Carbon
@@ -49,6 +51,11 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
     /// engaged either way.
     func zoneNavigationDidPressRemoveZoneKey(_ interceptor: ZoneNavigationInterceptor)
 
+    /// Minimize key pressed while engaged. The delegate minimizes the selected zone's window —
+    /// or, when the zone is an empty tiling zone, removes it (the Remove Zone behavior) — and
+    /// the gesture stays engaged either way.
+    func zoneNavigationDidPressMinimizeKey(_ interceptor: ZoneNavigationInterceptor)
+
     /// Required modifiers released — commit the currently selected zone.
     func zoneNavigationDidCommit(_ interceptor: ZoneNavigationInterceptor)
 
@@ -74,8 +81,9 @@ final class ZoneNavigationInterceptor {
 
     /// Whether `keyCode` is unreachable as a borrowed key under the given keyset: the gesture's
     /// own keys (selection, move, and cancel) act first, as does any key borrowed earlier in the
-    /// claim order — Show Launcher, then Add Zone, then Remove Zone. A shortcut whose key is
-    /// shadowed can't perform its step mid-gesture — the editor sheet shows it as unavailable.
+    /// claim order — Show Launcher, then Add Zone, then Remove Zone, then Minimize Focused
+    /// Window. A shortcut whose key is shadowed can't perform its step mid-gesture — the editor
+    /// sheet shows it as unavailable.
     static func shadowsBorrowedKey(
         _ keyCode: CGKeyCode,
         keyset: ZoneNavigationKeyset,
@@ -108,6 +116,7 @@ final class ZoneNavigationInterceptor {
     private var engagedLauncherKey: CGKeyCode?
     private var engagedAddZoneKey: CGKeyCode?
     private var engagedRemoveZoneKey: CGKeyCode?
+    private var engagedMinimizeKey: CGKeyCode?
     /// After an action key (move or Launcher) ends the gesture, its auto-repeats are swallowed
     /// until the chord's modifiers are released — otherwise a slightly-long press leaks repeats
     /// into the focused app, or re-fires the global Show Launcher hotkey right after it opened.
@@ -158,6 +167,7 @@ final class ZoneNavigationInterceptor {
         engagedLauncherKey = nil
         engagedAddZoneKey = nil
         engagedRemoveZoneKey = nil
+        engagedMinimizeKey = nil
     }
 
     /// Drop an in-flight gesture and tell the delegate to tear down its overlay. Also drops any
@@ -263,19 +273,25 @@ final class ZoneNavigationInterceptor {
                 return .swallow
             }
 
-            // Add or remove a zone for the selected zone; the gesture stays engaged and continues
-            // around the new topology. Auto-repeats are swallowed but ignored so a held key cannot
-            // cascade topology changes. Swallowing also keeps the chord from doubling as the
-            // global Add/Remove Zone hotkey.
-            if keyCode == engagedAddZoneKey || keyCode == engagedRemoveZoneKey {
+            // Add or remove a zone for the selected zone, or minimize its window; the gesture
+            // stays engaged and continues around the result. Auto-repeats are swallowed but
+            // ignored so a held key cannot cascade changes (a held Minimize would otherwise
+            // minimize and then remove the emptied zone). Swallowing also keeps the chord from
+            // doubling as a global hotkey (the cursor minimize shares the default M).
+            if keyCode == engagedAddZoneKey || keyCode == engagedRemoveZoneKey || keyCode == engagedMinimizeKey {
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                    // Resolved here on the tap thread: the engaged keys are cleared once the
+                    // gesture ends, so the queued callback can't re-derive them.
                     let isAdd = keyCode == engagedAddZoneKey
+                    let isRemove = !isAdd && keyCode == engagedRemoveZoneKey
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
                         if isAdd {
                             self.delegate?.zoneNavigationDidPressAddZoneKey(self)
-                        } else {
+                        } else if isRemove {
                             self.delegate?.zoneNavigationDidPressRemoveZoneKey(self)
+                        } else {
+                            self.delegate?.zoneNavigationDidPressMinimizeKey(self)
                         }
                     }
                 }
@@ -306,8 +322,8 @@ final class ZoneNavigationInterceptor {
         }
 
         // Engage immediately so repeated presses are swallowed even though the UI work is async.
-        // The Launcher, Add Zone, and Remove Zone keys are borrowed from those shortcuts — only
-        // their key codes matter, since the gesture's modifiers are already held.
+        // The Launcher, Add Zone, Remove Zone, and Minimize keys are borrowed from those
+        // shortcuts — only their key codes matter, since the gesture's modifiers are already held.
         isEngaged = true
         requiredModifiers = relevantFlags
         engagedDirectionKeys = directionKeys
@@ -317,6 +333,8 @@ final class ZoneNavigationInterceptor {
         engagedAddZoneKey = shortcutPreferences.shortcut(for: .addZone)
             .map { CGKeyCode($0.keyCode) }
         engagedRemoveZoneKey = shortcutPreferences.shortcut(for: .removeZone)
+            .map { CGKeyCode($0.keyCode) }
+        engagedMinimizeKey = shortcutPreferences.shortcut(for: .minimizeActiveWindow)
             .map { CGKeyCode($0.keyCode) }
 
         let generation = engagementGeneration

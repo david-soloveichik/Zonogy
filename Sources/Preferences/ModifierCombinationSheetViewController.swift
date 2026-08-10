@@ -20,7 +20,6 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
     private let sheetTitle: String
     private let subtitle: String
-    private let previewPrefix: String
     private let walkthroughHeader: String
     /// Builds the walkthrough text for the given combo glyphs ("—" while the selection is invalid)
     /// and the selected preset index.
@@ -31,7 +30,6 @@ final class ModifierCombinationSheetViewController: NSViewController {
     private var checkboxes: [(modifier: ModifierCombination, button: NSButton)] = []
     private var choiceButtons: [NSButton] = []
     private var selectedChoiceIndex: Int
-    private var previewLabel: NSTextField!
     private var hintLabel: NSTextField!
     private var walkthroughLabel: NSTextField!
     private var saveButton: NSButton!
@@ -39,7 +37,6 @@ final class ModifierCombinationSheetViewController: NSViewController {
     private init(
         title: String,
         subtitle: String,
-        previewPrefix: String,
         walkthroughHeader: String,
         walkthroughText: @escaping (String, Int) -> String,
         initialModifiers: ModifierCombination,
@@ -47,7 +44,6 @@ final class ModifierCombinationSheetViewController: NSViewController {
     ) {
         self.sheetTitle = title
         self.subtitle = subtitle
-        self.previewPrefix = previewPrefix
         self.walkthroughHeader = walkthroughHeader
         self.walkthroughText = walkthroughText
         self.initialModifiers = initialModifiers
@@ -97,10 +93,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
             stack.addArrangedSubview(checkbox)
         }
 
-        previewLabel = NSTextField(labelWithString: "")
-        previewLabel.font = NSFont.systemFont(ofSize: 12)
         stack.setCustomSpacing(14, after: checkboxes.last?.button ?? subtitleLabel)
-        stack.addArrangedSubview(previewLabel)
 
         hintLabel = NSTextField(labelWithString: "Select at least two modifiers.")
         hintLabel.font = NSFont.systemFont(ofSize: 11)
@@ -208,12 +201,12 @@ final class ModifierCombinationSheetViewController: NSViewController {
         dismiss(self)
     }
 
-    /// Sync the live preview, validation hint, gesture walkthrough, and Save button to the
-    /// currently checked modifiers.
+    /// Sync the validation hint, gesture walkthrough, and Save button to the currently checked
+    /// modifiers. The walkthrough previews the combination in context (its lines embed the
+    /// glyphs), so there is no separate preview line.
     private func refresh() {
         let selected = selectedModifiers
 
-        previewLabel.stringValue = "\(previewPrefix): \(selected.displayString.isEmpty ? "(none)" : selected.displayString)"
         hintLabel.isHidden = selected.isValid
         saveButton.isEnabled = selected.isValid
 
@@ -230,7 +223,6 @@ extension ModifierCombinationSheetViewController {
             title: "Mouse Gesture Modifiers",
             subtitle: "Choose the modifier keys to hold while clicking or dragging to activate "
                 + "Zonogy's mouse gestures. Select at least two.",
-            previewPrefix: "Gesture modifiers",
             walkthroughHeader: "These gestures use these modifiers:",
             walkthroughText: { combo, _ in
                 [
@@ -254,16 +246,18 @@ extension ModifierCombinationSheetViewController {
             title: "Zone Navigation Modifiers",
             subtitle: "Choose the modifier keys to hold while navigating zones with the keyboard. "
                 + "Select at least two.",
-            previewPrefix: "Navigation modifiers",
             walkthroughHeader: "How zone navigation works:",
             walkthroughText: { combo, choiceIndex in
                 let keyset = keysets[choiceIndex]
                 let navigationKeys = "arrow keys" + (keyset.lettersDisplayString.map { " or \($0)" } ?? "")
 
-                // The Launcher, Add Zone, and Remove Zone steps borrow those shortcuts' keys
-                // (claimed in that order), so show each key as currently configured — unless an
-                // earlier in-gesture key leaves the borrowed key unreachable.
+                // The Launcher, Add Zone, Remove Zone, and Minimize steps borrow those shortcuts'
+                // keys (claimed in that order), so show each key as currently configured — unless
+                // an earlier in-gesture key leaves the borrowed key unreachable. The modifiers
+                // appear only on the hold and release lines, and the reused-from attributions are
+                // pooled into one closing note, so each action line stays short.
                 var earlierBorrowedKeys: [CGKeyCode] = []
+                var borrowedKeyNotes: [(key: String, source: String)] = []
                 func borrowedKeyLine(
                     action: KeyboardShortcutPreferences.ShortcutAction,
                     step: String,
@@ -281,13 +275,21 @@ extension ModifierCombinationSheetViewController {
                             + "(the \(action.displayName) key \(key) already has another meaning in the gesture)"
                     }
                     earlierBorrowedKeys.append(keyCode)
-                    return "• \(combo)\(key): \(step) (\(key) is reused from the \(action.displayName) shortcut)"
+                    borrowedKeyNotes.append((key, action.displayName))
+                    return "• \(key): \(step)"
                 }
 
-                return [
+                func naturalList(_ items: [String]) -> String {
+                    items.count <= 2
+                        ? items.joined(separator: " and ")
+                        : items.dropLast().joined(separator: ", ") + ", and \(items.last ?? "")"
+                }
+
+                var lines = [
                     "• Hold \(combo) and press \(navigationKeys) to move the blue circle between zones",
                     "• Release \(combo): focus this zone's window, or make it the destination if empty",
-                    "• \(combo)↩ (Return): move the focused window into this zone (swapping windows if occupied)",
+                    "While still holding \(combo):",
+                    "• ↩ (Return): move the focused window into this zone (swaps if occupied)",
                     borrowedKeyLine(
                         action: .showLauncher,
                         step: "make this zone the destination and open the Launcher there",
@@ -300,11 +302,25 @@ extension ModifierCombinationSheetViewController {
                     ),
                     borrowedKeyLine(
                         action: .removeZone,
-                        step: "remove this zone (minimizing its window)",
+                        step: "remove this zone",
                         unavailableStep: "Removing this zone"
                     ),
+                    borrowedKeyLine(
+                        action: .minimizeActiveWindow,
+                        step: "minimize this zone's window",
+                        unavailableStep: "Minimizing this zone's window"
+                    ),
                     "• ⎋ (Escape): cancel",
-                ].joined(separator: "\n")
+                ]
+                if !borrowedKeyNotes.isEmpty {
+                    let verb = borrowedKeyNotes.count == 1 ? "is" : "are"
+                    let plural = borrowedKeyNotes.count == 1 ? "" : "s"
+                    lines.append(
+                        naturalList(borrowedKeyNotes.map(\.key)) + " \(verb) reused from the "
+                            + naturalList(borrowedKeyNotes.map(\.source)) + " shortcut\(plural)."
+                    )
+                }
+                return lines.joined(separator: "\n")
             },
             initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers,
             choice: Choice(

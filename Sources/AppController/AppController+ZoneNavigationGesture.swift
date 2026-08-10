@@ -6,9 +6,10 @@ import Foundation
 /// (focus a filled zone's window, or target an empty zone), on the move key (move the focused
 /// window into the selected zone), or on the Show Launcher key (target the selected zone and open the
 /// Launcher there). The Add Zone and Remove Zone keys change the topology under the gesture — add
-/// a zone for the selected zone, or remove the selected zone — and the gesture continues around
-/// the result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
-/// policy is the pure `ZoneNavigation`.
+/// a zone for the selected zone, or remove the selected zone — and the Minimize key minimizes the
+/// selected zone's window (or removes an empty tiling zone); the gesture continues around the
+/// result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection policy
+/// is the pure `ZoneNavigation`.
 extension AppController {
     /// Live state for an in-progress zone-navigation gesture. Candidates and screens are
     /// snapshotted at engage time so the circle stays stable for the (brief) duration of the
@@ -56,6 +57,10 @@ extension AppController: ZoneNavigationInterceptorDelegate {
 
     func zoneNavigationDidPressRemoveZoneKey(_ interceptor: ZoneNavigationInterceptor) {
         performZoneNavigationRemove()
+    }
+
+    func zoneNavigationDidPressMinimizeKey(_ interceptor: ZoneNavigationInterceptor) {
+        performZoneNavigationMinimize()
     }
 
     func zoneNavigationDidCommit(_ interceptor: ZoneNavigationInterceptor) {
@@ -452,7 +457,7 @@ extension AppController {
         )
     }
 
-    // MARK: - Add Zone / Remove Zone keys (change the topology under the gesture)
+    // MARK: - Add Zone / Remove Zone / Minimize keys (act on the selected zone mid-gesture)
 
     /// Add Zone key: add a zone on the selected zone's screen — stacking into the selected zone's
     /// column when it is alone there (`ZoneNavigation.stackedAddSide`), otherwise on the layout's
@@ -523,6 +528,27 @@ extension AppController {
                 candidates: candidates
             )
         }
+    }
+
+    /// Minimize key: minimize the selected zone's window, via the same behavior as the minimize
+    /// shortcuts (optimistic retarget + Launcher, with the emptied-zone bookkeeping left to the
+    /// miniaturize notification). The zones are unchanged, so the gesture simply stays engaged:
+    /// the snapshot and back-out trail remain valid and the circle stays on the now-empty zone.
+    /// On an empty zone the key is the Remove Zone behavior instead, so one key cleans up either
+    /// way — minimize a filled zone, remove an empty one (still ignoring the floating zone and a
+    /// screen's only tiling zone).
+    private func performZoneNavigationMinimize() {
+        guard let state = zoneNavigationState else { return }
+        let selectionId = state.selection.id
+        guard let occupant = occupant(of: zoneDestination(for: selectionId)) else {
+            performZoneNavigationRemove()
+            return
+        }
+        Logger.debug("Zone navigation minimize: minimizing window \(occupant.windowId) in \(selectionId)")
+        // Mirror the cursor minimize: leave UnderCovers before putting away its floating occupant.
+        endUnderCovers(on: selectionId.screenId, reason: "zone-navigation-minimize", recreatePlaceholders: false)
+        optimisticallyShowLauncherForMinimize(occupant, reason: "zone-navigation-minimize-optimistic")
+        windowController.minimizeWindow(occupant)
     }
 
     /// Run a gesture-driven topology mutation with the canonical topology cancel suppressed, so
