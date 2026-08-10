@@ -41,7 +41,7 @@ So the launcher automatically dismisses when:
 
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
-- Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it)
+- Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it) — including zone navigation focusing a window, which dismisses immediately on the commit
 - A window is placed into a zone (so the user can interact with it)
 - A zone is removed (see "Zone removal behavior")
 - Zonogy opens its own Preferences window or an update-check alert (so the Launcher does not cover them)

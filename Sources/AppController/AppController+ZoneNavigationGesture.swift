@@ -120,6 +120,10 @@ extension AppController {
         let destination = zoneDestination(for: selection.id)
         if let occupant = occupant(of: destination) {
             Logger.debug("Zone navigation focusing window \(occupant.windowId) in \(selection.id)")
+            // Focusing hands the user to that window: dismiss the Launcher now rather than
+            // waiting on the focus-shift notification — targeting is unchanged by a focus
+            // commit, so no follow-target refresh would hide it.
+            dismissLauncherIfActive()
             if case .floating = destination {
                 activateFloatingZoneWindow(occupant, reason: "zone-navigation-commit")
             } else {
