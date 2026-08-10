@@ -62,6 +62,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let zoneNavigationDotOverlay = ZoneNavigationDotOverlay()
     /// Live state for an in-progress Control-Command zone-navigation gesture, or nil when idle.
     internal var zoneNavigationState: ZoneNavigationState?
+    /// True while the zone-navigation gesture itself is mutating zone topology (its Add/Remove
+    /// Zone keys), so the canonical topology cancel leaves the gesture alive for its rebuild.
+    internal var zoneNavigationDrivenTopologyChange = false
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()

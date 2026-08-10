@@ -260,29 +260,49 @@ extension ModifierCombinationSheetViewController {
                 let keyset = keysets[choiceIndex]
                 let selectionKeys = "arrow keys" + (keyset.lettersDisplayString.map { " or \($0)" } ?? "")
 
-                // The Launcher step borrows the Show Launcher shortcut's key, so show that key as
-                // currently configured — unless it is one of the gesture's own keys, which act
-                // first and leave the borrowed key unreachable.
-                let launcherLine: String
-                if let launcherShortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showLauncher) {
-                    let key = launcherShortcut.keyDisplayString
-                    if ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(launcherShortcut.keyCode), keyset: keyset) {
-                        launcherLine = "• Opening the Launcher on the selected zone is unavailable "
-                            + "(the Show Launcher key \(key) is one of the gesture's own keys)"
-                    } else {
-                        launcherLine = "• \(combo)\(key) → make it the destination and open the Launcher there "
-                            + "(\(key) is reused from the Show Launcher shortcut)"
+                // The Launcher, Add Zone, and Remove Zone steps borrow those shortcuts' keys
+                // (claimed in that order), so show each key as currently configured — unless an
+                // earlier in-gesture key leaves the borrowed key unreachable.
+                var earlierBorrowedKeys: [CGKeyCode] = []
+                func borrowedKeyLine(
+                    action: KeyboardShortcutPreferences.ShortcutAction,
+                    step: String,
+                    unavailableStep: String
+                ) -> String {
+                    guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: action) else {
+                        return "• \(unavailableStep) is unavailable (no \(action.displayName) shortcut is set)"
                     }
-                } else {
-                    launcherLine = "• Opening the Launcher on the selected zone is unavailable "
-                        + "(no Show Launcher shortcut is set)"
+                    let keyCode = CGKeyCode(shortcut.keyCode)
+                    let key = shortcut.keyDisplayString
+                    guard !ZoneNavigationInterceptor.shadowsBorrowedKey(
+                        keyCode, keyset: keyset, earlierBorrowedKeys: earlierBorrowedKeys
+                    ) else {
+                        return "• \(unavailableStep) is unavailable "
+                            + "(the \(action.displayName) key \(key) already has another meaning in the gesture)"
+                    }
+                    earlierBorrowedKeys.append(keyCode)
+                    return "• \(combo)\(key) → \(step) (\(key) is reused from the \(action.displayName) shortcut)"
                 }
 
                 return [
                     "• Hold \(combo) and press \(selectionKeys) to select a zone on any screen",
                     "• Release \(combo) → focus the selected window, or make an empty zone the destination",
                     "• \(combo)↩ (Return) → move the focused window into the selected zone (swapping windows if occupied)",
-                    launcherLine,
+                    borrowedKeyLine(
+                        action: .showLauncher,
+                        step: "make it the destination and open the Launcher there",
+                        unavailableStep: "Opening the Launcher on the selected zone"
+                    ),
+                    borrowedKeyLine(
+                        action: .addZone,
+                        step: "add a zone on the selected zone's screen",
+                        unavailableStep: "Adding a zone"
+                    ),
+                    borrowedKeyLine(
+                        action: .removeZone,
+                        step: "remove the selected zone (minimizing its window)",
+                        unavailableStep: "Removing the selected zone"
+                    ),
                     "• ⎋ (Escape) → cancel",
                 ].joined(separator: "\n")
             },

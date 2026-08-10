@@ -5,7 +5,9 @@ import Foundation
 /// selection as the gesture proceeds, shows it with the blue-circle overlay, and commits on release
 /// (focus a filled zone's window, or target an empty zone), on the move key (move the focused
 /// window into the selected zone), or on the Show Launcher key (target the selected zone and open the
-/// Launcher there). The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
+/// Launcher there). The Add Zone and Remove Zone keys change the topology under the gesture — add
+/// a zone for the selected zone, or remove the selected zone — and the gesture continues around
+/// the result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
 /// geometry is the pure `ZoneNavigation`.
 extension AppController {
     /// Live state for an in-progress zone-navigation gesture. Candidates are snapshotted at engage
@@ -45,6 +47,14 @@ extension AppController: ZoneNavigationInterceptorDelegate {
 
     func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) -> Bool {
         requestZoneNavigationLauncherShow()
+    }
+
+    func zoneNavigationDidPressAddZoneKey(_ interceptor: ZoneNavigationInterceptor) {
+        performZoneNavigationAdd()
+    }
+
+    func zoneNavigationDidPressRemoveZoneKey(_ interceptor: ZoneNavigationInterceptor) {
+        performZoneNavigationRemove()
     }
 
     func zoneNavigationDidCommit(_ interceptor: ZoneNavigationInterceptor) {
@@ -164,8 +174,11 @@ extension AppController {
     /// in-flight gesture's snapshot may now identify different zones — indices are reused after a
     /// removal, so the commit-time existence checks alone can't catch it. Drop the gesture rather
     /// than let a commit act on the wrong zone. Called from the canonical topology mutations, so
-    /// mouse-driven changes (placeholder ×, add-zone pill) are covered too.
+    /// mouse-driven changes (placeholder ×, add-zone pill) are covered too. The one exception is a
+    /// change driven by the gesture's own Add/Remove Zone keys, which rebuilds the gesture around
+    /// the new topology instead (see `continueZoneNavigation`).
     internal func cancelZoneNavigationForTopologyChange(reason: String) {
+        guard !zoneNavigationDrivenTopologyChange else { return }
         zoneNavigationInterceptor.resetEngagement()
         cancelZoneNavigation(reason: reason)
     }
@@ -402,6 +415,114 @@ extension AppController {
             reason: "zone-navigation-launcher",
             openingLauncherWith: "zone-navigation-launcher"
         )
+    }
+
+    // MARK: - Add Zone / Remove Zone keys (change the topology under the gesture)
+
+    /// Add Zone key: add a zone on the selected zone's screen — stacking into the selected zone's
+    /// column when it is alone there (`ZoneNavigation.stackedAddSide`), otherwise on the layout's
+    /// normal fill-order side — and continue the gesture with the circle on the new zone. A failed
+    /// add (the layout style's zone maximum is reached) leaves the gesture unchanged.
+    private func performZoneNavigationAdd() {
+        guard let state = zoneNavigationState else { return }
+        let selectionId = state.selection.id
+        let screenId = selectionId.screenId
+        guard let context = screenContexts[screenId] else { return }
+
+        var side: ZoneSide?
+        if case let .tiling(_, index) = selectionId,
+           let zone = context.zoneController.zone(at: index) {
+            side = ZoneNavigation.stackedAddSide(
+                selectedZoneSide: zone.side,
+                zonesOnScreen: context.zoneController.allZones.count,
+                zonesOnSelectedSide: context.zoneController.zoneCount(on: zone.side),
+                selectedSideCapacity: context.zoneController.layoutStyle.sideCapacity(zone.side)
+            )
+        }
+
+        let newZone = performZoneNavigationTopologyChange {
+            addZone(on: screenId, side: side, announce: true)
+        }
+        guard let newZone else {
+            Logger.debug("Zone navigation add: screen \(screenContextStore.loggingIndex(for: screenId)) is at its zone maximum; gesture unchanged")
+            return
+        }
+        continueZoneNavigation(reason: "add-zone") { _ in
+            .tiling(screenId: screenId, index: newZone.index)
+        }
+    }
+
+    /// Remove Zone key: remove the selected tiling zone — minimizing its occupant via the
+    /// standard removal path — and continue the gesture with the circle on the zone that takes
+    /// over the removed space. Ignored when the floating zone or a screen's only tiling zone is
+    /// selected.
+    private func performZoneNavigationRemove() {
+        guard let state = zoneNavigationState else { return }
+        guard case let .tiling(screenId, index) = state.selection.id else {
+            Logger.debug("Zone navigation remove: floating zone selected; ignoring")
+            return
+        }
+        // Pre-check removability so an ignored press is side-effect-free (performRemoveZone would
+        // still exit UnderCovers before failing its own last-zone guard).
+        guard let context = screenContexts[screenId],
+              context.zoneController.allZones.count > 1,
+              let removedZone = context.zoneController.zone(at: index) else {
+            Logger.debug("Zone navigation remove: zone \(index) is not removable on screen \(screenContextStore.loggingIndex(for: screenId)); ignoring")
+            return
+        }
+        // The removed frame is read live rather than from the gesture snapshot: zone resizes
+        // don't cancel the gesture, so snapshot frames can be stale by removal time.
+        let removedFrame = context.descriptor.screenToAccessibility(removedZone.frame)
+
+        let removed = performZoneNavigationTopologyChange {
+            performRemoveZone(at: index, on: screenId, announce: true, context: context)
+        }
+        guard removed != nil else {
+            Logger.debug("Zone navigation remove: zone \(index) on screen \(screenContextStore.loggingIndex(for: screenId)) vanished; gesture unchanged")
+            return
+        }
+        continueZoneNavigation(reason: "remove-zone") { candidates in
+            ZoneNavigation.selectionAfterRemoval(
+                removedFrame: removedFrame,
+                screenId: screenId,
+                candidates: candidates
+            )
+        }
+    }
+
+    /// Run a gesture-driven topology mutation with the canonical topology cancel suppressed, so
+    /// the gesture survives for its rebuild. The mutation and the rebuild that follows run in one
+    /// synchronous main-queue block, so no other gesture callback can interleave with the
+    /// suppressed state.
+    private func performZoneNavigationTopologyChange<T>(_ mutate: () -> T) -> T {
+        zoneNavigationDrivenTopologyChange = true
+        defer { zoneNavigationDrivenTopologyChange = false }
+        return mutate()
+    }
+
+    /// Rebuild the gesture around topology its own action just changed: fresh candidates, the
+    /// selection `chooseSelection` picks from them, and a reset back-out trail (the old trail's
+    /// zones may no longer exist). Ends the gesture if it died during the change or no selection
+    /// resolves.
+    private func continueZoneNavigation(
+        reason: String,
+        chooseSelection: ([ZoneNavigation.Candidate]) -> NavigableZoneIdentifier?
+    ) {
+        guard zoneNavigationState != nil else { return }
+        let candidates = zoneNavigationCandidates()
+        guard let selectionId = chooseSelection(candidates),
+              candidates.contains(where: { $0.id == selectionId }) else {
+            Logger.debug("Zone navigation \(reason): no selection resolves after the topology change; ending gesture")
+            zoneNavigationInterceptor.resetEngagement()
+            clearZoneNavigation()
+            return
+        }
+        zoneNavigationState = ZoneNavigationState(
+            candidates: candidates,
+            selection: .init(id: selectionId, trail: [])
+        )
+        updateZoneNavigationDot(selection: selectionId)
+        Logger.debug("Zone navigation \(reason): continuing with selection \(selectionId)")
     }
 
     private func destinationExists(_ destination: TargetedZoneManager.TargetedDestination) -> Bool {

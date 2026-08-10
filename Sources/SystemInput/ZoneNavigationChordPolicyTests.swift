@@ -2,8 +2,8 @@ import Carbon
 import Foundation
 
 /// Guardrail tests for the zone-navigation key policy: the keyset presets' direction maps, the
-/// reserved chords the shortcut editors keep table shortcuts off, the fixed keys that shadow a
-/// borrowed Show Launcher key, and keyset persistence.
+/// reserved chords the shortcut editors keep table shortcuts off, the keys that shadow a borrowed
+/// key (Show Launcher, Add Zone, Remove Zone), and keyset persistence.
 enum ZoneNavigationChordPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -82,32 +82,47 @@ enum ZoneNavigationChordPolicyTests {
             "reserved chords should follow the configured modifiers"
         )
 
-        // MARK: - Launcher-key shadowing: in-gesture keys act first; ordinary keys don't
+        // MARK: - Borrowed-key shadowing: in-gesture keys act first, then earlier-borrowed keys;
+        // ordinary keys don't shadow
 
         for keyCode in [kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow, kVK_Return, kVK_Escape] {
             assert(
-                ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(keyCode), keyset: .arrows),
-                "key code \(keyCode) has an in-gesture meaning and should shadow the Launcher key"
+                ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keyset: .arrows),
+                "key code \(keyCode) has an in-gesture meaning and should shadow a borrowed key"
             )
         }
         assert(
-            ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(kVK_ANSI_L), keyset: .hjkl),
-            "L should shadow the Launcher key under hjkl"
+            ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .hjkl),
+            "L should shadow a borrowed key under hjkl"
         )
         assert(
-            !ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(kVK_ANSI_L), keyset: .arrows),
-            "L should not shadow the Launcher key under arrows"
+            !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .arrows),
+            "L should not shadow a borrowed key under arrows"
         )
         assert(
-            !ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(kVK_ANSI_L), keyset: .wasd),
-            "L should not shadow the Launcher key under wasd"
+            !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .wasd),
+            "L should not shadow a borrowed key under wasd"
         )
         for keyCode in [kVK_Space, kVK_F5, kVK_Tab] {
             assert(
-                !ZoneNavigationInterceptor.shadowsLauncherKey(CGKeyCode(keyCode), keyset: .hjkl),
-                "key code \(keyCode) should not shadow the Launcher key"
+                !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keyset: .hjkl),
+                "key code \(keyCode) should not shadow a borrowed key"
             )
         }
+        assert(
+            ZoneNavigationInterceptor.shadowsBorrowedKey(
+                CGKeyCode(kVK_ANSI_Equal), keyset: .arrows,
+                earlierBorrowedKeys: [CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal)]
+            ),
+            "a key borrowed earlier in the claim order should shadow a later borrowed key"
+        )
+        assert(
+            !ZoneNavigationInterceptor.shadowsBorrowedKey(
+                CGKeyCode(kVK_ANSI_Minus), keyset: .arrows,
+                earlierBorrowedKeys: [CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal)]
+            ),
+            "distinct earlier-borrowed keys should not shadow an unrelated borrowed key"
+        )
 
         // MARK: - Keyset persistence: default when unset, round-trip, invalid fallback
 

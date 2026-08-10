@@ -8,7 +8,9 @@
 /// (`ModifierCombinationPreferences.zoneNavigation`). While engaged, Return asks the delegate to
 /// move the focused window into the selected zone, and the Show Launcher shortcut's key (Space by
 /// default) asks it to target the selected zone and open the Launcher there — each ending the
-/// gesture when the delegate performs it.
+/// gesture when the delegate performs it. The Add Zone and Remove Zone shortcuts' keys (= and -
+/// by default) ask the delegate to add a zone for the selected zone or remove the selected zone;
+/// those keep the gesture engaged so it continues around the new topology.
 
 import ApplicationServices
 import Carbon
@@ -38,6 +40,15 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
     /// cheap.
     func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) -> Bool
 
+    /// Add Zone key pressed while engaged. The delegate adds a zone for the selected zone and
+    /// rebuilds the gesture around the new topology; the gesture stays engaged either way.
+    func zoneNavigationDidPressAddZoneKey(_ interceptor: ZoneNavigationInterceptor)
+
+    /// Remove Zone key pressed while engaged. The delegate removes the selected tiling zone when
+    /// it is removable and rebuilds the gesture around the new topology; the gesture stays
+    /// engaged either way.
+    func zoneNavigationDidPressRemoveZoneKey(_ interceptor: ZoneNavigationInterceptor)
+
     /// Required modifiers released — commit the currently selected zone.
     func zoneNavigationDidCommit(_ interceptor: ZoneNavigationInterceptor)
 
@@ -61,12 +72,17 @@ final class ZoneNavigationInterceptor {
         }
     }
 
-    /// Whether `keyCode` already has an in-gesture meaning (selection, move, or cancel) under the
-    /// given keyset. Those branches run before the borrowed Show Launcher key is consulted, so a
-    /// Show Launcher shortcut on one of these keys can't open the Launcher mid-gesture — the editor
-    /// sheet shows that step as unavailable.
-    static func shadowsLauncherKey(_ keyCode: CGKeyCode, keyset: ZoneNavigationKeyset) -> Bool {
+    /// Whether `keyCode` is unreachable as a borrowed key under the given keyset: the gesture's
+    /// own keys (selection, move, and cancel) act first, as does any key borrowed earlier in the
+    /// claim order — Show Launcher, then Add Zone, then Remove Zone. A shortcut whose key is
+    /// shadowed can't perform its step mid-gesture — the editor sheet shows it as unavailable.
+    static func shadowsBorrowedKey(
+        _ keyCode: CGKeyCode,
+        keyset: ZoneNavigationKeyset,
+        earlierBorrowedKeys: [CGKeyCode] = []
+    ) -> Bool {
         keyset.directionKeys[keyCode] != nil || keyCode == moveKeyCode || keyCode == escapeKeyCode
+            || earlierBorrowedKeys.contains(keyCode)
     }
 
     private static let escapeKeyCode = CGKeyCode(kVK_Escape)
@@ -90,6 +106,8 @@ final class ZoneNavigationInterceptor {
     private var requiredModifiers: CGEventFlags = []
     private var engagedDirectionKeys: [CGKeyCode: ZoneNavigationDirection] = [:]
     private var engagedLauncherKey: CGKeyCode?
+    private var engagedAddZoneKey: CGKeyCode?
+    private var engagedRemoveZoneKey: CGKeyCode?
     /// After an action key (move or Launcher) ends the gesture, its auto-repeats are swallowed
     /// until the chord's modifiers are released — otherwise a slightly-long press leaks repeats
     /// into the focused app, or re-fires the global Show Launcher hotkey right after it opened.
@@ -138,6 +156,8 @@ final class ZoneNavigationInterceptor {
         requiredModifiers = []
         engagedDirectionKeys = [:]
         engagedLauncherKey = nil
+        engagedAddZoneKey = nil
+        engagedRemoveZoneKey = nil
     }
 
     /// Drop an in-flight gesture and tell the delegate to tear down its overlay. Also drops any
@@ -243,6 +263,25 @@ final class ZoneNavigationInterceptor {
                 return .swallow
             }
 
+            // Add or remove a zone for the selected zone; the gesture stays engaged and continues
+            // around the new topology. Auto-repeats are swallowed but ignored so a held key cannot
+            // cascade topology changes. Swallowing also keeps the chord from doubling as the
+            // global Add/Remove Zone hotkey.
+            if keyCode == engagedAddZoneKey || keyCode == engagedRemoveZoneKey {
+                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                    let isAdd = keyCode == engagedAddZoneKey
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        if isAdd {
+                            self.delegate?.zoneNavigationDidPressAddZoneKey(self)
+                        } else {
+                            self.delegate?.zoneNavigationDidPressRemoveZoneKey(self)
+                        }
+                    }
+                }
+                return .swallow
+            }
+
             return .pass
         }
 
@@ -267,12 +306,17 @@ final class ZoneNavigationInterceptor {
         }
 
         // Engage immediately so repeated presses are swallowed even though the UI work is async.
-        // The Launcher key is borrowed from the Show Launcher shortcut — only its key code matters,
-        // since the gesture's modifiers are already held.
+        // The Launcher, Add Zone, and Remove Zone keys are borrowed from those shortcuts — only
+        // their key codes matter, since the gesture's modifiers are already held.
         isEngaged = true
         requiredModifiers = relevantFlags
         engagedDirectionKeys = directionKeys
-        engagedLauncherKey = KeyboardShortcutPreferences.shared.shortcut(for: .showLauncher)
+        let shortcutPreferences = KeyboardShortcutPreferences.shared
+        engagedLauncherKey = shortcutPreferences.shortcut(for: .showLauncher)
+            .map { CGKeyCode($0.keyCode) }
+        engagedAddZoneKey = shortcutPreferences.shortcut(for: .addZone)
+            .map { CGKeyCode($0.keyCode) }
+        engagedRemoveZoneKey = shortcutPreferences.shortcut(for: .removeZone)
             .map { CGKeyCode($0.keyCode) }
 
         let generation = engagementGeneration

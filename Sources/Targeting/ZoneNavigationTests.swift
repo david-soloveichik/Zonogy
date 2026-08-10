@@ -9,7 +9,8 @@ import CoreGraphics
 /// filled, 3 bottom-left EMPTY, 4 bottom-right filled) plus its floating zone's bottom-edge bar,
 /// occupied and clear of the grid (a bottom-Dock layout). Screen B sits to the right with one
 /// empty tiling zone and an empty floating bar. Local fixtures cover the grazing-bar layouts
-/// (hidden/side Dock), a screen stacked above, and the reported gesture annoyances.
+/// (hidden/side Dock), a screen stacked above, and the reported gesture annoyances, plus the
+/// Add Zone key's side preference and the reselection after the Remove Zone key.
 enum ZoneNavigationTests {
     private static let screenA: CGDirectDisplayID = 10
     private static let screenB: CGDirectDisplayID = 20
@@ -253,6 +254,76 @@ enum ZoneNavigationTests {
 
         // MARK: No zones — nothing is selectable.
         assertSel(initial(.right, candidates: []), nil, "empty candidates → nil")
+
+        // MARK: The Add Zone key's side preference: stack into the selected zone's column only
+        // when that zone is alone there and the column has room — a lone full-screen zone, a
+        // stacked column, or a full side defers to the layout's fill order.
+        func assertSide(_ actual: ZoneSide?, _ expected: ZoneSide?, _ label: String) {
+            if actual != expected {
+                print("ZoneNavigationTests: \(label) failed (expected \(expected.map(\.rawValue) ?? "nil"), got \(actual.map(\.rawValue) ?? "nil"))")
+                allPassed = false
+            }
+        }
+        func addSide(_ side: ZoneSide, zones: Int, onSide: Int, capacity: Int) -> ZoneSide? {
+            ZoneNavigation.stackedAddSide(
+                selectedZoneSide: side, zonesOnScreen: zones,
+                zonesOnSelectedSide: onSide, selectedSideCapacity: capacity
+            )
+        }
+        assertSide(addSide(.left, zones: 2, onSide: 1, capacity: 2), .left, "lone left-column zone stacks left")
+        assertSide(addSide(.right, zones: 3, onSide: 1, capacity: 2), .right, "lone right-column zone stacks right")
+        assertSide(addSide(.left, zones: 1, onSide: 1, capacity: 2), nil, "a lone full-screen zone has no column")
+        assertSide(addSide(.right, zones: 3, onSide: 2, capacity: 2), nil, "a stacked column defers to the fill order")
+        assertSide(addSide(.left, zones: 2, onSide: 1, capacity: 1), nil, "a full side defers to the fill order")
+
+        // MARK: Reselection after the Remove Zone key: the removed screen's tiling zone that
+        // takes over most of the removed frame wins — never a bar or another screen's zone, even
+        // one covering the removed frame outright — ties prefer the lower index, and a screen
+        // left without tiling zones resolves nothing (the gesture ends rather than jumping
+        // screens).
+        func assertReselect(_ actual: NavigableZoneIdentifier?, _ expected: NavigableZoneIdentifier?, _ label: String) {
+            if actual != expected {
+                print("ZoneNavigationTests: \(label) failed (expected \(expected.map { String(describing: $0) } ?? "nil"), got \(actual.map { String(describing: $0) } ?? "nil"))")
+                allPassed = false
+            }
+        }
+        let removedBottomRight = CGRect(x: 520, y: 520, width: 480, height: 480)
+        let leftColumn = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000))
+        let rightColumn = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 1000), occupied: true)
+        assertReselect(
+            ZoneNavigation.selectionAfterRemoval(
+                removedFrame: removedBottomRight, screenId: screenA,
+                candidates: [leftColumn, rightColumn, barA]
+            ),
+            rightColumn.id,
+            "the zone absorbing the removed space is reselected"
+        )
+        assertReselect(
+            ZoneNavigation.selectionAfterRemoval(
+                removedFrame: CGRect(x: 0, y: 0, width: 1000, height: 480), screenId: screenA,
+                candidates: [rightColumn, leftColumn, barA]
+            ),
+            leftColumn.id,
+            "an equal-overlap tie prefers the lower zone index"
+        )
+        let coveringOtherScreenZone = tiledZone(1, removedBottomRight, on: screenB, occupied: true)
+        let coveringBar = floatingZone(removedBottomRight, occupied: true)
+        assertReselect(
+            ZoneNavigation.selectionAfterRemoval(
+                removedFrame: removedBottomRight, screenId: screenA,
+                candidates: [coveringOtherScreenZone, coveringBar, leftColumn]
+            ),
+            leftColumn.id,
+            "bars and other screens' zones never win the reselection"
+        )
+        assertReselect(
+            ZoneNavigation.selectionAfterRemoval(
+                removedFrame: removedBottomRight, screenId: screenA,
+                candidates: [zB1, barB]
+            ),
+            nil,
+            "a screen without tiling zones resolves nothing (never jump screens)"
+        )
 
         if allPassed {
             print("ZoneNavigationTests: all tests passed")

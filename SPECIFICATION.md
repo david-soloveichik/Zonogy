@@ -123,6 +123,7 @@ There are several ways to remove a zone, the main ones being:
 
 - By pressing the blue "×" button on the placeholder window of an empty zone.
 - By pressing a keyboard shortcut Control-Cmd-[minus].
+- By pressing the Remove Zone key during **Zone Navigation**, which removes the selected zone (see that section).
 
 When invoking Control-Cmd-[minus], never remove the zone containing the currently active (aka key) window. Among the remaining zones, remove one using this priority:
 
@@ -140,7 +141,7 @@ The minimum number of zones is 1. In other words, we cannot remove the last zone
 
 **Example:** Suppose the user has 2 zones—zone 1 with window A and zone 2 with window B—and wants to remove zone 1. They minimize window A (causing a placeholder to appear in zone 1), then click the blue "×" on that placeholder. Zone 2 becomes zone 1, and window B shifts to fill the left side of the screen.
 
-A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty. The shortcut adds on the layout's add-bar side; in the both-sides layout it fills the right side first, then the left.
+A zone can be added by pressing the global keyboard shortcut Control-Cmd-=. The new zone should be added with the highest index, and it should start out initially empty. The shortcut adds on the layout's add-bar side; in the both-sides layout it fills the right side first, then the left. During **Zone Navigation**, the Add Zone key adds relative to the selected zone (see that section).
 
 Each screen also displays an add-zone indicator on each of the layout's bar edges while that side can still take a zone: a vertical pill (≈6 px wide, ≈⅓ screen height), vertically centered on that screen edge. Add-zone and floating-zone indicators render above the Dock, so when the Dock shares their screen edge the indicator — not the Dock or DockMenus — receives hovers, clicks, and drops. Clicking an indicator adds a tiling zone on that side of that screen (the new zone gets the highest index):
 
@@ -169,7 +170,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 **Floating zone indicator UI:** Each screen renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the true screen bottom so edge clicks hit it (when the Dock is on that bottom edge, the indicator sits beneath the Dock's icons in the margin). If that floating zone is targeted, the indicator is highlighted. When a floating zone becomes targeted (or an explicit gesture re-selects the already-targeted floating zone), its indicator briefly flashes (enlarges and settles back to confirm the target). This is the floating-zone counterpart to the tiling-zone target change flash.
 
-**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones pulse their zone-frame border (settling into the persistent border described above). Explicit gestures (Control-Command-click, clicking a placeholder, picking a zone in CmdTab, or releasing zone navigation over an empty zone) flash even when re-selecting the already-targeted zone. Removing a zone likewise confirms the surviving target with a flash. Creating a tiling zone does not flash, even though the new zone becomes targeted.
+**Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones pulse their zone-frame border (settling into the persistent border described above). Explicit gestures (Control-Command-click, clicking a placeholder, picking a zone in CmdTab, or releasing zone navigation over an empty zone) flash even when re-selecting the already-targeted zone. Removing a zone likewise confirms the surviving target with a flash. Creating a tiling zone does not flash, even though it can move the target (per the normal zone-creation rule).
 
 **Indicator click behavior:**
 
@@ -199,12 +200,14 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 ### Zone Navigation
 
-Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone: focus its window, target it, or move the focused window into it. A preference can add a letter keyset — HJKL, WASD, or IJKL — that selects zones alongside the arrow keys. Each press moves a large translucent blue circle to the nearest zone in that physical direction; how the gesture ends decides what happens:
+Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone: focus its window, target it, move the focused window into it, or add and remove zones. A preference can add a letter keyset — HJKL, WASD, or IJKL — that selects zones alongside the arrow keys. Each press moves a large translucent blue circle to the nearest zone in that physical direction; how the gesture ends decides what happens:
 
 - **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty zone is targeted, and the Launcher auto-shows per its preference.
 - **Pressing Return while still holding** moves the currently focused managed window into the selected zone and ends the gesture. If the selected zone is occupied, the two windows swap zones. The moved window keeps focus; targeting follows the normal placement rules.
 - **Pressing the Show Launcher key (Space) while still holding** targets the selected zone and opens the Launcher there, ending the gesture. The key follows the Show Launcher shortcut's key.
 - **Escape** cancels.
+
+While the gesture is held, the Add Zone key (=) and Remove Zone key (-) add or remove zones without ending the gesture. Each key follows its shortcut's key. Add Zone adds a zone and moves the circle onto the new zone (targeting follows the normal zone-creation rule). The new zone joins the selected zone's column when that zone is alone there and its side can hold another zone, otherwise the layout's usual fill order and zone maximum apply. Remove Zone removes the selected zone (if removable), and moves the circle to the zone that takes over its space.
 
 The circle navigates every zone on every screen (skipping screens paused for full-screen), staying put when no zone lies in the pressed direction. Pressing the opposite of the press that moved the circle somewhere backs it out to where it came from (step by step, all the way to where the gesture began). If a tiling zone is selected, the circle centers on it. If a floating zone is selected, the upper half of the circle is shown resting on the screen's bottom edge (at the floating zone bar). A bar is selected vertically — down from its screen's zones (leaving a screen downward stops at its bar first), or up when entering that screen from a screen below — while horizontal presses move among tiling zones. The selection geometry is specified in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md).
 

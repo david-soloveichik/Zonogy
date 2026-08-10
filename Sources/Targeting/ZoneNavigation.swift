@@ -22,6 +22,10 @@ import CoreGraphics
 /// gesture's start. Nearest-ahead geometry is lossy (left then right can land on a third zone), so
 /// reversal is remembered, not recomputed.
 ///
+/// Alongside the move geometry, this file also holds the pure policy for the gesture's Add Zone
+/// and Remove Zone keys: the side a mid-gesture add stacks into, and where the circle lands after
+/// the selected zone is removed.
+///
 /// Deterministic and OS-free so it is covered by `--self-test`. The live gesture, the blue-circle
 /// overlay, and the commit actions are wired up in `AppController+ZoneNavigationGesture`, driven by
 /// `ZoneNavigationInterceptor`.
@@ -147,6 +151,50 @@ enum ZoneNavigation {
             id: next,
             trail: currentSelection.trail + [Move(source: current.id, direction: direction)]
         )
+    }
+
+    // MARK: - Add Zone / Remove Zone keys (mid-gesture topology changes)
+
+    /// Side preference for the gesture's Add Zone key: when the selected tiling zone is alone in
+    /// its column — and that column can take another zone — the new zone stacks into the selected
+    /// zone's column. Otherwise nil defers to the layout style's normal fill order: a lone
+    /// full-screen zone has no columns, a stacked column already pairs the selected zone, and a
+    /// full side cannot take the zone. The screen's total zone maximum is enforced by the add
+    /// itself.
+    static func stackedAddSide(
+        selectedZoneSide: ZoneSide,
+        zonesOnScreen: Int,
+        zonesOnSelectedSide: Int,
+        selectedSideCapacity: Int
+    ) -> ZoneSide? {
+        guard zonesOnScreen > 1,
+              zonesOnSelectedSide == 1,
+              zonesOnSelectedSide < selectedSideCapacity else {
+            return nil
+        }
+        return selectedZoneSide
+    }
+
+    /// Where the circle lands after the gesture's Remove Zone key removes the selected zone: the
+    /// removed zone's screen's tiling zone that takes over most of the removed frame (ties break
+    /// in the stable zone order). Nil when that screen retains no tiling zone — a state a valid
+    /// removal cannot produce — so the caller ends the gesture rather than jumping screens.
+    static func selectionAfterRemoval(
+        removedFrame: CGRect,
+        screenId: CGDirectDisplayID,
+        candidates: [Candidate]
+    ) -> NavigableZoneIdentifier? {
+        var best: Candidate?
+        var bestArea = -CGFloat.greatestFiniteMagnitude
+        for candidate in candidates where !candidate.id.isFloating && candidate.id.screenId == screenId {
+            let overlap = candidate.frame.intersection(removedFrame)
+            let area = overlap.isNull ? 0 : overlap.width * overlap.height
+            if area > bestArea || (area == bestArea && best.map({ tieBreakLess(candidate.id, $0.id) }) == true) {
+                best = candidate
+                bestArea = area
+            }
+        }
+        return best?.id
     }
 
     /// Geometric move off `source`, recording it as the selection's trail — or `source` itself
