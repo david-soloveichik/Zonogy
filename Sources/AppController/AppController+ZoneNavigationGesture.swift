@@ -10,11 +10,12 @@ import Foundation
 /// the result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection
 /// policy is the pure `ZoneNavigation`.
 extension AppController {
-    /// Live state for an in-progress zone-navigation gesture. Candidates are snapshotted at engage
-    /// time so the circle stays stable for the (brief) duration of the gesture; commits re-check
-    /// live occupancy.
+    /// Live state for an in-progress zone-navigation gesture. Candidates and screens are
+    /// snapshotted at engage time so the circle stays stable for the (brief) duration of the
+    /// gesture; commits re-check live occupancy.
     struct ZoneNavigationState {
         let candidates: [ZoneNavigation.Candidate]
+        let screens: [ZoneNavigation.Screen]
         var selection: ZoneNavigation.Selection
     }
 }
@@ -68,8 +69,8 @@ extension AppController: ZoneNavigationInterceptorDelegate {
 
 extension AppController {
     private func beginZoneNavigation(direction: ZoneNavigationDirection) {
-        let candidates = zoneNavigationCandidates()
-        guard !candidates.isEmpty else {
+        let snapshot = zoneNavigationSnapshot()
+        guard !snapshot.candidates.isEmpty else {
             // `shouldBegin` already gates on `hasNavigableZone()`, so this only happens if the
             // screens changed between engaging and now. Drop the interceptor's engaged state too so
             // it stops swallowing arrows for a dead session.
@@ -79,13 +80,14 @@ extension AppController {
             return
         }
 
-        let start = zoneNavigationStart(candidates: candidates)
+        let start = zoneNavigationStart(candidates: snapshot.candidates)
         guard let selection = ZoneNavigation.initialSelection(
             direction: direction,
             focusedZoneId: start.focusedZoneId,
             targetedZoneId: start.targetedZoneId,
             fallbackZoneId: start.fallbackZoneId,
-            candidates: candidates
+            candidates: snapshot.candidates,
+            screens: snapshot.screens
         ) else {
             // Unreachable with non-empty candidates (the fallback start always resolves).
             zoneNavigationInterceptor.resetEngagement()
@@ -93,7 +95,11 @@ extension AppController {
             return
         }
 
-        zoneNavigationState = ZoneNavigationState(candidates: candidates, selection: selection)
+        zoneNavigationState = ZoneNavigationState(
+            candidates: snapshot.candidates,
+            screens: snapshot.screens,
+            selection: selection
+        )
         updateZoneNavigationDot(selection: selection.id)
         Logger.debug("Zone navigation begun (\(direction)); selection: \(selection.id)")
     }
@@ -103,7 +109,8 @@ extension AppController {
         let next = ZoneNavigation.nextSelection(
             direction: direction,
             currentSelection: state.selection,
-            candidates: state.candidates
+            candidates: state.candidates,
+            screens: state.screens
         )
         state.selection = next
         zoneNavigationState = state
@@ -193,25 +200,38 @@ extension AppController {
     }
 
     /// Cheap "is there anything to navigate?" check used to gate engagement synchronously in the
-    /// event-tap callback. Zones always exist, so this only rules out the all-screens-paused case
-    /// (which `isScreenTargetable` still keeps reachable via its fallback screen).
+    /// event-tap callback. Zones always exist, so this rules out exactly the all-screens-paused
+    /// case: the gesture engages only where Zonogy UI may appear.
     private func hasNavigableZone() -> Bool {
-        screenOrder.contains { targetedZoneManager.isScreenTargetable($0) && screenContexts[$0] != nil }
+        screenOrder.contains { isScreenNavigable($0) }
     }
 
-    /// Every navigable zone: each tiling zone — filled or empty — with its rectangle in
-    /// accessibility coordinates and its structural place (column side and stack row, driving the
-    /// within-screen moves), plus each screen's floating zone at its bottom-edge bar, occupied or
-    /// not. Reuses the canonical targetability policy so navigation reaches exactly the zones the
-    /// rest of targeting considers valid.
-    private func zoneNavigationCandidates() -> [ZoneNavigation.Candidate] {
+    /// A screen is navigable when it holds zones and is not paused for full-screen. Stricter
+    /// than `isScreenTargetable`, which keeps one fallback screen targetable when every screen
+    /// is paused so a target always exists: the gesture draws UI, and no Zonogy UI appears on a
+    /// paused screen, so that fallback is deliberately out of navigation's reach.
+    private func isScreenNavigable(_ screenId: CGDirectDisplayID) -> Bool {
+        screenContexts[screenId] != nil && !fullScreenDisplayIds.contains(screenId)
+    }
+
+    /// Every navigable zone plus every navigable screen. Each tiling zone carries its rectangle
+    /// in accessibility coordinates and its structural place (column side and stack row, driving
+    /// the within-screen moves); each screen contributes its floating zone at its bottom-edge
+    /// bar, occupied or not, and its full frame (the input to the cross-screen direction
+    /// classification). Only navigable (unpaused) screens contribute — see `isScreenNavigable`.
+    private func zoneNavigationSnapshot() -> (candidates: [ZoneNavigation.Candidate], screens: [ZoneNavigation.Screen]) {
         var candidates: [ZoneNavigation.Candidate] = []
+        var screens: [ZoneNavigation.Screen] = []
         for screenId in screenOrder {
-            guard targetedZoneManager.isScreenTargetable(screenId),
+            guard isScreenNavigable(screenId),
                   let context = screenContexts[screenId] else {
                 continue
             }
             let descriptor = context.descriptor
+            screens.append(.init(
+                id: screenId,
+                frame: descriptor.screenToAccessibility(descriptor.cocoaToScreen(descriptor.cocoaBounds))
+            ))
             // Within a side, the lower index stacks on top (mirroring `ZoneLayout`).
             let zones = context.zoneController.allZones.sorted { $0.index < $1.index }
             var stackedAbove: [ZoneSide: Int] = [:]
@@ -240,7 +260,7 @@ extension AppController {
                 ))
             }
         }
-        return candidates
+        return (candidates, screens)
     }
 
     /// Resolves where navigation starts. While the Launcher is open the gesture starts from the
@@ -524,16 +544,17 @@ extension AppController {
         chooseSelection: ([ZoneNavigation.Candidate]) -> NavigableZoneIdentifier?
     ) {
         guard zoneNavigationState != nil else { return }
-        let candidates = zoneNavigationCandidates()
-        guard let selectionId = chooseSelection(candidates),
-              candidates.contains(where: { $0.id == selectionId }) else {
+        let snapshot = zoneNavigationSnapshot()
+        guard let selectionId = chooseSelection(snapshot.candidates),
+              snapshot.candidates.contains(where: { $0.id == selectionId }) else {
             Logger.debug("Zone navigation \(reason): no selection resolves after the topology change; ending gesture")
             zoneNavigationInterceptor.resetEngagement()
             clearZoneNavigation()
             return
         }
         zoneNavigationState = ZoneNavigationState(
-            candidates: candidates,
+            candidates: snapshot.candidates,
+            screens: snapshot.screens,
             selection: .init(id: selectionId, trail: [])
         )
         updateZoneNavigationDot(selection: selectionId)

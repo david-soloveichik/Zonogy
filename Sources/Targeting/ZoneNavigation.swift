@@ -5,25 +5,23 @@ import CoreGraphics
 /// Navigation considers every zone: each tiling zone — filled or empty — plus each screen's
 /// floating zone at its bottom-edge bar, occupied or not.
 ///
-/// Moves on a screen are structural, read from the zone model rather than from frames — dragged
-/// split ratios never change where a press lands. Each tiling zone sits in a column (its side) at
-/// a row (`StackRow`), with the bar as the screen's bottom-most stop below both columns: up and
-/// down walk a column's stack and the bar, while left and right cross between the columns,
-/// landing in the matching row (bottom to bottom; top and full-height to the top). Keeping the
-/// floating zone at its bar rather than at its occupant window also keeps selection independent
-/// of where that window sits.
+/// Moves on a screen are structural, read from the zone model: each tiling zone sits in a column
+/// (its side) at a row (`StackRow`), with the bar as the screen's bottom-most stop below both
+/// columns. Up and down walk a column's stack and the bar; left and right cross between the
+/// columns, landing in the matching row (bottom to bottom; top and full-height to the top).
+/// Keeping the floating zone at its bar rather than at its occupant window also keeps selection
+/// independent of where that window sits.
 ///
-/// A move with no stop left on the screen exits it, and only exits are geometric:
-/// `DirectionalRectNavigation` races the other screens' zones and bars for the nearest rectangle
-/// in the pressed direction. Two bar rules are imposed on that race: bars never join horizontal
-/// races (a bar can overlap the zone frames and would steal left/right crossings), and an upward
-/// exit stops at the entered screen's bar before its zones. Downward needs no rule — the only
-/// structural move off a screen's bottom is from the bar itself.
+/// A press with no stop left on the screen crosses to another screen. Geometry picks the screen:
+/// each other screen lies in exactly one direction from the current one (`screenDirection`), and
+/// the press takes the nearest one lying in the pressed direction (center distance along that
+/// axis, then across it, then display id). The entry is structural again — from below, the bar;
+/// from above, the top row; from the side, the near column at the matching row.
 ///
-/// Every selection carries the trail of moves that produced it: pressing the exact opposite of the
-/// move that arrived somewhere backs out to that move's source, step by step, all the way to the
-/// gesture's start. Moves are lossy (a full-height column reached from a stack's bottom re-enters
-/// the stack at its top), so reversal is remembered, not recomputed.
+/// Every selection carries the trail of moves that produced it: pressing the exact opposite of
+/// the move that arrived somewhere backs out to that move's source, step by step, all the way to
+/// the gesture's start. Moves are lossy (a full-height column reached from a stack's bottom
+/// re-enters the stack at its top), so reversal is remembered, not recomputed.
 ///
 /// Alongside the moves, this file also holds the pure policy for the gesture's Add Zone and
 /// Remove Zone keys: the side a mid-gesture add stacks into, and where the circle lands after the
@@ -57,15 +55,6 @@ enum NavigableZoneIdentifier: Equatable {
         if case let .tiling(_, index) = self { return index }
         return Int.max
     }
-
-    /// Stable ordering used only to break exact geometric ties in cross-screen exits: prefer a
-    /// tiling zone over the floating zone, then a lower index, then a lower display id.
-    fileprivate var tieBreakKey: (Int, Int, CGDirectDisplayID) {
-        switch self {
-        case let .tiling(screenId, index): return (0, index, screenId)
-        case let .floating(screenId): return (1, Int.max, screenId)
-        }
-    }
 }
 
 enum ZoneNavigation {
@@ -93,6 +82,13 @@ enum ZoneNavigation {
         /// occupancy).
         let isOccupied: Bool
         let place: ColumnPlace?
+    }
+
+    /// A navigable screen by its full frame on the shared global plane — the input to the
+    /// cross-screen direction classification.
+    struct Screen: Equatable {
+        let id: CGDirectDisplayID
+        let frame: CGRect
     }
 
     /// One recorded move: the zone it started from and the pressed direction.
@@ -126,11 +122,12 @@ enum ZoneNavigation {
         focusedZoneId: NavigableZoneIdentifier?,
         targetedZoneId: NavigableZoneIdentifier?,
         fallbackZoneId: NavigableZoneIdentifier?,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        screens: [Screen]
     ) -> Selection? {
         if let focusedZoneId,
            let focused = candidates.first(where: { $0.id == focusedZoneId }) {
-            return move(from: focused, direction: direction, candidates: candidates)
+            return move(from: focused, direction: direction, candidates: candidates, screens: screens)
         }
 
         if let targetedZoneId,
@@ -138,14 +135,14 @@ enum ZoneNavigation {
             if target.isOccupied {
                 return Selection(id: target.id, trail: [])
             }
-            return move(from: target, direction: direction, candidates: candidates)
+            return move(from: target, direction: direction, candidates: candidates, screens: screens)
         }
 
         guard let fallbackZoneId,
               let fallback = candidates.first(where: { $0.id == fallbackZoneId }) else {
             return nil
         }
-        return move(from: fallback, direction: direction, candidates: candidates)
+        return move(from: fallback, direction: direction, candidates: candidates, screens: screens)
     }
 
     /// Selection produced by a subsequent arrow press. Pressing the opposite of the move that
@@ -155,7 +152,8 @@ enum ZoneNavigation {
     static func nextSelection(
         direction: ZoneNavigationDirection,
         currentSelection: Selection,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        screens: [Screen]
     ) -> Selection {
         guard let current = candidates.first(where: { $0.id == currentSelection.id }) else {
             return currentSelection
@@ -165,7 +163,12 @@ enum ZoneNavigation {
             return Selection(id: last.source, trail: Array(currentSelection.trail.dropLast()))
         }
 
-        guard let next = destination(from: current, direction: direction, candidates: candidates) else {
+        guard let next = destination(
+            from: current,
+            direction: direction,
+            candidates: candidates,
+            screens: screens
+        ) else {
             return currentSelection
         }
         return Selection(
@@ -173,6 +176,26 @@ enum ZoneNavigation {
             trail: currentSelection.trail + [Move(source: current.id, direction: direction)]
         )
     }
+
+    /// The one direction `other` lies in from `source` (full screen frames on the global plane).
+    /// Arranged screens never intersect, so at most one axis has interval overlap: overlapping
+    /// x-ranges make a vertical neighbor, overlapping y-ranges a horizontal one — the axis their
+    /// shared edge spans, which is also how the mouse pointer crosses. A pair overlapping on
+    /// neither axis (corner or apart arrangements) takes the larger axis of the center offset,
+    /// ties breaking horizontal.
+    static func screenDirection(from source: CGRect, to other: CGRect) -> ZoneNavigationDirection {
+        let dx = other.midX - source.midX
+        let dy = other.midY - source.midY
+        let xOverlap = min(source.maxX, other.maxX) - max(source.minX, other.minX) > overlapTolerance
+        let yOverlap = min(source.maxY, other.maxY) - max(source.minY, other.minY) > overlapTolerance
+        if xOverlap && !yOverlap { return dy < 0 ? .up : .down }
+        if yOverlap && !xOverlap { return dx < 0 ? .left : .right }
+        if abs(dy) > abs(dx) { return dy < 0 ? .up : .down }
+        return dx < 0 ? .left : .right
+    }
+
+    /// Minimum interval overlap for two screens to count as edge-sharing neighbors.
+    private static let overlapTolerance: CGFloat = 1.0
 
     // MARK: - Add Zone / Remove Zone keys (mid-gesture topology changes)
 
@@ -197,8 +220,8 @@ enum ZoneNavigation {
     }
 
     /// Where the circle lands after the gesture's Remove Zone key removes the selected zone: the
-    /// removed zone's screen's tiling zone that takes over most of the removed frame (ties break
-    /// in the stable zone order). Nil when that screen retains no tiling zone — a state a valid
+    /// removed zone's screen's tiling zone that takes over most of the removed frame (ties prefer
+    /// the lower zone index). Nil when that screen retains no tiling zone — a state a valid
     /// removal cannot produce — so the caller ends the gesture rather than jumping screens.
     static func selectionAfterRemoval(
         removedFrame: CGRect,
@@ -210,7 +233,7 @@ enum ZoneNavigation {
         for candidate in candidates where !candidate.id.isFloating && candidate.id.screenId == screenId {
             let overlap = candidate.frame.intersection(removedFrame)
             let area = overlap.isNull ? 0 : overlap.width * overlap.height
-            if area > bestArea || (area == bestArea && best.map({ tieBreakLess(candidate.id, $0.id) }) == true) {
+            if area > bestArea || (area == bestArea && best.map({ candidate.id.indexKey < $0.id.indexKey }) == true) {
                 best = candidate
                 bestArea = area
             }
@@ -220,29 +243,82 @@ enum ZoneNavigation {
 
     // MARK: - Move resolution
 
+    /// Structural view of one screen's candidates: its tiling zones by column and row, and its
+    /// bar.
+    private struct ScreenModel {
+        let tiling: [Candidate]
+        let barId: NavigableZoneIdentifier?
+        /// Every multi-zone screen occupies both sides (a ZoneController invariant); only a lone
+        /// full-screen zone leaves a side empty, and it spans the full width — no column to
+        /// cross to horizontally.
+        let hasBothColumns: Bool
+
+        init(of screenId: CGDirectDisplayID, in candidates: [Candidate]) {
+            let screen = candidates.filter { $0.id.screenId == screenId }
+            tiling = screen.filter { $0.place != nil }
+            barId = screen.first { $0.id.isFloating }?.id
+            hasBothColumns = ZoneSide.allCases.allSatisfy { side in
+                screen.contains { $0.place?.side == side }
+            }
+        }
+
+        func zone(_ side: ZoneSide, _ row: StackRow) -> NavigableZoneIdentifier? {
+            tiling.first { $0.place == ColumnPlace(side: side, row: row) }?.id
+        }
+
+        /// The lowest-index zone among the rows `included` selects — the bottom row for climbs
+        /// off a bar, the top row for downward entries.
+        func lowestIndex(where included: (StackRow) -> Bool) -> NavigableZoneIdentifier? {
+            tiling
+                .filter { $0.place.map { included($0.row) } == true }
+                .min { $0.id.indexKey < $1.id.indexKey }?
+                .id
+        }
+
+        /// Row-matched landing in `side`: bottom stays bottom, top and full-height enter at the
+        /// top, a bar (nil row) enters at the column's bottom-most zone, and a full-height
+        /// column takes every row.
+        func landing(in side: ZoneSide, fromRow row: StackRow?) -> NavigableZoneIdentifier? {
+            if let full = zone(side, .full) {
+                return full
+            }
+            guard let row else {
+                return zone(side, .bottom)
+            }
+            return zone(side, row == .bottom ? .bottom : .top)
+        }
+    }
+
     /// Move off `source`, recording it as the selection's trail — or `source` itself selected in
     /// place when no zone lies in the pressed direction.
     private static func move(
         from source: Candidate,
         direction: ZoneNavigationDirection,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        screens: [Screen]
     ) -> Selection {
-        guard let next = destination(from: source, direction: direction, candidates: candidates) else {
+        guard let next = destination(
+            from: source,
+            direction: direction,
+            candidates: candidates,
+            screens: screens
+        ) else {
             return Selection(id: source.id, trail: [])
         }
         return Selection(id: next, trail: [Move(source: source.id, direction: direction)])
     }
 
     /// The zone a press moves to from `source`, or nil when nothing lies that way: the screen's
-    /// structural stop in the pressed direction when it still has one, otherwise the geometric
-    /// exit onto another screen.
+    /// structural stop in the pressed direction when it still has one, otherwise the crossing
+    /// onto the screen lying in that direction.
     private static func destination(
         from source: Candidate,
         direction: ZoneNavigationDirection,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        screens: [Screen]
     ) -> NavigableZoneIdentifier? {
         withinScreenDestination(from: source, direction: direction, candidates: candidates)
-            ?? exitDestination(from: source, direction: direction, candidates: candidates)
+            ?? exitDestination(from: source, direction: direction, candidates: candidates, screens: screens)
     }
 
     /// The structural within-screen move (see the header), or nil when the press leaves the
@@ -253,102 +329,101 @@ enum ZoneNavigation {
         direction: ZoneNavigationDirection,
         candidates: [Candidate]
     ) -> NavigableZoneIdentifier? {
-        let screen = candidates.filter { $0.id.screenId == source.id.screenId }
-        let tiling = screen.filter { $0.place != nil }
-        // Every multi-zone screen occupies both sides (a ZoneController invariant); only a lone
-        // full-screen zone leaves a side empty, and it spans the full width — no column to
-        // cross to horizontally.
-        let hasBothColumns = ZoneSide.allCases.allSatisfy { side in
-            tiling.contains { $0.place?.side == side }
-        }
-
-        func zone(_ side: ZoneSide, _ row: StackRow) -> NavigableZoneIdentifier? {
-            tiling.first { $0.place == ColumnPlace(side: side, row: row) }?.id
-        }
-        /// The bottom-most zone of a column: the stack's bottom, or its lone full-height zone.
-        func bottomMost(_ side: ZoneSide) -> NavigableZoneIdentifier? {
-            zone(side, .bottom) ?? zone(side, .full)
-        }
+        let model = ScreenModel(of: source.id.screenId, in: candidates)
 
         guard let place = source.place else {
             // The bar: up climbs into the bottom row (the lower zone index wins between two
             // bottom zones), left/right go to that column's bottom-most zone, down exits.
             switch direction {
             case .up:
-                return tiling
-                    .filter { $0.place?.row != .top }
-                    .min { $0.id.indexKey < $1.id.indexKey }?.id
+                return model.lowestIndex { $0 != .top }
             case .down:
                 return nil
             case .left:
-                return hasBothColumns ? bottomMost(.left) : nil
+                return model.hasBothColumns ? model.landing(in: .left, fromRow: nil) : nil
             case .right:
-                return hasBothColumns ? bottomMost(.right) : nil
+                return model.hasBothColumns ? model.landing(in: .right, fromRow: nil) : nil
             }
         }
 
         switch direction {
         case .up:
-            return place.row == .bottom ? zone(place.side, .top) : nil
+            return place.row == .bottom ? model.zone(place.side, .top) : nil
         case .down:
             if place.row == .top {
-                return zone(place.side, .bottom)
+                return model.zone(place.side, .bottom)
             }
-            return screen.first { $0.id.isFloating }?.id
+            return model.barId
         case .left, .right:
             let target: ZoneSide = direction == .left ? .left : .right
-            guard hasBothColumns, place.side != target else { return nil }
-            // Row-matched landing: bottom stays bottom; top and full-height enter at the top.
-            if let full = zone(target, .full) {
-                return full
-            }
-            return zone(target, place.row == .bottom ? .bottom : .top)
+            guard model.hasBothColumns, place.side != target else { return nil }
+            return model.landing(in: target, fromRow: place.row)
         }
     }
 
-    /// Geometric exit onto another screen: the nearest other-screen zone in the pressed
-    /// direction. Bars never join horizontal races, and an upward exit stops at the entered
-    /// screen's bar before its zones.
+    /// Crossing off the screen: the nearest screen lying in the pressed direction, entered
+    /// through its near side. Nil when no screen lies that way.
     private static func exitDestination(
         from source: Candidate,
         direction: ZoneNavigationDirection,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        screens: [Screen]
     ) -> NavigableZoneIdentifier? {
-        let others = candidates.filter { $0.id.screenId != source.id.screenId }
+        guard let sourceScreen = screens.first(where: { $0.id == source.id.screenId }) else {
+            return nil
+        }
         let vertical = direction == .up || direction == .down
-        let eligible = vertical ? others : others.filter { !$0.id.isFloating }
-        let winner = DirectionalRectNavigation.nearest(
-            from: source.frame,
-            direction: direction,
-            among: eligible.map { DirectionalRectNavigation.Item(id: $0.id, frame: $0.frame) },
-            tieBreak: { tieBreakLess($0.id, $1.id) }
-        )
-        guard let winner, direction == .up else { return winner }
-        return entryBar(before: winner, from: source, candidates: candidates) ?? winner
+
+        func axisDistance(_ screen: Screen) -> CGFloat {
+            vertical
+                ? abs(screen.frame.midY - sourceScreen.frame.midY)
+                : abs(screen.frame.midX - sourceScreen.frame.midX)
+        }
+        func perpendicularDistance(_ screen: Screen) -> CGFloat {
+            vertical
+                ? abs(screen.frame.midX - sourceScreen.frame.midX)
+                : abs(screen.frame.midY - sourceScreen.frame.midY)
+        }
+
+        let target = screens
+            .filter {
+                $0.id != sourceScreen.id
+                    && screenDirection(from: sourceScreen.frame, to: $0.frame) == direction
+            }
+            .min { lhs, rhs in
+                if axisDistance(lhs) != axisDistance(rhs) {
+                    return axisDistance(lhs) < axisDistance(rhs)
+                }
+                if perpendicularDistance(lhs) != perpendicularDistance(rhs) {
+                    return perpendicularDistance(lhs) < perpendicularDistance(rhs)
+                }
+                return lhs.id < rhs.id
+            }
+        guard let target else { return nil }
+        return entry(into: target.id, direction: direction, from: source, candidates: candidates)
     }
 
-    /// Entering a screen from below stops at its bar first: an upward exit whose winner is a
-    /// tiling zone is redirected to that zone's screen's bar — when the bar exists and actually
-    /// lies ahead (a diagonal screen's bar can sit below the source and is not forced).
-    private static func entryBar(
-        before winner: NavigableZoneIdentifier,
+    /// Where a crossing lands on the entered screen: from below, its bar (a barless screen — a
+    /// defensive state — enters its bottom row); from above, its top row (the lower zone index
+    /// between columns); from the side, its near column at the row matching the source.
+    private static func entry(
+        into screenId: CGDirectDisplayID,
+        direction: ZoneNavigationDirection,
         from source: Candidate,
         candidates: [Candidate]
     ) -> NavigableZoneIdentifier? {
-        guard !winner.isFloating else { return nil }
-        let barId = NavigableZoneIdentifier.floating(screenId: winner.screenId)
-        guard let bar = candidates.first(where: { $0.id == barId }),
-              DirectionalRectNavigation.isAhead(bar.frame, of: source.frame, direction: .up) else {
-            return nil
+        let model = ScreenModel(of: screenId, in: candidates)
+        switch direction {
+        case .up:
+            return model.barId ?? model.lowestIndex { $0 != .top }
+        case .down:
+            return model.lowestIndex { $0 != .bottom }
+        case .left, .right:
+            guard model.hasBothColumns else {
+                return model.lowestIndex { _ in true }
+            }
+            let nearSide: ZoneSide = direction == .left ? .right : .left
+            return model.landing(in: nearSide, fromRow: source.place?.row)
         }
-        return barId
-    }
-
-    private static func tieBreakLess(_ lhs: NavigableZoneIdentifier, _ rhs: NavigableZoneIdentifier) -> Bool {
-        let lhsKey = lhs.tieBreakKey
-        let rhsKey = rhs.tieBreakKey
-        if lhsKey.0 != rhsKey.0 { return lhsKey.0 < rhsKey.0 }
-        if lhsKey.1 != rhsKey.1 { return lhsKey.1 < rhsKey.1 }
-        return lhsKey.2 < rhsKey.2
     }
 }
