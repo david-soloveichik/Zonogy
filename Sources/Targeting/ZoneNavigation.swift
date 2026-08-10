@@ -16,7 +16,7 @@ import CoreGraphics
 /// each other screen lies in exactly one direction from the current one (`screenDirection`), and
 /// the press takes the nearest one lying in the pressed direction (center distance along that
 /// axis, then across it, then display id). The entry is structural again — from below, the bar;
-/// from above, the top row; from the side, the near column at the matching row.
+/// from above, the zone nearest the top edge; from the side, the near column at the matching row.
 ///
 /// Every selection carries the trail of moves that produced it: pressing the exact opposite of
 /// the move that arrived somewhere backs out to that move's source, step by step, all the way to
@@ -266,13 +266,26 @@ enum ZoneNavigation {
             tiling.first { $0.place == ColumnPlace(side: side, row: row) }?.id
         }
 
-        /// The lowest-index zone among the rows `included` selects — the bottom row for climbs
-        /// off a bar, the top row for downward entries.
-        func lowestIndex(where included: (StackRow) -> Bool) -> NavigableZoneIdentifier? {
+        /// Landing for a vertical arrival at the layout's bottom or top (a climb off the bar, or
+        /// a cross-screen entry): the zone nearest the arrival edge. A stacked zone in that
+        /// edge's row sits nearer the edge than a full-height column, and the lower zone index
+        /// breaks the remaining tie.
+        func landing(nearestTo edgeRow: StackRow) -> NavigableZoneIdentifier? {
             tiling
-                .filter { $0.place.map { included($0.row) } == true }
-                .min { $0.id.indexKey < $1.id.indexKey }?
+                .filter { $0.place?.row == edgeRow || $0.place?.row == .full }
+                .min { lhs, rhs in
+                    let lhsAtEdge = lhs.place?.row == edgeRow
+                    let rhsAtEdge = rhs.place?.row == edgeRow
+                    if lhsAtEdge != rhsAtEdge { return lhsAtEdge }
+                    return lhs.id.indexKey < rhs.id.indexKey
+                }?
                 .id
+        }
+
+        /// The lowest-index tiling zone — a single-column screen's lone zone (defensively, of
+        /// any degenerate set).
+        var lowestIndexZone: NavigableZoneIdentifier? {
+            tiling.min { $0.id.indexKey < $1.id.indexKey }?.id
         }
 
         /// Row-matched landing in `side`: bottom stays bottom, top and full-height enter at the
@@ -332,11 +345,11 @@ enum ZoneNavigation {
         let model = ScreenModel(of: source.id.screenId, in: candidates)
 
         guard let place = source.place else {
-            // The bar: up climbs into the bottom row (the lower zone index wins between two
-            // bottom zones), left/right go to that column's bottom-most zone, down exits.
+            // The bar: up climbs to the zone nearest it, left/right go to that column's
+            // bottom-most zone, down exits.
             switch direction {
             case .up:
-                return model.lowestIndex { $0 != .top }
+                return model.landing(nearestTo: .bottom)
             case .down:
                 return nil
             case .left:
@@ -404,8 +417,8 @@ enum ZoneNavigation {
     }
 
     /// Where a crossing lands on the entered screen: from below, its bar (a barless screen — a
-    /// defensive state — enters its bottom row); from above, its top row (the lower zone index
-    /// between columns); from the side, its near column at the row matching the source.
+    /// defensive state — enters at the zone nearest its bottom edge); from above, the zone
+    /// nearest its top edge; from the side, its near column at the row matching the source.
     private static func entry(
         into screenId: CGDirectDisplayID,
         direction: ZoneNavigationDirection,
@@ -415,12 +428,12 @@ enum ZoneNavigation {
         let model = ScreenModel(of: screenId, in: candidates)
         switch direction {
         case .up:
-            return model.barId ?? model.lowestIndex { $0 != .top }
+            return model.barId ?? model.landing(nearestTo: .bottom)
         case .down:
-            return model.lowestIndex { $0 != .bottom }
+            return model.landing(nearestTo: .top)
         case .left, .right:
             guard model.hasBothColumns else {
-                return model.lowestIndex { _ in true }
+                return model.lowestIndexZone
             }
             let nearSide: ZoneSide = direction == .left ? .right : .left
             return model.landing(in: nearSide, fromRow: source.place?.row)

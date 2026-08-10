@@ -166,14 +166,15 @@ enum ZoneNavigationTests {
         assertSel(initial(.down, focused: soloZone, candidates: solo), soloBar.id, "solo: down zone→occupied bar")
         assertSel(initial(.up, focused: soloBar, candidates: solo), soloZone.id, "solo: up from focused float→zone")
 
-        // MARK: A full-height column counts as a bottom zone for the bar's climb — in the
-        // mirrored layout (full right column, stacked left) the lower index wins across columns.
+        // MARK: The bar's climb goes to the zone nearest it: a stacked bottom zone sits lower
+        // than a full-height column, so it wins regardless of zone index — here in the mirrored
+        // layout (full right column, stacked left).
         let mirror1 = tiledZone(1, CGRect(x: 520, y: 0, width: 480, height: 1000), .right, .full, occupied: true)
         let mirror2 = tiledZone(2, CGRect(x: 0, y: 0, width: 480, height: 480), .left, .top)
         let mirror3 = tiledZone(3, CGRect(x: 0, y: 520, width: 480, height: 480), .left, .bottom)
         let mirrorBar = floatingZone(CGRect(x: 300, y: 1044, width: 400, height: 16))
         let mirror = [mirror1, mirror2, mirror3, mirrorBar]
-        assertSel(next(.up, from: selected(mirrorBar), candidates: mirror), mirror1.id, "bar-up: the full column is a bottom zone and its lower index wins")
+        assertSel(next(.up, from: selected(mirrorBar), candidates: mirror), mirror3.id, "bar-up: the stacked bottom zone beats the full column despite its higher index")
 
         // MARK: The reported diagonal annoyance: a full-height column has nothing above it on its
         // own screen — up NEVER selects the neighboring stack's top zone. With no screen above
@@ -192,6 +193,12 @@ enum ZoneNavigationTests {
             initial(.up, focused: lrL1, candidates: lr + [lrT, lrBarT], screens: [sA, sT]),
             lrBarT.id,
             "up from a full column exits to the screen above (bar first)"
+        )
+        assertSel(next(.up, from: selected(lrBar), candidates: lr), lrR3.id, "up from the bar → the stack's bottom, not the full column (nearest stop)")
+        assertSel(
+            next(.down, from: selected(lrBarT), candidates: lr + [lrT, lrBarT], screens: [sA, sT]),
+            lrR2.id,
+            "entering from above → the stack's top, not the full column (nearest stop)"
         )
 
         // MARK: Left and right cross between the columns, staying in the same row; a single-zone

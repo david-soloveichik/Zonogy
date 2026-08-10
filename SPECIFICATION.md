@@ -200,7 +200,7 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 ### Zone Navigation
 
-Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone (excluding screens paused for full-screen): focus its window, target it, move the focused window into it, minimize its window, or add and remove zones. A preference can add a letter keyset — HJKL, WASD, or IJKL — that selects zones alongside the arrow keys. Each press moves a large translucent blue circle to the next zone in that direction; a floating zone is represented by a semi-circle. How the gesture ends decides what happens:
+Holding Control-Command and pressing arrow keys is a fast, keyboard-only way to act on any zone (excluding screens paused for full-screen): focus its window, target it, move the focused window into it, minimize its window, or add and remove zones. A preference can add a letter keyset — HJKL, WASD, or IJKL — that selects zones alongside the arrow keys. Each press moves a large translucent blue circle (the same size for every zone) to the next zone in that direction; a floating zone is represented by the circle's upper half. How the gesture ends decides what happens:
 
 - **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty zone is targeted, and the Launcher auto-shows per its preference.
 - **Pressing Return while still holding** moves the currently focused managed window into the selected zone and ends the gesture. If the selected zone is occupied, the two windows swap zones. The moved window keeps focus; targeting follows the normal placement rules.

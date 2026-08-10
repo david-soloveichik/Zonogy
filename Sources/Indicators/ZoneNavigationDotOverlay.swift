@@ -13,18 +13,15 @@ import AppKit
 /// dimension, which flattens the sides.)
 final class ZoneNavigationDotOverlay {
     private static let fillColor = NSColor.systemBlue.withAlphaComponent(0.45)
-    /// Circle diameter is this fraction of the reference rectangle's shorter side, clamped below.
-    private static let diameterFraction: CGFloat = 0.32
-    private static let minDiameter: CGFloat = 70
-    private static let maxDiameter: CGFloat = 170
+    /// One fixed circle diameter everywhere, independent of zone and screen dimensions.
+    private static let circleDiameter: CGFloat = 170
 
     private var panel: NSPanel?
     private var dotView: NSView?
 
-    /// Show (or move) the circle centered within `cocoaFrame` (a tiling zone frame), sizing it
-    /// relative to that rectangle.
+    /// Show (or move) the circle centered within `cocoaFrame` (a tiling zone frame).
     func show(centeredIn cocoaFrame: CGRect) {
-        let diameter = Self.diameter(for: cocoaFrame)
+        let diameter = Self.circleDiameter
         let panelFrame = CGRect(
             x: cocoaFrame.midX - diameter / 2,
             y: cocoaFrame.midY - diameter / 2,
@@ -35,10 +32,10 @@ final class ZoneNavigationDotOverlay {
     }
 
     /// Show (or move) the upper half of the circle with its flat edge on the screen's bottom edge,
-    /// centered on the floating zone's bar. `screenCocoaFrame` supplies the diameter so the half
-    /// circle matches the full circles shown over that screen's zones.
+    /// centered on the floating zone's bar. `screenCocoaFrame` anchors that flat edge on the true
+    /// screen bottom.
     func showHalfCircle(onBar barCocoaFrame: CGRect, screenCocoaFrame: CGRect) {
-        let diameter = Self.diameter(for: screenCocoaFrame)
+        let diameter = Self.circleDiameter
         // The bar's canonical frame can overhang past the screen edge (edge-pinned cursor hits);
         // the dome's flat edge belongs on the screen bottom itself.
         let panelFrame = CGRect(
@@ -57,11 +54,6 @@ final class ZoneNavigationDotOverlay {
         panel?.close()
         panel = nil
         dotView = nil
-    }
-
-    private static func diameter(for referenceFrame: CGRect) -> CGFloat {
-        let shorterSide = min(referenceFrame.width, referenceFrame.height)
-        return max(minDiameter, min(shorterSide * diameterFraction, maxDiameter))
     }
 
     private func apply(panelFrame: CGRect, circleOrigin: CGPoint, diameter: CGFloat) {
