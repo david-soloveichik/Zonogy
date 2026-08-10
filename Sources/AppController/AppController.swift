@@ -147,6 +147,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var displacedWindowCoordinator = DisplacedWindowCoordinator(host: self)
     internal lazy var deferredMinimizationCoordinator = DeferredMinimizationCoordinator(host: self)
     internal let minimizeLoopGuard = MinimizeLoopGuard()
+    internal let recentUserMinimizeTracker = RecentUserMinimizeTracker()
     internal lazy var floatingZoneCoordinator = FloatingZoneCoordinator(
         host: self,
         displacedWindowCoordinator: displacedWindowCoordinator

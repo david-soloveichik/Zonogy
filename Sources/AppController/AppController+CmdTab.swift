@@ -37,12 +37,6 @@ extension AppController: CmdTabControllerDelegate {
         }
     }
 
-    // MARK: - All Managed Windows Provider
-
-    func frontmostManagedWindowId() -> Int? {
-        currentFrontmostManagedWindowId
-    }
-
     // MARK: - Row Drag
 
     func cmdTabController(_ controller: CmdTabController, beginDragForWindow window: LauncherWindowItem) -> Bool {
@@ -141,10 +135,22 @@ extension AppController: CmdTabKeyInterceptorDelegate {
             initialSelection = .leastRecent
         }
 
+        let skipWindowIds = cmdTabJustMinimizedSkipWindowIds()
+        // Always the cached frontmost id. Right after a minimize the cache can briefly lag
+        // (the sibling-focus AX notification may not have been processed yet); at worst the
+        // auto-focused sibling — the user's previously active window — receives the initial
+        // selection, while the marks still guarantee the dismissed window is never offered.
+        // A live kAXFocusedWindow read here was deliberately rejected: synchronous AX calls
+        // can block for hundreds of milliseconds (see AXCallTimer) and this is the UI-opening path.
+        let frontmostWindowId = currentFrontmostManagedWindowId
         let shown: Bool
         switch mode {
         case .allWindows:
-            shown = cmdTabController.show(initialSelection: initialSelection)
+            shown = cmdTabController.show(
+                initialSelection: initialSelection,
+                skipWindowIds: skipWindowIds,
+                frontmostWindowId: frontmostWindowId
+            )
         case .currentAppOnly:
             guard let currentApp, let bundleId = currentApp.bundleIdentifier else {
                 // No frontmost app or no bundle identifier - show empty state
@@ -152,7 +158,12 @@ extension AppController: CmdTabKeyInterceptorDelegate {
                 break
             }
             let appName = currentApp.localizedName ?? bundleId
-            shown = cmdTabController.show(initialSelection: initialSelection, appFilter: .app(bundleId: bundleId, name: appName))
+            shown = cmdTabController.show(
+                initialSelection: initialSelection,
+                appFilter: .app(bundleId: bundleId, name: appName),
+                skipWindowIds: skipWindowIds,
+                frontmostWindowId: frontmostWindowId
+            )
         }
 
         if !shown {
@@ -163,9 +174,15 @@ extension AppController: CmdTabKeyInterceptorDelegate {
 
     func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode) {
         Logger.debug("CmdTab: Switching to \(mode == .allWindows ? "all windows" : "current app") mode")
+        let skipWindowIds = cmdTabJustMinimizedSkipWindowIds()
+        let frontmostWindowId = currentFrontmostManagedWindowId
         switch mode {
         case .allWindows:
-            cmdTabController.show(initialSelection: .mostRecent)
+            cmdTabController.show(
+                initialSelection: .mostRecent,
+                skipWindowIds: skipWindowIds,
+                frontmostWindowId: frontmostWindowId
+            )
         case .currentAppOnly:
             // Reuse the session's captured current app so switching modes targets the same app.
             guard let pid = cmdTabCurrentAppPid,
@@ -175,10 +192,23 @@ extension AppController: CmdTabKeyInterceptorDelegate {
                 return
             }
             let appName = app.localizedName ?? bundleId
-            cmdTabController.show(initialSelection: .mostRecent, appFilter: .app(bundleId: bundleId, name: appName))
+            cmdTabController.show(
+                initialSelection: .mostRecent,
+                appFilter: .app(bundleId: bundleId, name: appName),
+                skipWindowIds: skipWindowIds,
+                frontmostWindowId: frontmostWindowId
+            )
         }
     }
 
+    /// Windows the user just minimized, for CmdTab's initial selection to skip. The lifetime
+    /// deliberately reuses the WinShot occupancy settle delay: both express how long until the
+    /// screen has settled for the user.
+    private func cmdTabJustMinimizedSkipWindowIds() -> Set<Int> {
+        recentUserMinimizeTracker.activeSkipWindowIds(
+            settleDelay: TimeInterval(WinShotPreferencesStore.loadOccupancySettleDelaySeconds())
+        )
+    }
     func cmdTabKeyInterceptor(_ interceptor: CmdTabKeyInterceptor, cycle direction: CmdTabKeyInterceptor.Direction) {
         switch direction {
         case .next:

@@ -132,6 +132,9 @@ extension AppController {
         let destination = zoneDestination(for: selection.id)
         if let occupant = occupant(of: destination) {
             Logger.debug("Zone navigation focusing window \(occupant.windowId) in \(selection.id)")
+            // An explicit window selection: the user has moved past whatever they just
+            // minimized, so stop skipping those windows in CmdTab's initial selection.
+            recentUserMinimizeTracker.clearAllMarks()
             // Focusing hands the user to that window: dismiss the Launcher now rather than
             // waiting on the focus-shift notification — targeting is unchanged by a focus
             // commit, so no follow-target refresh would hide it.
@@ -547,8 +550,7 @@ extension AppController {
         Logger.debug("Zone navigation minimize: minimizing window \(occupant.windowId) in \(selectionId)")
         // Mirror the cursor minimize: leave UnderCovers before putting away its floating occupant.
         endUnderCovers(on: selectionId.screenId, reason: "zone-navigation-minimize", recreatePlaceholders: false)
-        optimisticallyShowLauncherForMinimize(occupant, reason: "zone-navigation-minimize-optimistic")
-        windowController.minimizeWindow(occupant)
+        userInitiatedMinimize(occupant, optimisticReason: "zone-navigation-minimize-optimistic")
     }
 
     /// Run a gesture-driven topology mutation with the canonical topology cancel suppressed, so

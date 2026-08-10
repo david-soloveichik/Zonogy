@@ -126,6 +126,12 @@ enum GuardrailTests {
         if !CmdTabTemporaryTargetPolicyTests.run() {
             allPassed = false
         }
+        if !CmdTabInitialSelectionPolicyTests.run() {
+            allPassed = false
+        }
+        if !RecentUserMinimizeMarksTests.run() {
+            allPassed = false
+        }
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }

@@ -466,6 +466,10 @@ extension AppController: LauncherControllerDelegate {
     ///   - activateInPlace: If true (DockMenus mode), windows already in a zone and not minimized
     ///     are activated without being moved to the targeted zone.
     internal func handleWindowSelection(_ window: LauncherWindowItem, activateInPlace: Bool) {
+        // Completing an explicit selection means the user has moved past whatever they just
+        // minimized; stop skipping those windows in CmdTab's initial selection.
+        recentUserMinimizeTracker.clearAllMarks()
+
         // First, try to use the managed window if Zonogy already knows about it
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {

@@ -205,6 +205,10 @@ extension AppController {
         } else {
             // Minimize all collected windows with proper cleanup
             for (window, emptiedZoneKey) in windowsToMinimize {
+                // Hiding an app is a user dismissal of its windows: give them the same
+                // CmdTab just-minimized skip as a direct minimize (the programmatic
+                // minimize below suppresses the notification that would otherwise mark).
+                recentUserMinimizeTracker.recordUserMinimize(windowId: window.windowId)
                 let manualResizeState = performProgrammaticMinimizeCleanup(
                     window,
                     minimizeReason: "hide-to-minimize",

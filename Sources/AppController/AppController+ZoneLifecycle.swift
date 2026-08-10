@@ -377,11 +377,19 @@ extension AppController {
         minimizeWindowProgrammatically(managed, reason: reason, suppressTimeout: 3.0)
     }
 
-    /// Minimizes the currently active/key window using Cmd-M shortcut override.
-    /// Before issuing the AX minimize call, we optimistically retarget to the window's zone
-    /// and show the Launcher (when enabled) so the user sees immediate feedback. Zone
+    /// Shared path for the user-initiated minimizes (the minimize shortcuts and the
+    /// zone-navigation Minimize key): mark the window as just dismissed so CmdTab's initial
+    /// selection skips it, optimistically retarget to the window's zone and show the Launcher
+    /// (when enabled) so the user sees immediate feedback, then issue the AX minimize. Zone
     /// bookkeeping stays intact: the AXWindowMiniaturized notification handler
     /// (windowDidMiniaturize) runs the full pipeline.
+    internal func userInitiatedMinimize(_ managed: ManagedWindow, optimisticReason: String) {
+        recentUserMinimizeTracker.recordUserMinimize(windowId: managed.windowId)
+        optimisticallyShowLauncherForMinimize(managed, reason: optimisticReason)
+        windowController.minimizeWindow(managed)
+    }
+
+    /// Minimizes the currently active/key window using Cmd-M shortcut override.
     internal func minimizeActiveWindow() {
         guard let (managed, pid) = managedWindowForFrontmostApplication(
             logPrefix: "minimizeActiveWindow"
@@ -394,8 +402,7 @@ extension AppController {
             "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid)"
         )
 
-        optimisticallyShowLauncherForMinimize(managed, reason: "cmd-m-optimistic")
-        windowController.minimizeWindow(managed)
+        userInitiatedMinimize(managed, optimisticReason: "cmd-m-optimistic")
     }
 
 }

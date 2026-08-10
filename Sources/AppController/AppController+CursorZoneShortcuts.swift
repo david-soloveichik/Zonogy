@@ -187,11 +187,7 @@ extension AppController {
                 endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
             }
 
-            // Optimistically retarget and show the Launcher before the AX miniaturize
-            // notification arrives. Zone bookkeeping is left to the notification handler so a
-            // cancelled minimize doesn't orphan the window.
-            optimisticallyShowLauncherForMinimize(managed, reason: "cursor-minimize-optimistic")
-            windowController.minimizeWindow(managed)
+            userInitiatedMinimize(managed, optimisticReason: "cursor-minimize-optimistic")
             return
         }
 

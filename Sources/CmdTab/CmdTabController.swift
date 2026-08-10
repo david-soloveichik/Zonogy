@@ -16,10 +16,6 @@ protocol CmdTabControllerDelegate: AnyObject {
     /// Provides all managed windows ordered by last active time
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem]
 
-    /// Returns the window ID of the currently frontmost managed window, or nil if none.
-    /// Used to determine whether to start selection at index 0 or 1.
-    func frontmostManagedWindowId() -> Int?
-
     /// Starts a CmdTab row drag session for the given window. Return false to abort the drag.
     func cmdTabController(_ controller: CmdTabController, beginDragForWindow window: LauncherWindowItem) -> Bool
 
@@ -87,7 +83,12 @@ final class CmdTabController {
     }
 
     @discardableResult
-    func show(initialSelection: InitialSelection = .mostRecent, appFilter: AppFilter = .allWindows) -> Bool {
+    func show(
+        initialSelection: InitialSelection = .mostRecent,
+        appFilter: AppFilter = .allWindows,
+        skipWindowIds: Set<Int> = [],
+        frontmostWindowId: Int? = nil
+    ) -> Bool {
         guard let delegate = delegate else {
             Logger.debug("CmdTab: Cannot show - no delegate")
             return false
@@ -120,14 +121,11 @@ final class CmdTabController {
         if !allWindows.isEmpty {
             switch initialSelection {
             case .mostRecent:
-                // If the frontmost window is managed and is the first entry, start at index 1 (previous window).
-                // Otherwise start at index 0 (no frontmost managed window, or it's not in the list).
-                if let frontmostId = delegate.frontmostManagedWindowId(),
-                   allWindows.first?.managedWindowId == frontmostId {
-                    model.selectedIndex = min(1, allWindows.count - 1)
-                } else {
-                    model.selectedIndex = 0
-                }
+                model.selectedIndex = CmdTabInitialSelectionPolicy.initialSelectedIndex(
+                    orderedWindowIds: allWindows.map(\.managedWindowId),
+                    frontmostWindowId: frontmostWindowId,
+                    skipWindowIds: skipWindowIds
+                )
             case .leastRecent:
                 model.selectedIndex = max(0, allWindows.count - 1)
             }

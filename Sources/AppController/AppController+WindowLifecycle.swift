@@ -59,6 +59,7 @@ extension AppController {
         guard !windowIds.isEmpty else { return }
 
         for windowId in windowIds {
+            recentUserMinimizeTracker.clearMark(windowId: windowId)
             performWindowLayoutRemovalPreSyncCleanup(
                 windowId: windowId,
                 reason: reason,
@@ -446,6 +447,11 @@ extension AppController {
             return
         }
 
+        // An unsuppressed miniaturize is a user minimize (Zonogy's own minimizes via the
+        // shortcuts also land here, refreshing their marks; suppressed programmatic ones
+        // returned above). Mark it so CmdTab's initial selection skips the window.
+        recentUserMinimizeTracker.recordUserMinimize(windowId: windowId)
+
         if dragDropCoordinator.currentDragWindowId == windowId {
             dragDropCoordinator.tearDownDragSession()
         }
@@ -458,6 +464,7 @@ extension AppController {
     }
 
     func windowDidDeminiaturize(windowId: Int) {
+        recentUserMinimizeTracker.clearMark(windowId: windowId)
         if shouldIgnoreDueToSleepWake(event: "windowDidDeminiaturize(\(windowId))") {
             pendingExplicitUnminimizeFocusWindowIds.remove(windowId)
             return
@@ -502,6 +509,8 @@ extension AppController {
     }
 
     func windowDidAdoptNativeTabOnDeminiaturize(originalWindowId: Int, adoptedWindowId: Int) {
+        recentUserMinimizeTracker.clearMark(windowId: originalWindowId)
+        recentUserMinimizeTracker.clearMark(windowId: adoptedWindowId)
         if shouldIgnoreDueToSleepWake(event: "windowDidAdoptNativeTabOnDeminiaturize(\(originalWindowId)->\(adoptedWindowId))") {
             pendingExplicitUnminimizeFocusWindowIds.remove(originalWindowId)
             pendingExplicitUnminimizeFocusWindowIds.remove(adoptedWindowId)

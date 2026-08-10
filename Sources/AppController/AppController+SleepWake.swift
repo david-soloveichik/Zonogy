@@ -79,6 +79,9 @@ extension AppController {
         menuBarManager.setDimmed(true)
         zoneNavigationInterceptor.resetEngagement()
         cancelZoneNavigation(reason: reason)
+        // Just-minimized marks are stale across sleep/lock, and modifier releases while the
+        // session is locked never reach the monitors; drop the marks and their gestures.
+        recentUserMinimizeTracker.clearAllMarks()
         cancelSleepSensitiveAsyncWork(reason: reason)
     }
 
