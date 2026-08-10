@@ -258,7 +258,7 @@ extension ModifierCombinationSheetViewController {
             walkthroughHeader: "How zone navigation works:",
             walkthroughText: { combo, choiceIndex in
                 let keyset = keysets[choiceIndex]
-                let selectionKeys = "arrow keys" + (keyset.lettersDisplayString.map { " or \($0)" } ?? "")
+                let navigationKeys = "arrow keys" + (keyset.lettersDisplayString.map { " or \($0)" } ?? "")
 
                 // The Launcher, Add Zone, and Remove Zone steps borrow those shortcuts' keys
                 // (claimed in that order), so show each key as currently configured — unless an
@@ -281,34 +281,34 @@ extension ModifierCombinationSheetViewController {
                             + "(the \(action.displayName) key \(key) already has another meaning in the gesture)"
                     }
                     earlierBorrowedKeys.append(keyCode)
-                    return "• \(combo)\(key) → \(step) (\(key) is reused from the \(action.displayName) shortcut)"
+                    return "• \(combo)\(key): \(step) (\(key) is reused from the \(action.displayName) shortcut)"
                 }
 
                 return [
-                    "• Hold \(combo) and press \(selectionKeys) to select a zone on any screen",
-                    "• Release \(combo) → focus the selected window, or make an empty zone the destination",
-                    "• \(combo)↩ (Return) → move the focused window into the selected zone (swapping windows if occupied)",
+                    "• Hold \(combo) and press \(navigationKeys) to move the blue circle between zones",
+                    "• Release \(combo): focus this zone's window, or make it the destination if empty",
+                    "• \(combo)↩ (Return): move the focused window into this zone (swapping windows if occupied)",
                     borrowedKeyLine(
                         action: .showLauncher,
-                        step: "make it the destination and open the Launcher there",
-                        unavailableStep: "Opening the Launcher on the selected zone"
+                        step: "make this zone the destination and open the Launcher there",
+                        unavailableStep: "Opening the Launcher on this zone"
                     ),
                     borrowedKeyLine(
                         action: .addZone,
-                        step: "add a zone on the selected zone's screen",
+                        step: "add a zone",
                         unavailableStep: "Adding a zone"
                     ),
                     borrowedKeyLine(
                         action: .removeZone,
-                        step: "remove the selected zone (minimizing its window)",
-                        unavailableStep: "Removing the selected zone"
+                        step: "remove this zone (minimizing its window)",
+                        unavailableStep: "Removing this zone"
                     ),
-                    "• ⎋ (Escape) → cancel",
+                    "• ⎋ (Escape): cancel",
                 ].joined(separator: "\n")
             },
             initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers,
             choice: Choice(
-                header: "Selection keys:",
+                header: "Navigation keys:",
                 // "+" marks the letter presets as joining the always-active arrows.
                 labels: keysets.map { $0.lettersDisplayString == nil ? $0.displayName : "+ \($0.displayName)" },
                 initialIndex: keysets.firstIndex(of: current) ?? 0,
