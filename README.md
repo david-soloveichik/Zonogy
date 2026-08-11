@@ -6,7 +6,7 @@ Zonogy is a zone-based window manager for macOS. (The name evokes "the origin or
 
 Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
 
-> Philosophy: An intentional place for every window.
+> Philosophy: Windows should land where you expect.
 
 <img src="docs/images/hero-screenshot.png" alt="A Zonogy desktop with windows tiled into zones, the Launcher, and a DockMenus window list" width="1512" />
 
