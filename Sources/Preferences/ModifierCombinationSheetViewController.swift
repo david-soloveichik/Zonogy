@@ -4,32 +4,32 @@
 import AppKit
 
 final class ModifierCombinationSheetViewController: NSViewController {
-    /// An optional preset picker (radio row) shown below the modifier checkboxes. The selected
-    /// index is passed to `walkthroughText` and `onSave` (0 when the sheet has no picker).
-    struct Choice {
+    /// Optional extra toggles (checkbox rows) shown below the modifier checkboxes, under a
+    /// header. Their on/off states are passed to `walkthroughText` and `onSave` (empty when the
+    /// sheet has none).
+    struct Options {
         let header: String
         let labels: [String]
-        let initialIndex: Int
-        /// The index Restore Default selects.
-        let defaultIndex: Int
+        let initialStates: [Bool]
+        /// The states Restore Default selects.
+        let defaultStates: [Bool]
     }
 
-    /// Called with the chosen combination and preset index when the user confirms
+    /// Called with the chosen combination and option states when the user confirms
     /// (the combination is guaranteed valid).
-    var onSave: ((ModifierCombination, Int) -> Void)?
+    var onSave: ((ModifierCombination, [Bool]) -> Void)?
 
     private let sheetTitle: String
     private let subtitle: String
     private let walkthroughHeader: String
     /// Builds the walkthrough text for the given combo glyphs ("—" while the selection is invalid)
-    /// and the selected preset index.
-    private let walkthroughText: (String, Int) -> String
+    /// and the current option states.
+    private let walkthroughText: (String, [Bool]) -> String
     private let initialModifiers: ModifierCombination
-    private let choice: Choice?
+    private let options: Options?
 
     private var checkboxes: [(modifier: ModifierCombination, button: NSButton)] = []
-    private var choiceButtons: [NSButton] = []
-    private var selectedChoiceIndex: Int
+    private var optionButtons: [NSButton] = []
     private var hintLabel: NSTextField!
     private var walkthroughLabel: NSTextField!
     private var saveButton: NSButton!
@@ -38,17 +38,16 @@ final class ModifierCombinationSheetViewController: NSViewController {
         title: String,
         subtitle: String,
         walkthroughHeader: String,
-        walkthroughText: @escaping (String, Int) -> String,
+        walkthroughText: @escaping (String, [Bool]) -> String,
         initialModifiers: ModifierCombination,
-        choice: Choice? = nil
+        options: Options? = nil
     ) {
         self.sheetTitle = title
         self.subtitle = subtitle
         self.walkthroughHeader = walkthroughHeader
         self.walkthroughText = walkthroughText
         self.initialModifiers = initialModifiers
-        self.choice = choice
-        self.selectedChoiceIndex = choice?.initialIndex ?? 0
+        self.options = options
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -60,6 +59,10 @@ final class ModifierCombinationSheetViewController: NSViewController {
         checkboxes.reduce(into: []) { result, entry in
             if entry.button.state == .on { result.insert(entry.modifier) }
         }
+    }
+
+    private var optionStates: [Bool] {
+        optionButtons.map { $0.state == .on }
     }
 
     override func loadView() {
@@ -86,7 +89,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
             let checkbox = NSButton(
                 checkboxWithTitle: "\(entry.symbol)  \(entry.name)",
                 target: self,
-                action: #selector(checkboxToggled)
+                action: #selector(selectionChanged)
             )
             checkbox.state = initialModifiers.contains(entry.modifier) ? .on : .off
             checkboxes.append((entry.modifier, checkbox))
@@ -100,22 +103,18 @@ final class ModifierCombinationSheetViewController: NSViewController {
         hintLabel.textColor = .systemRed
         stack.addArrangedSubview(hintLabel)
 
-        if let choice {
-            let choiceHeader = NSTextField(labelWithString: choice.header)
-            choiceHeader.font = NSFont.boldSystemFont(ofSize: 12)
+        if let options {
+            let optionsHeader = NSTextField(labelWithString: options.header)
+            optionsHeader.font = NSFont.boldSystemFont(ofSize: 12)
             stack.setCustomSpacing(14, after: hintLabel)
-            stack.addArrangedSubview(choiceHeader)
+            stack.addArrangedSubview(optionsHeader)
 
-            for (index, label) in choice.labels.enumerated() {
-                let radio = NSButton(radioButtonWithTitle: label, target: self, action: #selector(choiceChanged(_:)))
-                radio.tag = index
-                radio.state = index == selectedChoiceIndex ? .on : .off
-                choiceButtons.append(radio)
+            for (index, label) in options.labels.enumerated() {
+                let checkbox = NSButton(checkboxWithTitle: label, target: self, action: #selector(selectionChanged))
+                checkbox.state = options.initialStates[index] ? .on : .off
+                optionButtons.append(checkbox)
+                stack.addArrangedSubview(checkbox)
             }
-            let choiceRow = NSStackView(views: choiceButtons)
-            choiceRow.orientation = .horizontal
-            choiceRow.spacing = 12
-            stack.addArrangedSubview(choiceRow)
         }
 
         let separator = NSBox()
@@ -167,15 +166,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
         refresh()
     }
 
-    @objc private func checkboxToggled() {
-        refresh()
-    }
-
-    @objc private func choiceChanged(_ sender: NSButton) {
-        selectedChoiceIndex = sender.tag
-        for button in choiceButtons {
-            button.state = button.tag == selectedChoiceIndex ? .on : .off
-        }
+    @objc private func selectionChanged() {
         refresh()
     }
 
@@ -183,9 +174,8 @@ final class ModifierCombinationSheetViewController: NSViewController {
         for entry in checkboxes {
             entry.button.state = ModifierCombination.defaultModifiers.contains(entry.modifier) ? .on : .off
         }
-        selectedChoiceIndex = choice?.defaultIndex ?? 0
-        for button in choiceButtons {
-            button.state = button.tag == selectedChoiceIndex ? .on : .off
+        for (index, button) in optionButtons.enumerated() {
+            button.state = options?.defaultStates[index] == true ? .on : .off
         }
         refresh()
     }
@@ -197,20 +187,20 @@ final class ModifierCombinationSheetViewController: NSViewController {
     @objc private func save() {
         let selected = selectedModifiers
         guard selected.isValid else { return }
-        onSave?(selected, selectedChoiceIndex)
+        onSave?(selected, optionStates)
         dismiss(self)
     }
 
     /// Sync the validation hint, gesture walkthrough, and Save button to the currently checked
-    /// modifiers. The walkthrough previews the combination in context (its lines embed the
-    /// glyphs), so there is no separate preview line.
+    /// modifiers and options. The walkthrough previews the combination in context (its lines
+    /// embed the glyphs), so there is no separate preview line.
     private func refresh() {
         let selected = selectedModifiers
 
         hintLabel.isHidden = selected.isValid
         saveButton.isEnabled = selected.isValid
 
-        walkthroughLabel.stringValue = walkthroughText(selected.isValid ? selected.displayString : "—", selectedChoiceIndex)
+        walkthroughLabel.stringValue = walkthroughText(selected.isValid ? selected.displayString : "—", optionStates)
     }
 }
 
@@ -237,19 +227,29 @@ extension ModifierCombinationSheetViewController {
         )
     }
 
-    /// Editor for the modifiers and selection-key preset of keyboard zone navigation. The preset
-    /// choice indexes `ZoneNavigationKeyset.allCases`.
+    /// The zone-navigation editor's option rows, in order; each row toggles one key group.
+    private static let zoneNavigationOptionGroups: [ZoneNavigationKeyGroups] = [.arrows, .letters]
+
+    /// The key groups the zone-navigation editor's option states select.
+    static func zoneNavigationKeyGroups(fromOptionStates states: [Bool]) -> ZoneNavigationKeyGroups {
+        zip(zoneNavigationOptionGroups, states).reduce(into: []) { groups, entry in
+            if entry.1 { groups.insert(entry.0) }
+        }
+    }
+
+    /// Editor for the modifiers and selection-key groups of keyboard zone navigation.
     static func zoneNavigation() -> ModifierCombinationSheetViewController {
-        let keysets = ZoneNavigationKeyset.allCases
-        let current = ZoneNavigationKeysetPreferences.shared.keyset
+        let current = ZoneNavigationKeyPreferences.shared.groups
         return ModifierCombinationSheetViewController(
             title: "Zone Navigation Modifiers",
             subtitle: "Choose the modifier keys to hold while navigating zones with the keyboard. "
                 + "Select at least two.",
             walkthroughHeader: "How zone navigation works:",
-            walkthroughText: { combo, choiceIndex in
-                let keyset = keysets[choiceIndex]
-                let navigationKeys = "arrow keys" + (keyset.lettersDisplayString.map { " or \($0)" } ?? "")
+            walkthroughText: { combo, optionStates in
+                let groups = zoneNavigationKeyGroups(fromOptionStates: optionStates)
+                guard !groups.isEmpty else {
+                    return "• Zone navigation is off. Turn on the arrow keys or the letter keys above."
+                }
 
                 // The Launcher, Add Zone, Remove Zone, and Minimize steps borrow those shortcuts'
                 // keys (claimed in that order), so show each key as currently configured — unless
@@ -269,7 +269,7 @@ extension ModifierCombinationSheetViewController {
                     let keyCode = CGKeyCode(shortcut.keyCode)
                     let key = shortcut.keyDisplayString
                     guard !ZoneNavigationInterceptor.shadowsBorrowedKey(
-                        keyCode, keyset: keyset, earlierBorrowedKeys: earlierBorrowedKeys
+                        keyCode, groups: groups, earlierBorrowedKeys: earlierBorrowedKeys
                     ) else {
                         return "• \(unavailableStep) is unavailable "
                             + "(the \(action.displayName) key \(key) already has another meaning in the gesture)"
@@ -285,50 +285,73 @@ extension ModifierCombinationSheetViewController {
                         : items.dropLast().joined(separator: ", ") + ", and \(items.last ?? "")"
                 }
 
-                var lines = [
-                    "• Hold \(combo) and press \(navigationKeys) to move the blue circle between zones",
-                    "• Release \(combo): focus this zone's window, or make it the destination if empty",
-                    "While still holding \(combo):",
-                    "• ↩ (Return): move the focused window into this zone (swaps if occupied)",
-                    borrowedKeyLine(
-                        action: .showLauncher,
-                        step: "make this zone the destination and open the Launcher there",
-                        unavailableStep: "Opening the Launcher on this zone"
-                    ),
-                    borrowedKeyLine(
-                        action: .addZone,
-                        step: "add a zone",
-                        unavailableStep: "Adding a zone"
-                    ),
-                    borrowedKeyLine(
-                        action: .removeZone,
-                        step: "remove this zone",
-                        unavailableStep: "Removing this zone"
-                    ),
-                    borrowedKeyLine(
-                        action: .minimizeActiveWindow,
-                        step: "minimize this zone's window",
-                        unavailableStep: "Minimizing this zone's window"
-                    ),
-                    "• ⎋ (Escape): cancel",
-                ]
+                // The navigation keys of the enabled groups, indented under the hold line.
+                var navigationKeyLines: [String] = []
+                if groups.contains(.arrows) {
+                    navigationKeyLines.append("    arrow keys: the next zone in that direction")
+                }
+                if groups.contains(.letters) {
+                    navigationKeyLines += [
+                        "    A/S/D/F: the top-left, top-right, bottom-left, or bottom-right zone",
+                        "    G: the floating zone",
+                        "    J/K/L: the first, second, or third display (its last-used window)",
+                    ]
+                }
+
+                var lines = ["• Hold \(combo) and press a navigation key to put the blue circle on a zone:"]
+                    + navigationKeyLines
+                    + [
+                        "• Release \(combo): focus this zone's window, or make it the destination if empty",
+                        "While still holding \(combo):",
+                        "• ↩ (Return): move the focused window into this zone (swaps if occupied)",
+                        borrowedKeyLine(
+                            action: .showLauncher,
+                            step: "make this zone the destination and open the Launcher there",
+                            unavailableStep: "Opening the Launcher on this zone"
+                        ),
+                        borrowedKeyLine(
+                            action: .addZone,
+                            step: "add a zone",
+                            unavailableStep: "Adding a zone"
+                        ),
+                        borrowedKeyLine(
+                            action: .removeZone,
+                            step: "remove this zone",
+                            unavailableStep: "Removing this zone"
+                        ),
+                        borrowedKeyLine(
+                            action: .minimizeActiveWindow,
+                            step: "minimize this zone's window",
+                            unavailableStep: "Minimizing this zone's window"
+                        ),
+                        "• ⎋ (Escape): cancel",
+                    ]
+                var notes: [String] = []
+                if groups.contains(.letters) {
+                    notes.append("A/S/D/F add the zone if the screen doesn't have it yet.")
+                }
                 if !borrowedKeyNotes.isEmpty {
                     let verb = borrowedKeyNotes.count == 1 ? "is" : "are"
                     let plural = borrowedKeyNotes.count == 1 ? "" : "s"
-                    lines.append(
+                    notes.append(
                         naturalList(borrowedKeyNotes.map(\.key)) + " \(verb) reused from the "
                             + naturalList(borrowedKeyNotes.map(\.source)) + " shortcut\(plural)."
                     )
                 }
+                if !notes.isEmpty {
+                    lines.append(notes.joined(separator: " "))
+                }
                 return lines.joined(separator: "\n")
             },
             initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers,
-            choice: Choice(
+            options: Options(
                 header: "Navigation keys:",
-                // "+" marks the letter presets as joining the always-active arrows.
-                labels: keysets.map { $0.lettersDisplayString == nil ? $0.displayName : "+ \($0.displayName)" },
-                initialIndex: keysets.firstIndex(of: current) ?? 0,
-                defaultIndex: keysets.firstIndex(of: ZoneNavigationKeyset.defaultKeyset) ?? 0
+                labels: [
+                    "Arrow keys move between zones",
+                    "Letter keys jump to a zone (A/S/D/F, G) or a display (J/K/L)",
+                ],
+                initialStates: zoneNavigationOptionGroups.map { current.contains($0) },
+                defaultStates: zoneNavigationOptionGroups.map { ZoneNavigationKeyGroups.all.contains($0) }
             )
         )
     }

@@ -82,7 +82,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 - **ActiveFit** — windows that can't shrink to fit their zone are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
 - **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
-- **Keyboard Zone Navigation** — the geometric arrangement of zones makes directional navigation of zones and windows unambiguous via keyboard.
+- **Keyboard Zone Navigation** — the geometric arrangement of zones makes navigation of zones and windows unambiguous via keyboard.
 
 ## Mouse Controls
 
@@ -115,6 +115,8 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
 | `Control-Cmd-Arrows` (hold) | Zone navigation: arrows move a blue circle selecting a zone. Release to focus the zone's window, or to make an empty zone the destination. While holding: `Return` moves the focused window into the selected zone (swapping if occupied); `Space` makes the selected zone the destination and opens the Launcher there |
+| `Control-Cmd-A/S/D/F/G` (hold) | Zone navigation: jump the circle straight to the top-left/top-right/bottom-left/bottom-right zone (adding it if it doesn't exist), or to the floating zone with `G` |
+| `Control-Cmd-J/K/L` (hold) | Zone navigation: jump the circle to the 1st/2nd/3rd display, onto its last-used window |
 | `Control-Cmd-\` | Toggle destination with focused window |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
 | `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |

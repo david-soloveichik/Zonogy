@@ -1,9 +1,9 @@
 import Carbon
 import Foundation
 
-/// Guardrail tests for the zone-navigation key policy: the keyset presets' direction maps, the
+/// Guardrail tests for the zone-navigation key policy: the key groups' selection-key maps, the
 /// reserved chords the shortcut editors keep table shortcuts off, the keys that shadow a borrowed
-/// key (Show Launcher, Add Zone, Remove Zone, Minimize Focused Window), and keyset persistence.
+/// key (Show Launcher, Add Zone, Remove Zone, Minimize Focused Window), and key-group persistence.
 enum ZoneNavigationChordPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -16,70 +16,74 @@ enum ZoneNavigationChordPolicyTests {
             }
         }
 
-        // MARK: - Keysets: arrows always active; letter presets map their cluster shapes
+        // MARK: - Key groups: the arrows step, the letters jump; each group contributes only its
+        // own keys, and both are on by default
 
-        let expectedArrows: [CGKeyCode: ZoneNavigationDirection] = [
-            CGKeyCode(kVK_UpArrow): .up,
-            CGKeyCode(kVK_DownArrow): .down,
-            CGKeyCode(kVK_LeftArrow): .left,
-            CGKeyCode(kVK_RightArrow): .right,
+        let expectedArrows: [CGKeyCode: ZoneNavigationKey] = [
+            CGKeyCode(kVK_UpArrow): .move(.up),
+            CGKeyCode(kVK_DownArrow): .move(.down),
+            CGKeyCode(kVK_LeftArrow): .move(.left),
+            CGKeyCode(kVK_RightArrow): .move(.right),
         ]
-        for keyset in ZoneNavigationKeyset.allCases {
-            for (keyCode, direction) in expectedArrows {
-                assert(
-                    keyset.directionKeys[keyCode] == direction,
-                    "\(keyset.rawValue) should map arrow key \(keyCode) to \(direction)"
-                )
-            }
-            let expectedCount = keyset == .arrows ? 4 : 8
-            assert(
-                keyset.directionKeys.count == expectedCount,
-                "\(keyset.rawValue) should have \(expectedCount) selection keys"
-            )
+        let expectedLetters: [CGKeyCode: ZoneNavigationKey] = [
+            CGKeyCode(kVK_ANSI_A): .zone(.topLeft),
+            CGKeyCode(kVK_ANSI_S): .zone(.topRight),
+            CGKeyCode(kVK_ANSI_D): .zone(.bottomLeft),
+            CGKeyCode(kVK_ANSI_F): .zone(.bottomRight),
+            CGKeyCode(kVK_ANSI_G): .floatingZone,
+            CGKeyCode(kVK_ANSI_J): .display(ordinal: 0),
+            CGKeyCode(kVK_ANSI_K): .display(ordinal: 1),
+            CGKeyCode(kVK_ANSI_L): .display(ordinal: 2),
+        ]
+        assert(ZoneNavigationKeyGroups.arrows.selectionKeys == expectedArrows, "the arrow group should map the four arrows to moves")
+        assert(ZoneNavigationKeyGroups.letters.selectionKeys == expectedLetters, "the letter group should map A/S/D/F, G, and J/K/L to jumps")
+        assert(
+            ZoneNavigationKeyGroups.all.selectionKeys == expectedArrows.merging(expectedLetters) { arrow, _ in arrow },
+            "all groups should contribute every selection key"
+        )
+        assert(ZoneNavigationKeyGroups().selectionKeys.isEmpty, "no group should contribute no selection keys")
+        assert(ZoneNavigationKeyGroups.all == [.arrows, .letters], "the default should enable both groups")
+
+        // Cells carry their column side and stack row; only the arrows step (so only jump keys'
+        // auto-repeats are ignored).
+        assert(ZoneNavigationCell.topLeft.side == .left && !ZoneNavigationCell.topLeft.isBottom, "top-left is the left column's top")
+        assert(ZoneNavigationCell.bottomRight.side == .right && ZoneNavigationCell.bottomRight.isBottom, "bottom-right is the right column's bottom")
+        assert(!ZoneNavigationKey.move(.up).isJump, "an arrow steps rather than jumps")
+        for key in expectedLetters.values {
+            assert(key.isJump, "\(key) should be a jump")
         }
 
-        let hjkl = ZoneNavigationKeyset.hjkl.directionKeys
-        assert(
-            hjkl[CGKeyCode(kVK_ANSI_H)] == .left && hjkl[CGKeyCode(kVK_ANSI_J)] == .down
-                && hjkl[CGKeyCode(kVK_ANSI_K)] == .up && hjkl[CGKeyCode(kVK_ANSI_L)] == .right,
-            "hjkl should map Vim directions"
-        )
-        let wasd = ZoneNavigationKeyset.wasd.directionKeys
-        assert(
-            wasd[CGKeyCode(kVK_ANSI_W)] == .up && wasd[CGKeyCode(kVK_ANSI_A)] == .left
-                && wasd[CGKeyCode(kVK_ANSI_S)] == .down && wasd[CGKeyCode(kVK_ANSI_D)] == .right,
-            "wasd should map gaming directions"
-        )
-        let ijkl = ZoneNavigationKeyset.ijkl.directionKeys
-        assert(
-            ijkl[CGKeyCode(kVK_ANSI_I)] == .up && ijkl[CGKeyCode(kVK_ANSI_J)] == .left
-                && ijkl[CGKeyCode(kVK_ANSI_K)] == .down && ijkl[CGKeyCode(kVK_ANSI_L)] == .right,
-            "ijkl should mirror the arrow cluster on the right hand"
-        )
-        assert(ZoneNavigationKeyset.defaultKeyset == .arrows, "default keyset should be arrows")
+        // MARK: - Reserved chords: the enabled selection keys plus Return, under the given
+        // modifiers; nothing when no group is enabled
 
-        // MARK: - Reserved chords: the selection keys plus Return, under the given modifiers
-
-        let arrowsReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], keyset: .arrows)
-        assert(arrowsReserved.count == 5, "arrows should claim exactly five chords")
+        let allReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: .all)
+        assert(allReserved.count == 13, "all groups should claim the twelve selection keys plus Return")
         assert(
-            Set(arrowsReserved.map(\.keyCode)) == Set([kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow, kVK_Return].map(UInt32.init)),
-            "arrows should reserve the arrow keys and Return"
+            Set(allReserved.map(\.keyCode)).isSuperset(of: Set([kVK_UpArrow, kVK_ANSI_A, kVK_ANSI_L, kVK_Return].map(UInt32.init))),
+            "all groups should reserve the arrows, the letters, and Return"
         )
         assert(
-            arrowsReserved.allSatisfy { $0.modifiers == UInt32(controlKey | cmdKey) },
+            allReserved.allSatisfy { $0.modifiers == UInt32(controlKey | cmdKey) },
             "reserved chords should carry the gesture's modifiers"
         )
 
-        let hjklReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.option, .shift], keyset: .hjkl)
-        assert(hjklReserved.count == 9, "a letter keyset should claim nine chords (arrows + letters + Return)")
+        let arrowsReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.option, .shift], groups: .arrows)
+        assert(arrowsReserved.count == 5, "the arrow group alone should claim the arrows and Return")
         assert(
-            Set(hjklReserved.map(\.keyCode)).isSuperset(of: Set([kVK_ANSI_H, kVK_ANSI_J, kVK_ANSI_K, kVK_ANSI_L].map(UInt32.init))),
-            "hjkl should reserve its letters"
+            !arrowsReserved.contains { $0.keyCode == UInt32(kVK_ANSI_A) },
+            "a disabled letter group should not reserve its letters"
         )
         assert(
-            hjklReserved.allSatisfy { $0.modifiers == UInt32(optionKey | shiftKey) },
+            arrowsReserved.allSatisfy { $0.modifiers == UInt32(optionKey | shiftKey) },
             "reserved chords should follow the configured modifiers"
+        )
+        assert(
+            ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: .letters).count == 9,
+            "the letter group alone should claim the eight letters and Return"
+        )
+        assert(
+            ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: []).isEmpty,
+            "with no group enabled the gesture never engages, so nothing is reserved"
         )
 
         // MARK: - Borrowed-key shadowing: in-gesture keys act first, then earlier-borrowed keys;
@@ -87,66 +91,64 @@ enum ZoneNavigationChordPolicyTests {
 
         for keyCode in [kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow, kVK_Return, kVK_Escape] {
             assert(
-                ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keyset: .arrows),
+                ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), groups: .arrows),
                 "key code \(keyCode) has an in-gesture meaning and should shadow a borrowed key"
             )
         }
         assert(
-            ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .hjkl),
-            "L should shadow a borrowed key under hjkl"
+            ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_A), groups: .letters),
+            "A should shadow a borrowed key when the letters are on"
         )
         assert(
-            !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .arrows),
-            "L should not shadow a borrowed key under arrows"
+            !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_A), groups: .arrows),
+            "A should not shadow a borrowed key when the letters are off"
         )
         assert(
-            !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_ANSI_L), keyset: .wasd),
-            "L should not shadow a borrowed key under wasd"
+            ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(kVK_Return), groups: []),
+            "Return shadows a borrowed key regardless of the groups"
         )
         for keyCode in [kVK_Space, kVK_F5, kVK_Tab] {
             assert(
-                !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keyset: .hjkl),
+                !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), groups: .all),
                 "key code \(keyCode) should not shadow a borrowed key"
             )
         }
         assert(
             ZoneNavigationInterceptor.shadowsBorrowedKey(
-                CGKeyCode(kVK_ANSI_Equal), keyset: .arrows,
+                CGKeyCode(kVK_ANSI_Equal), groups: .arrows,
                 earlierBorrowedKeys: [CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal)]
             ),
             "a key borrowed earlier in the claim order should shadow a later borrowed key"
         )
         assert(
             !ZoneNavigationInterceptor.shadowsBorrowedKey(
-                CGKeyCode(kVK_ANSI_Minus), keyset: .arrows,
+                CGKeyCode(kVK_ANSI_Minus), groups: .arrows,
                 earlierBorrowedKeys: [CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal)]
             ),
             "distinct earlier-borrowed keys should not shadow an unrelated borrowed key"
         )
 
         // The default borrowed keys — Space, =, -, M, in claim order — must stay reachable out
-        // of the box under every keyset preset: no preset may include one of them, and no
-        // default may shadow a later one. (The claim order itself is hand-maintained, in the
-        // interceptor's dispatch and the walkthrough's line order.)
+        // of the box: no selection key may be one of them, and no default may shadow a later one.
+        // (The claim order itself is hand-maintained, in the interceptor's dispatch and the
+        // walkthrough's line order.)
         let defaultBorrowedKeys = [
             CGKeyCode(kVK_Space), CGKeyCode(kVK_ANSI_Equal), CGKeyCode(kVK_ANSI_Minus), CGKeyCode(kVK_ANSI_M),
         ]
-        for keyset in ZoneNavigationKeyset.allCases {
-            for (claimIndex, keyCode) in defaultBorrowedKeys.enumerated() {
-                assert(
-                    !ZoneNavigationInterceptor.shadowsBorrowedKey(
-                        keyCode, keyset: keyset,
-                        earlierBorrowedKeys: Array(defaultBorrowedKeys.prefix(claimIndex))
-                    ),
-                    "default borrowed key \(keyCode) should stay reachable under \(keyset.rawValue)"
-                )
-            }
+        for (claimIndex, keyCode) in defaultBorrowedKeys.enumerated() {
+            assert(
+                !ZoneNavigationInterceptor.shadowsBorrowedKey(
+                    keyCode, groups: .all,
+                    earlierBorrowedKeys: Array(defaultBorrowedKeys.prefix(claimIndex))
+                ),
+                "default borrowed key \(keyCode) should stay reachable with every group on"
+            )
         }
 
-        // MARK: - Keyset persistence: default when unset, round-trip, invalid fallback
+        // MARK: - Key-group persistence: default when unset, round-trip, unknown bits dropped
 
         let defaults = UserDefaults.standard
-        let key = UserDefaultsKeys.zoneNavigationKeyset
+        let key = UserDefaultsKeys.zoneNavigationKeyGroups
         let previousValue = defaults.object(forKey: key)
         defer {
             if let previousValue {
@@ -157,11 +159,13 @@ enum ZoneNavigationChordPolicyTests {
         }
 
         defaults.removeObject(forKey: key)
-        assert(ZoneNavigationKeysetPreferences.load() == .arrows, "load should return arrows when unset")
-        defaults.set(ZoneNavigationKeyset.wasd.rawValue, forKey: key)
-        assert(ZoneNavigationKeysetPreferences.load() == .wasd, "a saved keyset should round-trip")
-        defaults.set("not-a-keyset", forKey: key)
-        assert(ZoneNavigationKeysetPreferences.load() == .arrows, "an invalid persisted keyset should fall back to arrows")
+        assert(ZoneNavigationKeyPreferences.load() == .all, "load should return both groups when unset")
+        defaults.set(ZoneNavigationKeyGroups.arrows.rawValue, forKey: key)
+        assert(ZoneNavigationKeyPreferences.load() == .arrows, "a saved group choice should round-trip")
+        defaults.set(0, forKey: key)
+        assert(ZoneNavigationKeyPreferences.load() == [], "both groups off is a valid saved choice")
+        defaults.set(ZoneNavigationKeyGroups.letters.rawValue | (1 << 7), forKey: key)
+        assert(ZoneNavigationKeyPreferences.load() == .letters, "unknown bits in a persisted value should be dropped")
 
         if allPassed {
             print("ZoneNavigationChordPolicyTests: all tests passed")

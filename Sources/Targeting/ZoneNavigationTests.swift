@@ -13,8 +13,9 @@ import CoreGraphics
 /// occupied and clear of the grid (a bottom-Dock layout). Screen B sits to the right with one
 /// empty full-screen tiling zone and an empty floating bar. Local fixtures cover the
 /// full-column-beside-a-stack layout (the reported diagonal-move annoyance), uneven splits,
-/// screens stacked above and below, corner arrangements, entry row-matching, and the Add Zone
-/// key's side preference plus the reselection after the Remove Zone key.
+/// screens stacked above and below, corner arrangements, entry row-matching, the cell and
+/// display keys' jumps, and the Add Zone key's side preference plus the reselection after the
+/// Remove Zone key.
 enum ZoneNavigationTests {
     private static let screenA: CGDirectDisplayID = 10
     private static let screenB: CGDirectDisplayID = 20
@@ -24,26 +25,29 @@ enum ZoneNavigationTests {
     private static let screenE: CGDirectDisplayID = 60
     private static let screenV: CGDirectDisplayID = 70
 
+    /// An occupied fixture zone ranks 0 in recency unless a `recency` rank is given (the display
+    /// key tests rank occupants against each other).
     private static func tiledZone(
         _ index: Int,
         _ frame: CGRect,
         on screenId: CGDirectDisplayID = screenA,
         _ side: ZoneSide,
         _ row: ZoneNavigation.StackRow,
-        occupied: Bool = false
+        occupied: Bool = false,
+        recency: Int? = nil
     ) -> ZoneNavigation.Candidate {
         .init(
             id: .tiling(screenId: screenId, index: index),
             frame: frame,
-            isOccupied: occupied,
+            recencyRank: recency ?? (occupied ? 0 : nil),
             place: .init(side: side, row: row)
         )
     }
 
     private static func floatingZone(
-        _ frame: CGRect, on screenId: CGDirectDisplayID = screenA, occupied: Bool = false
+        _ frame: CGRect, on screenId: CGDirectDisplayID = screenA, occupied: Bool = false, recency: Int? = nil
     ) -> ZoneNavigation.Candidate {
-        .init(id: .floating(screenId: screenId), frame: frame, isOccupied: occupied, place: nil)
+        .init(id: .floating(screenId: screenId), frame: frame, recencyRank: recency ?? (occupied ? 0 : nil), place: nil)
     }
 
     private static func screen(_ id: CGDirectDisplayID, _ frame: CGRect) -> ZoneNavigation.Screen {
@@ -393,6 +397,101 @@ enum ZoneNavigationTests {
 
         // MARK: No zones — nothing is selectable.
         assertSel(initial(.right, candidates: [], screens: []), nil, "empty candidates → nil")
+
+        // MARK: The start zone (where a jump's first press acts): the focused zone leads when it
+        // is navigable, then the targeted zone, then the fallback.
+        func assertId(_ actual: NavigableZoneIdentifier?, _ expected: NavigableZoneIdentifier?, _ label: String) {
+            if actual != expected {
+                print("ZoneNavigationTests: \(label) failed\n  expected: \(expected.map { String(describing: $0) } ?? "nil")\n  actual:   \(actual.map { String(describing: $0) } ?? "nil")")
+                allPassed = false
+            }
+        }
+        func start(
+            focused: NavigableZoneIdentifier?, targeted: NavigableZoneIdentifier?, fallback: NavigableZoneIdentifier?,
+            candidates: [ZoneNavigation.Candidate] = singleScreen
+        ) -> NavigableZoneIdentifier? {
+            ZoneNavigation.startZone(focusedZoneId: focused, targetedZoneId: targeted, fallbackZoneId: fallback, candidates: candidates)?.id
+        }
+        assertId(start(focused: z1.id, targeted: z2.id, fallback: z3.id), z1.id, "start: the focused zone leads")
+        assertId(start(focused: zB1.id, targeted: z2.id, fallback: z3.id), z2.id, "start: an unnavigable focused zone yields to the target")
+        assertId(start(focused: nil, targeted: nil, fallback: z3.id), z3.id, "start: the fallback covers the rest")
+        assertId(start(focused: nil, targeted: nil, fallback: nil), nil, "start: nothing resolves without a start")
+
+        // MARK: Cell keys on a stacked screen select the zone at that cell.
+        func assertCell(_ actual: ZoneNavigation.CellSelection?, _ expected: ZoneNavigation.CellSelection?, _ label: String) {
+            if actual != expected {
+                print("ZoneNavigationTests: \(label) failed\n  expected: \(expected.map { String(describing: $0) } ?? "nil")\n  actual:   \(actual.map { String(describing: $0) } ?? "nil")")
+                allPassed = false
+            }
+        }
+        func cell(
+            _ cell: ZoneNavigationCell, capacity: Int = 2,
+            candidates: [ZoneNavigation.Candidate] = singleScreen, on screenId: CGDirectDisplayID = screenA
+        ) -> ZoneNavigation.CellSelection? {
+            ZoneNavigation.cellSelection(cell: cell, screenId: screenId, sideCapacity: capacity, candidates: candidates)
+        }
+        assertCell(cell(.topLeft), .select(z1.id), "cell: top-left of a 2×2 grid")
+        assertCell(cell(.topRight), .select(z2.id), "cell: top-right of a 2×2 grid")
+        assertCell(cell(.bottomLeft), .select(z3.id), "cell: bottom-left of a 2×2 grid (empty zones are stops)")
+        assertCell(cell(.bottomRight), .select(z4.id), "cell: bottom-right of a 2×2 grid")
+
+        // MARK: A full-height column answers to its top cell with its zone; its bottom cell stacks
+        // a new zone below when the side has room, otherwise also selects the spanning zone
+        // (a single-bar layout's one-zone side).
+        assertCell(cell(.topLeft, capacity: 1, candidates: lr), .select(lrL1.id), "spanning column: top cell selects it")
+        assertCell(cell(.bottomLeft, capacity: 1, candidates: lr), .select(lrL1.id), "spanning column without room: bottom cell selects it too")
+        assertCell(cell(.topRight, candidates: lr), .select(lrR2.id), "beside the column, the stack answers by row (top)")
+        assertCell(cell(.bottomRight, candidates: lr), .select(lrR3.id), "beside the column, the stack answers by row (bottom)")
+        let leftColumnEmpty = tiledZone(1, CGRect(x: 0, y: 0, width: 480, height: 1000), .left, .full)
+        let rightColumnFilled = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 1000), .right, .full, occupied: true)
+        let leftRight = [leftColumnEmpty, rightColumnFilled, barA]
+        assertCell(cell(.topRight, candidates: leftRight), .select(rightColumnFilled.id), "left | right: top-right selects the right column")
+        assertCell(cell(.bottomRight, candidates: leftRight), .add(side: .right), "left | right: bottom-right stacks a zone below the right column")
+        assertCell(cell(.bottomLeft, capacity: 1, candidates: leftRight), .select(leftColumnEmpty.id), "left | right: a one-zone side's bottom cell selects its zone")
+        assertCell(cell(.bottomLeft, candidates: leftRight), .add(side: .left), "left | right: with room, bottom-left stacks a zone below the left column")
+
+        // MARK: A lone full-screen zone answers to the cells of its own (nominal) side — no
+        // stack is possible on a one-zone screen — while the other side's cells add the screen's
+        // second zone there, splitting the screen. A screen without tiling zones resolves nothing.
+        assertCell(cell(.topLeft, candidates: solo), .select(soloZone.id), "lone zone: its side's top cell selects it")
+        assertCell(cell(.bottomLeft, candidates: solo), .select(soloZone.id), "lone zone: its side's bottom cell selects it (no stack on one zone)")
+        assertCell(cell(.topRight, candidates: solo), .add(side: .right), "lone zone: the other side's top cell splits the screen")
+        assertCell(cell(.bottomRight, candidates: solo), .add(side: .right), "lone zone: the other side's bottom cell splits the screen too")
+        let soloRight = tiledZone(1, CGRect(x: 0, y: 0, width: 1000, height: 1000), .right, .full, occupied: true)
+        assertCell(cell(.topRight, candidates: [soloRight, soloBar]), .select(soloRight.id), "lone zone on the right (add bar on left): the right cells select it")
+        assertCell(cell(.topLeft, candidates: [soloRight, soloBar]), .add(side: .left), "lone zone on the right: the left cells add on the left")
+        assertCell(cell(.topLeft, candidates: [barA]), nil, "no tiling zones: a cell resolves nothing")
+
+        // MARK: Display keys count displays in geometric order — left to right, top to bottom for
+        // ties, regardless of declaration order — and enter a display at its last-used window
+        // (the best recency rank, the floating occupant included), else at the targeted zone
+        // when it lies there (its bar included), else at its lowest-index tiling zone. A position
+        // with no display resolves nothing.
+        func display(
+            _ ordinal: Int, targeted: NavigableZoneIdentifier? = nil,
+            candidates: [ZoneNavigation.Candidate], screens: [ZoneNavigation.Screen]
+        ) -> NavigableZoneIdentifier? {
+            ZoneNavigation.displaySelection(ordinal: ordinal, targetedZoneId: targeted, candidates: candidates, screens: screens)
+        }
+        let r1 = tiledZone(1, z1.frame, .left, .top, recency: 2)
+        let r2 = tiledZone(2, z2.frame, .right, .top, recency: 1)
+        let r4 = tiledZone(4, z4.frame, .right, .bottom, recency: 4)
+        let rBar = floatingZone(barA.frame, recency: 3)
+        let ranked = [r1, r2, z3, r4, rBar, zB1, barB]
+        assertId(display(0, candidates: ranked, screens: [sB, sA]), r2.id, "display: the left screen is first regardless of declaration order, entered at its last-used window")
+        assertId(display(1, candidates: ranked, screens: [sB, sA]), zB1.id, "display: a screen without windows or target enters at its lowest-index zone")
+        assertId(display(1, targeted: barB.id, candidates: ranked, screens: [sB, sA]), barB.id, "display: a windowless screen enters at the targeted zone when it lies there (bar included)")
+        assertId(display(1, targeted: z1.id, candidates: ranked, screens: [sB, sA]), zB1.id, "display: a target elsewhere does not steer the entry")
+        assertId(display(2, candidates: ranked, screens: [sB, sA]), nil, "display: no third display")
+        assertId(display(-1, candidates: ranked, screens: [sB, sA]), nil, "display: negative positions resolve nothing")
+        let recentBar = floatingZone(barA.frame, recency: 0)
+        assertId(display(0, candidates: [r1, r2, z3, r4, recentBar], screens: [sA]), recentBar.id, "display: the floating occupant counts as the last-used window")
+        let emptyRight = tiledZone(2, CGRect(x: 520, y: 0, width: 480, height: 1000), .right, .full)
+        assertId(display(0, targeted: emptyRight.id, candidates: [leftColumnEmpty, emptyRight, floatingZone(barA.frame)], screens: [sA]), emptyRight.id, "display: among empty zones the targeted one wins…")
+        assertId(display(0, targeted: zB1.id, candidates: [leftColumnEmpty, emptyRight], screens: [sA]), leftColumnEmpty.id, "…else the lowest index")
+        let stackedRanked = [r1, r2, z3, r4, rBar, zT, barT]
+        assertId(display(0, candidates: stackedRanked, screens: [sA, sT]), zT.id, "display: same left edge — the upper screen comes first")
+        assertId(display(1, candidates: stackedRanked, screens: [sA, sT]), r2.id, "display: …and the lower screen second")
 
         // MARK: The Add Zone key's side preference: stack into the selected zone's column only
         // when that zone is alone there and the column has room — a lone full-screen zone, a

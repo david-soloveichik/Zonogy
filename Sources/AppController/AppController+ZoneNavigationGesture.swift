@@ -1,15 +1,16 @@
 import AppKit
 import Foundation
 
-/// Keyboard zone navigation: builds the navigable zone set, resolves the
-/// selection as the gesture proceeds, shows it with the blue-circle overlay, and commits on release
-/// (focus a filled zone's window, or target an empty zone), on the move key (move the focused
-/// window into the selected zone), or on the Show Launcher key (target the selected zone and open the
-/// Launcher there). The Add Zone and Remove Zone keys change the topology under the gesture — add
-/// a zone for the selected zone, or remove the selected zone — and the Minimize key minimizes the
-/// selected zone's window (or removes an empty tiling zone); the gesture continues around the
-/// result. The gesture lifecycle is driven by `ZoneNavigationInterceptor`; the selection policy
-/// is the pure `ZoneNavigation`.
+/// Keyboard zone navigation: builds the navigable zone set, resolves the selection as the gesture
+/// proceeds — the arrows step it, the letters jump it to a cell of the current screen (adding the
+/// zone when the cell has none), to the floating zone, or to a display's last-used window — shows
+/// it with the blue-circle overlay, and commits on release (focus a filled zone's window, or
+/// target an empty zone), on the move key (move the focused window into the selected zone), or on
+/// the Show Launcher key (target the selected zone and open the Launcher there). The Add Zone and
+/// Remove Zone keys change the topology under the gesture — add a zone for the selected zone, or
+/// remove the selected zone — and the Minimize key minimizes the selected zone's window (or
+/// removes an empty tiling zone); the gesture continues around the result. The gesture lifecycle
+/// is driven by `ZoneNavigationInterceptor`; the selection policy is the pure `ZoneNavigation`.
 extension AppController {
     /// Live state for an in-progress zone-navigation gesture. Candidates and screens are
     /// snapshotted at engage time so the circle stays stable for the (brief) duration of the
@@ -35,12 +36,12 @@ extension AppController: ZoneNavigationInterceptorDelegate {
             && hasNavigableZone()
     }
 
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin direction: ZoneNavigationDirection) {
-        beginZoneNavigation(direction: direction)
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey) {
+        beginZoneNavigation(key: key)
     }
 
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didMove direction: ZoneNavigationDirection) {
-        moveZoneNavigation(direction: direction)
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didPress key: ZoneNavigationKey) {
+        pressZoneNavigation(key: key)
     }
 
     func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor) -> Bool {
@@ -73,28 +74,37 @@ extension AppController: ZoneNavigationInterceptorDelegate {
 }
 
 extension AppController {
-    private func beginZoneNavigation(direction: ZoneNavigationDirection) {
+    private func beginZoneNavigation(key: ZoneNavigationKey) {
         let snapshot = zoneNavigationSnapshot()
-        guard !snapshot.candidates.isEmpty else {
-            // `shouldBegin` already gates on `hasNavigableZone()`, so this only happens if the
-            // screens changed between engaging and now. Drop the interceptor's engaged state too so
-            // it stops swallowing arrows for a dead session.
-            Logger.debug("Zone navigation (\(direction)): no navigable zones; ignoring")
-            zoneNavigationInterceptor.resetEngagement()
-            clearZoneNavigation()
-            return
-        }
-
         let start = zoneNavigationStart(candidates: snapshot.candidates)
-        guard let selection = ZoneNavigation.initialSelection(
-            direction: direction,
-            focusedZoneId: start.focusedZoneId,
-            targetedZoneId: start.targetedZoneId,
-            fallbackZoneId: start.fallbackZoneId,
-            candidates: snapshot.candidates,
-            screens: snapshot.screens
-        ) else {
-            // Unreachable with non-empty candidates (the fallback start always resolves).
+        let selection: ZoneNavigation.Selection?
+        switch key {
+        case .move(let direction):
+            selection = ZoneNavigation.initialSelection(
+                direction: direction,
+                focusedZoneId: start.focusedZoneId,
+                targetedZoneId: start.targetedZoneId,
+                fallbackZoneId: start.fallbackZoneId,
+                candidates: snapshot.candidates,
+                screens: snapshot.screens
+            )
+        case .zone, .floatingZone, .display:
+            // A jump's start zone only fixes the current screen — and where the circle appears
+            // when the jump resolves nothing — so select it in place and then apply the press
+            // like any later one.
+            selection = ZoneNavigation.startZone(
+                focusedZoneId: start.focusedZoneId,
+                targetedZoneId: start.targetedZoneId,
+                fallbackZoneId: start.fallbackZoneId,
+                candidates: snapshot.candidates
+            ).map { .init(id: $0.id, trail: []) }
+        }
+        guard let selection else {
+            // Only an empty snapshot resolves nothing. `shouldBegin` already gates on
+            // `hasNavigableZone()`, so this only happens if the screens changed between engaging
+            // and now. Drop the interceptor's engaged state too so it stops swallowing keys for a
+            // dead session.
+            Logger.debug("Zone navigation (\(key)): no navigable zones; ignoring")
             zoneNavigationInterceptor.resetEngagement()
             clearZoneNavigation()
             return
@@ -106,17 +116,62 @@ extension AppController {
             selection: selection
         )
         updateZoneNavigationDot(selection: selection.id)
-        Logger.debug("Zone navigation begun (\(direction)); selection: \(selection.id)")
+        Logger.debug("Zone navigation begun (\(key)); selection: \(selection.id)")
+        if key.isJump {
+            pressZoneNavigation(key: key)
+        }
     }
 
-    private func moveZoneNavigation(direction: ZoneNavigationDirection) {
+    /// A selection key while engaged: an arrow steps from the current selection; a letter jumps —
+    /// to a cell of the current screen (adding the zone first when the cell has none, which
+    /// rebuilds the gesture around the new zone), to the current screen's floating zone, or to a
+    /// display's last-used window. Jumps start a fresh back-out trail. A jump that resolves
+    /// nothing (a display that doesn't exist, a barless screen) leaves the selection unchanged.
+    private func pressZoneNavigation(key: ZoneNavigationKey) {
         guard var state = zoneNavigationState else { return }
-        let next = ZoneNavigation.nextSelection(
-            direction: direction,
-            currentSelection: state.selection,
-            candidates: state.candidates,
-            screens: state.screens
-        )
+        let current = state.selection
+        let next: ZoneNavigation.Selection
+        switch key {
+        case .move(let direction):
+            next = ZoneNavigation.nextSelection(
+                direction: direction,
+                currentSelection: current,
+                candidates: state.candidates,
+                screens: state.screens
+            )
+        case .zone(let cell):
+            let screenId = current.id.screenId
+            guard let context = screenContexts[screenId],
+                  let resolution = ZoneNavigation.cellSelection(
+                      cell: cell,
+                      screenId: screenId,
+                      sideCapacity: context.zoneController.layoutStyle.sideCapacity(cell.side),
+                      candidates: state.candidates
+                  ) else {
+                return
+            }
+            switch resolution {
+            case .select(let id):
+                next = .init(id: id, trail: [])
+            case .add(let side):
+                performZoneNavigationAdd(on: screenId, side: side)
+                return
+            }
+        case .floatingZone:
+            let barId = NavigableZoneIdentifier.floating(screenId: current.id.screenId)
+            guard state.candidates.contains(where: { $0.id == barId }) else { return }
+            next = .init(id: barId, trail: [])
+        case .display(let ordinal):
+            guard let id = ZoneNavigation.displaySelection(
+                ordinal: ordinal,
+                targetedZoneId: targetedZoneManager.targetedDestination.map(navigableZoneIdentifier(for:)),
+                candidates: state.candidates,
+                screens: state.screens
+            ) else {
+                return
+            }
+            next = .init(id: id, trail: [])
+        }
         state.selection = next
         zoneNavigationState = state
         updateZoneNavigationDot(selection: next.id)
@@ -194,8 +249,9 @@ extension AppController {
     /// removal, so the commit-time existence checks alone can't catch it. Drop the gesture rather
     /// than let a commit act on the wrong zone. Called from the canonical topology mutations, so
     /// mouse-driven changes (placeholder ×, add-zone pill) are covered too. The one exception is a
-    /// change driven by the gesture's own Add/Remove Zone keys, which rebuilds the gesture around
-    /// the new topology instead (see `continueZoneNavigation`).
+    /// change driven by the gesture's own keys (Add Zone, Remove Zone, or a cell key adding its
+    /// zone), which rebuilds the gesture around the new topology instead (see
+    /// `continueZoneNavigation`).
     internal func cancelZoneNavigationForTopologyChange(reason: String) {
         guard !zoneNavigationDrivenTopologyChange else { return }
         zoneNavigationInterceptor.resetEngagement()
@@ -226,8 +282,22 @@ extension AppController {
     /// in accessibility coordinates and its structural place (column side and stack row, driving
     /// the within-screen moves); each screen contributes its floating zone at its bottom-edge
     /// bar, occupied or not, and its full frame (the input to the cross-screen direction
-    /// classification). Only navigable (unpaused) screens contribute — see `isScreenNavigable`.
+    /// classification). Occupants rank by the shared managed-window recency order — the focused
+    /// window first, since its activity is recorded only after a stability delay — for the
+    /// display keys' last-used entry. Only navigable (unpaused) screens contribute — see
+    /// `isScreenNavigable`.
     private func zoneNavigationSnapshot() -> (candidates: [ZoneNavigation.Candidate], screens: [ZoneNavigation.Screen]) {
+        var recencyRanks: [Int: Int] = [:]
+        let recencyOrder = [currentFrontmostManagedWindowId].compactMap { $0 }
+            + windowController.allWindowsOrderedByRecency().map(\.windowId)
+        for windowId in recencyOrder where recencyRanks[windowId] == nil {
+            recencyRanks[windowId] = recencyRanks.count
+        }
+        // An occupant absent from the recency order (not expected) still counts as occupied.
+        func recencyRank(of windowId: Int?) -> Int? {
+            windowId.map { recencyRanks[$0] ?? Int.max }
+        }
+
         var candidates: [ZoneNavigation.Candidate] = []
         var screens: [ZoneNavigation.Screen] = []
         for screenId in screenOrder {
@@ -252,18 +322,19 @@ extension AppController {
                 candidates.append(.init(
                     id: .tiling(screenId: screenId, index: zone.index),
                     frame: descriptor.screenToAccessibility(zone.frame),
-                    isOccupied: zone.occupantWindowId != nil,
+                    recencyRank: recencyRank(of: zone.occupantWindowId),
                     place: .init(side: zone.side, row: row)
                 ))
             }
 
             // The bar is the floating zone's fixed home in the gesture; occupancy only matters
-            // for what a commit does (and for selecting a filled target in place).
+            // for what a commit does, for selecting a filled target in place, and for the
+            // display keys' last-used entry.
             if let barFrame = floatingIndicatorFrames(for: descriptor)?.accessibility {
                 candidates.append(.init(
                     id: .floating(screenId: screenId),
                     frame: barFrame,
-                    isOccupied: floatingZoneOccupant(on: screenId) != nil,
+                    recencyRank: recencyRank(of: floatingZoneOccupant(on: screenId)?.windowId),
                     place: nil
                 ))
             }
@@ -464,8 +535,7 @@ extension AppController {
 
     /// Add Zone key: add a zone on the selected zone's screen — stacking into the selected zone's
     /// column when it is alone there (`ZoneNavigation.stackedAddSide`), otherwise on the layout's
-    /// normal fill-order side — and continue the gesture with the circle on the new zone. A failed
-    /// add (the layout style's zone maximum is reached) leaves the gesture unchanged.
+    /// normal fill-order side.
     private func performZoneNavigationAdd() {
         guard let state = zoneNavigationState else { return }
         let selectionId = state.selection.id
@@ -482,7 +552,14 @@ extension AppController {
                 selectedSideCapacity: context.zoneController.layoutStyle.sideCapacity(zone.side)
             )
         }
+        performZoneNavigationAdd(on: screenId, side: side)
+    }
 
+    /// Add a zone on `screenId` — on `side`, or on the layout's normal fill-order side when nil —
+    /// and continue the gesture with the circle on the new zone. A failed add (the layout style's
+    /// zone maximum is reached) leaves the gesture unchanged. Shared by the Add Zone key and the
+    /// cell keys.
+    private func performZoneNavigationAdd(on screenId: CGDirectDisplayID, side: ZoneSide?) {
         let newZone = performZoneNavigationTopologyChange {
             addZone(on: screenId, side: side, announce: true)
         }

@@ -1,9 +1,10 @@
 /// Intercepts the zone-navigation chord (held modifiers + a selection key) via a global CGEventTap.
 ///
 /// Mirrors `CmdTabKeyInterceptor`: it engages on the chord, swallows the selection keys while held
-/// so they don't leak to the focused app, lets each press move the selection, and — because the
-/// commit action triggers on modifier release — commits when the modifiers are released. The
-/// selection keys are the arrows plus the chosen letter preset (`ZoneNavigationKeysetPreferences`),
+/// so they don't leak to the focused app, lets each press step or jump the selection, and —
+/// because the commit action triggers on modifier release — commits when the modifiers are
+/// released. The selection keys are the enabled groups of `ZoneNavigationKeyPreferences` (the
+/// arrows step, the letters jump; a group turned off has no selection meaning, even mid-gesture),
 /// Return always moves the focused window, and the modifier combination is configurable
 /// (`ModifierCombinationPreferences.zoneNavigation`). While engaged, Return asks the delegate to
 /// move the focused window into the selected zone, and the Show Launcher shortcut's key (Space by
@@ -25,11 +26,11 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
     /// Return false to decline starting a gesture (e.g., a chooser is open); the chord then passes through.
     func zoneNavigationShouldBegin(_ interceptor: ZoneNavigationInterceptor) -> Bool
 
-    /// Begin a gesture from the given direction (resolve the initial selection, show the circle).
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin direction: ZoneNavigationDirection)
+    /// Begin a gesture from the given selection key (resolve the initial selection, show the circle).
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey)
 
-    /// Move the selection one step in the given direction.
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didMove direction: ZoneNavigationDirection)
+    /// A further selection key while engaged: step or jump the selection.
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didPress key: ZoneNavigationKey)
 
     /// Move key pressed while engaged. The delegate moves the focused window into the selected zone
     /// and returns true — ending the gesture — or returns false to leave it engaged (nothing to
@@ -67,29 +68,32 @@ final class ZoneNavigationInterceptor {
     /// The gesture's move key: Return moves the focused window into the selected zone.
     static let moveKeyCode = CGKeyCode(kVK_Return)
 
-    /// The chords the gesture claims under a given modifier combination and keyset (the selection
-    /// keys and Return, plus those modifiers). The shortcut editors keep table shortcuts off these,
-    /// since the gesture's event tap would swallow them before any hotkey fires.
+    /// The chords the gesture claims under a given modifier combination and key groups (the
+    /// enabled selection keys and Return, plus those modifiers; nothing when no group is enabled,
+    /// since the gesture then never engages). The shortcut editors keep table shortcuts off
+    /// these, since the gesture's event tap would swallow them before any hotkey fires.
     static func reservedShortcuts(
         for modifiers: ModifierCombination,
-        keyset: ZoneNavigationKeyset
+        groups: ZoneNavigationKeyGroups
     ) -> [KeyboardShortcut] {
-        (Array(keyset.directionKeys.keys) + [moveKeyCode]).map {
+        let selectionKeys = groups.selectionKeys.keys
+        guard !selectionKeys.isEmpty else { return [] }
+        return (Array(selectionKeys) + [moveKeyCode]).map {
             KeyboardShortcut(keyCode: UInt32($0), modifiers: modifiers.carbonModifiers)
         }
     }
 
-    /// Whether `keyCode` is unreachable as a borrowed key under the given keyset: the gesture's
-    /// own keys (selection, move, and cancel) act first, as does any key borrowed earlier in the
-    /// claim order — Show Launcher, then Add Zone, then Remove Zone, then Minimize Focused
-    /// Window. A shortcut whose key is shadowed can't perform its step mid-gesture — the editor
-    /// sheet shows it as unavailable.
+    /// Whether `keyCode` is unreachable as a borrowed key under the given key groups: the
+    /// gesture's own keys (selection, move, and cancel) act first, as does any key borrowed
+    /// earlier in the claim order — Show Launcher, then Add Zone, then Remove Zone, then Minimize
+    /// Focused Window. A shortcut whose key is shadowed can't perform its step mid-gesture — the
+    /// editor sheet shows it as unavailable.
     static func shadowsBorrowedKey(
         _ keyCode: CGKeyCode,
-        keyset: ZoneNavigationKeyset,
+        groups: ZoneNavigationKeyGroups,
         earlierBorrowedKeys: [CGKeyCode] = []
     ) -> Bool {
-        keyset.directionKeys[keyCode] != nil || keyCode == moveKeyCode || keyCode == escapeKeyCode
+        groups.selectionKeys[keyCode] != nil || keyCode == moveKeyCode || keyCode == escapeKeyCode
             || earlierBorrowedKeys.contains(keyCode)
     }
 
@@ -112,7 +116,7 @@ final class ZoneNavigationInterceptor {
     /// The modifiers, selection keys, and Show Launcher key binding captured at engage time, so
     /// mid-gesture edits can't confuse the session.
     private var requiredModifiers: CGEventFlags = []
-    private var engagedDirectionKeys: [CGKeyCode: ZoneNavigationDirection] = [:]
+    private var engagedSelectionKeys: [CGKeyCode: ZoneNavigationKey] = [:]
     private var engagedLauncherKey: CGKeyCode?
     private var engagedAddZoneKey: CGKeyCode?
     private var engagedRemoveZoneKey: CGKeyCode?
@@ -163,7 +167,7 @@ final class ZoneNavigationInterceptor {
     private func endEngagement() {
         isEngaged = false
         requiredModifiers = []
-        engagedDirectionKeys = [:]
+        engagedSelectionKeys = [:]
         engagedLauncherKey = nil
         engagedAddZoneKey = nil
         engagedRemoveZoneKey = nil
@@ -244,11 +248,16 @@ final class ZoneNavigationInterceptor {
                 return .pass
             }
 
-            // Move the selection on a direction key (while the required modifiers are still held).
-            if let direction = engagedDirectionKeys[keyCode] {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.delegate?.zoneNavigation(self, didMove: direction)
+            // Step or jump the selection on a selection key (while the required modifiers are
+            // still held). A held arrow keeps stepping; a jump key's auto-repeats are swallowed
+            // but ignored — a jump is idempotent, and a held cell key would otherwise keep adding
+            // zones (its first press can add a column, its second stack that column).
+            if let key = engagedSelectionKeys[keyCode] {
+                if !key.isJump || event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        self.delegate?.zoneNavigation(self, didPress: key)
+                    }
                 }
                 return .swallow
             }
@@ -315,8 +324,8 @@ final class ZoneNavigationInterceptor {
             return .pass
         }
 
-        let directionKeys = ZoneNavigationKeysetPreferences.shared.keyset.directionKeys
-        guard let direction = directionKeys[keyCode],
+        let selectionKeys = ZoneNavigationKeyPreferences.shared.selectionKeys
+        guard let key = selectionKeys[keyCode],
               delegate?.zoneNavigationShouldBegin(self) == true else {
             return .pass
         }
@@ -326,7 +335,7 @@ final class ZoneNavigationInterceptor {
         // shortcuts — only their key codes matter, since the gesture's modifiers are already held.
         isEngaged = true
         requiredModifiers = relevantFlags
-        engagedDirectionKeys = directionKeys
+        engagedSelectionKeys = selectionKeys
         let shortcutPreferences = KeyboardShortcutPreferences.shared
         engagedLauncherKey = shortcutPreferences.shortcut(for: .showLauncher)
             .map { CGKeyCode($0.keyCode) }
@@ -340,7 +349,7 @@ final class ZoneNavigationInterceptor {
         let generation = engagementGeneration
         DispatchQueue.main.async { [weak self] in
             guard let self, self.engagementGeneration == generation else { return }
-            self.delegate?.zoneNavigation(self, didBegin: direction)
+            self.delegate?.zoneNavigation(self, didBegin: key)
         }
         return .swallow
     }

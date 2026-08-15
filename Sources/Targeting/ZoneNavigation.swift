@@ -23,6 +23,11 @@ import CoreGraphics
 /// the gesture's start. Moves are lossy (a full-height column reached from a stack's bottom
 /// re-enters the stack at its top), so reversal is remembered, not recomputed.
 ///
+/// The letter keys jump instead of stepping (and start a fresh trail): a cell key names one cell
+/// of the current screen's two-by-two grid and resolves to the zone there — or to the zone that
+/// must be added first (`cellSelection`); a display key names a display by geometric order and
+/// enters it at its last-used window (`displaySelection`).
+///
 /// Alongside the moves, this file also holds the pure policy for the gesture's Add Zone and
 /// Remove Zone keys: the side a mid-gesture add stacks into, and where the circle lands after the
 /// selected zone is removed.
@@ -78,10 +83,14 @@ enum ZoneNavigation {
     struct Candidate: Equatable {
         let id: NavigableZoneIdentifier
         let frame: CGRect
-        /// Whether a window occupies this zone (gesture-time snapshot; commits re-read live
-        /// occupancy).
-        let isOccupied: Bool
+        /// The occupant's place in the shared managed-window recency order (0 = most recently
+        /// used, with the focused window first), or nil for an empty zone. A gesture-time
+        /// snapshot; commits re-read live occupancy.
+        let recencyRank: Int?
         let place: ColumnPlace?
+
+        /// Whether a window occupies this zone.
+        var isOccupied: Bool { recencyRank != nil }
     }
 
     /// A navigable screen by its full frame on the shared global plane — the input to the
@@ -104,19 +113,32 @@ enum ZoneNavigation {
         let trail: [Move]
     }
 
-    /// Selection produced by the first (engaging) arrow press.
+    /// The zone a gesture starts from: the focused managed window's zone when it is navigable
+    /// (while the Launcher is open the caller passes none, so the gesture starts from the
+    /// Launcher's zone — the targeted zone), else the targeted zone, else `fallbackZoneId`.
+    /// Nil only when none resolves (no candidates).
+    static func startZone(
+        focusedZoneId: NavigableZoneIdentifier?,
+        targetedZoneId: NavigableZoneIdentifier?,
+        fallbackZoneId: NavigableZoneIdentifier?,
+        candidates: [Candidate]
+    ) -> Candidate? {
+        [focusedZoneId, targetedZoneId, fallbackZoneId]
+            .lazy
+            .compactMap { id in candidates.first { $0.id == id } }
+            .first
+    }
+
+    /// Selection produced by the first (engaging) arrow press, from the `startZone`.
     ///
-    /// - When a managed window is focused, the press moves off its zone to the next zone in the
-    ///   pressed direction. (While the Launcher is open the caller passes no focused zone, so
-    ///   the gesture starts from the Launcher's zone — the targeted zone below.)
-    /// - Otherwise navigation starts from the targeted zone: a filled target is selected in place
-    ///   (regardless of direction, so tap-and-release focuses its window); an empty target moves
-    ///   immediately.
-    /// - `fallbackZoneId` covers the remaining no-focus, no-resolvable-target case.
+    /// - From the focused window's zone, the press moves off it to the next zone in the pressed
+    ///   direction.
+    /// - A filled targeted zone is selected in place (regardless of direction, so tap-and-release
+    ///   focuses its window); an empty one moves immediately, as does the fallback.
     ///
     /// A press with no zone in the pressed direction selects the start zone in place — the circle
     /// appears where the gesture starts rather than nothing happening. Returns nil only when no
-    /// start resolves (no candidates).
+    /// start resolves.
     static func initialSelection(
         direction: ZoneNavigationDirection,
         focusedZoneId: NavigableZoneIdentifier?,
@@ -125,24 +147,18 @@ enum ZoneNavigation {
         candidates: [Candidate],
         screens: [Screen]
     ) -> Selection? {
-        if let focusedZoneId,
-           let focused = candidates.first(where: { $0.id == focusedZoneId }) {
-            return move(from: focused, direction: direction, candidates: candidates, screens: screens)
-        }
-
-        if let targetedZoneId,
-           let target = candidates.first(where: { $0.id == targetedZoneId }) {
-            if target.isOccupied {
-                return Selection(id: target.id, trail: [])
-            }
-            return move(from: target, direction: direction, candidates: candidates, screens: screens)
-        }
-
-        guard let fallbackZoneId,
-              let fallback = candidates.first(where: { $0.id == fallbackZoneId }) else {
+        guard let start = startZone(
+            focusedZoneId: focusedZoneId,
+            targetedZoneId: targetedZoneId,
+            fallbackZoneId: fallbackZoneId,
+            candidates: candidates
+        ) else {
             return nil
         }
-        return move(from: fallback, direction: direction, candidates: candidates, screens: screens)
+        if start.id != focusedZoneId, start.id == targetedZoneId, start.isOccupied {
+            return Selection(id: start.id, trail: [])
+        }
+        return move(from: start, direction: direction, candidates: candidates, screens: screens)
     }
 
     /// Selection produced by a subsequent arrow press. Pressing the opposite of the move that
@@ -175,6 +191,76 @@ enum ZoneNavigation {
             id: next,
             trail: currentSelection.trail + [Move(source: current.id, direction: direction)]
         )
+    }
+
+    // MARK: - Jump keys (cell and display selection)
+
+    /// What a cell key (A/S/D/F) resolves to on a screen.
+    enum CellSelection: Equatable {
+        /// Select this zone.
+        case select(NavigableZoneIdentifier)
+        /// Add a zone on this side of the screen, and select it.
+        case add(side: ZoneSide)
+    }
+
+    /// The zone a cell key jumps to on `screenId`, or the zone it must add there first. A side
+    /// holding a stack has a zone at each cell. A side holding one full-height zone answers to
+    /// its top cell with that zone; its bottom cell stacks a new zone below when the column can
+    /// take another (`stackedAddSide`), otherwise also selects the spanning zone. A side with no
+    /// zone — the screen's lone zone tiles the other side — gets its first zone: adding splits
+    /// the screen. Nil only for a screen without tiling zones.
+    static func cellSelection(
+        cell: ZoneNavigationCell,
+        screenId: CGDirectDisplayID,
+        sideCapacity: Int,
+        candidates: [Candidate]
+    ) -> CellSelection? {
+        let model = ScreenModel(of: screenId, in: candidates)
+        guard !model.tiling.isEmpty else { return nil }
+        if let stacked = model.zone(cell.side, cell.isBottom ? .bottom : .top) {
+            return .select(stacked)
+        }
+        guard let spanning = model.zone(cell.side, .full) else {
+            return .add(side: cell.side)
+        }
+        if cell.isBottom,
+           stackedAddSide(
+               selectedZoneSide: cell.side,
+               zonesOnScreen: model.tiling.count,
+               zonesOnSelectedSide: 1,
+               selectedSideCapacity: sideCapacity
+           ) != nil {
+            return .add(side: cell.side)
+        }
+        return .select(spanning)
+    }
+
+    /// The zone a display key jumps to: the display at `ordinal` in geometric order (left to
+    /// right, top to bottom for ties) is entered at its last-used window's zone — the occupant
+    /// with the best recency rank — else at the targeted zone when it lies there, else at its
+    /// lowest-index tiling zone. Nil when no display holds that position.
+    static func displaySelection(
+        ordinal: Int,
+        targetedZoneId: NavigableZoneIdentifier?,
+        candidates: [Candidate],
+        screens: [Screen]
+    ) -> NavigableZoneIdentifier? {
+        let ordered = screens.sorted { lhs, rhs in
+            if lhs.frame.minX != rhs.frame.minX { return lhs.frame.minX < rhs.frame.minX }
+            if lhs.frame.minY != rhs.frame.minY { return lhs.frame.minY < rhs.frame.minY }
+            return lhs.id < rhs.id
+        }
+        guard ordinal >= 0, ordinal < ordered.count else { return nil }
+        let screenId = ordered[ordinal].id
+        let onScreen = candidates.filter { $0.id.screenId == screenId }
+        if let lastUsed = onScreen.filter(\.isOccupied)
+            .min(by: { ($0.recencyRank ?? .max) < ($1.recencyRank ?? .max) }) {
+            return lastUsed.id
+        }
+        if let targetedZoneId, onScreen.contains(where: { $0.id == targetedZoneId }) {
+            return targetedZoneId
+        }
+        return ScreenModel(of: screenId, in: candidates).lowestIndexZone
     }
 
     /// The one direction `other` lies in from `source` (full screen frames on the global plane).
@@ -283,7 +369,7 @@ enum ZoneNavigation {
         }
 
         /// The lowest-index tiling zone — a single-column screen's lone zone (defensively, of
-        /// any degenerate set).
+        /// any degenerate set), and a display key's last-resort entry.
         var lowestIndexZone: NavigableZoneIdentifier? {
             tiling.min { $0.id.indexKey < $1.id.indexKey }?.id
         }

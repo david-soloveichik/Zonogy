@@ -19,7 +19,7 @@ enum UserDefaultsKeys {
 
     // MARK: - Zone Navigation
     static let zoneNavigationModifiers = "Zonogy.zoneNavigation.modifiers"
-    static let zoneNavigationKeyset = "Zonogy.zoneNavigation.keyset"
+    static let zoneNavigationKeyGroups = "Zonogy.zoneNavigation.keyGroups"
 
     // MARK: - Software Update
     static let updateAutomaticCheckEnabled = "Zonogy.update.automaticCheckEnabled"

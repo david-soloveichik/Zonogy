@@ -363,7 +363,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         // before its hotkey could fire, so keep recording instead of accepting it.
         let reserved = ZoneNavigationInterceptor.reservedShortcuts(
             for: ModifierCombinationPreferences.zoneNavigation.modifiers,
-            keyset: ZoneNavigationKeysetPreferences.shared.keyset
+            groups: ZoneNavigationKeyPreferences.shared.groups
         )
         guard !reserved.contains(shortcut) else {
             return
@@ -429,16 +429,16 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
 
     @objc private func editZoneNavigationModifiers() {
         let modifiersVC = ModifierCombinationSheetViewController.zoneNavigation()
-        modifiersVC.onSave = { [weak self] modifiers, keysetIndex in
-            let keyset = ZoneNavigationKeyset.allCases[keysetIndex]
+        modifiersVC.onSave = { [weak self] modifiers, optionStates in
+            let groups = ModifierCombinationSheetViewController.zoneNavigationKeyGroups(fromOptionStates: optionStates)
             ModifierCombinationPreferences.zoneNavigation.update(modifiers)
-            ZoneNavigationKeysetPreferences.shared.update(keyset)
+            ZoneNavigationKeyPreferences.shared.update(groups)
             // The gesture now claims its selection keys and Return under these modifiers; steal
             // any table shortcut sitting on one of those chords (mirroring how recording a shortcut
             // steals it from its previous action), since the gesture's event tap would swallow it
             // anyway.
             let prefs = KeyboardShortcutPreferences.shared
-            for reserved in ZoneNavigationInterceptor.reservedShortcuts(for: modifiers, keyset: keyset) {
+            for reserved in ZoneNavigationInterceptor.reservedShortcuts(for: modifiers, groups: groups) {
                 if let conflictingAction = prefs.action(for: reserved) {
                     prefs.clearShortcut(for: conflictingAction)
                 }
