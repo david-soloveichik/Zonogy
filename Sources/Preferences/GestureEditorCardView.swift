@@ -4,7 +4,8 @@
 /// These two gestures have no single key combination to list as a table row, so a plain button
 /// under the table both buried them and said nothing about their current setting. A card names the
 /// gesture, previews the modifiers it holds as lit keycaps, and says what you do while holding
-/// them — so the whole configuration is legible without opening the sheet.
+/// them — so the whole configuration is legible without opening the sheet. A gesture whose chords
+/// clash with a shortcut carries the same warning mark the table rows do.
 import AppKit
 
 final class GestureEditorCardView: NSControl {
@@ -12,9 +13,12 @@ final class GestureEditorCardView: NSControl {
     private let summary: String
     /// Read on every refresh, so the caps track edits made in the sheet.
     private let modifiers: () -> ModifierCombination
+    /// The conflict explanation to show, if any; also read on every refresh.
+    private let warning: () -> String?
     private let onOpen: () -> Void
 
     private var capsRow: NSStackView!
+    private var warningMark: ConflictWarningView!
     private var trackingAreaForHover: NSTrackingArea?
     /// The last description handed to accessibility, so a refresh can tell a real change from the
     /// initial one during `init`.
@@ -31,11 +35,13 @@ final class GestureEditorCardView: NSControl {
         title: String,
         summary: String,
         modifiers: @escaping () -> ModifierCombination,
+        warning: @escaping () -> String? = { nil },
         onOpen: @escaping () -> Void
     ) {
         self.cardTitle = title
         self.summary = summary
         self.modifiers = modifiers
+        self.warning = warning
         self.onOpen = onOpen
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
@@ -72,7 +78,9 @@ final class GestureEditorCardView: NSControl {
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        let row = NSStackView(views: [icon, text, spacer, chevron])
+        warningMark = ConflictWarningView()
+
+        let row = NSStackView(views: [icon, text, spacer, warningMark, chevron])
         row.translatesAutoresizingMaskIntoConstraints = false
         row.orientation = .horizontal
         row.alignment = .centerY
@@ -93,7 +101,7 @@ final class GestureEditorCardView: NSControl {
         fatalError("init(coder:) is not supported")
     }
 
-    /// Re-read the stored modifiers and redraw the caps.
+    /// Re-read the stored modifiers and any conflict, and redraw the caps and the mark.
     func refresh() {
         for view in capsRow.arrangedSubviews {
             capsRow.removeArrangedSubview(view)
@@ -109,18 +117,24 @@ final class GestureEditorCardView: NSControl {
         capsRow.setCustomSpacing(7, after: capsRow.arrangedSubviews.last ?? capsRow)
         capsRow.addArrangedSubview(label)
 
+        let warningText = warning()
+        warningMark.text = warningText
+        warningMark.isHidden = warningText == nil
+
         // Spoken as names: the glyphs the caps draw are exactly what `KeyCap.spokenName` exists
-        // to avoid reading aloud.
+        // to avoid reading aloud. The conflict rides along, since the mark is a subview of an
+        // element that reads as one button.
         let spoken = ModifierCombination.displayOrder
             .filter { combination.contains($0.modifier) }
             .map(\.name)
             .joined(separator: " ")
-        let description = "\(spoken), then \(summary)"
+        let description = "\(spoken), then \(summary)" + (warningText.map { ". \($0)" } ?? "")
         let changed = announcedDescription != nil && announcedDescription != description
         announcedDescription = description
         setAccessibilityValueDescription(description)
-        // Save and Reset All both re-read the stored modifiers behind the user's back, so the
-        // preview can change without any interaction with the card itself.
+        // Save and Reset All both re-read the stored modifiers behind the user's back, and a
+        // recorded shortcut can start or end a conflict, so the preview can change without any
+        // interaction with the card itself.
         if changed {
             NSAccessibility.post(element: self, notification: .valueChanged)
         }

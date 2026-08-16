@@ -83,6 +83,10 @@ final class ModifierCombinationSheetViewController: NSViewController {
     /// Builds the walkthrough for the current option states. It takes no modifiers: the sheet
     /// names them rather than spelling them out, so the steps don't change with the combination.
     private let walkthrough: ([Bool]) -> Walkthrough
+    /// The conflict a candidate combination and option states would have with the configured
+    /// shortcuts (nil for none), shown under the modifier caps as they are toggled — so nothing is
+    /// saved into a surprise. Consulted only while the combination is valid.
+    private let conflictWarning: ((ModifierCombination, [Bool]) -> String?)?
     private let initialModifiers: ModifierCombination
     private let options: Options?
 
@@ -114,6 +118,10 @@ final class ModifierCombinationSheetViewController: NSViewController {
     private var optionButtons: [NSButton] = []
     private var optionIllustrations: [KeyGroupIllustrationView] = []
     private var modifiersHintLabel: NSTextField!
+    private var conflictWarningRow: NSStackView?
+    private var conflictWarningLabel: NSTextField?
+    /// The last conflict shown, so a refresh can tell a new or changed warning from a repeat.
+    private var shownConflictWarning: String?
     private var optionsHintLabel: NSTextField?
     private var walkthroughStack: NSStackView!
     private var saveButton: NSButton!
@@ -127,6 +135,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
         modifiersHint: String,
         walkthroughHeader: String,
         walkthrough: @escaping ([Bool]) -> Walkthrough,
+        conflictWarning: ((ModifierCombination, [Bool]) -> String?)? = nil,
         initialModifiers: ModifierCombination,
         options: Options? = nil
     ) {
@@ -135,6 +144,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
         self.modifiersHint = modifiersHint
         self.walkthroughHeader = walkthroughHeader
         self.walkthrough = walkthrough
+        self.conflictWarning = conflictWarning
         self.initialModifiers = initialModifiers
         self.options = options
         super.init(nibName: nil, bundle: nil)
@@ -273,7 +283,21 @@ final class ModifierCombinationSheetViewController: NSViewController {
             capRow.setCustomSpacing(14, after: lastCap)
         }
         capRow.addArrangedSubview(modifiersHintLabel)
-        return makeSection(header: "Modifier keys", content: [capRow])
+
+        // The conflict line sits under the caps rather than in the hint beside them: the hint has
+        // one job (validity), and a conflict names shortcuts, which needs the width. The mark is
+        // decoration here — the label beside it says what is wrong.
+        guard conflictWarning != nil else {
+            return makeSection(header: "Modifier keys", content: [capRow])
+        }
+        let warningLabel = makeHintLabel("")
+        let warningRow = NSStackView(views: [ConflictWarningView(), warningLabel])
+        warningRow.orientation = .horizontal
+        warningRow.alignment = .firstBaseline
+        warningRow.spacing = 5
+        conflictWarningRow = warningRow
+        conflictWarningLabel = warningLabel
+        return makeSection(header: "Modifier keys", content: [capRow, warningRow])
     }
 
     /// The key-group checkboxes side by side, each above the pictograms of where its keys land.
@@ -419,6 +443,22 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
         modifiersHintLabel.textColor = selected.isValid ? .secondaryLabelColor : .systemRed
         saveButton.isEnabled = selected.isValid
+
+        // An invalid combination is already flagged in red and can't be saved, so its conflicts
+        // are moot.
+        let warning = selected.isValid ? conflictWarning?(selected, states) : nil
+        conflictWarningLabel?.stringValue = warning.map { "\($0)." } ?? ""
+        conflictWarningRow?.isHidden = warning == nil
+        // A warning that appears, changes, or clears on a shown sheet is spoken: it lands away from
+        // the cap or checkbox that was just toggled, where VoiceOver's attention is. A warning that
+        // merely went unchecked because the combination turned invalid isn't called clear.
+        if view.window != nil, warning != shownConflictWarning,
+           let announcement = warning ?? (selected.isValid ? "No shortcut conflict" : nil) {
+            NSAccessibility.post(
+                element: view, notification: .announcementRequested,
+                userInfo: [.announcement: announcement, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        }
+        shownConflictWarning = warning
 
         let anyOptionOn = states.contains(true)
         for (index, illustration) in optionIllustrations.enumerated() {
@@ -642,6 +682,12 @@ extension ModifierCombinationSheetViewController {
             modifiersHint: "Select at least two.",
             walkthroughHeader: "Acting on this zone",
             walkthrough: zoneNavigationWalkthrough,
+            conflictWarning: { modifiers, optionStates in
+                ShortcutConflicts.current(
+                    zoneNavigationModifiers: modifiers,
+                    zoneNavigationGroups: zoneNavigationKeyGroups(fromOptionStates: optionStates)
+                ).description(for: .zoneNavigation)
+            },
             initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers,
             options: Options(
                 header: "Navigation keys",
@@ -719,12 +765,6 @@ extension ModifierCombinationSheetViewController {
             return Walkthrough.Step(trigger: .keys([key]), detail: detail)
         }
 
-        func naturalList(_ items: [String]) -> String {
-            items.count <= 2
-                ? items.joined(separator: " and ")
-                : items.dropLast().joined(separator: ", ") + ", and \(items.last ?? "")"
-        }
-
         let items: [Walkthrough.Item] = [
             .line("Release the modifier keys: focus this zone's window, or make it the "
                 + "destination if empty."),
@@ -755,8 +795,8 @@ extension ModifierCombinationSheetViewController {
             // Name the borrowed keys rather than saying "these keys": ↩ and esc sit in the same
             // list but are fixed, and implying they're remappable would be worse than the extra words.
             let plural = borrowedKeyNotes.count == 1 ? "" : "s"
-            note = naturalList(borrowedKeyNotes.map(\.key)) + " follow the "
-                + naturalList(borrowedKeyNotes.map(\.source)) + " shortcut\(plural)."
+            note = borrowedKeyNotes.map(\.key).naturalList + " follow the "
+                + borrowedKeyNotes.map(\.source).naturalList + " shortcut\(plural)."
         }
 
         // With no navigation keys there is nothing to select, so the whole gesture is out of reach.

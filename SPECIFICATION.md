@@ -91,7 +91,7 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 ## User Interactions
 
-> Note: For simplicity, this specification refers to keyboard shortcuts and gesture modifiers (mouse gestures and zone navigation) by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts.
+> Note: For simplicity, this specification refers to keyboard shortcuts and gesture modifiers (mouse gestures and zone navigation) by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts. Overlapping shortcuts are marked with a warning (see **Shortcut Conflicts** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 
 ### Tiling Layout and Spacing
 

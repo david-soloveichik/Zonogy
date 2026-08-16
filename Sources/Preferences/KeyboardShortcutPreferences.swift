@@ -114,6 +114,19 @@ final class KeyboardShortcutPreferences: ObservableObject {
             }
         }
 
+        /// The chords a binding for this action claims at runtime — normally just the binding. The
+        /// CmdTab choosers also engage on their chord with Shift added (reverse cycling) unless
+        /// Shift is already part of it, so that chord is theirs too; a shortcut on it would never
+        /// fire.
+        func claimedShortcuts(for shortcut: KeyboardShortcut) -> [KeyboardShortcut] {
+            switch self {
+            case .showCmdTab, .showCmdTabCurrentApp:
+                return CmdTabKeyInterceptor.claimedShortcuts(for: shortcut)
+            default:
+                return [shortcut]
+            }
+        }
+
         /// Key codes for the function keys (F1–F12), which may be bound without a modifier — except
         /// for `requiresModifier` actions (see `accepts`).
         static let functionKeyCodes: Set<Int> = [
@@ -208,15 +221,6 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
     func isCustomized(_ action: ShortcutAction) -> Bool {
         shortcuts[action] != nil
-    }
-
-    func action(for shortcut: KeyboardShortcut) -> ShortcutAction? {
-        for action in ShortcutAction.allCases {
-            if let currentShortcut = self.shortcut(for: action), currentShortcut == shortcut {
-                return action
-            }
-        }
-        return nil
     }
 
     private func loadShortcuts() {

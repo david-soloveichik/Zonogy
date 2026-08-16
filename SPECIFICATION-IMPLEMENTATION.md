@@ -53,6 +53,10 @@ Each selection carries the trail of moves that produced it. A press exactly oppo
 
 A display key finds its display's last-used window in the same recency order as CmdTab and the Launcher. Because commits happen on modifier release, the gesture runs through a keyboard event tap rather than ordinary hotkeys. Jump keys ignore auto-repeat (a held cell key could otherwise keep adding zones). The held modifier combination is configurable (at least two modifiers, like the mouse-gesture modifiers). The in-gesture Launcher key is borrowed from the Show Launcher shortcut's binding. The gesture snapshots the zones when it engages; commits re-check live occupancy. Anything that could invalidate the snapshot mid-gesture (another Zonogy shortcut firing, or a display change) cancels the gesture rather than letting a commit act on stale zones (except, of course, a zone the gesture itself adds, around which the gesture is rebuilt).
 
+## Shortcut Conflicts
+
+Overlapping shortcuts are shown, not prevented (as System Settings does). A shared chord only ever reaches one of its holders: an event tap that engages on it (Zone Navigation, CmdTab) swallows it before any hotkey fires, and duplicate hotkeys cannot both fire. Overlaps count Zone Navigation's chords (its modifiers plus the keys it listens for) and a CmdTab shortcut's Shift variant, which cycles backward.
+
 ## Displacement Minimization Strategy
 
 When a placement displaces an existing zone occupant, Zonogy picks one of two ways to minimize the displaced window:

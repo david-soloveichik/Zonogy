@@ -55,11 +55,35 @@ final class CmdTabKeyInterceptor {
     private var isEngaged = false
     private var engagedShortcut: EngagedShortcut?
 
+    /// The binding a session engaged on, and the chooser mode it opened.
     struct EngagedShortcut {
-        let keyCode: CGKeyCode
-        let requiredModifiers: CGEventFlags
-        let shiftIsRequired: Bool
+        let shortcut: KeyboardShortcut
         let mode: CmdTabMode
+
+        var keyCode: CGKeyCode { CGKeyCode(shortcut.keyCode) }
+        var requiredModifiers: CGEventFlags { shortcut.cgEventFlags }
+        /// Whether Shift is part of the binding itself, leaving no Shift to add for reverse cycling.
+        var shiftIsRequired: Bool { shortcut.modifiers & UInt32(shiftKey) != 0 }
+    }
+
+    /// The chords a CmdTab binding claims: the binding, and — unless Shift is already part of it —
+    /// the same chord with Shift added, for reverse cycling. The tap engages on exactly these (see
+    /// `handleKeyDown`), and Preferences flags a shortcut on either as a conflict
+    /// (`ShortcutConflicts`), so the rule lives here once.
+    static func claimedShortcuts(for shortcut: KeyboardShortcut) -> [KeyboardShortcut] {
+        guard shortcut.modifiers & UInt32(shiftKey) == 0 else { return [shortcut] }
+        return [shortcut, KeyboardShortcut(keyCode: shortcut.keyCode, modifiers: shortcut.modifiers | UInt32(shiftKey))]
+    }
+
+    /// The configured CmdTab bindings with the mode each opens: all windows, then current app only.
+    private static func configuredShortcuts() -> [(mode: CmdTabMode, shortcut: KeyboardShortcut)] {
+        let preferences = KeyboardShortcutPreferences.shared
+        let bindings: [(mode: CmdTabMode, action: KeyboardShortcutPreferences.ShortcutAction)] = [
+            (.allWindows, .showCmdTab), (.currentAppOnly, .showCmdTabCurrentApp),
+        ]
+        return bindings.compactMap { binding in
+            preferences.shortcut(for: binding.action).map { (mode: binding.mode, shortcut: $0) }
+        }
     }
 
     func start(delegate: CmdTabKeyInterceptorDelegate) {
@@ -144,22 +168,13 @@ final class CmdTabKeyInterceptor {
             return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, event: event)
         }
 
-        // Try both CmdTab shortcuts (all windows and current app only)
-        let shortcuts: [(CmdTabMode, ShortcutInfo?)] = [
-            (.allWindows, currentCmdTabShortcut()),
-            (.currentAppOnly, currentCmdTabCurrentAppShortcut())
-        ]
-
+        // Engage on either CmdTab binding — or its Shift variant, when the binding leaves Shift free
+        // for reverse cycling (`claimedShortcuts`).
         var matchedShortcut: EngagedShortcut?
-        for (mode, shortcut) in shortcuts {
-            guard let shortcut else { continue }
-            if keyCode == shortcut.keyCode && shortcutMatches(relevantFlags: relevantFlags, shortcut: shortcut) {
-                matchedShortcut = EngagedShortcut(
-                    keyCode: shortcut.keyCode,
-                    requiredModifiers: shortcut.requiredModifiers,
-                    shiftIsRequired: shortcut.shiftIsRequired,
-                    mode: mode
-                )
+        for (mode, shortcut) in Self.configuredShortcuts() {
+            if keyCode == CGKeyCode(shortcut.keyCode),
+               Self.claimedShortcuts(for: shortcut).contains(where: { $0.cgEventFlags == relevantFlags }) {
+                matchedShortcut = EngagedShortcut(shortcut: shortcut, mode: mode)
                 break
             }
         }
@@ -232,20 +247,9 @@ final class CmdTabKeyInterceptor {
 
         // Switch mode when the other CmdTab shortcut key is pressed while engaged.
         if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-            let otherShortcuts: [(CmdTabMode, ShortcutInfo?)] = [
-                (.allWindows, currentCmdTabShortcut()),
-                (.currentAppOnly, currentCmdTabCurrentAppShortcut())
-            ]
-
-            for (mode, shortcut) in otherShortcuts {
-                guard let shortcut, mode != engagedShortcut.mode else { continue }
-                if keyCode == shortcut.keyCode, relevantFlags.contains(shortcut.requiredModifiers) {
-                    self.engagedShortcut = EngagedShortcut(
-                        keyCode: shortcut.keyCode,
-                        requiredModifiers: shortcut.requiredModifiers,
-                        shiftIsRequired: shortcut.shiftIsRequired,
-                        mode: mode
-                    )
+            for (mode, shortcut) in Self.configuredShortcuts() where mode != engagedShortcut.mode {
+                if keyCode == CGKeyCode(shortcut.keyCode), relevantFlags.contains(shortcut.cgEventFlags) {
+                    self.engagedShortcut = EngagedShortcut(shortcut: shortcut, mode: mode)
                     DispatchQueue.main.async { [weak self] in
                         guard let self else { return }
                         self.delegate?.cmdTabKeyInterceptorSwitchMode(self, mode: mode)
@@ -256,54 +260,6 @@ final class CmdTabKeyInterceptor {
         }
 
         return .pass
-    }
-
-    private struct ShortcutInfo {
-        let keyCode: CGKeyCode
-        let requiredModifiers: CGEventFlags
-        let shiftIsRequired: Bool
-    }
-
-    private func currentCmdTabShortcut() -> ShortcutInfo? {
-        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showCmdTab) else {
-            return nil
-        }
-
-        let requiredModifiers = shortcut.cgEventFlags
-        let shiftIsRequired = requiredModifiers.contains(.maskShift)
-
-        return ShortcutInfo(
-            keyCode: CGKeyCode(shortcut.keyCode),
-            requiredModifiers: requiredModifiers,
-            shiftIsRequired: shiftIsRequired
-        )
-    }
-
-    private func currentCmdTabCurrentAppShortcut() -> ShortcutInfo? {
-        guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: .showCmdTabCurrentApp) else {
-            return nil
-        }
-
-        let requiredModifiers = shortcut.cgEventFlags
-        let shiftIsRequired = requiredModifiers.contains(.maskShift)
-
-        return ShortcutInfo(
-            keyCode: CGKeyCode(shortcut.keyCode),
-            requiredModifiers: requiredModifiers,
-            shiftIsRequired: shiftIsRequired
-        )
-    }
-
-    private func shortcutMatches(relevantFlags: CGEventFlags, shortcut: ShortcutInfo) -> Bool {
-        guard relevantFlags.contains(shortcut.requiredModifiers) else {
-            return false
-        }
-
-        // Allow Shift as an extra modifier for reverse cycling when Shift is not part of the configured shortcut.
-        let allowedExtras: CGEventFlags = shortcut.shiftIsRequired ? [] : [.maskShift]
-        let allowedFlags = shortcut.requiredModifiers.union(allowedExtras)
-        let disallowed = relevantFlags.subtracting(allowedFlags)
-        return disallowed.isEmpty
     }
 
     private func initialDirection(for relevantFlags: CGEventFlags, engagedShortcut: EngagedShortcut) -> Direction {

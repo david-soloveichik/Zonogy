@@ -70,9 +70,10 @@ final class ZoneNavigationInterceptor {
 
     /// The chords the gesture claims under a given modifier combination and key groups (the
     /// enabled selection keys and Return, plus those modifiers; nothing when no group is enabled,
-    /// since the gesture then never engages). The shortcut editors keep table shortcuts off
-    /// these, since the gesture's event tap would swallow them before any hotkey fires.
-    static func reservedShortcuts(
+    /// since the gesture then never engages). A table shortcut on one of these is shown as a
+    /// conflict in Preferences (see `ShortcutConflicts`): the event tap swallows a selection chord
+    /// whenever the gesture can engage — and Return once it has — before any hotkey fires.
+    static func claimedShortcuts(
         for modifiers: ModifierCombination,
         groups: ZoneNavigationKeyGroups
     ) -> [KeyboardShortcut] {

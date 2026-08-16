@@ -11,6 +11,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     private var mouseGesturesCard: GestureEditorCardView!
     private var zoneNavigationCard: GestureEditorCardView!
     private let actions = KeyboardShortcutPreferences.ShortcutAction.allCases
+    /// The conflicts among the configured shortcuts and Zone Navigation, recomputed whenever the
+    /// table reloads (see `reloadShortcuts`); the rows and the Zone Navigation card mark theirs.
+    private var conflicts = ShortcutConflicts.current()
     private var recordingRow: Int?
     private var recordingInterceptor: ShortcutRecordingInterceptor?
     private var globalClickMonitor: Any?
@@ -89,13 +92,15 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     /// Cards (above the table) opening the editors for the two held-modifier gestures — keyboard
     /// zone navigation and the mouse gestures. They lead the pane rather than trailing it: they are
     /// the two gestures with no row in the table, and each card shows the modifiers it holds, so
-    /// the settings the table can't express are still visible at a glance.
+    /// the settings the table can't express are still visible at a glance. Zone Navigation's card
+    /// also marks a shortcut sitting on one of its chords, naming the shortcut and the chord.
     private func setupGestureCards(in container: NSView) {
         zoneNavigationCard = GestureEditorCardView(
             symbolName: "keyboard",
             title: "Zone Navigation",
             summary: "arrows or letters",
             modifiers: { ModifierCombinationPreferences.zoneNavigation.modifiers },
+            warning: { [weak self] in self?.conflicts.description(for: .zoneNavigation) },
             onOpen: { [weak self] in self?.editZoneNavigationModifiers() }
         )
         mouseGesturesCard = GestureEditorCardView(
@@ -153,6 +158,19 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
             textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
+
+        // A contested shortcut is marked at the trailing edge of this cell, which puts the mark
+        // right beside the shortcut chip that follows without shifting the chip or the × / ↺
+        // columns; hovering it names who else holds the chord.
+        if let warning = conflicts.description(for: .action(action)) {
+            let warningMark = ConflictWarningView(text: warning)
+            cell.addSubview(warningMark)
+            NSLayoutConstraint.activate([
+                warningMark.leadingAnchor.constraint(greaterThanOrEqualTo: textField.trailingAnchor, constant: 8),
+                warningMark.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+                warningMark.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+        }
 
         return cell
     }
@@ -370,25 +388,10 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             return
         }
 
+        // A chord another action or Zone Navigation already holds is accepted as recorded: the
+        // conflict is marked on every party (see `ShortcutConflicts`) rather than resolved behind
+        // the user's back, so they choose which one to change.
         let shortcut = KeyboardShortcut(keyCode: UInt32(keyCode), modifiers: carbonModifiers)
-
-        // The zone-navigation gesture claims its selection keys and Return under its modifiers; a
-        // table shortcut on one of those chords would be swallowed by the gesture's event tap
-        // before its hotkey could fire, so keep recording instead of accepting it.
-        let reserved = ZoneNavigationInterceptor.reservedShortcuts(
-            for: ModifierCombinationPreferences.zoneNavigation.modifiers,
-            groups: ZoneNavigationKeyPreferences.shared.groups
-        )
-        guard !reserved.contains(shortcut) else {
-            return
-        }
-
-        // Clear any existing assignment of this shortcut to another action
-        if let conflictingAction = KeyboardShortcutPreferences.shared.action(for: shortcut),
-           conflictingAction != action {
-            KeyboardShortcutPreferences.shared.clearShortcut(for: conflictingAction)
-        }
-
         KeyboardShortcutPreferences.shared.setShortcut(shortcut, for: action)
 
         stopRecording()
@@ -420,17 +423,25 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     private func stopRecording() {
         guard recordingRow != nil else { return }
         stopRecordingWithoutReload()
+        reloadShortcuts()
+    }
+
+    /// Reload after any change to a shortcut or to Zone Navigation: the table rows and the Zone
+    /// Navigation card both draw from the recomputed conflicts.
+    private func reloadShortcuts() {
+        conflicts = ShortcutConflicts.current()
         tableView.reloadData()
+        zoneNavigationCard.refresh()
     }
 
     @objc private func clearShortcut(_ sender: ShortcutAccessoryButton) {
         KeyboardShortcutPreferences.shared.clearShortcut(for: sender.shortcutAction)
-        tableView.reloadData()
+        reloadShortcuts()
     }
 
     @objc private func resetSingleShortcut(_ sender: ShortcutAccessoryButton) {
         KeyboardShortcutPreferences.shared.resetToDefault(action: sender.shortcutAction)
-        tableView.reloadData()
+        reloadShortcuts()
     }
 
     private func editMouseModifiers() {
@@ -448,18 +459,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
             let groups = ModifierCombinationSheetViewController.zoneNavigationKeyGroups(fromOptionStates: optionStates)
             ModifierCombinationPreferences.zoneNavigation.update(modifiers)
             ZoneNavigationKeyPreferences.shared.update(groups)
-            // The gesture now claims its selection keys and Return under these modifiers; steal
-            // any table shortcut sitting on one of those chords (mirroring how recording a shortcut
-            // steals it from its previous action), since the gesture's event tap would swallow it
-            // anyway.
-            let prefs = KeyboardShortcutPreferences.shared
-            for reserved in ZoneNavigationInterceptor.reservedShortcuts(for: modifiers, groups: groups) {
-                if let conflictingAction = prefs.action(for: reserved) {
-                    prefs.clearShortcut(for: conflictingAction)
-                }
-            }
-            self?.tableView.reloadData()
-            self?.zoneNavigationCard.refresh()
+            self?.reloadShortcuts()
         }
         presentAsSheet(modifiersVC)
     }
@@ -482,11 +482,8 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         ModifierCombinationPreferences.mouseGestures.update(.defaultModifiers)
         ModifierCombinationPreferences.zoneNavigation.update(.defaultModifiers)
         ZoneNavigationKeyPreferences.shared.update(.all)
-        // No shortcut needs stealing back the way an edited combination would: no default shortcut
-        // sits on a chord the gesture reserves at its own defaults.
         mouseGesturesCard.refresh()
-        zoneNavigationCard.refresh()
-        tableView.reloadData()
+        reloadShortcuts()
     }
 
     override func viewWillDisappear() {

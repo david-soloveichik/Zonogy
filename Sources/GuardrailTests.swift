@@ -177,6 +177,9 @@ enum GuardrailTests {
         if !ShortcutActionModifierRequirementTests.run() {
             allPassed = false
         }
+        if !ShortcutConflictsTests.run() {
+            allPassed = false
+        }
         if !DockMenusBehaviorPreferencesStoreTests.run() {
             allPassed = false
         }

@@ -5,7 +5,7 @@ import Foundation
 import Carbon
 
 /// Represents a single keyboard shortcut with key code and modifiers
-struct KeyboardShortcut: Codable, Equatable {
+struct KeyboardShortcut: Codable, Hashable {
     let keyCode: UInt32
     let modifiers: UInt32
 

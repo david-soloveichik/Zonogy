@@ -2,8 +2,9 @@ import Carbon
 import Foundation
 
 /// Guardrail tests for the zone-navigation key policy: the key groups' selection-key maps, the
-/// reserved chords the shortcut editors keep table shortcuts off, the keys that shadow a borrowed
-/// key (Show Launcher, Add Zone, Remove Zone, Minimize Focused Window), and key-group persistence.
+/// chords the gesture claims (a table shortcut on one conflicts with it), the keys that shadow a
+/// borrowed key (Show Launcher, Add Zone, Remove Zone, Minimize Focused Window), and key-group
+/// persistence.
 enum ZoneNavigationChordPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -53,37 +54,37 @@ enum ZoneNavigationChordPolicyTests {
             assert(key.isJump, "\(key) should be a jump")
         }
 
-        // MARK: - Reserved chords: the enabled selection keys plus Return, under the given
+        // MARK: - Claimed chords: the enabled selection keys plus Return, under the given
         // modifiers; nothing when no group is enabled
 
-        let allReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: .all)
-        assert(allReserved.count == 13, "all groups should claim the twelve selection keys plus Return")
+        let allClaimed = ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], groups: .all)
+        assert(allClaimed.count == 13, "all groups should claim the twelve selection keys plus Return")
         assert(
-            Set(allReserved.map(\.keyCode)).isSuperset(of: Set([kVK_UpArrow, kVK_ANSI_A, kVK_ANSI_L, kVK_Return].map(UInt32.init))),
-            "all groups should reserve the arrows, the letters, and Return"
+            Set(allClaimed.map(\.keyCode)).isSuperset(of: Set([kVK_UpArrow, kVK_ANSI_A, kVK_ANSI_L, kVK_Return].map(UInt32.init))),
+            "all groups should claim the arrows, the letters, and Return"
         )
         assert(
-            allReserved.allSatisfy { $0.modifiers == UInt32(controlKey | cmdKey) },
-            "reserved chords should carry the gesture's modifiers"
+            allClaimed.allSatisfy { $0.modifiers == UInt32(controlKey | cmdKey) },
+            "claimed chords should carry the gesture's modifiers"
         )
 
-        let arrowsReserved = ZoneNavigationInterceptor.reservedShortcuts(for: [.option, .shift], groups: .arrows)
-        assert(arrowsReserved.count == 5, "the arrow group alone should claim the arrows and Return")
+        let arrowsClaimed = ZoneNavigationInterceptor.claimedShortcuts(for: [.option, .shift], groups: .arrows)
+        assert(arrowsClaimed.count == 5, "the arrow group alone should claim the arrows and Return")
         assert(
-            !arrowsReserved.contains { $0.keyCode == UInt32(kVK_ANSI_A) },
-            "a disabled letter group should not reserve its letters"
+            !arrowsClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_A) },
+            "a disabled letter group should not claim its letters"
         )
         assert(
-            arrowsReserved.allSatisfy { $0.modifiers == UInt32(optionKey | shiftKey) },
-            "reserved chords should follow the configured modifiers"
+            arrowsClaimed.allSatisfy { $0.modifiers == UInt32(optionKey | shiftKey) },
+            "claimed chords should follow the configured modifiers"
         )
         assert(
-            ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: .letters).count == 9,
+            ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], groups: .letters).count == 9,
             "the letter group alone should claim the eight letters and Return"
         )
         assert(
-            ZoneNavigationInterceptor.reservedShortcuts(for: [.control, .command], groups: []).isEmpty,
-            "with no group enabled the gesture never engages, so nothing is reserved"
+            ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], groups: []).isEmpty,
+            "with no group enabled the gesture never engages, so nothing is claimed"
         )
 
         // MARK: - Borrowed-key shadowing: in-gesture keys act first, then earlier-borrowed keys;
