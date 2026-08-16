@@ -50,7 +50,7 @@ final class ZonesPreferencesViewController: NSViewController {
         }
 
         let zoneLayoutHintLabel = NSTextField(
-            wrappingLabelWithString: "Clicking an add-zone bar creates a new zone on that side of the screen. Single-bar layouts tile up to 3 zones; bars on both sides allow up to 4."
+            wrappingLabelWithString: "Clicking an add-zone bar creates a new zone on that side of the display. Single-bar layouts tile up to 3 zones; bars on both sides allow up to 4."
         )
         zoneLayoutHintLabel.font = NSFont.systemFont(ofSize: 12)
         zoneLayoutHintLabel.textColor = .secondaryLabelColor
@@ -83,7 +83,7 @@ final class ZonesPreferencesViewController: NSViewController {
         self.stickyResizeCheckbox = stickyResizeCheckbox
 
         let stickyResizeHintLabel = NSTextField(
-            wrappingLabelWithString: "Manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that screen's tiling geometry changes."
+            wrappingLabelWithString: "Manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that display's tiling geometry changes."
         )
         stickyResizeHintLabel.font = NSFont.systemFont(ofSize: 12)
         stickyResizeHintLabel.textColor = .secondaryLabelColor

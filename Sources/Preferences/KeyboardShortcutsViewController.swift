@@ -7,8 +7,9 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     private var tableView: NSTableView!
     private var scrollView: NSScrollView!
     private var resetAllButton: NSButton!
-    private var mouseModifiersButton: NSButton!
-    private var zoneNavigationButton: NSButton!
+    private var gestureCards: NSStackView!
+    private var mouseGesturesCard: GestureEditorCardView!
+    private var zoneNavigationCard: GestureEditorCardView!
     private let actions = KeyboardShortcutPreferences.ShortcutAction.allCases
     private var recordingRow: Int?
     private var recordingInterceptor: ShortcutRecordingInterceptor?
@@ -23,12 +24,12 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 400))
 
+        setupGestureCards(in: containerView)
         setupTableView(in: containerView)
         setupResetButton(in: containerView)
-        setupGestureModifierButtons(in: containerView)
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 525)
+        self.preferredContentSize = NSSize(width: 580, height: 590)
     }
 
     private func setupTableView(in container: NSView) {
@@ -66,7 +67,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         container.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
+            scrollView.topAnchor.constraint(equalTo: gestureCards.bottomAnchor, constant: 16),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -60),
@@ -85,24 +86,37 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         ])
     }
 
-    /// Buttons (bottom-left) opening the editors for the two held-modifier gestures — mouse
-    /// gestures and keyboard zone navigation — which aren't part of the table above.
-    private func setupGestureModifierButtons(in container: NSView) {
-        mouseModifiersButton = NSButton(title: "Mouse Modifiers…", target: self, action: #selector(editMouseModifiers))
-        mouseModifiersButton.translatesAutoresizingMaskIntoConstraints = false
-        mouseModifiersButton.bezelStyle = .rounded
-        container.addSubview(mouseModifiersButton)
+    /// Cards (above the table) opening the editors for the two held-modifier gestures — keyboard
+    /// zone navigation and the mouse gestures. They lead the pane rather than trailing it: they are
+    /// the two gestures with no row in the table, and each card shows the modifiers it holds, so
+    /// the settings the table can't express are still visible at a glance.
+    private func setupGestureCards(in container: NSView) {
+        zoneNavigationCard = GestureEditorCardView(
+            symbolName: "keyboard",
+            title: "Zone Navigation",
+            summary: "arrows or letters",
+            modifiers: { ModifierCombinationPreferences.zoneNavigation.modifiers },
+            onOpen: { [weak self] in self?.editZoneNavigationModifiers() }
+        )
+        mouseGesturesCard = GestureEditorCardView(
+            symbolName: "cursorarrow.click",
+            title: "Mouse Gestures",
+            summary: "click or drag",
+            modifiers: { ModifierCombinationPreferences.mouseGestures.modifiers },
+            onOpen: { [weak self] in self?.editMouseModifiers() }
+        )
 
-        zoneNavigationButton = NSButton(title: "Zone Navigation…", target: self, action: #selector(editZoneNavigationModifiers))
-        zoneNavigationButton.translatesAutoresizingMaskIntoConstraints = false
-        zoneNavigationButton.bezelStyle = .rounded
-        container.addSubview(zoneNavigationButton)
+        gestureCards = NSStackView(views: [mouseGesturesCard, zoneNavigationCard])
+        gestureCards.translatesAutoresizingMaskIntoConstraints = false
+        gestureCards.orientation = .horizontal
+        gestureCards.distribution = .fillEqually
+        gestureCards.spacing = 12
+        container.addSubview(gestureCards)
 
         NSLayoutConstraint.activate([
-            mouseModifiersButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
-            mouseModifiersButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            zoneNavigationButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
-            zoneNavigationButton.leadingAnchor.constraint(equalTo: mouseModifiersButton.trailingAnchor, constant: 10),
+            gestureCards.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
+            gestureCards.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            gestureCards.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
     }
 
@@ -419,15 +433,16 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         tableView.reloadData()
     }
 
-    @objc private func editMouseModifiers() {
+    private func editMouseModifiers() {
         let modifiersVC = ModifierCombinationSheetViewController.mouseGestures()
-        modifiersVC.onSave = { modifiers, _ in
+        modifiersVC.onSave = { [weak self] modifiers, _ in
             ModifierCombinationPreferences.mouseGestures.update(modifiers)
+            self?.mouseGesturesCard.refresh()
         }
         presentAsSheet(modifiersVC)
     }
 
-    @objc private func editZoneNavigationModifiers() {
+    private func editZoneNavigationModifiers() {
         let modifiersVC = ModifierCombinationSheetViewController.zoneNavigation()
         modifiersVC.onSave = { [weak self] modifiers, optionStates in
             let groups = ModifierCombinationSheetViewController.zoneNavigationKeyGroups(fromOptionStates: optionStates)
@@ -444,22 +459,34 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
                 }
             }
             self?.tableView.reloadData()
+            self?.zoneNavigationCard.refresh()
         }
         presentAsSheet(modifiersVC)
     }
 
+    /// Restores everything this tab configures — the table and both gesture cards. The cards are
+    /// part of the tab, so scoping the reset to the table alone would leave two settings behind
+    /// that the button appears to cover.
     @objc private func resetAllShortcuts() {
         let alert = NSAlert()
-        alert.messageText = "Reset All Keyboard Shortcuts"
-        alert.informativeText = "Are you sure you want to reset all keyboard shortcuts to their defaults?"
+        alert.messageText = "Reset All to Defaults"
+        alert.informativeText = "This restores every shortcut in the list, along with the modifier "
+            + "and navigation keys behind Mouse Gestures and Zone Navigation."
         alert.addButton(withTitle: "Reset All")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .warning
 
-        if alert.runModal() == .alertFirstButtonReturn {
-            KeyboardShortcutPreferences.shared.resetAllToDefaults()
-            tableView.reloadData()
-        }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        KeyboardShortcutPreferences.shared.resetAllToDefaults()
+        ModifierCombinationPreferences.mouseGestures.update(.defaultModifiers)
+        ModifierCombinationPreferences.zoneNavigation.update(.defaultModifiers)
+        ZoneNavigationKeyPreferences.shared.update(.all)
+        // No shortcut needs stealing back the way an edited combination would: no default shortcut
+        // sits on a chord the gesture reserves at its own defaults.
+        mouseGesturesCard.refresh()
+        zoneNavigationCard.refresh()
+        tableView.reloadData()
     }
 
     override func viewWillDisappear() {

@@ -137,7 +137,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         maxFormatter.maximum = NSNumber(value: WinShotPreferencesStore.maxSnapshotsStored)
         maxFormatter.allowsFloats = false
 
-        let maxSnapshotsLabel = NSTextField(labelWithString: "Max snapshots per screen:")
+        let maxSnapshotsLabel = NSTextField(labelWithString: "Max snapshots per display:")
         maxSnapshotsLabel.font = NSFont.systemFont(ofSize: 13)
         maxSnapshotsLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(maxSnapshotsLabel)
@@ -166,7 +166,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.maxSnapshotsStepper = maxSnapshotsStepper
 
         let maxSnapshotsHintLabel = NSTextField(
-            wrappingLabelWithString: "Choose how many snapshots to keep per screen (\(WinShotPreferencesStore.minSnapshotsStored)-\(WinShotPreferencesStore.maxSnapshotsStored))."
+            wrappingLabelWithString: "Choose how many snapshots to keep per display (\(WinShotPreferencesStore.minSnapshotsStored)-\(WinShotPreferencesStore.maxSnapshotsStored))."
         )
         maxSnapshotsHintLabel.font = NSFont.systemFont(ofSize: 12)
         maxSnapshotsHintLabel.textColor = .secondaryLabelColor

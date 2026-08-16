@@ -23,7 +23,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 
 - DockMenu is a small floating panel positioned adjacent to the hovered Dock icon:
   - Dock on bottom: menu appears above the icon.
-  - Dock on left/right: menu appears to the inside of the screen (away from the edge).
+  - Dock on left/right: menu appears to the inside of the display (away from the edge).
 - DockMenu should visually match the Launcher style (vibrancy/blur, rounded corners) but be more compact.
 - DockMenu should not take key focus merely by appearing.
 
@@ -114,12 +114,12 @@ DockMenu dismisses when:
 - Panel positioned with 8pt gap from Dock icon.
 - **Horizontal Dock (bottom):** Panel centered horizontally on the Dock icon.
 - **Vertical Dock (left/right):** Panel vertically aligned so that moving the mouse horizontally from the Dock icon (without vertical movement) places the cursor over the first window in the window list. If the app has no windows, aligns to the app header instead.
-- Clamp to screen visible bounds.
+- Clamp to display visible bounds.
 
 ### Dock Visibility Tracking
 
 - Track Dock visibility as a boolean alongside the Dock frame.
-- The frame represents the last Dock AXList frame that is fully within the primary screen bounds; during autohide animation (off/partially off-screen), keep using the cached in-bounds frame.
+- The frame represents the last Dock AXList frame that is fully within the primary display bounds; during autohide animation (off/partially off-screen), keep using the cached in-bounds frame.
 - **Visible**: Set when `AXSelectedChildrenChanged` notification fires.
 - **Hidden**: Set when click handler clicks in the Dock frame but finds no Dock element.
 - Click interception fast-exits when Dock is considered hidden.

@@ -19,7 +19,7 @@ The Launcher opens via:
   - A tiling zone becomes empty (window closed, minimized, or moved away).
     Note: By targeting rules in the main spec, this implies that the zone becomes targeted.
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice (or Cmd-M then Cmd-W) to minimize the window and remove its tiling zone.
-    For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a screen whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
+    For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a display whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
   - Zone navigation is released over an empty zone, tiling or floating (targeting it).
@@ -51,7 +51,7 @@ So the launcher automatically dismisses when:
 The launcher window should appear:
 
 1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher is not user-moveable; it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
-2. If the targeted zone is the floating zone (which has no visible placeholder), center on the screen containing the floating zone
+2. If the targeted zone is the floating zone (which has no visible placeholder), center on the display containing the floating zone
 
 ## User Interface
 
@@ -158,7 +158,7 @@ Persisted to `~/Library/Application Support/Zonogy/launcher-history.json`:
 - **Left arrow (in window list):** When cursor is at start of search string, same as Shift-Tab (return to app list)
 - **Shift-Tab or Escape (in window list):** Return to main app list
 - **Escape (in main list):** Dismiss launcher without action
-- **Cmd-M / Cmd-W:** Remove the targeted zone (if more than one tiling zone on the screen); simply hides Launcher if last tiling zone on screen
+- **Cmd-M / Cmd-W:** Remove the targeted zone (if more than one tiling zone on the display); simply hides Launcher if last tiling zone on display
 
 ### Option Mode
 

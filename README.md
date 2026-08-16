@@ -4,7 +4,7 @@ Zonogy is a zone-based window manager for macOS. (The name evokes "the origin or
 
 **[View Zonogy on GitHub →](https://github.com/david-soloveichik/Zonogy)**
 
-Zonogy divides each screen into persistent tiling zones plus a floating zone. At any time, one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
+Zonogy divides each display into persistent tiling zones plus a floating zone. At any time, one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
 
 > Philosophy: Windows should land where you expect.
 
@@ -35,17 +35,17 @@ Zonogy divides each screen into persistent tiling zones plus a floating zone. At
 
 Zonogy rethinks multiple aspects of the operating system UI, including window management, virtual desktops, application/window launching, and interacting with the Dock.
 
-**Window management:** To tame window clutter, Zonogy defines non-overlapping tiling zones for holding windows. Zones persist even when empty, so the layout stays stable. An additional floating zone on each screen can float a window above others without disrupting the tiling zones.
+**Window management:** To tame window clutter, Zonogy defines non-overlapping tiling zones for holding windows. Zones persist even when empty, so the layout stays stable. An additional floating zone on each display can float a window above others without disrupting the tiling zones.
 
-> **Comparison with auto-tiling window managers (e.g., yabai, Amethyst, AeroSpace):** Automatic tiling can feel twitchy because every time you open, close, or minimize a window, the entire layout reflows to fill the screen. These tools also force all available space to be filled, even when windows have a natural maximum size. Instead, Zonogy "reserves space" for additional windows.
+> **Comparison with auto-tiling window managers (e.g., yabai, Amethyst, AeroSpace):** Automatic tiling can feel twitchy because every time you open, close, or minimize a window, the entire layout reflows to fill the display. These tools also force all available space to be filled, even when windows have a natural maximum size. Instead, Zonogy "reserves space" for additional windows.
 
 **Virtual desktops**: Virtual desktops like macOS's built-in Spaces have a limitation that a window can only belong to one space, yet the same window often belongs to more than one task. With Zonogy's **WinShot snapshots**, you can save and restore different window arrangements that could share the same windows.
 
 **Application/window launching and switching:** Most launchers and Spotlight let you switch to an *application*, or a specific *document*, but not a specific *window.* Zonogy's **CmdTab** replacement allows fast switching between recent windows across all applications. **DockMenus** lets you hover over any Dock icon to pick a specific window of that app, or just click the Dock icon to open the app's "main" or most recently used window. The **Launcher** lets you switch to any app in a few keystrokes, or drill down into an app and search its windows by title. The Launcher also allows general shortcuts to files and folders with optional aliases (search keywords), and learns over time.
 
-Drag and drop is woven throughout: Windows can be dragged between zones. An app can be dragged from the Dock to a zone to open it there, and similarly for documents or URLs. Items can be dragged onto the New Zone Bar or Floating Zone Bar (along screen edges) to place them in a new tiling zone or the floating zone.
+Drag and drop is woven throughout: Windows can be dragged between zones. An app can be dragged from the Dock to a zone to open it there, and similarly for documents or URLs. Items can be dragged onto the New Zone Bar or Floating Zone Bar (along display edges) to place them in a new tiling zone or the floating zone.
 
-Multi-screen setups are first-class and each screen gets its own independent set of zones and snapshots. Zonogy also handles native macOS tabs and full-screen windows.
+Multi-display setups are first-class and each display gets its own independent set of zones and snapshots. Zonogy also handles native macOS tabs and full-screen windows.
 
 Zonogy lives in the macOS menu bar. Click the Zonogy icon <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-icon-dark.png"><img src="docs/images/menubar-icon.png" alt="Zonogy menu bar icon" height="18" /></picture> to open Preferences or to quit Zonogy.
 
@@ -53,7 +53,7 @@ Zonogy lives in the macOS menu bar. Click the Zonogy icon <picture><source media
 
 ### Zones
 
-Each screen has 1–4 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically. See [Resizing Zones vs. Windows](docs/resizing-zones-vs-windows.md) for more detail.
+Each display has 1–4 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically. See [Resizing Zones vs. Windows](docs/resizing-zones-vs-windows.md) for more detail.
 
 Exactly one zone is the **destination** at any moment, indicated by a glowing indicator. New or unminimized windows are always placed into the destination zone.
 
@@ -88,8 +88,8 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 
 | Gesture | Action |
 | --- | --- |
-| Click New Zone Bar (on screen edge — right by default, per the zone layout) | Add a tiling zone on that side |
-| Click Floating Zone Bar (on bottom edge of each screen) | Set the floating zone as destination; click again (or double-click) to open the Launcher there |
+| Click New Zone Bar (on display edge — right by default, per the zone layout) | Add a tiling zone on that side |
+| Click Floating Zone Bar (on bottom edge of each display) | Set the floating zone as destination; click again (or double-click) to open the Launcher there |
 | `Control-Cmd`-click anywhere in a zone (even if zone is occupied) | Set that zone as destination; double-click also opens the Launcher |
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
 | Drag window → tiling zone | Move it there, swapping if occupied |
@@ -119,7 +119,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-J/K/L` (hold) | Zone navigation: jump the circle to the 1st/2nd/3rd display, onto its last-used window |
 | `Control-Cmd-\` | Toggle destination with focused window |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
-| `Control-Cmd-Escape` | Clear zones on active screen (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
+| `Control-Cmd-Escape` | Clear zones on active display (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
 
 ## Installation
 

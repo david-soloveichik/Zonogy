@@ -2,7 +2,7 @@
 
 Zonogy has two kinds of resize that serve very different purposes.
 
-**Zone resize** changes your layout. Hover over the margin between two zones to reveal a thin white separator bar, then drag it to adjust how much of the screen each zone gets. All windows in the affected zones reflow to match, and the new proportions persist across sessions and snapshots. (See animation below:)
+**Zone resize** changes your layout. Hover over the margin between two zones to reveal a thin white separator bar, then drag it to adjust how much of the display each zone gets. All windows in the affected zones reflow to match, and the new proportions persist across sessions and snapshots. (See animation below:)
 
 <img src="images/zone-resize.webp" alt="Zone resize demo" />
 

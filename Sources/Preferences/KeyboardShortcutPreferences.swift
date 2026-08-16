@@ -40,8 +40,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .addZone: return "Add Zone"
             case .removeZone: return "Remove Zone"
             case .collapseToOneZone: return "Collapse to One Zone"
-            case .clearOrResetZones: return "Clear/Reset Zones (Active Screen)"
-            case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Screen)"
+            case .clearOrResetZones: return "Clear/Reset Zones (Active Display)"
+            case .clearOrResetZonesAtCursor: return "Clear/Reset Zones (Cursor Display)"
             // Window Actions
             case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
