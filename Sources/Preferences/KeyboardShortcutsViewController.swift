@@ -2,7 +2,7 @@
 import AppKit
 import Carbon
 
-final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, ShortcutRecordingInterceptorDelegate {
+final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
 
     private var tableView: NSTableView!
     private var scrollView: NSScrollView!
@@ -15,9 +15,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     /// table reloads (see `reloadShortcuts`); the rows and the Zone Navigation card mark theirs.
     private var conflicts = ShortcutConflicts.current()
     private var recordingRow: Int?
-    private var recordingInterceptor: ShortcutRecordingInterceptor?
-    private var globalClickMonitor: Any?
-    private var appDeactivationObserver: NSObjectProtocol?
+    private let recorder = ShortcutRecorder()
 
     private var recordingAction: KeyboardShortcutPreferences.ShortcutAction? {
         guard let row = recordingRow, row < actions.count else { return nil }
@@ -78,7 +76,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     private func setupResetButton(in container: NSView) {
-        resetAllButton = NSButton(title: "Reset All to Defaults", target: self, action: #selector(resetAllShortcuts))
+        resetAllButton = NSButton(title: "Reset All to Defaults", target: self, action: #selector(restoreDefaults))
         resetAllButton.translatesAutoresizingMaskIntoConstraints = false
         resetAllButton.bezelStyle = .rounded
         container.addSubview(resetAllButton)
@@ -98,10 +96,10 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         zoneNavigationCard = GestureEditorCardView(
             symbolName: "keyboard",
             title: "Zone Navigation",
-            summary: "arrows or letters",
+            summary: "arrows or jump keys",
             modifiers: { ModifierCombinationPreferences.zoneNavigation.modifiers },
             warning: { [weak self] in self?.conflicts.description(for: .zoneNavigation) },
-            onOpen: { [weak self] in self?.editZoneNavigationModifiers() }
+            onOpen: { [weak self] in self?.editZoneNavigation() }
         )
         mouseGesturesCard = GestureEditorCardView(
             symbolName: "cursorarrow.click",
@@ -300,7 +298,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     @objc private func shortcutButtonClicked(_ sender: ShortcutButton) {
         if recordingRow == sender.row {
             // Already recording this one - cancel
-            stopRecording()
+            recorder.stop()
         } else {
             // Start recording for this button
             startRecording(row: sender.row)
@@ -308,71 +306,32 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     private func startRecording(row: Int) {
-        // Cancel any existing recording first
-        if recordingRow != nil {
-            stopRecordingWithoutReload()
-        }
-
+        // Ends any recording in progress first (its row reloads through onEnd).
+        recorder.stop()
         recordingRow = row
-
-        // Suspend global hotkeys while recording
-        AppController.shared.hotkeyService.suspend()
-
-        // Start the CGEventTap-based interceptor to capture system shortcuts
-        recordingInterceptor = ShortcutRecordingInterceptor()
-        recordingInterceptor?.start(delegate: self)
-        guard recordingInterceptor?.isRunning == true else {
-            recordingInterceptor = nil
-            AppController.shared.hotkeyService.resume()
+        let started = recorder.start(
+            recordingControl: { [weak self] in self?.recordingButton() },
+            onKey: { [weak self] keyCode, modifiers in self?.record(keyCode: keyCode, modifiers: modifiers) },
+            onEnd: { [weak self] in
+                self?.recordingRow = nil
+                self?.reloadShortcuts()
+            }
+        )
+        if !started {
             recordingRow = nil
-            showInputMonitoringAlert()
-            tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 1))
-            return
         }
-
-        // Monitor for clicks outside the button to cancel recording
-        globalClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            self?.handleClickEvent(event)
-            return event
-        }
-
-        appDeactivationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.stopRecording()
-        }
-
         tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 1))
     }
 
-    private func handleClickEvent(_ event: NSEvent) {
-        guard let row = recordingRow else { return }
-
-        // Get the button's frame in window coordinates
-        let rowView = tableView.rowView(atRow: row, makeIfNecessary: false)
-        guard let cellView = rowView?.view(atColumn: 1) as? NSTableCellView,
-              let button = cellView.subviews.first as? NSButton else {
-            return
-        }
-
-        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
-        let clickLocation = event.locationInWindow
-
-        if !buttonFrameInWindow.contains(clickLocation) {
-            // Click outside the button - cancel recording
-            stopRecording()
-        }
+    /// The chip of the recording row, looked up fresh: the row is rebuilt when recording starts.
+    private func recordingButton() -> NSView? {
+        guard let row = recordingRow,
+              let cellView = tableView.rowView(atRow: row, makeIfNecessary: false)?.view(atColumn: 1) as? NSTableCellView
+        else { return nil }
+        return cellView.subviews.first
     }
 
-    // MARK: - ShortcutRecordingInterceptorDelegate
-
-    func shortcutRecordingInterceptor(
-        _ interceptor: ShortcutRecordingInterceptor,
-        didCapture keyCode: CGKeyCode,
-        modifiers: CGEventFlags
-    ) {
+    private func record(keyCode: CGKeyCode, modifiers: CGEventFlags) {
         guard let action = recordingAction else { return }
 
         // Convert CGEventFlags to Carbon modifiers
@@ -394,36 +353,7 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         let shortcut = KeyboardShortcut(keyCode: UInt32(keyCode), modifiers: carbonModifiers)
         KeyboardShortcutPreferences.shared.setShortcut(shortcut, for: action)
 
-        stopRecording()
-    }
-
-    func shortcutRecordingInterceptorDidCancel(_ interceptor: ShortcutRecordingInterceptor) {
-        stopRecording()
-    }
-
-    private func stopRecordingWithoutReload() {
-        recordingInterceptor?.stop()
-        recordingInterceptor = nil
-
-        if let monitor = globalClickMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalClickMonitor = nil
-        }
-
-        if let observer = appDeactivationObserver {
-            NotificationCenter.default.removeObserver(observer)
-            appDeactivationObserver = nil
-        }
-
-        // Resume global hotkeys
-        AppController.shared.hotkeyService.resume()
-        recordingRow = nil
-    }
-
-    private func stopRecording() {
-        guard recordingRow != nil else { return }
-        stopRecordingWithoutReload()
-        reloadShortcuts()
+        recorder.stop()
     }
 
     /// Reload after any change to a shortcut or to Zone Navigation: the table rows and the Zone
@@ -445,29 +375,28 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
     }
 
     private func editMouseModifiers() {
-        let modifiersVC = ModifierCombinationSheetViewController.mouseGestures()
-        modifiersVC.onSave = { [weak self] modifiers, _ in
+        let editor = MouseGesturesSheetViewController()
+        editor.onSave = { [weak self] modifiers in
             ModifierCombinationPreferences.mouseGestures.update(modifiers)
             self?.mouseGesturesCard.refresh()
         }
-        presentAsSheet(modifiersVC)
+        presentAsSheet(editor)
     }
 
-    private func editZoneNavigationModifiers() {
-        let modifiersVC = ModifierCombinationSheetViewController.zoneNavigation()
-        modifiersVC.onSave = { [weak self] modifiers, optionStates in
-            let groups = ModifierCombinationSheetViewController.zoneNavigationKeyGroups(fromOptionStates: optionStates)
+    private func editZoneNavigation() {
+        let editor = ZoneNavigationSheetViewController()
+        editor.onSave = { [weak self] modifiers, keys in
             ModifierCombinationPreferences.zoneNavigation.update(modifiers)
-            ZoneNavigationKeyPreferences.shared.update(groups)
+            ZoneNavigationKeyPreferences.shared.update(keys)
             self?.reloadShortcuts()
         }
-        presentAsSheet(modifiersVC)
+        presentAsSheet(editor)
     }
 
     /// Restores everything this tab configures — the table and both gesture cards. The cards are
     /// part of the tab, so scoping the reset to the table alone would leave two settings behind
     /// that the button appears to cover.
-    @objc private func resetAllShortcuts() {
+    @objc private func restoreDefaults() {
         let alert = NSAlert()
         alert.messageText = "Reset All to Defaults"
         alert.informativeText = "This restores every shortcut in the list, along with the modifier "
@@ -481,23 +410,14 @@ final class KeyboardShortcutsViewController: NSViewController, NSTableViewDataSo
         KeyboardShortcutPreferences.shared.resetAllToDefaults()
         ModifierCombinationPreferences.mouseGestures.update(.defaultModifiers)
         ModifierCombinationPreferences.zoneNavigation.update(.defaultModifiers)
-        ZoneNavigationKeyPreferences.shared.update(.all)
+        ZoneNavigationKeyPreferences.shared.update(.default)
         mouseGesturesCard.refresh()
         reloadShortcuts()
     }
 
     override func viewWillDisappear() {
         super.viewWillDisappear()
-        stopRecording()
-    }
-
-    private func showInputMonitoringAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Input Monitoring permission is required"
-        alert.informativeText = "Zonogy needs Input Monitoring permission to record system shortcuts like ⌘⇥ (Cmd-Tab). Enable it in System Settings ▸ Privacy & Security ▸ Input Monitoring, then try again."
-        alert.addButton(withTitle: "OK")
-        alert.alertStyle = .warning
-        alert.runModal()
+        recorder.stop()
     }
 }
 

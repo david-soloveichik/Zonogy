@@ -1,6 +1,8 @@
 /// The keycap look shared by the held-modifier gesture editors: a rounded cap carrying one key's
 /// glyph. Drawing the keys instead of naming them inside a sentence lets the walkthroughs and
 /// pictograms be read at a glance — a cap is something to press, a word is something to parse.
+/// The fill also says whether a key is the user's to change: a gray cap is fixed, a white one can
+/// be clicked.
 import AppKit
 
 enum KeyCap {
@@ -9,9 +11,10 @@ enum KeyCap {
         let fill: NSColor
         let border: NSColor
         let text: NSColor
+        var borderWidth: CGFloat = 1
 
-        /// A key at rest. Derived from the label color rather than a control color so a cap reads
-        /// on both the sheet background and the lighter section cards.
+        /// A fixed key at rest. Derived from the label color rather than a control color so a cap
+        /// reads on both the sheet background and the lighter section cards.
         static let plain = Style(
             fill: NSColor.labelColor.withAlphaComponent(0.06),
             border: NSColor.labelColor.withAlphaComponent(0.22),
@@ -23,13 +26,31 @@ enum KeyCap {
             border: .controlAccentColor,
             text: .alternateSelectedControlTextColor
         )
-        /// A key drawn on top of a shaded pictogram, where the resting cap would sink into its
-        /// background instead of reading as the thing to press.
-        static let onCanvas = Style(
+        /// A key the user can change: filled like a text field, so it reads as something to click,
+        /// and it stands out on a shaded pictogram where the resting cap would sink in.
+        static let settable = Style(
             fill: .controlBackgroundColor,
             border: NSColor.labelColor.withAlphaComponent(0.28),
             text: .labelColor
         )
+        /// A settable key under the pointer.
+        static let settableHovered = Style(
+            fill: NSColor.controlAccentColor.withAlphaComponent(0.10),
+            border: NSColor.controlAccentColor.withAlphaComponent(0.6),
+            text: .labelColor
+        )
+        /// A settable key waiting for the key that will replace it.
+        static let recording = Style(
+            fill: NSColor.controlAccentColor.withAlphaComponent(0.18),
+            border: .controlAccentColor,
+            text: .labelColor,
+            borderWidth: 2
+        )
+
+        /// This style with the warning-colored border of a key whose chord another shortcut holds.
+        var contested: Style {
+            Style(fill: fill, border: .systemOrange, text: text, borderWidth: 2)
+        }
     }
 
     static let cornerRadius: CGFloat = 5
@@ -46,12 +67,13 @@ enum KeyCap {
 
     /// Draws a cap filling `rect`, with `label` centered on it.
     static func draw(in rect: NSRect, label: String, font: NSFont, style: Style) {
+        let inset = style.borderWidth / 2
         let cap = NSBezierPath(
-            roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: cornerRadius, yRadius: cornerRadius)
+            roundedRect: rect.insetBy(dx: inset, dy: inset), xRadius: cornerRadius, yRadius: cornerRadius)
         style.fill.setFill()
         cap.fill()
         style.border.setStroke()
-        cap.lineWidth = 1
+        cap.lineWidth = style.borderWidth
         cap.stroke()
         drawText(label, in: rect, font: font, color: style.text)
     }
@@ -72,11 +94,14 @@ enum KeyCap {
     }
 
     /// What a cap's glyph is called out loud, since VoiceOver reads a bare "⌘" or "↩" as nothing
-    /// useful. Falls back to the glyph for keys that are already their own name (letters, "Space").
+    /// useful. Covers every glyph `KeyboardShortcut.keyLabel` produces; keys that are already
+    /// their own name (letters, "Space", "F5") fall through.
     static func spokenName(for label: String) -> String {
         [
             "⌃": "Control", "⌥": "Option", "⇧": "Shift", "⌘": "Command",
-            "↩": "Return", "esc": "Escape",
+            "↩": "Return", "esc": "Escape", "⎋": "Escape", "⇥": "Tab",
+            "⌫": "Delete", "⌦": "Forward Delete",
+            "↖": "Home", "↘": "End", "⇞": "Page Up", "⇟": "Page Down",
             "↑": "Up arrow", "↓": "Down arrow", "←": "Left arrow", "→": "Right arrow",
         ][label] ?? label
     }
@@ -125,6 +150,179 @@ final class KeyCapView: NSView {
     }
 }
 
+/// A key the user can click, drawn as a white cap: highlighted under the pointer, filled with the
+/// accent color and pulsing while it records a replacement, and outlined in the warning color
+/// while the chord it holds is contested. What a click does is the owner's call — record a new
+/// key in place, or, for a key set elsewhere, say where.
+final class KeyCapButton: NSControl {
+    var label: String {
+        didSet {
+            guard label != oldValue else { return }
+            invalidateIntrinsicContentSize()
+            superview?.needsLayout = true
+            needsDisplay = true
+        }
+    }
+
+    /// Whether another shortcut holds this key's chord.
+    var isConflicting = false {
+        didSet {
+            if isConflicting != oldValue { needsDisplay = true }
+        }
+    }
+
+    /// Whether the cap is waiting for a key press. Pulses while it is, as the table's chip does.
+    var isRecording = false {
+        didSet {
+            guard isRecording != oldValue else { return }
+            needsDisplay = true
+            // Every change retires the pulse loop in flight: a completion of the old loop that
+            // lands after a quick stop-and-restart must not start a second loop beside the new one.
+            pulseGeneration += 1
+            if isRecording {
+                pulse(toAlpha: Self.pulseMinAlpha, generation: pulseGeneration)
+            } else {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.15
+                    self.animator().alphaValue = 1
+                }
+            }
+        }
+    }
+
+    var onClick: ((KeyCapButton) -> Void)?
+
+    override var isEnabled: Bool {
+        didSet {
+            guard isEnabled != oldValue else { return }
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    private let capHeight: CGFloat
+    private let capFont: NSFont
+    private var trackingAreaForHover: NSTrackingArea?
+    private var isHovered = false {
+        didSet {
+            if isHovered != oldValue { needsDisplay = true }
+        }
+    }
+
+    private static let pulseMinAlpha: CGFloat = 0.55
+    private var pulseGeneration = 0
+
+    init(label: String, height: CGFloat = 20, fontSize: CGFloat = 12) {
+        self.label = label
+        self.capHeight = height
+        self.capFont = KeyCap.font(ofSize: fontSize)
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        // The recording pulse animates the view's alpha, which needs a layer.
+        wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: KeyCap.width(for: label, font: capFont, height: capHeight), height: capHeight)
+    }
+
+    /// Baseline-align the cap's glyph with the description text beside it.
+    override var firstBaselineOffsetFromTop: CGFloat {
+        KeyCap.baselineOffsetFromTop(capHeight: capHeight, font: capFont)
+    }
+
+    // MARK: - Interaction
+
+    override var acceptsFirstResponder: Bool { isEnabled }
+
+    override func mouseDown(with event: NSEvent) {
+        click()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.charactersIgnoringModifiers == " " || event.keyCode == 36 {
+            click()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        click()
+        return true
+    }
+
+    private func click() {
+        guard isEnabled else { return }
+        onClick?(self)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingAreaForHover {
+            removeTrackingArea(trackingAreaForHover)
+        }
+        let area = NSTrackingArea(
+            rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow], owner: self)
+        addTrackingArea(area)
+        trackingAreaForHover = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+    }
+
+    override func resetCursorRects() {
+        if isEnabled {
+            addCursorRect(bounds, cursor: .pointingHand)
+        }
+    }
+
+    // MARK: - Drawing
+
+    private func pulse(toAlpha alpha: CGFloat, generation: Int) {
+        guard isRecording, generation == pulseGeneration else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.7
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().alphaValue = alpha
+        }, completionHandler: { [weak self] in
+            self?.pulse(toAlpha: alpha == Self.pulseMinAlpha ? 1 : Self.pulseMinAlpha, generation: generation)
+        })
+    }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds, xRadius: KeyCap.cornerRadius, yRadius: KeyCap.cornerRadius).fill()
+    }
+
+    override var focusRingMaskBounds: NSRect { bounds }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSGraphicsContext.current?.cgContext.setAlpha(isEnabled ? 1 : 0.35)
+        let style: KeyCap.Style
+        if isRecording {
+            style = .recording
+        } else if isHovered && isEnabled {
+            style = .settableHovered
+        } else if isConflicting {
+            style = KeyCap.Style.settable.contested
+        } else {
+            style = .settable
+        }
+        KeyCap.draw(in: bounds, label: label, font: capFont, style: style)
+    }
+}
+
 /// A modifier key drawn as a cap the user switches on or off: its glyph above its name, filled
 /// with the accent color while held. Behaves as a checkbox — the gesture holds every lit cap.
 final class ModifierKeyCapButton: NSControl {
@@ -143,7 +341,7 @@ final class ModifierKeyCapButton: NSControl {
             guard isOn != oldValue else { return }
             needsDisplay = true
             // A custom check box has to announce its own value changes; assistive clients get no
-            // notification otherwise, whether the change came from a click or Restore Default.
+            // notification otherwise, whether the change came from a click or Restore Defaults.
             NSAccessibility.post(element: self, notification: .valueChanged)
         }
     }

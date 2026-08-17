@@ -35,7 +35,7 @@ struct KeyboardShortcut: Codable, Hashable {
 
     /// Human-readable representation of the key alone (no modifiers), e.g. "Space" or "↩".
     var keyDisplayString: String {
-        keyCodeToString(keyCode)
+        Self.keyLabel(forKeyCode: keyCode) ?? "Key\(keyCode)"
     }
 
     /// Human-readable representation of the shortcut
@@ -47,12 +47,15 @@ struct KeyboardShortcut: Codable, Hashable {
         if modifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
         if modifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
 
-        parts.append(keyCodeToString(keyCode))
+        parts.append(keyDisplayString)
 
         return parts.joined()
     }
 
-    private func keyCodeToString(_ code: UInt32) -> String {
+    /// The glyph or name a key alone is shown as, e.g. "A", "Space", or "↩" — nil for a key with
+    /// no label of its own (keypad and international keys), which the Zone Navigation editor
+    /// therefore won't take.
+    static func keyLabel(forKeyCode code: UInt32) -> String? {
         switch Int(code) {
         case kVK_ANSI_A: return "A"
         case kVK_ANSI_B: return "B"
@@ -127,7 +130,7 @@ struct KeyboardShortcut: Codable, Hashable {
         case kVK_F10: return "F10"
         case kVK_F11: return "F11"
         case kVK_F12: return "F12"
-        default: return "Key\(code)"
+        default: return nil
         }
     }
 }
@@ -148,7 +151,7 @@ extension KeyboardShortcut {
 
     /// Maps a Carbon virtual key code to the character `NSMenuItem.keyEquivalent` expects. Letters
     /// are lowercase (AppKit renders them uppercased); special keys use Cocoa function-key code
-    /// points. Parallels `keyCodeToString`, which produces display glyphs rather than key equivalents.
+    /// points. Parallels `keyLabel(forKeyCode:)`, which produces display glyphs rather than key equivalents.
     private static func menuKeyEquivalent(forKeyCode code: UInt32) -> String? {
         switch Int(code) {
         case kVK_ANSI_A: return "a"

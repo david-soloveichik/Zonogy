@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 /// Keyboard zone navigation: builds the navigable zone set, resolves the selection as the gesture
-/// proceeds — the arrows step it, the letters jump it to a cell of the current screen (adding the
+/// proceeds — the arrows step it, the jump keys jump it to a cell of the current screen (adding the
 /// zone when the cell has none), to the floating zone, or to a display's last-used window — shows
 /// it with the blue-circle overlay, and commits on release (focus a filled zone's window, or
 /// target an empty zone), on the move key (move the focused window into the selected zone), or on
@@ -122,7 +122,7 @@ extension AppController {
         }
     }
 
-    /// A selection key while engaged: an arrow steps from the current selection; a letter jumps —
+    /// A selection key while engaged: an arrow steps from the current selection; a jump key jumps —
     /// to a cell of the current screen (adding the zone first when the cell has none, which
     /// rebuilds the gesture around the new zone), to the current screen's floating zone, or to a
     /// display's last-used window. Jumps start a fresh back-out trail. A jump that resolves

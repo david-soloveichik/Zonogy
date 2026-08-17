@@ -1,7 +1,7 @@
 /// Keyboard shortcut conflicts: two or more claimants holding the same chord.
 ///
 /// A claimant is anything that listens for chords system-wide — each action in the shortcut
-/// table, and Zone Navigation, which holds its navigation keys and Return under its modifiers.
+/// table, and Zone Navigation, which holds its navigation keys and move key under its modifiers.
 /// The check runs over plain claims (a claimant and the chords it holds), so a claimant may hold
 /// any number of chords — an action's binding can claim more than itself (see
 /// `ShortcutAction.claimedShortcuts`) — and a new claimant, or user-chosen navigation keys, plugs
@@ -72,11 +72,11 @@ struct ShortcutConflicts {
 extension ShortcutConflicts {
     /// The conflicts among everything configured: the table's shortcuts and the chords Zone
     /// Navigation holds — as saved, or, for the Zone Navigation editor's live check, under proposed
-    /// modifiers and key groups. The table claims first, so a chord contested with Zone Navigation
-    /// lists in table order.
+    /// modifiers and keys. The table claims first, so a chord contested with Zone Navigation lists
+    /// in table order.
     static func current(
         zoneNavigationModifiers: ModifierCombination = ModifierCombinationPreferences.zoneNavigation.modifiers,
-        zoneNavigationGroups: ZoneNavigationKeyGroups = ZoneNavigationKeyPreferences.shared.groups
+        zoneNavigationKeys: ZoneNavigationKeys = ZoneNavigationKeyPreferences.shared.keys
     ) -> ShortcutConflicts {
         let preferences = KeyboardShortcutPreferences.shared
         var claims: [(claimant: ShortcutClaimant, shortcuts: [KeyboardShortcut])] = []
@@ -88,7 +88,7 @@ extension ShortcutConflicts {
         claims.append((
             claimant: .zoneNavigation,
             shortcuts: ZoneNavigationInterceptor.claimedShortcuts(
-                for: zoneNavigationModifiers, groups: zoneNavigationGroups)
+                for: zoneNavigationModifiers, keys: zoneNavigationKeys)
         ))
         return ShortcutConflicts(claims: claims)
     }

@@ -144,14 +144,14 @@ enum ShortcutConflictsTests {
 
         // MARK: - Factory defaults are conflict-free: every default binding's claimed chords are
         // distinct, and none sits on a chord Zone Navigation holds at its own defaults (all groups,
-        // Control-Command)
+        // the default keys, Control-Command)
 
         var defaults: [(claimant: ShortcutClaimant, shortcuts: [KeyboardShortcut])] = Action.allCases.map {
             (claimant: .action($0), shortcuts: $0.claimedShortcuts(for: $0.defaultShortcut))
         }
         defaults.append((
             claimant: .zoneNavigation,
-            shortcuts: ZoneNavigationInterceptor.claimedShortcuts(for: .defaultModifiers, groups: .all)
+            shortcuts: ZoneNavigationInterceptor.claimedShortcuts(for: .defaultModifiers, keys: .default)
         ))
         let atDefaults = ShortcutConflicts(claims: defaults)
         assert(atDefaults.isEmpty, "the factory defaults should have no conflicts")

@@ -23,7 +23,7 @@ import CoreGraphics
 /// the gesture's start. Moves are lossy (a full-height column reached from a stack's bottom
 /// re-enters the stack at its top), so reversal is remembered, not recomputed.
 ///
-/// The letter keys jump instead of stepping (and start a fresh trail): a cell key names one cell
+/// The jump keys jump instead of stepping (and start a fresh trail): a cell key names one cell
 /// of the current screen's two-by-two grid and resolves to the zone there — or to the zone that
 /// must be added first (`cellSelection`); a display key names a display by geometric order and
 /// enters it at its last-used window (`displaySelection`).

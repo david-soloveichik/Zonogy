@@ -1,43 +1,16 @@
-/// Modal sheet for choosing the keys behind one of Zonogy's held-modifier gestures: which
-/// modifiers activate it, which key groups it listens for, and a walkthrough of what each key does
-/// once it is running. One implementation serves both editors; the factories at the bottom supply
-/// each gesture family's copy and current settings.
-///
-/// The sheet is built as sections of caps and pictures rather than paragraphs: the modifiers are
-/// keycaps you switch on, the navigation keys are drawn where they land (see
-/// `ZoneNavigationDiagramViews.swift`), and the walkthrough pairs a cap with the one thing that
-/// key does.
+/// The sheet editing a held-modifier gesture: the modifier keys the gesture holds, laid out as
+/// caps to switch on and off, and a walkthrough of what pressing or releasing does — as keycaps
+/// and pictures rather than paragraphs. Each gesture's editor (`MouseGesturesSheetViewController`,
+/// `ZoneNavigationSheetViewController`) supplies the copy, any section of its own between the two,
+/// its walkthrough, and what saving stores.
 import AppKit
 
-final class ModifierCombinationSheetViewController: NSViewController {
-    // MARK: - What an editor supplies
-
-    /// Extra checkboxes shown under their own header, each illustrated by a pictogram. Their
-    /// on/off states are passed to `walkthrough` and `onSave` (empty when the sheet has none).
-    struct Options {
-        let header: String
-        let rows: [Row]
-        /// Shown in place of the header's hint when every row is off.
-        let allOffWarning: String
-
-        struct Row {
-            let label: String
-            let initialState: Bool
-            /// The state Restore Default selects.
-            let defaultState: Bool
-            /// Pictograms of what this row's keys select, with their captions. The sheet lays them
-            /// out, since the column band has to be sized across every row at once.
-            let diagrams: () -> [(diagram: KeyDiagramView, caption: String)]
-        }
-    }
-
-    /// The bottom section: mostly rows of "press this, and this happens", with a closing note in
-    /// small print. It never spells the chosen modifiers out — the lit caps above are the preview,
-    /// and repeating their glyphs on every line only crowds the steps.
+class ModifierCombinationSheetViewController: NSViewController {
+    /// The bottom section: mostly rows of "press this, and this happens". It never spells the
+    /// chosen modifiers out — the lit caps above are the preview, and repeating their glyphs on
+    /// every line only crowds the steps.
     struct Walkthrough {
         var items: [Item]
-        /// For example, which shortcuts the mid-gesture keys borrow.
-        var note: String?
         /// False when the gesture can't run at all: every step is shown out of reach rather than
         /// described as if pressing its key would do something.
         var isReachable: Bool = true
@@ -61,8 +34,12 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
         /// What the user does, shown in the left column.
         enum Trigger {
-            /// Keycaps, e.g. ["↩"] or ["esc"].
-            case keys([String])
+            /// The cap of a fixed key, e.g. "esc".
+            case key(String)
+            /// The cap of a key the user can change, here or elsewhere: a click hands the cap to
+            /// `action`, to anchor a recording or an explanation to. `help` is what assistive
+            /// clients say a click does.
+            case settableKey(label: String, help: String, isConflicting: Bool, action: (KeyCapButton) -> Void)
             /// A gesture with no key of its own, e.g. "double-click".
             case gesture(String)
             /// A step that can't be performed at all, so there is nothing to press.
@@ -70,35 +47,21 @@ final class ModifierCombinationSheetViewController: NSViewController {
         }
     }
 
-    /// Called with the chosen combination and option states when the user confirms
-    /// (the combination is guaranteed valid).
-    var onSave: ((ModifierCombination, [Bool]) -> Void)?
-
     // MARK: - Configuration
 
     private let sheetTitle: String
     private let subtitle: String
     private let modifiersHint: String
     private let walkthroughHeader: String
-    /// Builds the walkthrough for the current option states. It takes no modifiers: the sheet
-    /// names them rather than spelling them out, so the steps don't change with the combination.
-    private let walkthrough: ([Bool]) -> Walkthrough
-    /// The conflict a candidate combination and option states would have with the configured
-    /// shortcuts (nil for none), shown under the modifier caps as they are toggled — so nothing is
-    /// saved into a surprise. Consulted only while the combination is valid.
-    private let conflictWarning: ((ModifierCombination, [Bool]) -> String?)?
     private let initialModifiers: ModifierCombination
-    private let options: Options?
 
     // MARK: - Layout metrics
 
-    private static let sheetWidth: CGFloat = 620
-    private static let edgeInset: CGFloat = 20
-    private static let cardInset: CGFloat = 11
+    static let sheetWidth: CGFloat = 620
+    static let edgeInset: CGFloat = 20
+    static let cardInset: CGFloat = 11
     /// Usable width inside a section card.
-    private static var cardContentWidth: CGFloat { sheetWidth - edgeInset * 2 - cardInset * 2 }
-    /// Gap between the key groups, which sit side by side.
-    private static let optionColumnGap: CGFloat = 20
+    static var cardContentWidth: CGFloat { sheetWidth - edgeInset * 2 - cardInset * 2 }
     /// Gap between a walkthrough row's trigger column and its description.
     private static let triggerDetailGap: CGFloat = 12
     /// Gap between the walkthrough's columns.
@@ -106,47 +69,32 @@ final class ModifierCombinationSheetViewController: NSViewController {
     /// Gap between the scrolling content and the pinned button row below it.
     private static let buttonRowGap: CGFloat = 12
 
-    /// Width of one pictogram column. The card holds three of them — the arrow cluster, the zone
-    /// grid, and the displays — with the two letter-key columns grouped under one checkbox.
-    private static var diagramColumnWidth: CGFloat {
-        ((cardContentWidth - optionColumnGap - KeyGroupIllustrationView.columnGap) / 3).rounded(.down)
-    }
-
     // MARK: - Views
 
     private var modifierCaps: [ModifierKeyCapButton] = []
-    private var optionButtons: [NSButton] = []
-    private var optionIllustrations: [KeyGroupIllustrationView] = []
     private var modifiersHintLabel: NSTextField!
-    private var conflictWarningRow: NSStackView?
-    private var conflictWarningLabel: NSTextField?
+    private var conflictWarningRow: NSStackView!
+    private var conflictWarningLabel: NSTextField!
     /// The last conflict shown, so a refresh can tell a new or changed warning from a repeat.
     private var shownConflictWarning: String?
-    private var optionsHintLabel: NSTextField?
     private var walkthroughStack: NSStackView!
     private var saveButton: NSButton!
     private var documentView: NSView?
     private var buttonRow: NSView?
     private var contentHeightConstraint: NSLayoutConstraint?
 
-    private init(
+    init(
         title: String,
         subtitle: String,
         modifiersHint: String,
         walkthroughHeader: String,
-        walkthrough: @escaping ([Bool]) -> Walkthrough,
-        conflictWarning: ((ModifierCombination, [Bool]) -> String?)? = nil,
-        initialModifiers: ModifierCombination,
-        options: Options? = nil
+        initialModifiers: ModifierCombination
     ) {
         self.sheetTitle = title
         self.subtitle = subtitle
         self.modifiersHint = modifiersHint
         self.walkthroughHeader = walkthroughHeader
-        self.walkthrough = walkthrough
-        self.conflictWarning = conflictWarning
         self.initialModifiers = initialModifiers
-        self.options = options
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -154,15 +102,28 @@ final class ModifierCombinationSheetViewController: NSViewController {
         fatalError("init(coder:) is not supported")
     }
 
-    private var selectedModifiers: ModifierCombination {
+    /// The combination the lit caps show.
+    var selectedModifiers: ModifierCombination {
         modifierCaps.reduce(into: []) { result, cap in
             if cap.isOn { result.insert(cap.modifier) }
         }
     }
 
-    private var optionStates: [Bool] {
-        optionButtons.map { $0.state == .on }
-    }
+    // MARK: - What each editor supplies
+
+    /// Sections of the editor's own, placed between the modifiers and the walkthrough.
+    func makeOwnSections() -> [NSView] { [] }
+
+    /// The walkthrough for the current state; rebuilt on every refresh.
+    func makeWalkthrough() -> Walkthrough { Walkthrough(items: []) }
+
+    /// The conflict the current state would have with the configured shortcuts, shown under the
+    /// modifier caps as they are toggled — so nothing is saved into a surprise. Consulted only
+    /// while the combination is valid.
+    func conflictWarning() -> String? { nil }
+
+    /// Stores what the editor edits; called on Save, with a valid combination.
+    func commit(_ modifiers: ModifierCombination) {}
 
     // MARK: - Building the sheet
 
@@ -177,8 +138,8 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
         stack.addArrangedSubview(makeHeader())
         stack.addArrangedSubview(makeModifiersSection())
-        if let options {
-            stack.addArrangedSubview(makeOptionsSection(options))
+        for section in makeOwnSections() {
+            stack.addArrangedSubview(section)
         }
         stack.addArrangedSubview(makeWalkthroughSection())
 
@@ -264,7 +225,9 @@ final class ModifierCombinationSheetViewController: NSViewController {
     }
 
     /// The modifier caps, laid out as the row of keys the gesture holds down, with the validation
-    /// hint beside them rather than under them so the row costs one line.
+    /// hint beside them rather than under them so the row costs one line, and the conflict line
+    /// under them: the hint has one job (validity), and a conflict names shortcuts, which needs the
+    /// width. The mark there is decoration — the label beside it says what is wrong.
     private func makeModifiersSection() -> NSView {
         let capRow = NSStackView()
         capRow.orientation = .horizontal
@@ -284,62 +247,12 @@ final class ModifierCombinationSheetViewController: NSViewController {
         }
         capRow.addArrangedSubview(modifiersHintLabel)
 
-        // The conflict line sits under the caps rather than in the hint beside them: the hint has
-        // one job (validity), and a conflict names shortcuts, which needs the width. The mark is
-        // decoration here — the label beside it says what is wrong.
-        guard conflictWarning != nil else {
-            return makeSection(header: "Modifier keys", content: [capRow])
-        }
-        let warningLabel = makeHintLabel("")
-        let warningRow = NSStackView(views: [ConflictWarningView(), warningLabel])
-        warningRow.orientation = .horizontal
-        warningRow.alignment = .firstBaseline
-        warningRow.spacing = 5
-        conflictWarningRow = warningRow
-        conflictWarningLabel = warningLabel
-        return makeSection(header: "Modifier keys", content: [capRow, warningRow])
-    }
-
-    /// The key-group checkboxes side by side, each above the pictograms of where its keys land.
-    private func makeOptionsSection(_ options: Options) -> NSView {
-        // One band height across every pictogram, so all the captions start on the same line.
-        let diagramsPerRow = options.rows.map { $0.diagrams() }
-        let bandHeight = diagramsPerRow
-            .flatMap { $0 }
-            .map(\.diagram.intrinsicContentSize.height)
-            .max() ?? 0
-
-        var groupColumns: [NSView] = []
-        for (index, row) in options.rows.enumerated() {
-            let checkbox = NSButton(checkboxWithTitle: row.label, target: self, action: #selector(selectionChanged))
-            checkbox.state = row.initialState ? .on : .off
-            checkbox.font = NSFont.systemFont(ofSize: 13)
-            optionButtons.append(checkbox)
-
-            let illustration = KeyGroupIllustrationView(
-                items: diagramsPerRow[index],
-                columnWidth: Self.diagramColumnWidth,
-                bandHeight: bandHeight
-            )
-            optionIllustrations.append(illustration)
-
-            let column = NSStackView(views: [checkbox, illustration])
-            column.orientation = .vertical
-            column.alignment = .leading
-            column.spacing = 6
-            groupColumns.append(column)
-        }
-
-        let groupRow = NSStackView(views: groupColumns)
-        groupRow.orientation = .horizontal
-        groupRow.alignment = .top
-        groupRow.spacing = Self.optionColumnGap
-
-        // The gesture can't start without a key to press, so flag it where it is fixed.
-        let hint = makeHintLabel(options.allOffWarning)
-        hint.textColor = .systemRed
-        optionsHintLabel = hint
-        return makeSection(header: options.header, content: [groupRow, hint])
+        conflictWarningLabel = makeHintLabel("")
+        conflictWarningRow = NSStackView(views: [ConflictWarningView(), conflictWarningLabel])
+        conflictWarningRow.orientation = .horizontal
+        conflictWarningRow.alignment = .firstBaseline
+        conflictWarningRow.spacing = 5
+        return makeSection(header: "Modifier keys", content: [capRow, conflictWarningRow])
     }
 
     private func makeWalkthroughSection() -> NSView {
@@ -351,7 +264,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
     }
 
     private func makeButtonRow() -> NSView {
-        let restoreButton = NSButton(title: "Restore Default", target: self, action: #selector(restoreDefault))
+        let restoreButton = NSButton(title: "Restore Defaults", target: self, action: #selector(restoreDefaults))
         restoreButton.bezelStyle = .rounded
         let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel))
         cancelButton.bezelStyle = .rounded
@@ -370,7 +283,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
     }
 
     /// A small header above a card holding `content`, matching the grouped look of System Settings.
-    private func makeSection(header: String, content: [NSView]) -> NSView {
+    func makeSection(header: String, content: [NSView]) -> NSView {
         let headerLabel = NSTextField(labelWithString: header)
         headerLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
         headerLabel.textColor = .secondaryLabelColor
@@ -397,7 +310,8 @@ final class ModifierCombinationSheetViewController: NSViewController {
         return section
     }
 
-    private func makeHintLabel(_ text: String) -> NSTextField {
+    /// Small secondary print, wrapping to the card's width.
+    func makeHintLabel(_ text: String) -> NSTextField {
         let label = NSTextField(wrappingLabelWithString: text)
         label.font = NSFont.systemFont(ofSize: 11)
         label.textColor = .secondaryLabelColor
@@ -407,16 +321,11 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
     // MARK: - Actions
 
-    @objc private func selectionChanged() {
-        refresh()
-    }
-
-    @objc private func restoreDefault() {
+    /// Puts the factory settings back: an editor with settings of its own resets them first, then
+    /// calls up to reset the modifiers and refresh.
+    @objc func restoreDefaults() {
         for cap in modifierCaps {
             cap.isOn = ModifierCombination.defaultModifiers.contains(cap.modifier)
-        }
-        for (index, button) in optionButtons.enumerated() {
-            button.state = options?.rows[index].defaultState == true ? .on : .off
         }
         refresh()
     }
@@ -428,27 +337,26 @@ final class ModifierCombinationSheetViewController: NSViewController {
     @objc private func save() {
         let selected = selectedModifiers
         guard selected.isValid else { return }
-        onSave?(selected, optionStates)
+        commit(selected)
         dismiss(self)
     }
 
     // MARK: - Syncing to the current selection
 
-    /// Sync the hints, pictograms, walkthrough, and Save button to the checked modifiers and
-    /// options. The lit caps are the preview of the chosen combination, so nothing below repeats
-    /// it.
-    private func refresh() {
+    /// Sync the hints, walkthrough, and Save button to the current state. The lit caps are the
+    /// preview of the chosen combination, so nothing below repeats it. An editor with views of its
+    /// own updates them, then calls up.
+    func refresh() {
         let selected = selectedModifiers
-        let states = optionStates
 
         modifiersHintLabel.textColor = selected.isValid ? .secondaryLabelColor : .systemRed
         saveButton.isEnabled = selected.isValid
 
         // An invalid combination is already flagged in red and can't be saved, so its conflicts
         // are moot.
-        let warning = selected.isValid ? conflictWarning?(selected, states) : nil
-        conflictWarningLabel?.stringValue = warning.map { "\($0)." } ?? ""
-        conflictWarningRow?.isHidden = warning == nil
+        let warning = selected.isValid ? conflictWarning() : nil
+        conflictWarningLabel.stringValue = warning.map { "\($0)." } ?? ""
+        conflictWarningRow.isHidden = warning == nil
         // A warning that appears, changes, or clears on a shown sheet is spoken: it lands away from
         // the cap or checkbox that was just toggled, where VoiceOver's attention is. A warning that
         // merely went unchecked because the combination turned invalid isn't called clear.
@@ -460,13 +368,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
         }
         shownConflictWarning = warning
 
-        let anyOptionOn = states.contains(true)
-        for (index, illustration) in optionIllustrations.enumerated() {
-            illustration.isEnabled = states.indices.contains(index) ? states[index] : true
-        }
-        optionsHintLabel?.isHidden = anyOptionOn
-
-        rebuildWalkthrough(walkthrough(states))
+        rebuildWalkthrough(makeWalkthrough())
         updateContentHeight()
     }
 
@@ -537,7 +439,7 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
                 // Filled row by row: the view hierarchy is rows, so this is the order assistive
                 // tech walks, and left-to-right reading then matches the order the steps are
-                // declared in — which the closing note refers to.
+                // declared in.
                 for rowIndex in stride(from: 0, to: steps.count, by: columns) {
                     let cells = (rowIndex..<min(rowIndex + columns, steps.count)).map(makeCell)
                     let row = NSStackView(views: cells)
@@ -547,14 +449,6 @@ final class ModifierCombinationSheetViewController: NSViewController {
                     append(row)
                 }
             }
-        }
-
-        if let note = content.note {
-            let label = NSTextField(wrappingLabelWithString: note)
-            label.font = NSFont.systemFont(ofSize: 11)
-            label.textColor = .secondaryLabelColor
-            label.preferredMaxLayoutWidth = Self.cardContentWidth
-            append(label, gapAbove: 12)
         }
     }
 
@@ -570,16 +464,18 @@ final class ModifierCombinationSheetViewController: NSViewController {
 
     private func makeTriggerContent(for step: Walkthrough.Step, isAvailable: Bool) -> NSView {
         switch step.trigger {
-        case .keys(let labels):
-            let caps = NSStackView(views: labels.map { label -> KeyCapView in
-                let cap = KeyCapView(label: label)
-                cap.isEnabled = isAvailable
-                return cap
-            })
-            caps.orientation = .horizontal
-            caps.alignment = .firstBaseline
-            caps.spacing = 4
-            return caps
+        case .key(let label):
+            let cap = KeyCapView(label: label)
+            cap.isEnabled = isAvailable
+            return cap
+        case .settableKey(let label, let help, let isConflicting, let action):
+            let cap = KeyCapButton(label: label)
+            cap.isConflicting = isConflicting
+            cap.isEnabled = isAvailable
+            cap.onClick = action
+            cap.setAccessibilityLabel(KeyCap.spokenName(for: label))
+            cap.setAccessibilityHelp(help)
+            return cap
         case .gesture(let name):
             let label = NSTextField(labelWithString: name)
             label.font = NSFont.systemFont(ofSize: 12, weight: .medium)
@@ -622,184 +518,5 @@ private final class SectionCardView: NSView {
         NSColor.separatorColor.setStroke()
         path.lineWidth = 1
         path.stroke()
-    }
-}
-
-// MARK: - The two editors
-
-extension ModifierCombinationSheetViewController {
-    /// Editor for the modifiers held while clicking or dragging to activate the mouse gestures.
-    static func mouseGestures() -> ModifierCombinationSheetViewController {
-        ModifierCombinationSheetViewController(
-            title: "Mouse Gestures",
-            subtitle: "Choose the modifier keys to hold while clicking or dragging.",
-            modifiersHint: "Select at least two.",
-            walkthroughHeader: "What the gestures do",
-            walkthrough: { _ in
-                Walkthrough(items: [
-                    .heading("While holding the modifier keys:"),
-                    // One column: these triggers are phrases, not caps, so a second column would
-                    // leave too little room for the descriptions.
-                    .steps([
-                        Walkthrough.Step(
-                            trigger: .gesture("click"),
-                            detail: "Make a tiling zone the destination"),
-                        Walkthrough.Step(
-                            trigger: .gesture("double-click"),
-                            detail: "Make it the destination and open the Launcher"),
-                        Walkthrough.Step(
-                            trigger: .gesture("drag a tiled window"),
-                            detail: "Move it into the floating zone"),
-                        Walkthrough.Step(
-                            trigger: .gesture("drag a floating window"),
-                            detail: "Drop it into an occupied zone, replacing that window"),
-                        Walkthrough.Step(
-                            trigger: .gesture("drag from another app"),
-                            detail: "Route the drop into a zone"),
-                    ], columns: 1),
-                ])
-            },
-            initialModifiers: ModifierCombinationPreferences.mouseGestures.modifiers
-        )
-    }
-
-    /// The zone-navigation editor's option rows, in order; each row toggles one key group.
-    private static let zoneNavigationOptionGroups: [ZoneNavigationKeyGroups] = [.arrows, .letters]
-
-    /// The key groups the zone-navigation editor's option states select.
-    static func zoneNavigationKeyGroups(fromOptionStates states: [Bool]) -> ZoneNavigationKeyGroups {
-        zip(zoneNavigationOptionGroups, states).reduce(into: []) { groups, entry in
-            if entry.1 { groups.insert(entry.0) }
-        }
-    }
-
-    /// Editor for the modifiers and selection-key groups of keyboard zone navigation.
-    static func zoneNavigation() -> ModifierCombinationSheetViewController {
-        let current = ZoneNavigationKeyPreferences.shared.groups
-        return ModifierCombinationSheetViewController(
-            title: "Zone Navigation",
-            subtitle: "Hold the modifier keys and press a navigation key: a blue circle highlights a zone.",
-            modifiersHint: "Select at least two.",
-            walkthroughHeader: "Acting on this zone",
-            walkthrough: zoneNavigationWalkthrough,
-            conflictWarning: { modifiers, optionStates in
-                ShortcutConflicts.current(
-                    zoneNavigationModifiers: modifiers,
-                    zoneNavigationGroups: zoneNavigationKeyGroups(fromOptionStates: optionStates)
-                ).description(for: .zoneNavigation)
-            },
-            initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers,
-            options: Options(
-                header: "Navigation keys",
-                rows: [
-                    Options.Row(
-                        label: "Arrow keys",
-                        initialState: current.contains(.arrows),
-                        defaultState: ZoneNavigationKeyGroups.all.contains(.arrows),
-                        diagrams: {
-                            [(
-                                ArrowKeysDiagramView(),
-                                "Step to the next zone in that direction. The Floating Zone Bar "
-                                    + "is the bottom stop."
-                            )]
-                        }
-                    ),
-                    Options.Row(
-                        label: "Letter keys",
-                        initialState: current.contains(.letters),
-                        defaultState: ZoneNavigationKeyGroups.all.contains(.letters),
-                        diagrams: {
-                            [
-                                (
-                                    ZoneLetterKeysDiagramView(),
-                                    "Jump to that zone, adding it if it isn't there yet. "
-                                        + "G is the floating zone."
-                                ),
-                                (DisplayLetterKeysDiagramView(), "Jump to that display."),
-                            ]
-                        }
-                    ),
-                ],
-                allOffWarning: "Zone navigation is off. Turn on the arrow keys or the letter keys."
-            )
-        )
-    }
-
-    /// The steps of the zone-navigation gesture, for the currently checked modifiers and groups.
-    ///
-    /// The Launcher, Add Zone, Remove Zone, and Minimize steps borrow those shortcuts' keys
-    /// (claimed in that order), so each shows the key as currently configured — unless an earlier
-    /// in-gesture key leaves the borrowed key unreachable. The reused-from attributions are pooled
-    /// into one closing note so each step stays to a single line.
-    private static func zoneNavigationWalkthrough(optionStates: [Bool]) -> Walkthrough {
-        let groups = zoneNavigationKeyGroups(fromOptionStates: optionStates)
-
-        var earlierBorrowedKeys: [CGKeyCode] = []
-        var borrowedKeyNotes: [(key: String, source: String)] = []
-        func borrowedStep(
-            action: KeyboardShortcutPreferences.ShortcutAction,
-            detail: String,
-            unavailableStep: String
-        ) -> Walkthrough.Step {
-            guard let shortcut = KeyboardShortcutPreferences.shared.shortcut(for: action) else {
-                return Walkthrough.Step(
-                    trigger: .unavailable,
-                    detail: "\(unavailableStep) is unavailable (no \(action.displayName) shortcut is set)",
-                    isAvailable: false
-                )
-            }
-            let keyCode = CGKeyCode(shortcut.keyCode)
-            let key = shortcut.keyDisplayString
-            guard !ZoneNavigationInterceptor.shadowsBorrowedKey(
-                keyCode, groups: groups, earlierBorrowedKeys: earlierBorrowedKeys
-            ) else {
-                return Walkthrough.Step(
-                    trigger: .unavailable,
-                    detail: "\(unavailableStep) is unavailable (the \(action.displayName) key \(key) "
-                        + "already has another meaning in the gesture)",
-                    isAvailable: false
-                )
-            }
-            earlierBorrowedKeys.append(keyCode)
-            borrowedKeyNotes.append((key, action.displayName))
-            return Walkthrough.Step(trigger: .keys([key]), detail: detail)
-        }
-
-        let items: [Walkthrough.Item] = [
-            .line("Release the modifier keys: focus this zone's window, or make it the "
-                + "destination if empty."),
-            .heading("While still holding the modifier keys:"),
-            .steps([
-                Walkthrough.Step(
-                    trigger: .keys(["↩"]),
-                    detail: "Move the focused window into this zone (swaps if occupied)"),
-                borrowedStep(
-                    action: .showLauncher,
-                    detail: "Make this zone the destination and open the Launcher",
-                    unavailableStep: "Opening the Launcher on this zone"
-                ),
-                borrowedStep(action: .addZone, detail: "Add a zone", unavailableStep: "Adding a zone"),
-                borrowedStep(
-                    action: .removeZone, detail: "Remove this zone", unavailableStep: "Removing this zone"),
-                borrowedStep(
-                    action: .minimizeActiveWindow,
-                    detail: "Minimize this zone's window",
-                    unavailableStep: "Minimizing this zone's window"
-                ),
-                Walkthrough.Step(trigger: .keys(["esc"]), detail: "Cancel"),
-            ], columns: 2),
-        ]
-
-        var note: String?
-        if !borrowedKeyNotes.isEmpty {
-            // Name the borrowed keys rather than saying "these keys": ↩ and esc sit in the same
-            // list but are fixed, and implying they're remappable would be worse than the extra words.
-            let plural = borrowedKeyNotes.count == 1 ? "" : "s"
-            note = borrowedKeyNotes.map(\.key).naturalList + " follow the "
-                + borrowedKeyNotes.map(\.source).naturalList + " shortcut\(plural)."
-        }
-
-        // With no navigation keys there is nothing to select, so the whole gesture is out of reach.
-        return Walkthrough(items: items, note: note, isReachable: !groups.isEmpty)
     }
 }
