@@ -12,6 +12,8 @@ final class DockAXNotificationMonitor {
         /// The AXFrame of the first selected dock item (if available). Used to compute the offset
         /// between the AXList frame and actual dock item bounds.
         let itemFrame: CGRect?
+        /// The AXList orientation (bottom vs. left/right Dock), when `listFrame` is set.
+        let orientation: DockOrientation?
     }
 
     private static let dockBundleIdentifier = "com.apple.dock"
@@ -320,6 +322,7 @@ final class DockAXNotificationMonitor {
 
         var listFrame: CGRect?
         var itemFrame: CGRect?
+        var orientation: DockOrientation?
 
         if notification == (kAXSelectedChildrenChangedNotification as String) {
             let role = axStringAttribute(element: element, attribute: kAXRoleAttribute as CFString) ?? "?"
@@ -328,6 +331,7 @@ final class DockAXNotificationMonitor {
             if role == (kAXListRole as String) {
                 listFrame = axFrameAttribute(element: element)
                 let orientationStr = axStringAttribute(element: element, attribute: kAXOrientationAttribute as CFString) ?? "nil"
+                orientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
                 Logger.debug("DockAXNotificationMonitor: AXList frame=\(listFrame.map { String(describing: $0) } ?? "nil") orientation=\(orientationStr)")
 
                 // Check first selected child for AXApplicationDockItem
@@ -349,17 +353,13 @@ final class DockAXNotificationMonitor {
 
                     // Emit hover event if this is a running app
                     if let appURL = url,
-                       let listFrame,
                        let itemFrame,
                        let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
                        ApplicationIdentity.isRunning(bundleIdentifier: bundleId) {
-                        let orientation: DockOrientation = (orientationStr == "AXVerticalOrientation") ? .vertical : .horizontal
                         let hoverEvent = DockMenuHoverEvent(
                             appURL: appURL,
                             bundleIdentifier: bundleId,
-                            itemFrame: itemFrame,
-                            listFrame: listFrame,
-                            dockOrientation: orientation
+                            itemFrame: itemFrame
                         )
                         Logger.debug("DockAXNotificationMonitor: emitting hover event for \(appURL.lastPathComponent)")
                         onAppHover?(hoverEvent)
@@ -373,7 +373,7 @@ final class DockAXNotificationMonitor {
                 }
             }
         }
-        onEvent?(Event(notification: notification, listFrame: listFrame, itemFrame: itemFrame))
+        onEvent?(Event(notification: notification, listFrame: listFrame, itemFrame: itemFrame, orientation: orientation))
     }
 
     private func axFrameAttribute(element: AXUIElement) -> CGRect? {

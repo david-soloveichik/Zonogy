@@ -77,8 +77,8 @@ final class DockMenusCoordinator {
         }
     }
 
-    // Cached for Cocoa<->Accessibility conversion; refreshed via updatePrimaryScreenBounds when the
-    // primary display changes (the Dock lives on the primary screen, so its resolution matters).
+    // Cached for Cocoa<->Accessibility conversion (accessibility coordinates originate at the
+    // primary display's top-left); refreshed via updatePrimaryScreenBounds on topology changes.
     private var primaryScreenBounds: CGRect
     private let frameMonitor = DockFrameMonitor()
     private let debugOverlay: DockDebugBorderOverlayController?
@@ -89,7 +89,8 @@ final class DockMenusCoordinator {
     private let dismissalPoller = DockMenuDismissalPoller()
 
     private var lastHoverEvent: DockMenuHoverEvent?
-    private var lastDockFrameAX: CGRect?
+    /// Where the Dock is (display, edge, revealed frame), as last reported by the frame monitor.
+    private var dockLocation: DockLocation?
     private static let dockSafePadding: CGFloat = 12
 
     private lazy var rowDragController = CursorDrivenRowDragController<DragPayload>(
@@ -145,11 +146,12 @@ final class DockMenusCoordinator {
         self.clickFeedback = DockClickFeedbackOverlay(primaryScreenBounds: primaryScreenBounds)
 
         frameMonitor.onStateChange = { [weak self] state in
+            let dockFrame = state.location?.revealedFrame
             // Debug overlay only shows when Dock is visible
-            self?.debugOverlay?.setListFrame(accessibilityFrame: state.isVisible ? state.listFrame : nil)
-            self?.clickInterceptor.updateFrame(state.listFrame)
+            self?.debugOverlay?.setDockFrame(accessibilityFrame: state.isVisible ? dockFrame : nil)
+            self?.clickInterceptor.updateFrame(dockFrame)
             self?.clickInterceptor.updateVisibility(state.isVisible)
-            self?.lastDockFrameAX = state.listFrame
+            self?.dockLocation = state.location
         }
 
         clickInterceptor.onDockNotFound = { [weak self] in
@@ -187,7 +189,7 @@ final class DockMenusCoordinator {
         rowDragController.cancelDrag()
         clickInterceptor.stop()
         frameMonitor.stop()
-        debugOverlay?.setListFrame(accessibilityFrame: nil)
+        debugOverlay?.setDockFrame(accessibilityFrame: nil)
         dismissalPoller.stop()
         hoverTracker.reset()
         panelController.hide()
@@ -204,10 +206,12 @@ final class DockMenusCoordinator {
     // MARK: - Private
 
     private func showDockMenu(for event: DockMenuHoverEvent) {
-        let stableDockFrame = frameMonitor.stableDockFrame ?? event.listFrame
-        lastDockFrameAX = stableDockFrame
+        guard let dockLocation else {
+            Logger.debug("DockMenusCoordinator: skipping DockMenu show (Dock not located)")
+            return
+        }
 
-        if !isCursorInDockFrame(stableDockFrame) {
+        if !isCursorInDockFrame(dockLocation.revealedFrame) {
             Logger.debug("DockMenusCoordinator: skipping DockMenu show (cursor not in Dock)")
             return
         }
@@ -220,7 +224,7 @@ final class DockMenusCoordinator {
         )
 
         Logger.debug("DockMenusCoordinator: showing DockMenu for \(event.appURL.lastPathComponent) with \(windows.count) windows")
-        panelController.show(for: event, windows: windows, stableDockFrame: stableDockFrame)
+        panelController.show(for: event, windows: windows, dockLocation: dockLocation, primaryScreenBounds: primaryScreenBounds)
         hoverTracker.menuDidShow(appURL: event.appURL)
         dismissalPoller.start()
     }
@@ -242,7 +246,7 @@ final class DockMenusCoordinator {
             return true
         }
 
-        guard lastHoverEvent != nil, let dockFrameAX = lastDockFrameAX else {
+        guard lastHoverEvent != nil, let dockFrameAX = dockLocation?.revealedFrame else {
             return false
         }
 

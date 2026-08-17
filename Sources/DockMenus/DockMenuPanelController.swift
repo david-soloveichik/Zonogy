@@ -36,10 +36,11 @@ final class DockMenuPanelController: NSObject {
 
     /// Show the DockMenu panel for the given hover event.
     /// - Parameters:
-    ///   - event: The hover event containing item and list frames.
+    ///   - event: The hover event containing the hovered item's frame.
     ///   - windows: The app's managed windows to display.
-    ///   - stableDockFrame: The stable Dock frame (where the Dock is when fully visible).
-    func show(for event: DockMenuHoverEvent, windows: [LauncherWindowItem], stableDockFrame: CGRect) {
+    ///   - dockLocation: Where the Dock is (its display, edge, and revealed frame).
+    ///   - primaryScreenBounds: Primary display bounds (Cocoa), for accessibility→Cocoa conversion.
+    func show(for event: DockMenuHoverEvent, windows: [LauncherWindowItem], dockLocation: DockLocation, primaryScreenBounds: CGRect) {
         Logger.debug("DockMenuPanelController: show for \(event.appURL.lastPathComponent) with \(windows.count) windows")
 
         currentBundleIdentifier = event.bundleIdentifier
@@ -104,13 +105,15 @@ final class DockMenuPanelController: NSObject {
         let contentHeight = calculateContentHeight(windowCount: windows.count)
         panel.setContentSize(NSSize(width: 300, height: contentHeight))
 
-        // Position panel adjacent to Dock item (Dock is always on the primary screen)
-        let screenBounds = NSScreen.screens.first?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Position panel adjacent to the Dock item, within the visible bounds of the Dock's display
+        func cocoa(_ accessibilityFrame: CGRect) -> CGRect {
+            CoordinateConversion.accessibilityToCocoa(accessibilityFrame: accessibilityFrame, primaryScreenBounds: primaryScreenBounds)
+        }
         panel.positionAdjacentTo(
-            itemFrame: event.itemFrame,
-            dockFrame: stableDockFrame,
-            orientation: event.dockOrientation,
-            screenBounds: screenBounds,
+            itemFrame: cocoa(event.itemFrame),
+            dockFrame: cocoa(dockLocation.revealedFrame),
+            edge: dockLocation.edge,
+            screenBounds: cocoa(dockLocation.display.visibleFrame),
             hasWindows: !windows.isEmpty
         )
 

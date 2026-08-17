@@ -183,6 +183,9 @@ enum GuardrailTests {
         if !DockMenusBehaviorPreferencesStoreTests.run() {
             allPassed = false
         }
+        if !DockLocationTests.run() {
+            allPassed = false
+        }
         if !CmdTabBehaviorPreferencesStoreTests.run() {
             allPassed = false
         }

@@ -24,6 +24,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 - DockMenu is a small floating panel positioned adjacent to the hovered Dock icon:
   - Dock on bottom: menu appears above the icon.
   - Dock on left/right: menu appears to the inside of the display (away from the edge).
+- With several displays, DockMenus follow the Dock: an auto-hiding Dock appears on whichever display's edge the pointer pushes against, and DockMenus (and click interception) work there.
 - DockMenu should visually match the Launcher style (vibrancy/blur, rounded corners) but be more compact.
 - DockMenu should not take key focus merely by appearing.
 
@@ -114,20 +115,20 @@ DockMenu dismisses when:
 - Panel positioned with 8pt gap from Dock icon.
 - **Horizontal Dock (bottom):** Panel centered horizontally on the Dock icon.
 - **Vertical Dock (left/right):** Panel vertically aligned so that moving the mouse horizontally from the Dock icon (without vertical movement) places the cursor over the first window in the window list. If the app has no windows, aligns to the app header instead.
-- Clamp to display visible bounds.
+- Clamp to the visible bounds of the Dock's display.
 
-### Dock Visibility Tracking
+### Dock Location and Visibility Tracking
 
-- Track Dock visibility as a boolean alongside the Dock frame.
-- The frame represents the last Dock AXList frame that is fully within the primary display bounds; during autohide animation (off/partially off-screen), keep using the cached in-bounds frame.
-- **Visible**: Set when `AXSelectedChildrenChanged` notification fires.
+- Locate the Dock from the `AXList` frame reported with `AXSelectedChildrenChanged`. Note that the frame may be caught mid-autohide slide, but the slide only moves the Dock (across the display edge, off-screen when hidden) without changing its size — allowing us to always infer its revealed frame.
+- Track Dock visibility as a boolean alongside the location.
+- **Visible**: Set when an `AXSelectedChildrenChanged` notification with a hovered item fires.
 - **Hidden**: Set when click handler clicks in the Dock frame but finds no Dock element.
 - Click interception fast-exits when Dock is considered hidden.
 - Debug overlay only shows when Dock is considered visible.
 
 ### Click Interception
 
-- Global event tap intercepts left-mouse-down events within Dock AXList frame.
+- Global event tap intercepts left-mouse-down events within the Dock's revealed frame.
 - Validates click is on an app (AXApplicationDockItem subrole); intercepts both running and non-running apps.
 - Respects Shift modifier (bypass) and Control (context menu).
 

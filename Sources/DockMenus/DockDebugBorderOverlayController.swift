@@ -1,4 +1,4 @@
-/// Draws a blue debug border around the Dock's AXList frame.
+/// Draws a blue debug border around the Dock's revealed frame.
 import AppKit
 
 final class DockDebugBorderOverlayController {
@@ -18,7 +18,7 @@ final class DockDebugBorderOverlayController {
         primaryScreenBounds = bounds
     }
 
-    func setListFrame(accessibilityFrame: CGRect?) {
+    func setDockFrame(accessibilityFrame: CGRect?) {
         guard let accessibilityFrame else {
             Logger.debug("DockDebugBorderOverlayController: hiding blue frame because accessibilityFrame is invalid")
             window.orderOut(nil)

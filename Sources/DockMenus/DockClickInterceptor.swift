@@ -27,7 +27,7 @@ protocol DockClickInterceptorDelegate: AnyObject {
     func dockClickInterceptorDidEndDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint)
 }
 
-/// Intercepts global left-clicks within the Dock's AXList frame.
+/// Intercepts global left-clicks within the Dock's revealed frame.
 /// Performance-critical: exits as fast as possible when the click is outside the frame.
 ///
 /// Intercepts clicks on application Dock items (AXApplicationDockItem), both running and non-running.

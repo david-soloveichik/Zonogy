@@ -2,11 +2,12 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Tracks Dock AXList frame changes and emits state updates.
+/// Tracks where the Dock is (display, edge, revealed frame) and whether it is visible, from Dock
+/// accessibility events, and emits state updates.
 final class DockFrameMonitor {
     struct State: Equatable {
-        /// The AXFrame of the Dock's AXList element when AXSelectedChildrenChanged fires.
-        var listFrame: CGRect?
+        /// Where the Dock is and its fully revealed frame; nil until the Dock has been located.
+        var location: DockLocation?
         /// Whether the Dock is considered visible (vs hidden due to autohide).
         var isVisible: Bool = false
     }
@@ -19,16 +20,6 @@ final class DockFrameMonitor {
 
     private var lastState: State?
     private var axNotificationMonitor: DockAXNotificationMonitor?
-
-    /// Cached frame from when the Dock was fully within the primary screen bounds.
-    /// Used to handle autohide animation where the Dock reports an off-screen (or partially off-screen) frame.
-    private var cachedVisibleFrame: CGRect?
-
-    /// The stable Dock frame (where the Dock is when fully visible).
-    /// Use this for positioning UI elements relative to the Dock during animations.
-    var stableDockFrame: CGRect? {
-        cachedVisibleFrame
-    }
 
     func start() {
         guard axNotificationMonitor == nil else { return }
@@ -75,135 +66,50 @@ final class DockFrameMonitor {
     private func handleDockEvent(_ event: DockAXNotificationMonitor.Event) {
         Logger.debug("DockFrameMonitor: received event notification=\(event.notification) listFrame=\(event.listFrame.map { String(describing: $0) } ?? "nil")")
 
-        if event.notification == (kAXSelectedChildrenChangedNotification as String) {
-            // Determine the effective frame, handling Dock autohide animation
-            let effectiveFrame: CGRect?
-            if let frame = event.listFrame {
-                // Adjust frame closer to screen edge (AXList frame doesn't fully cover dock items)
-                let adjustedFrame = adjustFrameToScreenEdge(frame, itemFrame: event.itemFrame)
-                if isFrameWithinPrimaryScreenBounds(adjustedFrame) {
-                    // Dock is fully within the primary screen - cache this frame
-                    cachedVisibleFrame = adjustedFrame
-                    effectiveFrame = adjustedFrame
-                } else {
-                    // Dock reports an off-screen (or partially off-screen) frame during autohide animation - use cached visible frame if available
-                    Logger.debug("DockFrameMonitor: off-screen frame detected, using cached frame=\(cachedVisibleFrame.map { String(describing: $0) } ?? "nil")")
-                    effectiveFrame = cachedVisibleFrame ?? frame
-                }
-            } else {
-                effectiveFrame = nil
-            }
+        guard event.notification == (kAXSelectedChildrenChangedNotification as String) else { return }
 
-            let wasVisible = lastState?.isVisible ?? false
-            let next = State(listFrame: effectiveFrame, isVisible: true)
+        // DockLocation turns the AXList frame (sampled at any point of the auto-hide slide, on any
+        // display) into the Dock's revealed frame. Keep the last location when a frame cannot be
+        // placed (e.g. mid display reconfiguration) rather than leaving click interception frameless.
+        let location = event.listFrame.flatMap { listFrame in
+            DockLocation.resolve(
+                listFrame: listFrame,
+                itemFrame: event.itemFrame,
+                orientation: event.orientation ?? .horizontal,
+                displays: Self.currentDisplays()
+            )
+        }
+        if location == nil {
+            Logger.debug("DockFrameMonitor: could not locate the Dock from frame; keeping last location")
+        }
 
-            guard next != lastState else {
-                Logger.debug("DockFrameMonitor: state unchanged, skipping")
-                return
-            }
-            lastState = next
+        let wasVisible = lastState?.isVisible ?? false
+        let next = State(location: location ?? lastState?.location, isVisible: true)
 
-            if !wasVisible {
-                Logger.debug("DockFrameMonitor: Dock visibility changed to visible")
-            }
-            Logger.debug("DockFrameMonitor: state changed, dispatching frame=\(next.listFrame.map { String(describing: $0) } ?? "nil")")
+        guard next != lastState else {
+            Logger.debug("DockFrameMonitor: state unchanged, skipping")
+            return
+        }
+        lastState = next
 
-            DispatchQueue.main.async { [weak self] in
-                self?.onStateChange?(next)
-            }
+        if !wasVisible {
+            Logger.debug("DockFrameMonitor: Dock visibility changed to visible")
+        }
+        Logger.debug("DockFrameMonitor: state changed, dispatching frame=\(next.location.map { String(describing: $0.revealedFrame) } ?? "nil")")
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onStateChange?(next)
         }
     }
 
-    private func isFrameWithinPrimaryScreenBounds(_ frame: CGRect) -> Bool {
-        guard let primaryScreen = NSScreen.screens.first(where: { $0.frame.origin == .zero })
-            ?? NSScreen.main
-            ?? NSScreen.screens.first else {
-            // Fall back to the previous heuristic if we can't determine screen bounds.
-            return frame.origin.x >= 0
-        }
-
-        let primaryBoundsCocoa = primaryScreen.frame
-        let primaryBoundsAccessibility = CoordinateConversion.cocoaToAccessibility(
-            cocoaFrame: primaryBoundsCocoa,
-            primaryScreenBounds: primaryBoundsCocoa
-        )
-
-        // Allow a small tolerance for rounding during animations.
-        let tolerance: CGFloat = 2
-        return primaryBoundsAccessibility.insetBy(dx: -tolerance, dy: -tolerance).contains(frame)
-    }
-
-    /// Adjusts the AXList frame closer to the screen edge based on the actual dock item offset.
-    /// The Dock's AXList frame doesn't fully cover the actual dock item bounds.
-    private func adjustFrameToScreenEdge(_ frame: CGRect, itemFrame: CGRect?) -> CGRect {
-        guard let primaryScreen = NSScreen.screens.first(where: { $0.frame.origin == .zero })
-            ?? NSScreen.main
-            ?? NSScreen.screens.first else {
-            return frame
-        }
-
-        let screenWidth = primaryScreen.frame.width
-
-        // Detect dock position based on frame geometry
-        let isVertical = frame.height > frame.width
-        let isLeftDock = frame.origin.x < screenWidth / 2
-
-        // Default offset when AX API doesn't report the actual overhang
-        let defaultEdgeOffset: CGFloat = 5
-
-        if isVertical {
-            // Vertical dock (left or right side)
-            // Compute offset from itemFrame if available, otherwise fallback to default
-            let edgeAdjustment: CGFloat
-            if let itemFrame {
-                if isLeftDock {
-                    // Left dock: items extend LEFT of list (itemFrame.x < listFrame.x)
-                    let computed = frame.origin.x - itemFrame.origin.x
-                    edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
-                } else {
-                    // Right dock: items are shifted RIGHT of list (itemFrame.x > listFrame.x)
-                    // This mirrors the left dock where items are shifted LEFT (itemFrame.x < listFrame.x)
-                    let computed = itemFrame.origin.x - frame.origin.x
-                    edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
-                }
-            } else {
-                edgeAdjustment = defaultEdgeOffset
-            }
-
-            if isLeftDock {
-                // Left dock: shift x toward 0 (left edge)
-                return CGRect(
-                    x: frame.origin.x - edgeAdjustment,
-                    y: frame.origin.y,
-                    width: frame.width,
-                    height: frame.height
-                )
-            } else {
-                // Right dock: shift x toward screen right edge
-                return CGRect(
-                    x: frame.origin.x + edgeAdjustment,
-                    y: frame.origin.y,
-                    width: frame.width,
-                    height: frame.height
-                )
-            }
-        } else {
-            // Horizontal dock (bottom)
-            // Items extend DOWN from list (itemFrame.maxY > listFrame.maxY)
-            // Note: AX API may report same maxY for list and item, so fallback to default
-            let edgeAdjustment: CGFloat
-            if let itemFrame {
-                let computed = itemFrame.maxY - frame.maxY
-                edgeAdjustment = computed > 0 ? computed : defaultEdgeOffset
-            } else {
-                edgeAdjustment = defaultEdgeOffset
-            }
-
-            return CGRect(
-                x: frame.origin.x,
-                y: frame.origin.y + edgeAdjustment,
-                width: frame.width,
-                height: frame.height
+    /// The connected displays in accessibility coordinates.
+    private static func currentDisplays() -> [DockLocation.Display] {
+        let screens = NSScreen.screens
+        guard let primaryBounds = screens.first?.frame else { return [] }
+        return screens.map { screen in
+            DockLocation.Display(
+                frame: CoordinateConversion.cocoaToAccessibility(cocoaFrame: screen.frame, primaryScreenBounds: primaryBounds),
+                visibleFrame: CoordinateConversion.cocoaToAccessibility(cocoaFrame: screen.visibleFrame, primaryScreenBounds: primaryBounds)
             )
         }
     }

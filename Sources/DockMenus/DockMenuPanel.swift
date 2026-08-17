@@ -71,61 +71,35 @@ final class DockMenuPanel: NSPanel {
         false
     }
 
-    /// Position the panel adjacent to the Dock item.
+    /// Position the panel adjacent to the Dock item. All frames are in Cocoa coordinates.
     /// - Parameters:
-    ///   - itemFrame: Accessibility frame of the Dock item (screen coordinates, y:0 at top).
-    ///   - dockFrame: Stable Dock frame (where the Dock is when fully visible, screen coordinates).
-    ///   - orientation: Dock orientation (horizontal for bottom, vertical for left/right).
-    ///   - screenBounds: The visible screen bounds in Cocoa coordinates.
+    ///   - itemFrame: Frame of the hovered Dock item.
+    ///   - dockFrame: The Dock's revealed frame (stable throughout the autohide slide).
+    ///   - edge: The display edge the Dock sits on.
+    ///   - screenBounds: The visible bounds of the Dock's display.
     ///   - hasWindows: Whether the app has any windows (affects vertical alignment).
     func positionAdjacentTo(
         itemFrame: CGRect,
         dockFrame: CGRect,
-        orientation: DockOrientation,
+        edge: DockLocation.Edge,
         screenBounds: NSRect,
         hasWindows: Bool
     ) {
         let panelSize = frame.size
         let gap: CGFloat = 8
 
-        // Convert frames from screen coordinates (y:0 at top) to Cocoa (y:0 at bottom)
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? screenBounds.height
-        let cocoaItemFrame = CGRect(
-            x: itemFrame.origin.x,
-            y: primaryHeight - itemFrame.origin.y - itemFrame.height,
-            width: itemFrame.width,
-            height: itemFrame.height
-        )
-        let cocoaDockFrame = CGRect(
-            x: dockFrame.origin.x,
-            y: primaryHeight - dockFrame.origin.y - dockFrame.height,
-            width: dockFrame.width,
-            height: dockFrame.height
-        )
-
         var x: CGFloat
         var y: CGFloat
 
-        switch orientation {
-        case .horizontal:
-            // Dock on bottom: panel above Dock, horizontally centered on item
-            // x: from itemFrame (center on hovered item)
-            // y: from dockFrame (stable Dock top edge, handles autohide animation)
-            x = cocoaItemFrame.midX - panelSize.width / 2
-            y = cocoaDockFrame.maxY + gap
+        switch edge {
+        case .bottom:
+            // Panel above the Dock, horizontally centered on the hovered item
+            x = itemFrame.midX - panelSize.width / 2
+            y = dockFrame.maxY + gap
 
-        case .vertical:
-            // Dock on left or right: panel to inside of screen
-            // x: from dockFrame (stable Dock edge, handles autohide animation)
-            // y: from itemFrame (align with hovered item)
-            let isOnLeft = cocoaDockFrame.midX < screenBounds.midX
-            if isOnLeft {
-                // Dock on left: panel to right of Dock
-                x = cocoaDockFrame.maxX + gap
-            } else {
-                // Dock on right: panel to left of Dock
-                x = cocoaDockFrame.minX - panelSize.width - gap
-            }
+        case .left, .right:
+            // Panel to the inside of the display, beside the Dock
+            x = edge == .left ? dockFrame.maxX + gap : dockFrame.minX - panelSize.width - gap
             // Position so target row aligns with Dock icon center.
             let targetOffsetFromTop: CGFloat
             if hasWindows {
@@ -135,7 +109,7 @@ final class DockMenuPanel: NSPanel {
                 // App header center: top padding (6) + half header (20) = 26pt
                 targetOffsetFromTop = 26
             }
-            y = cocoaItemFrame.midY - panelSize.height + targetOffsetFromTop
+            y = itemFrame.midY - panelSize.height + targetOffsetFromTop
         }
 
         // Clamp to screen bounds
