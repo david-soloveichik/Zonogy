@@ -9,7 +9,13 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     private var removeButton: NSButton!
     private var explanationLabel: NSTextField!
 
-    private var items: [LauncherConfigurationItem] = []
+    /// The on-disk configuration. Only `items` is edited here; the rest (the file's notes) is
+    /// written back untouched.
+    private var configuration = LauncherConfiguration(items: [])
+    private var items: [LauncherConfigurationItem] {
+        get { configuration.items }
+        set { configuration.items = newValue }
+    }
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 400))
@@ -137,7 +143,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     // MARK: - Data Management
 
     private func loadConfiguration() {
-        items = LauncherConfigurationStore.loadConfiguration().items
+        configuration = LauncherConfigurationStore.loadConfiguration()
         sortItems()
         tableView.reloadData()
     }
@@ -148,10 +154,17 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
         items.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 
+    /// Ends any alias edit in progress, so it lands on its own row before rows move or vanish
+    /// (the field remembers only a row number), and leaves keyboard focus on the table.
+    private func commitPendingAliasEdit() {
+        view.window?.makeFirstResponder(tableView)
+    }
+
     /// Adds the paths not already listed, keeps the table sorted, and selects the newcomers
     /// (scrolled into view) so an alias can be typed straight away.
     @discardableResult
     private func addPaths(_ paths: [String]) -> Bool {
+        commitPendingAliasEdit()
         var addedPaths: Set<String> = []
         for path in paths where !items.contains(where: { $0.path == path }) {
             items.append(LauncherConfigurationItem(path: path, alias: nil))
@@ -171,8 +184,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     }
 
     private func saveConfiguration() {
-        let config = LauncherConfiguration(items: items)
-        LauncherConfigurationStore.saveConfiguration(config)
+        LauncherConfigurationStore.saveConfiguration(configuration)
         Task {
             await LauncherAppCache.shared.reload()
         }
@@ -196,6 +208,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     }
 
     @objc private func removeSelectedItems() {
+        commitPendingAliasEdit()
         let selectedRows = tableView.selectedRowIndexes
         guard !selectedRows.isEmpty else { return }
 
