@@ -1,4 +1,5 @@
-/// View controller for the Zones preferences tab
+/// View controller for the Zones preferences tab; also the way into the sheet for replacing the
+/// focused window (`TargetingSheetViewController`).
 import AppKit
 
 final class ZonesPreferencesViewController: NSViewController {
@@ -90,6 +91,46 @@ final class ZonesPreferencesViewController: NSViewController {
         stickyResizeHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(stickyResizeHintLabel)
 
+        // Destination zone: the rule first, for readers new to Zonogy, then the exception. The
+        // focused-window replacement options live in a sheet: they are rarely visited, so a row
+        // here points to them without giving them the pane's weight.
+        let destinationSeparator = NSBox()
+        destinationSeparator.boxType = .separator
+        destinationSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(destinationSeparator)
+
+        let destinationTitleLabel = NSTextField(labelWithString: "Destination Zone")
+        destinationTitleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
+        destinationTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(destinationTitleLabel)
+
+        let destinationDescriptionLabel = NSTextField(
+            wrappingLabelWithString: "Windows open into the current destination zone, marked with the glowing indicator. Emptying a zone (for example, by minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
+        )
+        destinationDescriptionLabel.font = NSFont.systemFont(ofSize: 12)
+        destinationDescriptionLabel.textColor = .secondaryLabelColor
+        destinationDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(destinationDescriptionLabel)
+
+        let targetingLabel = NSTextField(labelWithString: "Replacing focused window")
+        targetingLabel.font = NSFont.systemFont(ofSize: 13)
+        targetingLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingLabel)
+
+        let targetingButton = NSButton(title: "Options…", target: self, action: #selector(editTargeting))
+        targetingButton.bezelStyle = .rounded
+        targetingButton.setAccessibilityLabel("Replacing focused window options")
+        targetingButton.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingButton)
+
+        let targetingHintLabel = NSTextField(
+            wrappingLabelWithString: "CmdTab, the Launcher shortcut, and DockMenus can replace the focused window instead."
+        )
+        targetingHintLabel.font = NSFont.systemFont(ofSize: 12)
+        targetingHintLabel.textColor = .secondaryLabelColor
+        targetingHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(targetingHintLabel)
+
         NSLayoutConstraint.activate([
             zoneLayoutTitleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             zoneLayoutTitleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
@@ -118,10 +159,30 @@ final class ZonesPreferencesViewController: NSViewController {
             stickyResizeHintLabel.topAnchor.constraint(equalTo: stickyResizeCheckbox.bottomAnchor, constant: 6),
             stickyResizeHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             stickyResizeHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            destinationSeparator.topAnchor.constraint(equalTo: stickyResizeHintLabel.bottomAnchor, constant: 20),
+            destinationSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            destinationSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            destinationTitleLabel.topAnchor.constraint(equalTo: destinationSeparator.bottomAnchor, constant: 16),
+            destinationTitleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+
+            destinationDescriptionLabel.topAnchor.constraint(equalTo: destinationTitleLabel.bottomAnchor, constant: 6),
+            destinationDescriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            destinationDescriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            targetingButton.topAnchor.constraint(equalTo: destinationDescriptionLabel.bottomAnchor, constant: 16),
+            targetingButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            targetingLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            targetingLabel.centerYAnchor.constraint(equalTo: targetingButton.centerYAnchor),
+
+            targetingHintLabel.topAnchor.constraint(equalTo: targetingButton.bottomAnchor, constant: 6),
+            targetingHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            targetingHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 420)
+        self.preferredContentSize = NSSize(width: 580, height: 565)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()
@@ -159,5 +220,9 @@ final class ZonesPreferencesViewController: NSViewController {
     private func syncStickyResizeCheckbox() {
         let enabled = AppController.shared.isStickyResizeEnabledInSettings
         stickyResizeCheckbox?.state = enabled ? .on : .off
+    }
+
+    @objc private func editTargeting() {
+        presentAsSheet(TargetingSheetViewController())
     }
 }
