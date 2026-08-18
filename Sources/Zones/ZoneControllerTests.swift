@@ -24,7 +24,7 @@ enum ZoneControllerTests {
         let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 1)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 1, layoutStyle: .rightBar)
             assert(controller.allZones.count == 1, "init should create 1 zone")
             assert(controller.zone(at: 1)?.index == 1, "zone 1 should exist")
 
@@ -50,7 +50,7 @@ enum ZoneControllerTests {
         }
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3, layoutStyle: .rightBar)
             controller.assignWindow(windowId: 601, toZoneIndex: 1)
             controller.assignWindow(windowId: 603, toZoneIndex: 3)
 
@@ -62,7 +62,7 @@ enum ZoneControllerTests {
         }
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3, layoutStyle: .rightBar)
             controller.assignWindow(windowId: 401, toZoneIndex: 1)
             controller.assignWindow(windowId: 402, toZoneIndex: 2)
             controller.assignWindow(windowId: 403, toZoneIndex: 3)
@@ -74,7 +74,7 @@ enum ZoneControllerTests {
         }
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 2)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 2, layoutStyle: .rightBar)
             controller.assignWindow(windowId: 501, toZoneIndex: 1)
 
             let originalLeft = controller.zone(at: 1)!.frame
@@ -90,7 +90,7 @@ enum ZoneControllerTests {
         }
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 2)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 2, layoutStyle: .rightBar)
             let resized = controller.resizeZone(at: 1, to: CGRect(x: 0, y: 0, width: 1, height: 800))
             assert(resized == true, "resizeZone should allow resizing an empty zone")
 
@@ -100,7 +100,7 @@ enum ZoneControllerTests {
         }
 
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3, layoutStyle: .rightBar)
             controller.replaceZones(withOccupants: [902, nil])
 
             assert(controller.allZones.count == 2, "replaceZones should update the zone count")
@@ -111,7 +111,7 @@ enum ZoneControllerTests {
 
         // Single-bar styles force canonical sides: right-bar puts zone 1 left, left-bar mirrors.
         do {
-            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3)
+            let controller = ZoneController(screenFrame: screen, initialZoneCount: 3, layoutStyle: .rightBar)
             assert(controller.zone(at: 1)?.side == .left, "right-bar zone 1 side should be left")
             assert(controller.zone(at: 2)?.side == .right, "right-bar zone 2 side should be right")
             assert(controller.zone(at: 3)?.side == .right, "right-bar zone 3 side should be right")

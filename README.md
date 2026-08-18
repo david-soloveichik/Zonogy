@@ -88,7 +88,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 
 | Gesture | Action |
 | --- | --- |
-| Click New Zone Bar (on display edge — right by default, per the zone layout) | Add a tiling zone on that side |
+| Click New Zone Bar (on the left or right display edge, per the zone layout) | Add a tiling zone on that side |
 | Click Floating Zone Bar (on bottom edge of each display) | Set the floating zone as destination; click again (or double-click) to open the Launcher there |
 | `Control-Cmd`-click anywhere in a zone (even if zone is occupied) | Set that zone as destination; double-click also opens the Launcher |
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |

@@ -31,7 +31,7 @@ final class ScreenContextStore {
     private(set) var primaryDisplayId: CGDirectDisplayID
     private(set) var primaryScreenBounds: CGRect
 
-    init?(screens: [NSScreen], zoneLayoutStyle: ZoneLayoutStyle = .rightBar) {
+    init?(screens: [NSScreen], zoneLayoutStyle: ZoneLayoutStyle) {
         guard let primaryScreen = screens.first,
               let primaryId = ScreenContextStore.displayId(for: primaryScreen) else {
             return nil

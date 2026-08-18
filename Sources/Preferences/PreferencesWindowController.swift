@@ -96,8 +96,8 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     /// Template toolbar icon for the Zones tab, drawn to match the SF Symbols rectangle
-    /// family (no system symbol shows this arrangement): the default zone layout — a
-    /// full-height left column beside a right column split into two stacked zones.
+    /// family (no system symbol shows this arrangement): the typical three-zone arrangement —
+    /// a full-height left column beside a right column split into two stacked zones.
     private static func zonesTabImage() -> NSImage {
         let size = NSSize(width: 19, height: 14)
         let lineWidth: CGFloat = 1.3

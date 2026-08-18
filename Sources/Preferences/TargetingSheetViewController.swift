@@ -75,17 +75,11 @@ final class TargetingSheetViewController: NSViewController {
         dockMenusCheckbox.state = AppController.shared.isDockMenusTargetsZoneWithActiveWindowEnabledInSettings ? .on : .off
         let dockMenusHint = Self.makeHintLabel("Windows from DockMenus replace the focused window in its zone.")
 
-        let draggingNote = Self.makeSecondaryLabel(
-            "Dragging a window from DockMenus, CmdTab, or the Launcher always lets you place it directly into the zone you want.",
-            width: Self.contentWidth
-        )
-
         let stack = NSStackView(views: [
             header,
             Self.makeSetting(cmdTabRow, hint: cmdTabModeHintLabel),
             Self.makeSetting(launcherShortcutCheckbox, hint: launcherShortcutHint),
             Self.makeSetting(dockMenusCheckbox, hint: dockMenusHint),
-            draggingNote,
             makeButtonRow(),
         ])
         stack.orientation = .vertical

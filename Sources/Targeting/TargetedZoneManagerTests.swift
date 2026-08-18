@@ -214,7 +214,7 @@ enum TargetedZoneManagerTests {
 
         for (screenId, count) in zoneCounts {
             let descriptor = makeDescriptor(displayId: screenId, primaryBounds: frame)
-            let controller = ZoneController(screenFrame: frame, initialZoneCount: count)
+            let controller = ZoneController(screenFrame: frame, initialZoneCount: count, layoutStyle: .rightBar)
             contexts[screenId] = ScreenContext(descriptor: descriptor, zoneController: controller)
         }
 

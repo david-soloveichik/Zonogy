@@ -18,7 +18,7 @@ class ZoneController {
     private var screenFrame: CGRect
     private(set) var layoutStyle: ZoneLayoutStyle
 
-    init(screenFrame: CGRect, initialZoneCount: Int = 1, layoutStyle: ZoneLayoutStyle = .rightBar) {
+    init(screenFrame: CGRect, initialZoneCount: Int = 1, layoutStyle: ZoneLayoutStyle) {
         self.screenFrame = screenFrame.standardized
         self.layoutStyle = layoutStyle
         let zoneCount = max(1, min(layoutStyle.maxZoneCount, initialZoneCount))

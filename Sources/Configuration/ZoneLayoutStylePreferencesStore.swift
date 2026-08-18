@@ -3,7 +3,7 @@
 import Foundation
 
 enum ZoneLayoutStylePreferencesStore {
-    private static let defaultStyle: ZoneLayoutStyle = .rightBar
+    private static let defaultStyle: ZoneLayoutStyle = .dualBar
 
     static func loadStyle() -> ZoneLayoutStyle {
         guard let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.zoneLayoutStyle),

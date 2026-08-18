@@ -7,6 +7,27 @@ final class ZonesPreferencesViewController: NSViewController {
     private var autoShowLauncherCheckbox: NSButton?
     private var stickyResizeCheckbox: NSButton?
     private var zoneLayoutOptionViews: [ZoneLayoutStyleOptionView] = []
+    private var zoneLayoutHintLabel: NSTextField?
+
+    private static func caption(for style: ZoneLayoutStyle) -> String {
+        switch style {
+        case .rightBar: return "Add bar on right"
+        case .leftBar: return "Add bar on left"
+        case .dualBar: return "Add bars on both sides"
+        }
+    }
+
+    /// Describes the selected layout: where its add-zone bar sits and how its zones tile when full.
+    private static func hint(for style: ZoneLayoutStyle) -> String {
+        switch style {
+        case .rightBar:
+            return "Clicking the add-zone bar on the right edge of the display adds a zone. Up to 3 zones: one on the left, two stacked on the right."
+        case .leftBar:
+            return "Clicking the add-zone bar on the left edge of the display adds a zone. Up to 3 zones: one on the right, two stacked on the left."
+        case .dualBar:
+            return "Clicking an add-zone bar adds a zone on that side of the display. Up to 4 zones: two stacked on each side."
+        }
+    }
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 420))
@@ -17,11 +38,6 @@ final class ZonesPreferencesViewController: NSViewController {
         zoneLayoutTitleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(zoneLayoutTitleLabel)
 
-        let zoneLayoutOptions: [(ZoneLayoutStyle, String)] = [
-            (.rightBar, "Add bar on right"),
-            (.leftBar, "Add bar on left"),
-            (.dualBar, "Add bars on both sides")
-        ]
         let optionsStack = NSStackView()
         optionsStack.orientation = .horizontal
         optionsStack.spacing = 16
@@ -30,7 +46,8 @@ final class ZonesPreferencesViewController: NSViewController {
         containerView.addSubview(optionsStack)
 
         zoneLayoutOptionViews = []
-        for (style, caption) in zoneLayoutOptions {
+        for style in ZoneLayoutStyle.allCases {
+            let caption = Self.caption(for: style)
             let optionView = ZoneLayoutStyleOptionView(style: style)
             optionView.onSelect = { [weak self] selectedStyle in
                 self?.zoneLayoutStyleSelected(selectedStyle)
@@ -50,13 +67,13 @@ final class ZonesPreferencesViewController: NSViewController {
             optionsStack.addArrangedSubview(optionStack)
         }
 
-        let zoneLayoutHintLabel = NSTextField(
-            wrappingLabelWithString: "Clicking an add-zone bar creates a new zone on that side of the display. Single-bar layouts tile up to 3 zones; bars on both sides allow up to 4."
-        )
+        // The hint follows the selection (filled in by syncZoneLayoutSelection).
+        let zoneLayoutHintLabel = NSTextField(wrappingLabelWithString: "")
         zoneLayoutHintLabel.font = NSFont.systemFont(ofSize: 12)
         zoneLayoutHintLabel.textColor = .secondaryLabelColor
         zoneLayoutHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(zoneLayoutHintLabel)
+        self.zoneLayoutHintLabel = zoneLayoutHintLabel
 
         let zoneLayoutSeparator = NSBox()
         zoneLayoutSeparator.boxType = .separator
@@ -91,9 +108,9 @@ final class ZonesPreferencesViewController: NSViewController {
         stickyResizeHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(stickyResizeHintLabel)
 
-        // Destination zone: the rule first, for readers new to Zonogy, then the exception. The
-        // focused-window replacement options live in a sheet: they are rarely visited, so a row
-        // here points to them without giving them the pane's weight.
+        // Destination zone: the rule first, for readers new to Zonogy, then how dragging sidesteps
+        // it. The exception — replacing the focused window — lives in a sheet: its options are
+        // rarely visited, so a single button names it here without giving it the pane's weight.
         let destinationSeparator = NSBox()
         destinationSeparator.boxType = .separator
         destinationSeparator.translatesAutoresizingMaskIntoConstraints = false
@@ -112,24 +129,19 @@ final class ZonesPreferencesViewController: NSViewController {
         destinationDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(destinationDescriptionLabel)
 
-        let targetingLabel = NSTextField(labelWithString: "Replacing focused window")
-        targetingLabel.font = NSFont.systemFont(ofSize: 13)
-        targetingLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(targetingLabel)
+        let destinationDraggingLabel = NSTextField(
+            wrappingLabelWithString: "Dragging an app or window from the Dock (with DockMenus enabled) always places it directly into the zone you want."
+        )
+        destinationDraggingLabel.font = NSFont.systemFont(ofSize: 12)
+        destinationDraggingLabel.textColor = .secondaryLabelColor
+        destinationDraggingLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(destinationDraggingLabel)
 
-        let targetingButton = NSButton(title: "Options…", target: self, action: #selector(editTargeting))
+        let targetingButton = NSButton(
+            title: "Replacing Focused Window…", target: self, action: #selector(editTargeting))
         targetingButton.bezelStyle = .rounded
-        targetingButton.setAccessibilityLabel("Replacing focused window options")
         targetingButton.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(targetingButton)
-
-        let targetingHintLabel = NSTextField(
-            wrappingLabelWithString: "CmdTab, the Launcher shortcut, and DockMenus can replace the focused window instead."
-        )
-        targetingHintLabel.font = NSFont.systemFont(ofSize: 12)
-        targetingHintLabel.textColor = .secondaryLabelColor
-        targetingHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(targetingHintLabel)
 
         NSLayoutConstraint.activate([
             zoneLayoutTitleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
@@ -171,18 +183,16 @@ final class ZonesPreferencesViewController: NSViewController {
             destinationDescriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             destinationDescriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            targetingButton.topAnchor.constraint(equalTo: destinationDescriptionLabel.bottomAnchor, constant: 16),
-            targetingButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-            targetingLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            targetingLabel.centerYAnchor.constraint(equalTo: targetingButton.centerYAnchor),
+            destinationDraggingLabel.topAnchor.constraint(equalTo: destinationDescriptionLabel.bottomAnchor, constant: 8),
+            destinationDraggingLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            destinationDraggingLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            targetingHintLabel.topAnchor.constraint(equalTo: targetingButton.bottomAnchor, constant: 6),
-            targetingHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            targetingHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            targetingButton.topAnchor.constraint(equalTo: destinationDraggingLabel.bottomAnchor, constant: 16),
+            targetingButton.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 565)
+        self.preferredContentSize = NSSize(width: 580, height: 585)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()
@@ -198,6 +208,7 @@ final class ZonesPreferencesViewController: NSViewController {
         for optionView in zoneLayoutOptionViews {
             optionView.isSelected = (optionView.style == current)
         }
+        zoneLayoutHintLabel?.stringValue = Self.hint(for: current)
     }
 
     @objc private func autoShowLauncherToggled(_ sender: NSButton) {

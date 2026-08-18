@@ -97,9 +97,9 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 Zonogy tiles each display as two side-by-side columns; a column holding two zones stacks them top and bottom. Zonogy Preferences → Zones offers three zone layouts, presented as clickable pictures of the arrangement:
 
-- **Add bar on right** (default): the add-zone bar sits on the right display edge. Zone 1 fills the left side; zones 2 and 3 stack on the right (zone 2 on top). Maximum 3 zones.
+- **Add bar on right**: the add-zone bar sits on the right display edge. Zone 1 fills the left side; zones 2 and 3 stack on the right (zone 2 on top). Maximum 3 zones.
 - **Add bar on left**: the mirror image. The add-zone bar sits on the left display edge. Zone 1 fills the right side; zones 2 and 3 stack on the left (zone 2 on top). Maximum 3 zones.
-- **Add bars on both sides**: add-zone bars sit on both display edges, and each side holds up to two zones, for a maximum of 4 zones. Zone numbers follow creation order rather than fixed positions, so the same zone count can tile either side (for example, 3 zones can be one zone on the left with two stacked on the right, or the reverse).
+- **Add bars on both sides** (default): add-zone bars sit on both display edges, and each side holds up to two zones, for a maximum of 4 zones. Zone numbers follow creation order rather than fixed positions, so the same zone count can tile either side (for example, 3 zones can be one zone on the left with two stacked on the right, or the reverse).
 
 In every layout, one zone spans the full display and two zones split it left and right. Within a stacked side, the lower zone number is on top.
 
@@ -345,7 +345,7 @@ Some applications refuse to shrink below their minimum width/height, which means
 
 **Implementation requirements:**
 
-1. ActiveFit applies to windows in any tiling zone except the zone at the display's top-left corner. (The exception is because reveal shifts move left/up, so that zone's window cannot be helped. With the default right-bar layout the exempt zone is zone 1; in the left-bar layout it is zone 2, the top-left zone. A single full-display zone is always exempt.)
+1. ActiveFit applies to windows in any tiling zone except the zone at the display's top-left corner. (The exception is because reveal shifts move left/up, so that zone's window cannot be helped. In the right-bar layout the exempt zone is zone 1; in the left-bar layout it is zone 2, the top-left zone. A single full-display zone is always exempt.)
 2. Determine the candidate active size for the window. Normally this is the window's actual *post-resize* size after the standard zone-aligned move/resize. However, if the Sticky Resize option is enabled, and this zone has a remembered manual size for its current occupant, use that remembered size instead. Anchor the candidate size to the zone's content origin (after margins) and determine whether the resulting predicted frame would extend beyond the display's visible bounds (allow a ≤1 px tolerance). If it would, the window qualifies for ActiveFit.
 3. When a qualifying window becomes the active/key window, enter **reveal mode**: first apply the candidate active size (zone size or remembered manual size), then shift it left and/or upward just enough for the full frame to sit inside the display's visible bounds. Do not shrink the window; this translation may cover neighboring zones temporarily.
 4. Reveal mode ends — and the window returns to **rest mode** (moved back to its normal zone-anchored position so other zones reclaim their space) — when another managed window becomes active, or when the revealed window leaves its zone, is minimized, or closes. (Focusing a window that Zonogy does not manage does not end reveal mode.)
