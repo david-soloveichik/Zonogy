@@ -137,9 +137,37 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
     // MARK: - Data Management
 
     private func loadConfiguration() {
-        let config = LauncherConfigurationStore.loadConfiguration()
-        items = config.items
+        items = LauncherConfigurationStore.loadConfiguration().items
+        sortItems()
         tableView.reloadData()
+    }
+
+    /// Finder-style order by path, so entries group by folder. The order exists only for this
+    /// table: the Launcher itself ranks items by name and usage.
+    private func sortItems() {
+        items.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+    }
+
+    /// Adds the paths not already listed, keeps the table sorted, and selects the newcomers
+    /// (scrolled into view) so an alias can be typed straight away.
+    @discardableResult
+    private func addPaths(_ paths: [String]) -> Bool {
+        var addedPaths: Set<String> = []
+        for path in paths where !items.contains(where: { $0.path == path }) {
+            items.append(LauncherConfigurationItem(path: path, alias: nil))
+            addedPaths.insert(path)
+        }
+        guard !addedPaths.isEmpty else { return false }
+
+        sortItems()
+        tableView.reloadData()
+        let addedRows = IndexSet(items.indices.filter { addedPaths.contains(items[$0].path) })
+        tableView.selectRowIndexes(addedRows, byExtendingSelection: false)
+        if let firstAddedRow = addedRows.first {
+            tableView.scrollRowToVisible(firstAddedRow)
+        }
+        saveConfiguration()
+        return true
     }
 
     private func saveConfiguration() {
@@ -163,16 +191,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
 
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let self = self else { return }
-
-            for url in panel.urls {
-                let path = self.abbreviatePath(url.path)
-                if !self.items.contains(where: { $0.path == path }) {
-                    self.items.append(LauncherConfigurationItem(path: path, alias: nil))
-                }
-            }
-
-            self.tableView.reloadData()
-            self.saveConfiguration()
+            self.addPaths(panel.urls.map { self.abbreviatePath($0.path) })
         }
     }
 
@@ -305,22 +324,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
         guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] else {
             return false
         }
-
-        var added = false
-        for url in urls {
-            let path = abbreviatePath(url.path)
-            if !items.contains(where: { $0.path == path }) {
-                items.append(LauncherConfigurationItem(path: path, alias: nil))
-                added = true
-            }
-        }
-
-        if added {
-            tableView.reloadData()
-            saveConfiguration()
-        }
-
-        return added
+        return addPaths(urls.map { abbreviatePath($0.path) })
     }
 }
 
