@@ -5,12 +5,13 @@ import Foundation
 /// proceeds — the arrows step it, the jump keys jump it to a cell of the current screen (adding the
 /// zone when the cell has none), to the floating zone, or to a display's last-used window — shows
 /// it with the blue-circle overlay, and commits on release (focus a filled zone's window, or
-/// target an empty zone), on the move key (move the focused window into the selected zone), or on
-/// the Show Launcher key (target the selected zone and open the Launcher there). The Add Zone and
-/// Remove Zone keys change the topology under the gesture — add a zone for the selected zone, or
-/// remove the selected zone — and the Minimize key minimizes the selected zone's window (or
-/// removes an empty tiling zone); the gesture continues around the result. The gesture lifecycle
-/// is driven by `ZoneNavigationInterceptor`; the selection policy is the pure `ZoneNavigation`.
+/// target an empty zone), on the Move Focused Window to Destination key (move the focused window
+/// into the selected zone; see `AppController+MoveFocusedWindow`), or on the Show Launcher key
+/// (target the selected zone and open the Launcher there). The Add Zone and Remove Zone keys
+/// change the topology under the gesture — add a zone for the selected zone, or remove the
+/// selected zone — and the Minimize key minimizes the selected zone's window (or removes an empty
+/// tiling zone); the gesture continues around the result. The gesture lifecycle is driven by
+/// `ZoneNavigationInterceptor`; the selection policy is the pure `ZoneNavigation`.
 extension AppController {
     /// Live state for an in-progress zone-navigation gesture. Candidates and screens are
     /// snapshotted at engage time so the circle stays stable for the (brief) duration of the
@@ -379,8 +380,9 @@ extension AppController {
     // MARK: - Move key (move the focused window into the selected zone)
 
     /// Synchronous decision for the interceptor's move key: with a focused managed window and a
-    /// selected zone other than its own, clear the gesture and hand the actual move to the main
-    /// queue, returning true so the interceptor ends the gesture. Returning false leaves the
+    /// selected zone other than its own, clear the gesture and hand the actual move
+    /// (`moveFocusedWindow`, shared with the Move Focused Window to Destination shortcut) to the
+    /// main queue, returning true so the interceptor ends the gesture. Returning false leaves the
     /// gesture engaged (nothing to move).
     private func requestZoneNavigationMove() -> Bool {
         guard let state = zoneNavigationState,
@@ -396,106 +398,9 @@ extension AppController {
 
         clearZoneNavigation()
         DispatchQueue.main.async { [weak self] in
-            self?.performZoneNavigationMove(of: focusedId, to: destination)
+            self?.moveFocusedWindow(focusedId, to: destination, reason: "zone-navigation-move")
         }
         return true
-    }
-
-    /// Move the focused window into `destination`. An occupied destination swaps: the occupant
-    /// takes the moved window's origin — including across the tiling/floating boundary. (Without
-    /// an origin to give it, the occupant is displaced through the normal placement path and
-    /// minimizes.) Targeting follows the normal placement rules: the vacated origin does not steal
-    /// the target, and filling the targeted zone retargets away.
-    ///
-    /// The origin is re-derived here, on the main queue, rather than carried over from the
-    /// event-tap decision: everything below runs in one synchronous block against that live state,
-    /// so an interleaved placement or topology change can't detach the partner into a stale zone.
-    private func performZoneNavigationMove(
-        of windowId: Int,
-        to destination: TargetedZoneManager.TargetedDestination
-    ) {
-        guard let managed = windowController.window(withId: windowId) else {
-            Logger.debug("Zone navigation move: window \(windowId) vanished; ignoring")
-            return
-        }
-        guard destinationExists(destination) else {
-            Logger.debug("Zone navigation move: destination \(destination) vanished; ignoring")
-            return
-        }
-        let origin = targetedDestination(for: managed)
-        if let origin, origin == destination {
-            Logger.debug("Zone navigation move: window \(windowId) already at \(destination); ignoring")
-            return
-        }
-
-        let reason = "zone-navigation-move"
-
-        // Identify the swap partner while pre-move occupancy is still accurate, and detach it so
-        // the placements below displace (and minimize) nothing.
-        var partner: ManagedWindow?
-        if origin != nil,
-           let occupant = occupant(of: destination),
-           occupant.windowId != managed.windowId {
-            partner = occupant
-            detach(occupant, from: destination, reason: reason)
-        }
-
-        Logger.debug(
-            "Zone navigation move: window \(windowId) \(origin.map { "from \($0) " } ?? "")to \(destination)"
-                + (partner.map { ", swapping with window \($0.windowId)" } ?? "")
-        )
-
-        // The moved window keeps focus: its placement is the activating one; the partner is placed
-        // passively (no raise, no recency recording) so it stays behind the moved window.
-        var recentlyPlacedInFloatingZone: Int?
-        switch destination {
-        case .tiled:
-            var didActivateInPlacement = false
-            windowPlacementManager.placeWindow(
-                managed,
-                into: destination,
-                centerFloatingWindow: true,
-                reason: reason,
-                retargetOnRemoval: false,
-                forceRetargetAfterFill: false,
-                afterPlacementAction: {
-                    didActivateInPlacement = true
-                    self.recordActiveWindowForHistory(windowId: managed.windowId, reason: reason)
-                    self.raiseWindow(managed)
-                }
-            )
-            if !didActivateInPlacement {
-                raiseWindow(managed)
-            }
-        case .floating:
-            // The floating assignment itself activates the placed window.
-            windowPlacementManager.placeWindow(
-                managed,
-                into: destination,
-                centerFloatingWindow: true,
-                reason: reason,
-                retargetOnRemoval: false,
-                forceRetargetAfterFill: false
-            )
-            recentlyPlacedInFloatingZone = managed.windowId
-        }
-
-        if let partner, let origin {
-            windowPlacementManager.placeWindow(
-                partner,
-                into: origin,
-                centerFloatingWindow: true,
-                reason: "\(reason)-swap",
-                retargetOnRemoval: false,
-                forceRetargetAfterFill: false,
-                activate: false
-            )
-            if case .floating = origin {
-                recentlyPlacedInFloatingZone = partner.windowId
-            }
-        }
-
-        syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone)
     }
 
     // MARK: - Show Launcher key (target the selected zone and open the Launcher)
@@ -664,45 +569,6 @@ extension AppController {
         )
         updateZoneNavigationDot(selection: selectionId)
         Logger.debug("Zone navigation \(reason): continuing with selection \(selectionId)")
-    }
-
-    private func destinationExists(_ destination: TargetedZoneManager.TargetedDestination) -> Bool {
-        switch destination {
-        case .tiled(let key):
-            return screenContexts[key.screenId]?.zoneController.zone(at: key.index) != nil
-        case .floating(let screenId):
-            return screenContexts[screenId] != nil
-        }
-    }
-
-    private func occupant(of destination: TargetedZoneManager.TargetedDestination) -> ManagedWindow? {
-        switch destination {
-        case .tiled(let key):
-            guard let zone = screenContexts[key.screenId]?.zoneController.zone(at: key.index),
-                  let windowId = zone.occupantWindowId else {
-                return nil
-            }
-            return windowController.window(withId: windowId)
-        case .floating(let screenId):
-            return floatingZoneOccupant(on: screenId)
-        }
-    }
-
-    /// Bookkeeping-only removal of a swap partner from its zone (no minimize), mirroring the
-    /// drag-drop swap path, so the subsequent placement finds the spot empty.
-    private func detach(
-        _ managed: ManagedWindow,
-        from destination: TargetedZoneManager.TargetedDestination,
-        reason: String
-    ) {
-        switch destination {
-        case .tiled(let key):
-            screenContexts[key.screenId]?.zoneController.removeWindow(windowId: managed.windowId)
-            clearManagedWindowZone(managed)
-        case .floating:
-            clearFloatingZone(for: managed.windowId, minimize: false, reason: reason)
-            clearManagedWindowZone(managed)
-        }
     }
 
     private func zoneDestination(for id: NavigableZoneIdentifier) -> TargetedZoneManager.TargetedDestination {

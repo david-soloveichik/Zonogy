@@ -1,9 +1,9 @@
-/// The Zone Navigation editor: the modifiers held, which navigation-key groups are on, the keys
-/// behind the gesture's settable roles — each jump key and the move key — and the walkthrough of
-/// the in-gesture actions. Keys the user can change are white caps: clicking one records a
-/// replacement in place. The keys borrowed from the shortcut table (Space, =, -, M by default) are
-/// white too, and clicking one says which shortcut to change instead; the arrows and Escape are
-/// gray, being fixed. Everything is staged in the sheet and stored on Save.
+/// The Zone Navigation editor: the modifiers held, which navigation-key groups are on, the key
+/// behind each jump, and the walkthrough of the in-gesture actions. Keys the user can change are
+/// white caps: clicking one records a replacement in place. The keys borrowed from the shortcut
+/// table (Return, Space, =, -, M by default) are white too, and clicking one says which shortcut
+/// to change instead; the arrows and Escape are gray, being fixed. Everything is staged in the
+/// sheet and stored on Save.
 import AppKit
 
 final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewController {
@@ -34,7 +34,7 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
     // MARK: - Recording
 
     private let recorder = ShortcutRecorder()
-    private var recording: (key: ZoneNavigationKeys.SettableKey, cap: KeyCapButton)?
+    private var recording: (jump: ZoneNavigationKey, cap: KeyCapButton)?
     /// Why the last key pressed while recording was refused; shown until another is pressed.
     private var refusal: String?
 
@@ -76,7 +76,7 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
         let displayDiagram = DisplayJumpKeysDiagramView()
         jumpCaps = zoneDiagram.caps.merging(displayDiagram.caps) { first, _ in first }
         for (jump, cap) in jumpCaps {
-            cap.onClick = { [weak self] cap in self?.capClicked(cap, key: .jump(jump)) }
+            cap.onClick = { [weak self] cap in self?.capClicked(cap, jump: jump) }
             cap.setAccessibilityHelp("Click to change the key.")
         }
 
@@ -130,8 +130,8 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
 
     // MARK: - Walkthrough
 
-    /// The steps of the gesture. The Launcher, Add Zone, Remove Zone, and Minimize steps borrow
-    /// those shortcuts' keys (claimed in that order), so each shows the key as currently
+    /// The steps of the gesture. The Move, Launcher, Add Zone, Remove Zone, and Minimize steps
+    /// borrow those shortcuts' keys (claimed in that order), so each shows the key as currently
     /// configured — unless an earlier in-gesture key leaves the borrowed key unreachable.
     override func makeWalkthrough() -> Walkthrough {
         var earlierBorrowedKeys: [CGKeyCode] = []
@@ -174,15 +174,11 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
                 + "destination if empty."),
             .heading("While still holding the modifier keys:"),
             .steps([
-                Walkthrough.Step(
-                    trigger: .settableKey(
-                        label: Self.label(for: keys.moveKey),
-                        help: "Click to change the key.",
-                        isConflicting: contestedKeyCodes.contains(keys.moveKey)
-                    ) { [weak self] cap in
-                        self?.capClicked(cap, key: .move)
-                    },
-                    detail: "Move the focused window into this zone (swaps if occupied)"),
+                borrowedStep(
+                    action: .moveFocusedWindowToTargetZone,
+                    detail: "Move the focused window into this zone (swaps if occupied)",
+                    unavailableStep: "Moving the focused window into this zone"
+                ),
                 borrowedStep(
                     action: .showLauncher,
                     detail: "Make this zone the destination and open the Launcher",
@@ -235,11 +231,10 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
             : []
 
         for (jump, cap) in jumpCaps {
-            let keyCode = keys[.jump(jump)]
+            let keyCode = keys[jump]
             cap.label = Self.label(for: keyCode)
             cap.isConflicting = contestedKeyCodes.contains(keyCode)
-            cap.setAccessibilityLabel(
-                "\(KeyCap.spokenName(for: cap.label)) key for \(ZoneNavigationKeys.SettableKey.jump(jump).purpose)")
+            cap.setAccessibilityLabel("\(KeyCap.spokenName(for: cap.label)) key for \(jump.purpose)")
         }
         arrowsDiagram.contestedKeyCodes = contestedKeyCodes
         for (index, illustration) in groupIllustrations.enumerated() {
@@ -252,9 +247,8 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
 
     // MARK: - Recording a key
 
-    /// A click on a settable cap starts recording into it — or, on the cap already recording,
-    /// stops.
-    private func capClicked(_ cap: KeyCapButton, key: ZoneNavigationKeys.SettableKey) {
+    /// A click on a jump's cap starts recording into it — or, on the cap already recording, stops.
+    private func capClicked(_ cap: KeyCapButton, jump: ZoneNavigationKey) {
         popover?.close()
         if recording?.cap === cap {
             recorder.stop()
@@ -262,25 +256,25 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
         }
         let started = recorder.start(
             recordingControl: { [weak cap] in cap },
-            onKey: { [weak self] keyCode, _ in self?.record(keyCode, for: key) },
+            onKey: { [weak self] keyCode, _ in self?.record(keyCode, for: jump) },
             onEnd: { [weak self] in self?.recordingEnded() }
         )
         guard started else { return }
-        recording = (key, cap)
+        recording = (jump, cap)
         refusal = nil
         cap.isRecording = true
         updateKeysHint()
     }
 
-    /// Takes the pressed key for the recording role, or refuses it and keeps listening. Held
+    /// Takes the pressed key for the recording jump, or refuses it and keeps listening. Held
     /// modifiers are ignored: the gesture's own modifiers are what will be held.
-    private func record(_ keyCode: CGKeyCode, for key: ZoneNavigationKeys.SettableKey) {
-        if let reason = refusalReason(for: keyCode, key: key) {
+    private func record(_ keyCode: CGKeyCode, for jump: ZoneNavigationKey) {
+        if let reason = refusalReason(for: keyCode, jump: jump) {
             refusal = reason
             updateKeysHint()
             return
         }
-        keys[key] = keyCode
+        keys[jump] = keyCode
         // Redraws everything around the new key, ending the recording on the way.
         refresh()
     }
@@ -292,9 +286,9 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
         updateKeysHint()
     }
 
-    /// Why `keyCode` can't be `key`'s key, in words, or nil when it can.
-    private func refusalReason(for keyCode: CGKeyCode, key: ZoneNavigationKeys.SettableKey) -> String? {
-        switch keys.rejection(of: keyCode, as: key) {
+    /// Why `keyCode` can't be `jump`'s key, in words, or nil when it can.
+    private func refusalReason(for keyCode: CGKeyCode, jump: ZoneNavigationKey) -> String? {
+        switch keys.rejection(of: keyCode, as: jump) {
         case nil: return nil
         case .unnamed: return "That key can't be used here. Press another key."
         case .arrow: return "The arrow keys always step. Press another key."
@@ -315,7 +309,7 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
                 text = refusal
                 color = .systemRed
             } else {
-                text = "Press a key for \(recording.key.purpose). Escape keeps \(Self.label(for: keys[recording.key]))."
+                text = "Press a key for \(recording.jump.purpose). Escape keeps \(Self.label(for: keys[recording.jump]))."
             }
         } else {
             text = "Click a white key to change it."
@@ -373,20 +367,19 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
     }
 }
 
-private extension ZoneNavigationKeys.SettableKey {
+private extension ZoneNavigationKey {
     /// What the key is for, as the recording prompt and the caps' spoken names put it.
     var purpose: String {
         switch self {
-        case .move: return "moving the focused window"
-        case .jump(.zone(.topLeft)): return "the top-left zone"
-        case .jump(.zone(.topRight)): return "the top-right zone"
-        case .jump(.zone(.bottomLeft)): return "the bottom-left zone"
-        case .jump(.zone(.bottomRight)): return "the bottom-right zone"
-        case .jump(.floatingZone): return "the floating zone"
-        case .jump(.display(let ordinal)):
+        case .zone(.topLeft): return "the top-left zone"
+        case .zone(.topRight): return "the top-right zone"
+        case .zone(.bottomLeft): return "the bottom-left zone"
+        case .zone(.bottomRight): return "the bottom-right zone"
+        case .floatingZone: return "the floating zone"
+        case .display(let ordinal):
             let ordinals = ["first", "second", "third"]
             return "the \(ordinals.indices.contains(ordinal) ? ordinals[ordinal] : "\(ordinal + 1)th") display"
-        case .jump(.move): return "stepping"
+        case .move: return "stepping"
         }
     }
 }

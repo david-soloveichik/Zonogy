@@ -16,6 +16,7 @@ final class HotkeyService {
         case showWinShotChooser = 14
         case showLauncher = 15
         case toggleTargetZoneWithFocusedWindow = 18
+        case moveFocusedWindowToTargetZone = 19
 
         /// Maps to the corresponding preferences action
         var preferencesAction: KeyboardShortcutPreferences.ShortcutAction? {
@@ -26,6 +27,7 @@ final class HotkeyService {
             case .captureTimeTravelLogs: return .captureTimeTravelLogs
             case .clearOrResetZones: return .clearOrResetZones
             case .toggleTargetZoneWithFocusedWindow: return .toggleTargetZoneWithFocusedWindow
+            case .moveFocusedWindowToTargetZone: return .moveFocusedWindowToTargetZone
             case .clearOrResetZonesAtCursor: return .clearOrResetZonesAtCursor
             case .minimizeActiveWindow: return .minimizeActiveWindow
             case .minimizeWindowOrRemoveZoneAtCursor: return .minimizeWindowOrRemoveZoneAtCursor

@@ -83,7 +83,7 @@ extension AppController {
         let action = FocusedWindowToggleTargetPolicy.resolve(
             focusedWindowDestination: resolvedFocusedWindowZoneDestination(),
             currentTarget: currentTarget,
-            currentTargetIsOccupied: currentTarget.map { isDestinationOccupied($0) } ?? false
+            currentTargetIsOccupied: currentTarget.flatMap { occupant(of: $0) } != nil
         )
         let reason = "shortcut-toggle-target-focused-window"
         // The toggle is a tentative in-chooser retarget: keep a visible Launcher/CmdTab anchored to the
@@ -154,13 +154,27 @@ extension AppController {
         currentActiveManagedWindowForTriggeredTargeting().flatMap { targetedDestination(for: $0) }
     }
 
-    /// Whether the given targeted destination currently holds a managed window.
-    private func isDestinationOccupied(_ destination: TargetedZoneManager.TargetedDestination) -> Bool {
+    /// Whether `destination` still exists: its tiling zone, or its floating zone's screen.
+    internal func destinationExists(_ destination: TargetedZoneManager.TargetedDestination) -> Bool {
         switch destination {
         case .tiled(let key):
-            return screenContexts[key.screenId]?.zoneController.zone(at: key.index)?.occupantWindowId != nil
+            return screenContexts[key.screenId]?.zoneController.zone(at: key.index) != nil
         case .floating(let screenId):
-            return floatingZoneOccupant(on: screenId) != nil
+            return screenContexts[screenId] != nil
+        }
+    }
+
+    /// The managed window `destination` currently holds, if any.
+    internal func occupant(of destination: TargetedZoneManager.TargetedDestination) -> ManagedWindow? {
+        switch destination {
+        case .tiled(let key):
+            guard let zone = screenContexts[key.screenId]?.zoneController.zone(at: key.index),
+                  let windowId = zone.occupantWindowId else {
+                return nil
+            }
+            return windowController.window(withId: windowId)
+        case .floating(let screenId):
+            return floatingZoneOccupant(on: screenId)
         }
     }
 

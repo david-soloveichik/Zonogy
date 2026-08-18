@@ -1,7 +1,7 @@
 /// Keyboard shortcut conflicts: two or more claimants holding the same chord.
 ///
 /// A claimant is anything that listens for chords system-wide — each action in the shortcut
-/// table, and Zone Navigation, which holds its navigation keys and move key under its modifiers.
+/// table, and Zone Navigation, which holds its navigation keys under its modifiers.
 /// The check runs over plain claims (a claimant and the chords it holds), so a claimant may hold
 /// any number of chords — an action's binding can claim more than itself (see
 /// `ShortcutAction.claimedShortcuts`) — and a new claimant, or user-chosen navigation keys, plugs

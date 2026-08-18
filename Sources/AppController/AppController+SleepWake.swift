@@ -77,7 +77,9 @@ extension AppController {
         sleepWakeProtectionActive = true
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
-        zoneNavigationInterceptor.resetEngagement()
+        // Key and modifier releases while the session is locked never reach the monitors: drop
+        // the gesture and its held-key marks.
+        zoneNavigationInterceptor.resetInputState()
         cancelZoneNavigation(reason: reason)
         // Just-minimized marks are stale across sleep/lock, and modifier releases while the
         // session is locked never reach the monitors; drop the marks and their gestures.

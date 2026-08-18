@@ -2,9 +2,11 @@ import Carbon
 import Foundation
 
 /// Guardrail tests for the zone-navigation key policy: the selection keys the groups contribute
-/// (fixed arrows, configurable jump keys), which settable keys are valid, the chords the gesture
-/// claims (a table shortcut on one conflicts with it), the keys that shadow a borrowed key (Show
-/// Launcher, Add Zone, Remove Zone, Minimize Focused Window), and persistence.
+/// (fixed arrows, configurable jump keys), which jump keys are valid, the chords the gesture claims
+/// (a table shortcut on one conflicts with it), the keys that shadow a borrowed key (Move Focused
+/// Window to Destination, Show Launcher, Add Zone, Remove Zone, Minimize Focused Window),
+/// persistence, and the held-key marks behind the interceptor's swallowing of a taken key until
+/// its release.
 enum ZoneNavigationChordPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -54,7 +56,6 @@ enum ZoneNavigationChordPolicyTests {
         )
         assert(noGroups.selectionKeys.isEmpty, "no group should contribute no selection keys")
         assert(ZoneNavigationKeys.default.groups == [.arrows, .jumps], "the default should enable both groups")
-        assert(ZoneNavigationKeys.default.moveKey == returnKey, "Return should be the default move key")
         assert(
             ZoneNavigationKey.jumps.count == 8 && Set(ZoneNavigationKey.jumps).count == 8,
             "there should be eight distinct jumps"
@@ -69,61 +70,62 @@ enum ZoneNavigationChordPolicyTests {
             assert(key.isJump, "\(key) should be a jump")
         }
 
-        // MARK: - Settable keys: a rebound jump moves with its key; the arrows, Escape, unnamed
-        // keys, and keys already held are rejected — by one policy behind the editor and the store
+        // MARK: - Jump keys: a rebound jump moves with its key; the arrows, Escape, unnamed keys,
+        // and keys already held are rejected — by one policy behind the editor and the store
 
         var rebound = ZoneNavigationKeys.default
-        rebound[.jump(.zone(.topLeft))] = one
-        rebound[.move] = space
-        assert(rebound[.jump(.zone(.topLeft))] == one && rebound.moveKey == space, "the subscript should read back what it set")
+        rebound[.zone(.topLeft)] = one
+        rebound[.floatingZone] = space
+        assert(rebound[.zone(.topLeft)] == one && rebound[.floatingZone] == space, "the subscript should read back what it set")
         assert(
             rebound.selectionKeys[one] == .zone(.topLeft) && rebound.selectionKeys[a] == nil,
             "a rebound jump should answer to its new key only"
         )
-        assert(ZoneNavigationKeys.default.hasValidSettableKeys, "the default keys should be valid")
-        assert(rebound.hasValidSettableKeys, "distinct named unreserved keys should be valid")
+        assert(ZoneNavigationKeys.default.hasValidJumpKeys, "the default keys should be valid")
+        assert(rebound.hasValidJumpKeys, "distinct named unreserved keys should be valid")
         assert(
-            ZoneNavigationKeys.default.rejection(of: one, as: .jump(.floatingZone)) == nil,
+            ZoneNavigationKeys.default.rejection(of: one, as: .floatingZone) == nil,
             "a free named key should be accepted"
         )
         assert(
-            ZoneNavigationKeys.default.rejection(of: a, as: .jump(.zone(.topLeft))) == nil,
-            "a key is not in use by the role that already holds it"
+            ZoneNavigationKeys.default.rejection(of: returnKey, as: .floatingZone) == nil,
+            "Return is a borrowed shortcut key, not the gesture's own, so a jump may take it"
         )
-        assert(ZoneNavigationKeys.default.rejection(of: up, as: .jump(.floatingZone)) == .arrow, "an arrow is rejected")
-        assert(ZoneNavigationKeys.default.rejection(of: escape, as: .move) == .escape, "Escape is rejected")
-        assert(ZoneNavigationKeys.default.rejection(of: a, as: .move) == .inUse, "a jump's key is rejected for the move key")
-        assert(ZoneNavigationKeys.default.rejection(of: returnKey, as: .jump(.floatingZone)) == .inUse, "the move key is rejected for a jump")
+        assert(
+            ZoneNavigationKeys.default.rejection(of: a, as: .zone(.topLeft)) == nil,
+            "a key is not in use by the jump that already holds it"
+        )
+        assert(ZoneNavigationKeys.default.rejection(of: up, as: .floatingZone) == .arrow, "an arrow is rejected")
+        assert(ZoneNavigationKeys.default.rejection(of: escape, as: .floatingZone) == .escape, "Escape is rejected")
+        assert(ZoneNavigationKeys.default.rejection(of: a, as: .floatingZone) == .inUse, "another jump's key is rejected")
         for unnamed in [CGKeyCode(kVK_Command), CGKeyCode(kVK_ANSI_Keypad5), CGKeyCode(65535)] {
             assert(
-                ZoneNavigationKeys.default.rejection(of: unnamed, as: .move) == .unnamed,
+                ZoneNavigationKeys.default.rejection(of: unnamed, as: .floatingZone) == .unnamed,
                 "key code \(unnamed) has no label and should be rejected"
             )
         }
         for rejected in [up, escape, CGKeyCode(kVK_Command)] {
             var invalid = ZoneNavigationKeys.default
-            invalid[.jump(.floatingZone)] = rejected
-            assert(!invalid.hasValidSettableKeys, "key code \(rejected) should make the keys invalid as a jump key")
-            invalid = ZoneNavigationKeys.default
-            invalid[.move] = rejected
-            assert(!invalid.hasValidSettableKeys, "key code \(rejected) should make the keys invalid as the move key")
+            invalid[.floatingZone] = rejected
+            assert(!invalid.hasValidJumpKeys, "key code \(rejected) should make the keys invalid as a jump key")
         }
         var duplicate = ZoneNavigationKeys.default
-        duplicate[.jump(.display(ordinal: 2))] = a
-        assert(!duplicate.hasValidSettableKeys, "two jumps on one key should be invalid")
-        duplicate = ZoneNavigationKeys.default
-        duplicate[.move] = a
-        assert(!duplicate.hasValidSettableKeys, "the move key on a jump's key should be invalid")
-        assert(ZoneNavigationKeys.SettableKey.all.count == 9, "the move key and the eight jumps are settable")
+        duplicate[.display(ordinal: 2)] = a
+        assert(!duplicate.hasValidJumpKeys, "two jumps on one key should be invalid")
 
-        // MARK: - Claimed chords: the enabled selection keys plus the move key, under the given
-        // modifiers; nothing when no group is enabled
+        // MARK: - Claimed chords: the enabled selection keys under the given modifiers; nothing
+        // when no group is enabled. The borrowed action keys (Return, Space, =, -, M by default)
+        // are their shortcuts' chords, not the gesture's.
 
         let allClaimed = ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], keys: .default)
-        assert(allClaimed.count == 13, "all groups should claim the twelve selection keys plus the move key")
+        assert(allClaimed.count == 12, "all groups should claim the twelve selection keys")
         assert(
-            Set(allClaimed.map(\.keyCode)).isSuperset(of: Set([kVK_UpArrow, kVK_ANSI_A, kVK_ANSI_L, kVK_Return].map(UInt32.init))),
-            "all groups should claim the arrows, the jump keys, and Return"
+            Set(allClaimed.map(\.keyCode)).isSuperset(of: Set([kVK_UpArrow, kVK_ANSI_A, kVK_ANSI_L].map(UInt32.init))),
+            "all groups should claim the arrows and the jump keys"
+        )
+        assert(
+            !allClaimed.contains { $0.keyCode == UInt32(kVK_Return) },
+            "the borrowed move key is not a chord of the gesture's own"
         )
         assert(
             allClaimed.allSatisfy { $0.modifiers == UInt32(controlKey | cmdKey) },
@@ -131,7 +133,7 @@ enum ZoneNavigationChordPolicyTests {
         )
 
         let arrowsClaimed = ZoneNavigationInterceptor.claimedShortcuts(for: [.option, .shift], keys: arrowsOnly)
-        assert(arrowsClaimed.count == 5, "the arrow group alone should claim the arrows and the move key")
+        assert(arrowsClaimed.count == 4, "the arrow group alone should claim the arrows")
         assert(
             !arrowsClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_A) },
             "a disabled jump group should not claim its keys"
@@ -141,8 +143,8 @@ enum ZoneNavigationChordPolicyTests {
             "claimed chords should follow the configured modifiers"
         )
         assert(
-            ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], keys: jumpsOnly).count == 9,
-            "the jump group alone should claim the eight jump keys and the move key"
+            ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], keys: jumpsOnly).count == 8,
+            "the jump group alone should claim the eight jump keys"
         )
         assert(
             ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], keys: noGroups).isEmpty,
@@ -151,14 +153,14 @@ enum ZoneNavigationChordPolicyTests {
         let reboundClaimed = ZoneNavigationInterceptor.claimedShortcuts(for: [.control, .command], keys: rebound)
         assert(
             reboundClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_1) } && reboundClaimed.contains { $0.keyCode == UInt32(kVK_Space) }
-                && !reboundClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_A) } && !reboundClaimed.contains { $0.keyCode == UInt32(kVK_Return) },
-            "claimed chords should follow the configured jump and move keys"
+                && !reboundClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_A) } && !reboundClaimed.contains { $0.keyCode == UInt32(kVK_ANSI_G) },
+            "claimed chords should follow the configured jump keys"
         )
 
         // MARK: - Borrowed-key shadowing: in-gesture keys act first, then earlier-borrowed keys;
         // ordinary keys don't shadow
 
-        for keyCode in [kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow, kVK_Return, kVK_Escape] {
+        for keyCode in [kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow, kVK_Escape] {
             assert(
                 ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keys: arrowsOnly),
                 "key code \(keyCode) has an in-gesture meaning and should shadow a borrowed key"
@@ -173,15 +175,11 @@ enum ZoneNavigationChordPolicyTests {
             "A should not shadow a borrowed key when the jump keys are off"
         )
         assert(
-            ZoneNavigationInterceptor.shadowsBorrowedKey(returnKey, keys: noGroups),
-            "the move key shadows a borrowed key regardless of the groups"
-        )
-        assert(
             ZoneNavigationInterceptor.shadowsBorrowedKey(space, keys: rebound)
-                && !ZoneNavigationInterceptor.shadowsBorrowedKey(returnKey, keys: rebound),
-            "a rebound move key shadows a borrowed key, and Return then no longer does"
+                && !ZoneNavigationInterceptor.shadowsBorrowedKey(space, keys: .default),
+            "a jump rebound onto Space shadows a borrowed key on Space; the default keys don't"
         )
-        for keyCode in [kVK_Space, kVK_F5, kVK_Tab] {
+        for keyCode in [kVK_Return, kVK_Space, kVK_F5, kVK_Tab] {
             assert(
                 !ZoneNavigationInterceptor.shadowsBorrowedKey(CGKeyCode(keyCode), keys: .default),
                 "key code \(keyCode) should not shadow a borrowed key"
@@ -190,24 +188,24 @@ enum ZoneNavigationChordPolicyTests {
         assert(
             ZoneNavigationInterceptor.shadowsBorrowedKey(
                 CGKeyCode(kVK_ANSI_Equal), keys: arrowsOnly,
-                earlierBorrowedKeys: [space, CGKeyCode(kVK_ANSI_Equal)]
+                earlierBorrowedKeys: [returnKey, space, CGKeyCode(kVK_ANSI_Equal)]
             ),
             "a key borrowed earlier in the claim order should shadow a later borrowed key"
         )
         assert(
             !ZoneNavigationInterceptor.shadowsBorrowedKey(
                 CGKeyCode(kVK_ANSI_Minus), keys: arrowsOnly,
-                earlierBorrowedKeys: [space, CGKeyCode(kVK_ANSI_Equal)]
+                earlierBorrowedKeys: [returnKey, space, CGKeyCode(kVK_ANSI_Equal)]
             ),
             "distinct earlier-borrowed keys should not shadow an unrelated borrowed key"
         )
 
-        // The default borrowed keys — Space, =, -, M, in claim order — must stay reachable out
-        // of the box: no default selection or move key may be one of them, and no default may
-        // shadow a later one. (The claim order itself is hand-maintained, in the interceptor's
-        // dispatch and the walkthrough's line order.)
+        // The default borrowed keys — Return, Space, =, -, M, in claim order — must stay reachable
+        // out of the box: no default selection key may be one of them, and no default may shadow
+        // a later one. (The claim order itself is hand-maintained, in the interceptor's dispatch
+        // and the walkthrough's line order.)
         let defaultBorrowedKeys = [
-            space, CGKeyCode(kVK_ANSI_Equal), CGKeyCode(kVK_ANSI_Minus), CGKeyCode(kVK_ANSI_M),
+            returnKey, space, CGKeyCode(kVK_ANSI_Equal), CGKeyCode(kVK_ANSI_Minus), CGKeyCode(kVK_ANSI_M),
         ]
         for (claimIndex, keyCode) in defaultBorrowedKeys.enumerated() {
             assert(
@@ -220,12 +218,11 @@ enum ZoneNavigationChordPolicyTests {
         }
 
         // MARK: - Persistence: defaults when unset, round-trip, unknown group bits dropped,
-        // invalid settable keys fall back to the defaults while the groups stand
+        // invalid jump keys fall back to the defaults while the groups stand
 
         let defaults = UserDefaults.standard
         let storedKeys = [
             UserDefaultsKeys.zoneNavigationKeyGroups,
-            UserDefaultsKeys.zoneNavigationMoveKey,
             UserDefaultsKeys.zoneNavigationJumpKeys,
         ]
         let previousValues = storedKeys.map { defaults.object(forKey: $0) }
@@ -240,8 +237,7 @@ enum ZoneNavigationChordPolicyTests {
         }
         func store(_ keys: ZoneNavigationKeys) {
             defaults.set(keys.groups.rawValue, forKey: UserDefaultsKeys.zoneNavigationKeyGroups)
-            defaults.set(Int(keys.moveKey), forKey: UserDefaultsKeys.zoneNavigationMoveKey)
-            defaults.set(ZoneNavigationKey.jumps.map { Int(keys[.jump($0)]) }, forKey: UserDefaultsKeys.zoneNavigationJumpKeys)
+            defaults.set(ZoneNavigationKey.jumps.map { Int(keys[$0]) }, forKey: UserDefaultsKeys.zoneNavigationJumpKeys)
         }
 
         storedKeys.forEach { defaults.removeObject(forKey: $0) }
@@ -253,11 +249,11 @@ enum ZoneNavigationChordPolicyTests {
         defaults.set(ZoneNavigationKeyGroups.jumps.rawValue | (1 << 7), forKey: UserDefaultsKeys.zoneNavigationKeyGroups)
         assert(ZoneNavigationKeyPreferences.load().groups == .jumps, "unknown bits in a persisted group value should be dropped")
         var invalidStored = arrowsOnly
-        invalidStored[.move] = a
+        invalidStored[.floatingZone] = a
         store(invalidStored)
         assert(
             ZoneNavigationKeyPreferences.load() == arrowsOnly,
-            "invalid stored settable keys should fall back to the default keys, keeping the stored groups"
+            "invalid stored jump keys should fall back to the default keys, keeping the stored groups"
         )
         defaults.set([1, 2, 3], forKey: UserDefaultsKeys.zoneNavigationJumpKeys)
         assert(
@@ -275,12 +271,41 @@ enum ZoneNavigationChordPolicyTests {
             ZoneNavigationKeyPreferences.load() == arrowsOnly,
             "a stored jump-key list with an out-of-range entry should fall back to the default keys"
         )
-        defaults.set(kVK_Command, forKey: UserDefaultsKeys.zoneNavigationMoveKey)
-        defaults.set([0, 1, 2, 3, 5, 38, 40, 37], forKey: UserDefaultsKeys.zoneNavigationJumpKeys)
+        defaults.set([0, 1, 2, 3, 5, 38, 40, kVK_Command], forKey: UserDefaultsKeys.zoneNavigationJumpKeys)
         assert(
             ZoneNavigationKeyPreferences.load() == arrowsOnly,
-            "a stored move key with no name should fall back to the default keys"
+            "a stored jump key with no name should fall back to the default keys"
         )
+
+        // MARK: - Held keys: a swallowed fresh press marks the key until its release; its repeats
+        // are swallowed and its release too; a swallowed repeat marks nothing; a fresh press of a
+        // marked key means the release went unseen, so the mark is dropped and the press is not
+        // treated as held
+
+        var held = ZoneNavigationInterceptor.HeldKeys()
+        assert(!held.isRepeatOfSwallowedPress(returnKey, isRepeat: true), "an unmarked key's repeat is not a held repeat")
+        assert(!held.released(returnKey), "an unmarked key's release is not swallowed")
+
+        held.swallowedPress(returnKey, isRepeat: false)
+        held.swallowedPress(space, isRepeat: false)
+        assert(held.isRepeatOfSwallowedPress(returnKey, isRepeat: true), "a marked key's repeat is a held repeat")
+        assert(held.isRepeatOfSwallowedPress(space, isRepeat: true), "several keys can be marked at once")
+        assert(!held.isRepeatOfSwallowedPress(a, isRepeat: true), "another key's repeat is unaffected")
+        assert(held.released(returnKey), "a marked key's release is swallowed and clears the mark")
+        assert(!held.isRepeatOfSwallowedPress(returnKey, isRepeat: true), "after the release the key is no longer held")
+        assert(!held.released(returnKey), "a second release is not swallowed")
+        assert(held.isRepeatOfSwallowedPress(space, isRepeat: true), "releasing one key leaves the others marked")
+
+        held.swallowedPress(a, isRepeat: true)
+        assert(!held.isRepeatOfSwallowedPress(a, isRepeat: true) && !held.released(a), "a swallowed repeat marks nothing")
+
+        held.swallowedPress(returnKey, isRepeat: false)
+        assert(!held.isRepeatOfSwallowedPress(returnKey, isRepeat: false), "a fresh press of a marked key is not a held repeat")
+        assert(!held.isRepeatOfSwallowedPress(returnKey, isRepeat: true) && !held.released(returnKey), "…and it dropped the stale mark")
+
+        held.swallowedPress(returnKey, isRepeat: false)
+        held.removeAll()
+        assert(!held.isRepeatOfSwallowedPress(returnKey, isRepeat: true) && !held.released(space), "removeAll drops every mark")
 
         if allPassed {
             print("ZoneNavigationChordPolicyTests: all tests passed")

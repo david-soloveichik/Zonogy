@@ -198,12 +198,14 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 - Control-Cmd-[backslash]: Toggle Target Zone with Focused Window. If the currently targeted zone is a filled tiling zone, re-target as if that zone was just filled. Otherwise, if a managed window is focused in a non-targeted zone, target that zone. It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
 - Targeting a zone from the keyboard is part of **Zone Navigation** below: releasing the gesture over an empty zone targets it, and the Show Launcher key targets any selected zone.
 
+**Moving the focused window to the target:** Control-Cmd-Return (Move Focused Window to Target Zone) moves the currently focused managed window into the targeted zone (swap if occupied).
+
 ### Zone Navigation
 
 Holding Control-Command and pressing a navigation key is a fast, keyboard-only way to act on any zone (excluding displays paused for full-screen): focus its window, target it, move the focused window into it, minimize its window, or add and remove zones. A large translucent blue circle (the same size for every zone) marks the selected zone; a floating zone is represented by the circle's upper half at the floating zone bar. The arrow keys move the circle to the next zone in that direction, and the jump keys jump it straight to a zone or a display (see **Navigation keys** below). How the gesture ends decides what happens:
 
 - **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty zone is targeted, and the Launcher auto-shows per its preference.
-- **Pressing Return while still holding** moves the currently focused managed window into the selected zone and ends the gesture. If the selected zone is occupied, the two windows swap zones. The moved window keeps focus; targeting follows the normal placement rules.
+- **Pressing the Move Focused Window to Target Zone key (Return) while still holding** moves the currently focused managed window into the selected zone (swap if occupied) and ends the gesture. The key is that shortcut's key.
 - **Pressing the Show Launcher key (Space) while still holding** targets the selected zone and opens the Launcher there, ending the gesture. The key is the Show Launcher shortcut's key.
 - **Escape** cancels.
 
@@ -215,7 +217,7 @@ While the gesture is held, the Add Zone key (=), Remove Zone key (-), and Minimi
 - **A, S, D, F** jump to the top-left, top-right, bottom-left, and bottom-right zone of the current display. A zone spanning its column answers to that column's top key; the bottom key stacks a new zone below it if that side can hold another zone, otherwise it selects the spanning zone too. When the display has a single zone, the keys of the side where the layout adds zones add the zone there. The circle moves onto the added zone; as with the Add Zone key, targeting and floating-window promotion follow the normal zone-creation rules. **G** jumps to the current display's floating zone.
 - **J, K, L** jump to the first, second, and third display, counted left to right (top to bottom among displays with the same left edge), landing on the zone of that display's most recently used window. A display without windows is entered at the targeted zone if it lies there (else at zone 1).
 
-The jump keys and Return can be changed by the user; the arrows, Escape, and the borrowed shortcut keys are fixed. (In the editor a key that can be changed is a white cap and a fixed key a gray one; clicking a borrowed key's cap says which shortcut to change instead.)
+The jump keys can be changed by the user; the arrows and Escape are fixed, and the borrowed shortcut keys follow their shortcuts. (In the editor a key that can be changed is a white cap and a fixed key a gray one; clicking a borrowed key's cap says which shortcut to change instead.)
 
 The gesture starts from the focused managed window's zone: the first arrow press moves off it, and the jump keys act on its display. When the Launcher is open, or no managed window is focused, the gesture starts from the targeted zone instead (the Launcher anchors to the target, so this is the Launcher's zone): if that zone is filled, the first arrow press selects it in place. A first press with no zone in the pressed direction — or a jump with nowhere to go — selects the start zone in place, so the circle always appears.
 

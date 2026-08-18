@@ -3,10 +3,11 @@
 /// Mirrors `CmdTabKeyInterceptor`: it engages on the chord, swallows the selection keys while held
 /// so they don't leak to the focused app, lets each press step or jump the selection, and —
 /// because the commit action triggers on modifier release — commits when the modifiers are
-/// released. The selection keys, the move key, and which groups are on come from
-/// `ZoneNavigationKeyPreferences` (the arrows step, the jump keys jump; a group turned off has no
-/// selection meaning, even mid-gesture), and the modifier combination is configurable
-/// (`ModifierCombinationPreferences.zoneNavigation`). While engaged, the move key (Return by
+/// released. The selection keys and which groups are on come from `ZoneNavigationKeyPreferences`
+/// (the arrows step, the jump keys jump; a group turned off has no selection meaning, even
+/// mid-gesture), and the modifier combination is configurable
+/// (`ModifierCombinationPreferences.zoneNavigation`). The in-gesture action keys are borrowed
+/// from shortcuts: while engaged, the Move Focused Window to Destination shortcut's key (Return by
 /// default) asks the delegate to move the focused window into the selected zone, and the Show
 /// Launcher shortcut's key (Space by default) asks it to target the selected zone and open the
 /// Launcher there — each ending the gesture when the delegate performs it. The Add Zone and Remove
@@ -66,33 +67,31 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
 
 final class ZoneNavigationInterceptor {
     /// The chords the gesture claims under a given modifier combination and keys (the enabled
-    /// selection keys and the move key, plus those modifiers; nothing when no group is enabled,
-    /// since the gesture then never engages). A table shortcut on one of these is shown as a
-    /// conflict in Preferences (see `ShortcutConflicts`): the event tap swallows a selection chord
-    /// whenever the gesture can engage — and the move key once it has — before any hotkey fires.
+    /// selection keys under those modifiers; nothing when no group is enabled, since the gesture
+    /// then never engages). A table shortcut on one of these is shown as a conflict in Preferences
+    /// (see `ShortcutConflicts`): the event tap swallows a selection chord whenever the gesture can
+    /// engage, before any hotkey fires. The borrowed action keys are not claimed: they are those
+    /// shortcuts' own chords, swallowed only once the gesture is engaged.
     static func claimedShortcuts(
         for modifiers: ModifierCombination,
         keys: ZoneNavigationKeys
     ) -> [KeyboardShortcut] {
-        let selectionKeys = keys.selectionKeys.keys
-        guard !selectionKeys.isEmpty else { return [] }
-        return (Array(selectionKeys) + [keys.moveKey]).map {
+        keys.selectionKeys.keys.map {
             KeyboardShortcut(keyCode: UInt32($0), modifiers: modifiers.carbonModifiers)
         }
     }
 
     /// Whether `keyCode` is unreachable as a borrowed key under the given keys: the gesture's own
-    /// keys (selection, move, and cancel) act first, as does any key borrowed earlier in the claim
-    /// order — Show Launcher, then Add Zone, then Remove Zone, then Minimize Focused Window. A
-    /// shortcut whose key is shadowed can't perform its step mid-gesture — the editor sheet shows
-    /// it as unavailable.
+    /// keys (selection and cancel) act first, as does any key borrowed earlier in the claim order —
+    /// Move Focused Window to Destination, then Show Launcher, then Add Zone, then Remove Zone,
+    /// then Minimize Focused Window. A shortcut whose key is shadowed can't perform its step
+    /// mid-gesture — the editor sheet shows it as unavailable.
     static func shadowsBorrowedKey(
         _ keyCode: CGKeyCode,
         keys: ZoneNavigationKeys,
         earlierBorrowedKeys: [CGKeyCode] = []
     ) -> Bool {
-        keys.selectionKeys[keyCode] != nil || keyCode == keys.moveKey || keyCode == escapeKeyCode
-            || earlierBorrowedKeys.contains(keyCode)
+        keys.selectionKeys[keyCode] != nil || keyCode == escapeKeyCode || earlierBorrowedKeys.contains(keyCode)
     }
 
     private static let escapeKeyCode = CGKeyCode(kVK_Escape)
@@ -111,8 +110,8 @@ final class ZoneNavigationInterceptor {
     /// commits in FIFO order. Only the begin needs validation — the other queued callbacks are
     /// no-ops against cleared state.
     private var engagementGeneration: UInt64 = 0
-    /// The modifiers, selection keys, move key, and borrowed key bindings captured at engage time,
-    /// so mid-gesture edits can't confuse the session.
+    /// The modifiers, selection keys, and borrowed key bindings captured at engage time, so
+    /// mid-gesture edits can't confuse the session.
     private var requiredModifiers: CGEventFlags = []
     private var engagedSelectionKeys: [CGKeyCode: ZoneNavigationKey] = [:]
     private var engagedMoveKey: CGKeyCode?
@@ -120,10 +119,8 @@ final class ZoneNavigationInterceptor {
     private var engagedAddZoneKey: CGKeyCode?
     private var engagedRemoveZoneKey: CGKeyCode?
     private var engagedMinimizeKey: CGKeyCode?
-    /// After an action key (move or Launcher) ends the gesture, its auto-repeats are swallowed
-    /// until the chord's modifiers are released — otherwise a slightly-long press leaks repeats
-    /// into the focused app, or re-fires the global Show Launcher hotkey right after it opened.
-    private var drainingKey: (keyCode: CGKeyCode, modifiers: CGEventFlags)?
+    /// The keys whose press the tap swallowed and that are still held down (see `HeldKeys`).
+    private var heldKeys = HeldKeys()
 
     func start(delegate: ZoneNavigationInterceptorDelegate) {
         self.delegate = delegate
@@ -135,7 +132,7 @@ final class ZoneNavigationInterceptor {
 
         let tap = EventTapController(
             name: "Zone navigation interceptor",
-            events: [.keyDown, .flagsChanged],
+            events: [.keyDown, .keyUp, .flagsChanged],
             onDisabled: { [weak self] _ in self?.cancelEngagement() },
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
@@ -149,15 +146,22 @@ final class ZoneNavigationInterceptor {
     func stop() {
         eventTap?.stop()
         eventTap = nil
-        resetEngagement()
-        drainingKey = nil
+        resetInputState()
     }
 
-    /// External invalidation (topology change, `stop`): disengage and invalidate any queued
-    /// begin — the gesture it would start belongs to a snapshot that no longer exists.
+    /// External invalidation (topology change): disengage and invalidate any queued begin — the
+    /// gesture it would start belongs to a snapshot that no longer exists. The keys are still
+    /// held, so what the tap has taken of them it keeps until their release.
     func resetEngagement() {
         engagementGeneration &+= 1
         endEngagement()
+    }
+
+    /// Everything the tap remembers about held keys is dropped — the engagement, any queued begin,
+    /// and the held-key marks — for when the releases may never arrive (sleep or lock, `stop`).
+    func resetInputState() {
+        resetEngagement()
+        heldKeys.removeAll()
     }
 
     /// Gesture endings on the tap thread (modifier release, Escape, action keys, tap disable):
@@ -174,11 +178,11 @@ final class ZoneNavigationInterceptor {
         engagedMinimizeKey = nil
     }
 
-    /// Drop an in-flight gesture and tell the delegate to tear down its overlay. Also drops any
-    /// post-action drain: the tap may deliver no further events (disable, suspension), so a kept
-    /// drain could go stale and swallow a future chord.
+    /// Drop an in-flight gesture and tell the delegate to tear down its overlay. Also drops the
+    /// held-key marks: the tap may deliver no further events (disable, suspension), so the
+    /// releases that would clear them may never be seen.
     private func cancelEngagement() {
-        drainingKey = nil
+        heldKeys.removeAll()
         guard isEngaged else { return }
         endEngagement()
         DispatchQueue.main.async { [weak self] in
@@ -190,14 +194,6 @@ final class ZoneNavigationInterceptor {
     private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
         let relevantFlags = event.flags.intersection(Self.relevantModifierFlags)
 
-        // Drain hygiene runs before everything else — including the handler-availability guard and
-        // independent of engagement — so the drain ends exactly when its chord's modifiers do, and
-        // a stale drain can't survive an engaged commit, a partial release, or suspension to
-        // swallow a future chord.
-        if type == .flagsChanged, let draining = drainingKey, !relevantFlags.contains(draining.modifiers) {
-            drainingKey = nil
-        }
-
         guard let delegate, delegate.zoneNavigationShouldHandleEvents(self) else {
             cancelEngagement()
             return .pass
@@ -208,6 +204,11 @@ final class ZoneNavigationInterceptor {
             return handleFlagsChanged(relevantFlags: relevantFlags)
         case .keyDown:
             return handleKeyDown(event: event, relevantFlags: relevantFlags)
+        case .keyUp:
+            // The release of a held key is swallowed like the presses before it: the app saw
+            // none of them.
+            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+            return heldKeys.released(keyCode) ? .swallow : .pass
         default:
             return .pass
         }
@@ -231,91 +232,112 @@ final class ZoneNavigationInterceptor {
 
     private func handleKeyDown(event: CGEvent, relevantFlags: CGEventFlags) -> EventTapDecision {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
-        if isEngaged {
-            // Cancel without committing.
-            if keyCode == Self.escapeKeyCode {
-                endEngagement()
+        // A key whose press the tap took stays taken until it is released: its auto-repeats are
+        // swallowed whether or not the gesture is still engaged, and only a held arrow still acts
+        // (it keeps stepping). Nothing else acts again without a fresh press.
+        if heldKeys.isRepeatOfSwallowedPress(keyCode, isRepeat: isRepeat) {
+            if isEngaged, relevantFlags.contains(requiredModifiers),
+               let key = engagedSelectionKeys[keyCode], !key.isJump {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    self.delegate?.zoneNavigationDidCancel(self)
+                    self.delegate?.zoneNavigation(self, didPress: key)
                 }
-                return .swallow
             }
-
-            guard relevantFlags.contains(requiredModifiers) else {
-                // Any other key passes through; the gesture still ends on modifier release.
-                return .pass
-            }
-
-            // Step or jump the selection on a selection key (while the required modifiers are
-            // still held). A held arrow keeps stepping; a jump key's auto-repeats are swallowed
-            // but ignored — a jump is idempotent, and a held cell key would otherwise keep adding
-            // zones (its first press can add a column, its second stack that column).
-            if let key = engagedSelectionKeys[keyCode] {
-                if !key.isJump || event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.delegate?.zoneNavigation(self, didPress: key)
-                    }
-                }
-                return .swallow
-            }
-
-            // Move the focused window into the selected zone. The delegate decides synchronously
-            // whether there is a move to perform; if so, the gesture is over.
-            if keyCode == engagedMoveKey {
-                if delegate?.zoneNavigationDidPressMoveKey(self) == true {
-                    drainingKey = (keyCode, requiredModifiers)
-                    endEngagement()
-                }
-                return .swallow
-            }
-
-            // Target the selected zone and open the Launcher there. Swallowing also keeps the chord
-            // from doubling as the global Show Launcher hotkey.
-            if keyCode == engagedLauncherKey {
-                if delegate?.zoneNavigationDidPressShowLauncherKey(self) == true {
-                    drainingKey = (keyCode, requiredModifiers)
-                    endEngagement()
-                }
-                return .swallow
-            }
-
-            // Add or remove a zone for the selected zone, or minimize its window; the gesture
-            // stays engaged and continues around the result. Auto-repeats are swallowed but
-            // ignored so a held key cannot cascade changes (a held Minimize would otherwise
-            // minimize and then remove the emptied zone). Swallowing also keeps the chord from
-            // doubling as a global hotkey (the cursor minimize shares the default M).
-            if keyCode == engagedAddZoneKey || keyCode == engagedRemoveZoneKey || keyCode == engagedMinimizeKey {
-                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
-                    // Resolved here on the tap thread: the engaged keys are cleared once the
-                    // gesture ends, so the queued callback can't re-derive them.
-                    let isAdd = keyCode == engagedAddZoneKey
-                    let isRemove = !isAdd && keyCode == engagedRemoveZoneKey
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        if isAdd {
-                            self.delegate?.zoneNavigationDidPressAddZoneKey(self)
-                        } else if isRemove {
-                            self.delegate?.zoneNavigationDidPressRemoveZoneKey(self)
-                        } else {
-                            self.delegate?.zoneNavigationDidPressMinimizeKey(self)
-                        }
-                    }
-                }
-                return .swallow
-            }
-
-            return .pass
-        }
-
-        // Swallow auto-repeats of the action key that just ended a gesture (until the modifiers
-        // are released; see `drainingKey`).
-        if let draining = drainingKey, keyCode == draining.keyCode, relevantFlags.contains(draining.modifiers) {
             return .swallow
         }
 
+        let decision = isEngaged
+            ? handleEngagedKeyDown(keyCode: keyCode, isRepeat: isRepeat, relevantFlags: relevantFlags)
+            : handleDisengagedKeyDown(keyCode: keyCode, relevantFlags: relevantFlags)
+        if decision == .swallow {
+            heldKeys.swallowedPress(keyCode, isRepeat: isRepeat)
+        }
+        return decision
+    }
+
+    private func handleEngagedKeyDown(
+        keyCode: CGKeyCode,
+        isRepeat: Bool,
+        relevantFlags: CGEventFlags
+    ) -> EventTapDecision {
+        // Cancel without committing.
+        if keyCode == Self.escapeKeyCode {
+            endEngagement()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.delegate?.zoneNavigationDidCancel(self)
+            }
+            return .swallow
+        }
+
+        guard relevantFlags.contains(requiredModifiers) else {
+            // Any other key passes through; the gesture still ends on modifier release.
+            return .pass
+        }
+
+        // Step or jump the selection on a selection key (while the required modifiers are still
+        // held). A held arrow keeps stepping; a jump key's auto-repeats are swallowed but ignored
+        // — a jump is idempotent, and a held cell key would otherwise keep adding zones (its
+        // first press can add a column, its second stack that column).
+        if let key = engagedSelectionKeys[keyCode] {
+            if !key.isJump || !isRepeat {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.delegate?.zoneNavigation(self, didPress: key)
+                }
+            }
+            return .swallow
+        }
+
+        // The borrowed action keys, in claim order. Swallowing keeps the chord from doubling as
+        // the shortcut's own global hotkey (the same chord by default). Only a fresh press acts: a
+        // repeat here is of a key held since before the gesture, and a held key must not cascade
+        // changes (a held Minimize would otherwise minimize and then remove the emptied zone).
+        guard keyCode == engagedMoveKey || keyCode == engagedLauncherKey || keyCode == engagedAddZoneKey
+                || keyCode == engagedRemoveZoneKey || keyCode == engagedMinimizeKey else {
+            return .pass
+        }
+        guard !isRepeat else { return .swallow }
+
+        // Move the focused window into the selected zone. The delegate decides synchronously
+        // whether there is a move to perform; if so, the gesture is over.
+        if keyCode == engagedMoveKey {
+            if delegate?.zoneNavigationDidPressMoveKey(self) == true {
+                endEngagement()
+            }
+            return .swallow
+        }
+
+        // Target the selected zone and open the Launcher there.
+        if keyCode == engagedLauncherKey {
+            if delegate?.zoneNavigationDidPressShowLauncherKey(self) == true {
+                endEngagement()
+            }
+            return .swallow
+        }
+
+        // Add or remove a zone for the selected zone, or minimize its window; the gesture stays
+        // engaged and continues around the result. Resolved here on the tap thread: the engaged
+        // keys are cleared once the gesture ends, so the queued callback can't re-derive them.
+        let isAdd = keyCode == engagedAddZoneKey
+        let isRemove = !isAdd && keyCode == engagedRemoveZoneKey
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if isAdd {
+                self.delegate?.zoneNavigationDidPressAddZoneKey(self)
+            } else if isRemove {
+                self.delegate?.zoneNavigationDidPressRemoveZoneKey(self)
+            } else {
+                self.delegate?.zoneNavigationDidPressMinimizeKey(self)
+            }
+        }
+        return .swallow
+    }
+
+    /// Engages on the chord: the gesture's modifiers, exactly, plus an enabled selection key.
+    private func handleDisengagedKeyDown(keyCode: CGKeyCode, relevantFlags: CGEventFlags) -> EventTapDecision {
         // Fast paths for ordinary typing, checked cheapest-first: the chord requires modifiers
         // (the store guarantees a valid combination), and they must match exactly, before the
         // selection keys are even consulted.
@@ -332,13 +354,14 @@ final class ZoneNavigationInterceptor {
         }
 
         // Engage immediately so repeated presses are swallowed even though the UI work is async.
-        // The Launcher, Add Zone, Remove Zone, and Minimize keys are borrowed from those
+        // The Move, Launcher, Add Zone, Remove Zone, and Minimize keys are borrowed from those
         // shortcuts — only their key codes matter, since the gesture's modifiers are already held.
         isEngaged = true
         requiredModifiers = relevantFlags
         engagedSelectionKeys = selectionKeys
-        engagedMoveKey = keyPreferences.keys.moveKey
         let shortcutPreferences = KeyboardShortcutPreferences.shared
+        engagedMoveKey = shortcutPreferences.shortcut(for: .moveFocusedWindowToTargetZone)
+            .map { CGKeyCode($0.keyCode) }
         engagedLauncherKey = shortcutPreferences.shortcut(for: .showLauncher)
             .map { CGKeyCode($0.keyCode) }
         engagedAddZoneKey = shortcutPreferences.shortcut(for: .addZone)
@@ -358,5 +381,43 @@ final class ZoneNavigationInterceptor {
 
     deinit {
         stop()
+    }
+}
+
+extension ZoneNavigationInterceptor {
+    /// The keys whose press the tap swallowed and that are still held down. What the tap took the
+    /// press of, it keeps until the release: the auto-repeats — which would otherwise leak into
+    /// the focused app, or fire the global hotkey behind an action key once the gesture has ended
+    /// — and the release itself, so the app sees neither. Tracked by key-up rather than by
+    /// modifier state, since the shortcut behind an action key may hold under fewer modifiers
+    /// than the gesture. A fresh press of a key still marked held means its release went unseen:
+    /// the mark is dropped and the press handled like any other, so a stale mark never costs a
+    /// keystroke.
+    struct HeldKeys {
+        private var keyCodes: Set<CGKeyCode> = []
+
+        /// A key-down: true when it is a repeat of a swallowed press (swallow it; only a held arrow
+        /// still acts). A fresh press of a marked key drops the stale mark and reports false.
+        mutating func isRepeatOfSwallowedPress(_ keyCode: CGKeyCode, isRepeat: Bool) -> Bool {
+            guard keyCodes.contains(keyCode) else { return false }
+            if isRepeat { return true }
+            keyCodes.remove(keyCode)
+            return false
+        }
+
+        /// The tap swallowed this key-down; a fresh press marks the key held. A swallowed repeat
+        /// is of a key pressed before the tap cared — its release belongs to whoever saw the press.
+        mutating func swallowedPress(_ keyCode: CGKeyCode, isRepeat: Bool) {
+            if !isRepeat { keyCodes.insert(keyCode) }
+        }
+
+        /// A key-up: true when the key was marked held (swallow it too), clearing the mark.
+        mutating func released(_ keyCode: CGKeyCode) -> Bool {
+            keyCodes.remove(keyCode) != nil
+        }
+
+        mutating func removeAll() {
+            keyCodes.removeAll()
+        }
     }
 }

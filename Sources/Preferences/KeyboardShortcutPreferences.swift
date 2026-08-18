@@ -20,6 +20,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
         case minimizeWindowOrRemoveZoneAtCursor
 
         // Targeting
+        case moveFocusedWindowToTargetZone
         case toggleTargetZoneWithFocusedWindow
 
         // Window Switchers
@@ -46,6 +47,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeActiveWindow: return "Minimize Focused Window"
             case .minimizeWindowOrRemoveZoneAtCursor: return "Minimize/Remove Zone at Cursor"
             // Targeting
+            case .moveFocusedWindowToTargetZone: return "Move Focused Window to Destination"
             case .toggleTargetZoneWithFocusedWindow: return "Toggle Destination w/ Focused Window"
             // Window Switchers
             case .showLauncher: return "Show Launcher"
@@ -82,6 +84,8 @@ final class KeyboardShortcutPreferences: ObservableObject {
             case .minimizeWindowOrRemoveZoneAtCursor:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: cmdCtrl)
             // Targeting
+            case .moveFocusedWindowToTargetZone:
+                return KeyboardShortcut(keyCode: UInt32(kVK_Return), modifiers: cmdCtrl)
             case .toggleTargetZoneWithFocusedWindow:
                 return KeyboardShortcut(keyCode: UInt32(kVK_ANSI_Backslash), modifiers: cmdCtrl)
             // Window Switchers

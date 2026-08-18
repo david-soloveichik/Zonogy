@@ -30,6 +30,8 @@ extension AppController {
                 self.clearOrResetZonesAtCursor()
             case .toggleTargetZoneWithFocusedWindow:
                 self.toggleTargetZoneWithFocusedWindow()
+            case .moveFocusedWindowToTargetZone:
+                self.moveFocusedWindowToTargetZone()
             case .minimizeActiveWindow:
                 // If Launcher is open and targeting a tiled zone, remove that zone instead.
                 // If only 1 zone on screen, just hide Launcher (don't enter UnderCovers).
