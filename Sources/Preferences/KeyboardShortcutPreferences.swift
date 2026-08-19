@@ -219,6 +219,13 @@ final class KeyboardShortcutPreferences: ObservableObject {
         onShortcutsChanged?()
     }
 
+    /// Names an action's key combination in Preferences prose: its current binding ("⌃⌘/"), or,
+    /// when the action has none, the action by name so the sentence still reads. Panes refresh
+    /// such text each time they appear, so it follows the Shortcuts tab.
+    func keyPhrase(for action: ShortcutAction) -> String {
+        shortcut(for: action)?.displayString ?? "the \(action.displayName) shortcut, currently unset"
+    }
+
     func isCleared(_ action: ShortcutAction) -> Bool {
         clearedActions.contains(action)
     }

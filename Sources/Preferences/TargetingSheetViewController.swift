@@ -15,11 +15,17 @@ final class TargetingSheetViewController: NSViewController {
     private var launcherShortcutCheckbox: NSButton!
     private var dockMenusCheckbox: NSButton!
 
+    /// A switcher's current shortcut as a parenthetical, e.g. " (⌘⇥)"; empty when it has none.
+    /// The sheet is built afresh each time it opens, so this always reflects the Shortcuts tab.
+    private static func keyNote(for action: KeyboardShortcutPreferences.ShortcutAction) -> String {
+        KeyboardShortcutPreferences.shared.shortcut(for: action).map { " (\($0.displayString))" } ?? ""
+    }
+
     private static func title(for mode: CmdTabActiveWindowTargetingMode) -> String {
         switch mode {
         case .off: return "Off"
-        case .currentAppOnly: return "Current app only (⌘`)"
-        case .allWindows: return "All windows too (⌘⇥)"
+        case .currentAppOnly: return "Current app only" + keyNote(for: .showCmdTabCurrentApp)
+        case .allWindows: return "All windows too" + keyNote(for: .showCmdTab)
         }
     }
 
@@ -28,9 +34,9 @@ final class TargetingSheetViewController: NSViewController {
         case .off:
             return "CmdTab always opens on the destination zone."
         case .currentAppOnly:
-            return "Switching within the current app (⌘`) replaces the focused window in its zone. Switching among all windows (⌘⇥) uses the standard destination."
+            return "Switching within the current app\(keyNote(for: .showCmdTabCurrentApp)) replaces the focused window in its zone. Switching among all windows\(keyNote(for: .showCmdTab)) uses the standard destination."
         case .allWindows:
-            return "Both all-windows (⌘⇥) and current-app (⌘`) switching replace the focused window in its zone."
+            return "Both all-windows\(keyNote(for: .showCmdTab)) and current-app\(keyNote(for: .showCmdTabCurrentApp)) switching replace the focused window in its zone."
         }
     }
 

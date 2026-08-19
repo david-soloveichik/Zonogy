@@ -20,20 +20,26 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     private static func title(for mode: WinShotAutoSaveMode) -> String {
         switch mode {
         case .off: return "Off"
-        case .onClearReset: return "On Clear/Reset Zones"
+        case .onClearReset: return "Before Clear/Reset Zones or restoring a snapshot"
         case .onEveryOccupancyChange: return "On every zone occupancy change"
         }
     }
 
+    /// The manual save shortcut is named only where saving is still (mostly) up to the user.
     private static func hint(for mode: WinShotAutoSaveMode) -> String {
+        let saveKey = KeyboardShortcutPreferences.shared.keyPhrase(for: .saveWinShotSnapshot)
         switch mode {
         case .off:
-            return "Snapshots are saved only with the Control-Command-/ shortcut."
+            return "Snapshots are saved only when you press \(saveKey) (settable in Shortcuts)."
         case .onClearReset:
-            return "Capture the current arrangement on Clear/Reset Zones, or when another snapshot is restored."
+            return "Saves the arrangement you're about to lose: before Clear/Reset Zones, and before restoring another snapshot. Save any other arrangement with \(saveKey) (settable in Shortcuts)."
         case .onEveryOccupancyChange:
-            return "Also save any arrangement that stays put for the delay below. The pre-clear capture still applies too."
+            return "Saves the arrangement after every change to which windows are in which zones, as well as before Clear/Reset Zones or restoring another snapshot."
         }
+    }
+
+    private static var featureHint: String {
+        "A snapshot records which windows are in which zones on a display, so you can bring that arrangement back later. Restore snapshots with \(KeyboardShortcutPreferences.shared.keyPhrase(for: .showWinShotChooser)) (settable in Shortcuts). Thumbnails need Screen Recording permission (see General)."
     }
 
     override func loadView() {
@@ -49,9 +55,8 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         containerView.addSubview(winShotCheckbox)
         self.winShotCheckbox = winShotCheckbox
 
-        let winShotHintLabel = NSTextField(
-            wrappingLabelWithString: "Restore window arrangement snapshots with Control-Cmd-Tab. (Requires Screen Recording permission.)"
-        )
+        // Text naming shortcuts is filled in by syncControls, which runs whenever the tab appears.
+        let winShotHintLabel = NSTextField(wrappingLabelWithString: "")
         winShotHintLabel.font = NSFont.systemFont(ofSize: 12)
         winShotHintLabel.textColor = .secondaryLabelColor
         winShotHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -123,7 +128,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.settleDelaySuffixLabel = settleDelaySuffixLabel
 
         let settleDelayHintLabel = NSTextField(
-            wrappingLabelWithString: "How long an arrangement must persist before it's saved (also the backup-capture delay), \(WinShotPreferencesStore.minOccupancySettleDelaySeconds)-\(WinShotPreferencesStore.maxOccupancySettleDelaySeconds) seconds."
+            wrappingLabelWithString: "How long an arrangement must persist before it's saved (\(WinShotPreferencesStore.minOccupancySettleDelaySeconds)–\(WinShotPreferencesStore.maxOccupancySettleDelaySeconds) seconds)."
         )
         settleDelayHintLabel.font = NSFont.systemFont(ofSize: 12)
         settleDelayHintLabel.textColor = .secondaryLabelColor
@@ -166,7 +171,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.maxSnapshotsStepper = maxSnapshotsStepper
 
         let maxSnapshotsHintLabel = NSTextField(
-            wrappingLabelWithString: "Choose how many snapshots to keep per display (\(WinShotPreferencesStore.minSnapshotsStored)-\(WinShotPreferencesStore.maxSnapshotsStored))."
+            wrappingLabelWithString: "Beyond this, the oldest snapshot on that display is dropped (\(WinShotPreferencesStore.minSnapshotsStored)–\(WinShotPreferencesStore.maxSnapshotsStored))."
         )
         maxSnapshotsHintLabel.font = NSFont.systemFont(ofSize: 12)
         maxSnapshotsHintLabel.textColor = .secondaryLabelColor
@@ -231,6 +236,12 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         syncControls()
     }
 
+    /// Shortcuts may have been rebound since the tab was last shown.
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        syncControls()
+    }
+
     @objc private func winShotToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setWinShotEnabledFromSettings(enabled)
@@ -283,6 +294,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     private func syncControls() {
         let winShotEnabled = AppController.shared.isWinShotEnabled
         winShotCheckbox?.state = winShotEnabled ? .on : .off
+        winShotHintLabel?.stringValue = Self.featureHint
 
         let mode = AppController.shared.winShotAutoSaveMode
         autoSavePopup?.selectItem(withTag: mode.rawValue)

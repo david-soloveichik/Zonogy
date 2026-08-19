@@ -8,6 +8,7 @@ final class DebugPreferencesViewController: NSViewController {
     private var showPassThroughHolesCheckbox: NSButton?
     private var disablePrePositionCheckbox: NSButton?
     private var disableNativeTabsCheckbox: NSButton?
+    private var timeTravelHintLabel: NSTextField?
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 560))
@@ -140,13 +141,13 @@ final class DebugPreferencesViewController: NSViewController {
         timeTravelLogPathLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(timeTravelLogPathLabel)
 
-        let timeTravelHintLabel = NSTextField(
-            wrappingLabelWithString: "Time-travel log capture uses the keyboard shortcut (default: Control-Command-Z) and does not depend on these toggles."
-        )
+        // Names the capture shortcut, so it is filled in by syncControls whenever the tab appears.
+        let timeTravelHintLabel = NSTextField(wrappingLabelWithString: "")
         timeTravelHintLabel.font = NSFont.systemFont(ofSize: 12)
         timeTravelHintLabel.textColor = .secondaryLabelColor
         timeTravelHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(timeTravelHintLabel)
+        self.timeTravelHintLabel = timeTravelHintLabel
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
@@ -215,6 +216,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    /// Shortcuts may have been rebound since the tab was last shown.
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        syncControls()
+    }
+
     @objc private func saveLogToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setDebugLogToFileEnabledFromSettings(enabled)
@@ -258,5 +265,7 @@ final class DebugPreferencesViewController: NSViewController {
         showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off
         disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
         disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off
+        timeTravelHintLabel?.stringValue =
+            "Time-travel log capture uses \(KeyboardShortcutPreferences.shared.keyPhrase(for: .captureTimeTravelLogs)) (settable in Shortcuts) and does not depend on these toggles."
     }
 }
