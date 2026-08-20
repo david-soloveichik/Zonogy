@@ -125,6 +125,8 @@ extension AppController {
         } else {
             launcherController.show()
         }
+        // Pin the search pill highlight on the anchor zone's placeholder.
+        refreshIndicators()
         return true
     }
 
@@ -684,8 +686,16 @@ extension AppController: LauncherControllerDelegate {
         restoreLauncherOriginalTargetIfNeeded(reason: "launcher-cancelled")
     }
 
+    func launcherControllerDidHideForDrag(_ controller: LauncherController) {
+        // The Launcher window is gone (isActive is already false) even though the session
+        // lives on until the drag ends; release the search pill highlight now.
+        refreshIndicators()
+    }
+
     func launcherControllerDidDismiss(_ controller: LauncherController) {
         launcherRetargetSession = nil
+        // Release the search pill highlight on the anchor zone's placeholder.
+        refreshIndicators()
         Logger.debug("Launcher: Dismissed")
     }
 

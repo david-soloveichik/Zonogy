@@ -59,6 +59,11 @@ final class PlaceholderWindow {
         contentView?.isTargeted = targeted
     }
 
+    /// Keep the search pill's hover highlight on while the Launcher is open on this zone.
+    func setLauncherHighlighted(_ highlighted: Bool) {
+        contentView?.isLauncherHighlighted = highlighted
+    }
+
     /// Punch pass-through holes into the click-catching background so clicks over windows
     /// behind this placeholder reach them. Rects are in Cocoa screen coordinates;
     /// pass an empty array to restore the fully click-catching background.

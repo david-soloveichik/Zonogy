@@ -2,12 +2,44 @@ import Foundation
 import AppKit
 import QuartzCore
 
-// MARK: - FirstClickButton
+// MARK: - PlaceholderGlassButton
 
-/// NSButton subclass that accepts first mouse clicks in non-activating panels.
-/// Standard NSButton returns false for acceptsFirstMouse, which can cause
-/// clicks to be ignored when the window is inactive.
-private final class FirstClickButton: NSButton {
+/// Shared button for the placeholder's glass controls (blue button and search pill).
+/// Accepts first mouse clicks in non-activating panels (standard NSButton returns false
+/// for acceptsFirstMouse, which can cause clicks to be ignored when the window is
+/// inactive) and brightens subtly while the cursor hovers over it.
+private final class PlaceholderGlassButton: NSButton {
+    private var hoverTrackingArea: NSTrackingArea?
+    private var isHovered = false
+    private var fillGradient: CAGradientLayer?
+    private var normalFillColors: [CGColor] = []
+    private var hoverFillColors: [CGColor] = []
+
+    /// Keeps the hover highlight on regardless of the cursor (used on the search pill
+    /// while the Launcher, which the pill represents, is open on its zone).
+    var isHighlightPinned = false {
+        didSet {
+            if isHighlightPinned != oldValue {
+                updateFillHighlight()
+            }
+        }
+    }
+
+    /// Registers the control's fill gradient and resting colors. While hovered (or
+    /// pinned), the fill recolors to the same colors blended toward white by
+    /// `hoverHighlightFraction` — the standard state-layer math applied to the fill.
+    func setFill(_ gradient: CAGradientLayer, colors: [NSColor], hoverHighlightFraction: CGFloat) {
+        // Standalone layers animate `colors` implicitly at the default duration, which
+        // would race the explicit hover fade and snap mid-transition when it ends.
+        gradient.actions = ["colors": NSNull()]
+        fillGradient = gradient
+        normalFillColors = colors.map { $0.cgColor }
+        hoverFillColors = colors.map {
+            ($0.blended(withFraction: hoverHighlightFraction, of: .white) ?? $0).cgColor
+        }
+        gradient.colors = (isHovered || isHighlightPinned) ? hoverFillColors : normalFillColors
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         return true
     }
@@ -17,6 +49,49 @@ private final class FirstClickButton: NSButton {
         // Control tracking swallows the mouse-up before the panel's sendEvent can see it;
         // super returns once the press ends, so report it here instead.
         (window as? PlaceholderPanel)?.onLeftPressEnded?()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        // .activeAlways: placeholder panels never become key, so hover must work while
+        // Zonogy is not the active application.
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        isHovered = true
+        updateFillHighlight()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        isHovered = false
+        updateFillHighlight()
+    }
+
+    /// Fades the fill between its resting and hover colors.
+    private func updateFillHighlight() {
+        guard let fillGradient else { return }
+        let highlighted = isHovered || isHighlightPinned
+        let target = highlighted ? hoverFillColors : normalFillColors
+        let fade = CABasicAnimation(keyPath: "colors")
+        fade.fromValue = fillGradient.presentation()?.colors ?? fillGradient.colors
+        fade.toValue = target
+        fade.duration = highlighted ? 0.12 : 0.25
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fillGradient.colors = target
+        fillGradient.add(fade, forKey: "hoverHighlight")
     }
 }
 
@@ -124,7 +199,7 @@ final class PlaceholderManager {
 
         // Create close/put-away button
         let buttonSize: CGFloat = 36
-        let closeButton = FirstClickButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
+        let closeButton = PlaceholderGlassButton(title: "×", target: self, action: #selector(handlePlaceholderClose(_:)))
         closeButton.frame = NSRect(x: 16, y: max(frame.height - buttonSize - 16, 16), width: buttonSize, height: buttonSize)
         closeButton.setButtonType(.momentaryChange)
         closeButton.bezelStyle = .shadowlessSquare
@@ -143,7 +218,7 @@ final class PlaceholderManager {
         let pillY = closeButton.frame.origin.y
         let iconLeftPadding: CGFloat = 14
 
-        let searchPill = FirstClickButton(frame: NSRect(x: 0, y: pillY, width: pillPreferredWidth, height: pillHeight))
+        let searchPill = PlaceholderGlassButton(frame: NSRect(x: 0, y: pillY, width: pillPreferredWidth, height: pillHeight))
         searchPill.setButtonType(.momentaryChange)
         searchPill.bezelStyle = .shadowlessSquare
         searchPill.isBordered = false
@@ -211,7 +286,7 @@ final class PlaceholderManager {
         }
     }
 
-    private func applyCloseButtonGlassStyle(_ button: NSButton, buttonSize: CGFloat) {
+    private func applyCloseButtonGlassStyle(_ button: PlaceholderGlassButton, buttonSize: CGFloat) {
         guard let layer = button.layer else { return }
         layer.masksToBounds = false
         layer.cornerRadius = buttonSize / 2
@@ -232,13 +307,17 @@ final class PlaceholderManager {
         baseGradient.frame = layer.bounds
         baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         baseGradient.cornerRadius = buttonSize / 2
-        baseGradient.colors = [
-            NSColor.systemBlue.withAlphaComponent(0.56).cgColor,
-            NSColor.systemBlue.withAlphaComponent(0.28).cgColor
-        ]
         baseGradient.startPoint = CGPoint(x: 0.2, y: 1.0)
         baseGradient.endPoint = CGPoint(x: 0.8, y: 0.0)
         layer.insertSublayer(baseGradient, at: 0)
+        button.setFill(
+            baseGradient,
+            colors: [
+                NSColor.systemBlue.withAlphaComponent(0.56),
+                NSColor.systemBlue.withAlphaComponent(0.28)
+            ],
+            hoverHighlightFraction: 0.25
+        )
 
         let sheen = CAGradientLayer()
         sheen.name = LayerName.closeButtonSheen
@@ -268,7 +347,7 @@ final class PlaceholderManager {
         layer.addSublayer(innerRing)
     }
 
-    private func applySearchPillGlassStyle(_ pill: NSButton, pillHeight: CGFloat) {
+    private func applySearchPillGlassStyle(_ pill: PlaceholderGlassButton, pillHeight: CGFloat) {
         guard let layer = pill.layer else { return }
         layer.cornerRadius = pillHeight / 2
         layer.borderWidth = 1
@@ -282,13 +361,17 @@ final class PlaceholderManager {
         gradient.frame = layer.bounds
         gradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         gradient.cornerRadius = pillHeight / 2
-        gradient.colors = [
-            NSColor.white.withAlphaComponent(0.36).cgColor,
-            NSColor.white.withAlphaComponent(0.1).cgColor
-        ]
         gradient.startPoint = CGPoint(x: 0.1, y: 1.0)
         gradient.endPoint = CGPoint(x: 0.9, y: 0.0)
         layer.insertSublayer(gradient, at: 0)
+        pill.setFill(
+            gradient,
+            colors: [
+                NSColor.white.withAlphaComponent(0.36),
+                NSColor.white.withAlphaComponent(0.1)
+            ],
+            hoverHighlightFraction: 0.1
+        )
     }
 
     private func removeSublayers(named layerName: String, from layer: CALayer) {
@@ -403,6 +486,15 @@ final class PlaceholderContentView: NSView {
         didSet {
             if isTargeted != oldValue {
                 updateBorderAppearance()
+            }
+        }
+    }
+    /// While the Launcher is open on this zone, the search pill keeps its hover
+    /// highlight (the pill represents the Launcher).
+    var isLauncherHighlighted: Bool = false {
+        didSet {
+            if isLauncherHighlighted != oldValue {
+                (searchPill as? PlaceholderGlassButton)?.isHighlightPinned = isLauncherHighlighted
             }
         }
     }

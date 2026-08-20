@@ -20,6 +20,11 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Starts a Launcher row drag session and returns the effective payload that should stay attached to it.
     func launcherController(_ controller: LauncherController, beginDrag payload: LauncherDragPayload) -> LauncherDragPayload?
 
+    /// Called when the Launcher UI hides at the start of a row drag. The session lives on
+    /// until the drag ends (`launcherControllerDidDismiss` fires then), but the window is
+    /// already gone, so visibility-tied UI should update now.
+    func launcherControllerDidHideForDrag(_ controller: LauncherController)
+
     /// Called repeatedly during a Launcher row drag session as the cursor moves.
     func launcherControllerDidUpdateDrag(_ controller: LauncherController, cursorPointAX: CGPoint?)
 
@@ -261,6 +266,7 @@ final class LauncherController {
 
         tearDownVisibleLauncherUI()
         Logger.debug("Launcher: Closed for drag")
+        delegate.launcherControllerDidHideForDrag(self)
 
         // For an application-row drag (either window-mode or launch-target-mode), Option toggles
         // the preview into a "new window" affordance. For a managedWindow drag (an existing

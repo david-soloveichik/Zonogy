@@ -157,6 +157,14 @@ final class PlaceholderCoordinator {
         }
     }
 
+    /// Update which placeholder shows the Launcher-open highlight on its search pill.
+    /// Pass the zone the Launcher is open on, or nil when it isn't showing on any zone.
+    func setLauncherZone(_ key: ZoneKey?) {
+        for (zoneKey, placeholder) in activePlaceholders {
+            placeholder.setLauncherHighlighted(zoneKey == key)
+        }
+    }
+
     /// Flash the border of the placeholder for the given zone key, if it exists.
     func flashPlaceholderBorder(for key: ZoneKey) {
         activePlaceholders[key]?.flashBorder()

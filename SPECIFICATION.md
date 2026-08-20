@@ -109,7 +109,7 @@ Both windows and placeholders preserve an 8 pixel buffer at the outer display ed
 
 ### Placeholders
 
-Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "×" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**). When a placeholder's zone is targeted, its border is highlighted with a bluish tint to make the target destination visually clear.
+Placeholder windows are translucent, frameless stand-ins for empty tiling zones. They have a rounded rectangle border and no title bar or standard window controls. A large semi-translucent blue button in the upper-left corner shows "×" (to remove the zone) or "⌄" (to enter UnderCovers mode; see **Special Features**). A search pill at the top center opens the Launcher (see [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)). Both controls brighten slightly under the cursor, and the search pill stays brightened while the Launcher is open on its zone. When a placeholder's zone is targeted, its border is highlighted with a bluish tint to make the target destination visually clear.
 
 Placeholders stay anchored to their zone: dragging their surface does not reposition them, and they cannot be resized by dragging their edges. Resize zones via zone resize bars (see **Resizing Zones**).
 

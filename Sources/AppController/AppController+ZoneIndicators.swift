@@ -108,6 +108,9 @@ extension AppController {
     internal func refreshIndicators() {
         refreshZoneIndicators()
         placeholderCoordinator.setTargetedZone(targetedZoneKey)
+        // The Launcher anchors to the targeted zone while open, so that zone's placeholder
+        // (if any) keeps its search pill highlighted.
+        placeholderCoordinator.setLauncherZone(launcherController.isActive ? targetedZoneKey : nil)
         refreshOccupiedZoneTargetBorder()
 
         // Refresh add-zone indicators: one bar per layout-style edge with remaining capacity.
