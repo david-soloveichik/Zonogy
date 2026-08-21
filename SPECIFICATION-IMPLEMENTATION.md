@@ -20,7 +20,7 @@ On the other hand, some applications leave a closed window registered with Windo
 
 All window removal paths that confirm the window is gone **except app termination** use deferred pruning: instead of immediately discarding the window's identity and recency info, the window is staged in a pending-prune store keyed by `(pid, CGWindowID)`. The zone is vacated immediately (placeholder appears), but the bookkeeping is retained. (Native-tab source collapse is different: the source managed record is removed because the destination record now tracks that window, not because the window disappeared.)
 
-- **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise.
+- **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise. For a floating zone, if the window reappeared on a different display (or its display cannot be determined), it goes through the normal placement pipeline instead.
 - **Clearing:** Pending-prune entries for a PID are discarded when (1) the app terminates, or (2) a *new* managed window (different `CGWindowID`) is discovered for that PID after the pending entry has aged past a short grace window. Very recent entries are retained because another same-PID window does not prove that a just-pruned `(pid, CGWindowID)` cannot still reappear.
 
 ## Floating Zone Protection Windows

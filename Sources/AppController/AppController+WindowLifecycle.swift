@@ -829,6 +829,16 @@ extension AppController {
         return true
     }
 
+    func windowAppDrivenMoveDidUpdate(windowId: Int, frame: CGRect) {
+        if shouldIgnoreDueToSleepWake(event: "windowAppDrivenMoveDidUpdate(\(windowId))") {
+            return
+        }
+        floatingZoneCoordinator.reconcileOccupantScreenAfterAppDrivenMove(
+            windowId: windowId,
+            accessibilityFrame: frame
+        )
+    }
+
     func windowManualMoveDidAbort(windowId: Int) {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidAbort(\(windowId))") {
             return
@@ -1058,6 +1068,20 @@ extension AppController {
         case .floating(let screenId):
             guard screenContexts[screenId] != nil,
                   floatingZoneOccupant(on: screenId) == nil else {
+                return false
+            }
+
+            // Floating restore is bookkeeping-only (no physical placement), so it requires
+            // positive confirmation from a live frame read that the window still sits on the
+            // booked display: an app can re-materialize a staged window on another display
+            // (e.g. Zoom morphing its home window into a meeting window). On a different
+            // display — or with no readable frame — decline so normal placement handles it.
+            let physicalScreenId = detectScreenId(for: window.accessibilityElement)
+            guard physicalScreenId == screenId else {
+                let physicalDescription = physicalScreenId.map { screenContextStore.logDescription(for: $0) } ?? "an unknown display"
+                Logger.debug(
+                    "Skipping deferred-prune floating restore for window \(window.windowId): window is on \(physicalDescription), floating slot is on \(screenContextStore.logDescription(for: screenId))"
+                )
                 return false
             }
 

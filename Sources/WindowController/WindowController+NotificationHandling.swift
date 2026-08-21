@@ -525,7 +525,10 @@ extension WindowController {
             ) {
                 return
             }
-            Logger.debug("External window \(managed.windowId) move not part of an active manual drag; no zone update issued")
+            Logger.debug("External window \(managed.windowId) move not part of an active manual drag")
+            if let accessibilityFrame {
+                delegate?.windowAppDrivenMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
+            }
         }
     }
 

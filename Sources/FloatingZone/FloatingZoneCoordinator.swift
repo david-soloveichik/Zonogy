@@ -385,10 +385,32 @@ final class FloatingZoneCoordinator {
         return moveFloatingWindow(managed, originScreenId: originScreenId, destinationScreenId: destinationScreenId)
     }
 
+    /// App-driven moves bypass the drag pipeline, so an application relocating its own
+    /// floating window across displays would otherwise leave the occupancy booked against
+    /// the old display. Re-book the window on the display it now physically occupies,
+    /// with the same swap semantics as a cross-display user drag — except the displaced
+    /// partner is not raised, since no user gesture is driving this.
+    func reconcileOccupantScreenAfterAppDrivenMove(windowId: Int, accessibilityFrame: CGRect) {
+        guard let host,
+              let originScreenId = occupants.first(where: { $0.value == windowId })?.key,
+              let destinationScreenId = host.screenIdForAccessibilityFrame(accessibilityFrame),
+              destinationScreenId != originScreenId,
+              let managed = host.windowController.window(withId: windowId) else {
+            return
+        }
+        _ = moveFloatingWindow(
+            managed,
+            originScreenId: originScreenId,
+            destinationScreenId: destinationScreenId,
+            raiseDisplaced: false
+        )
+    }
+
     private func moveFloatingWindow(
         _ managed: ManagedWindow,
         originScreenId: CGDirectDisplayID,
-        destinationScreenId: CGDirectDisplayID
+        destinationScreenId: CGDirectDisplayID,
+        raiseDisplaced: Bool = true
     ) -> Bool {
         guard let host else {
             return false
@@ -410,7 +432,7 @@ final class FloatingZoneCoordinator {
 
             if let descriptor = host.descriptor(for: originScreenId) {
                 let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
-                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor)
+                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor, raise: raiseDisplaced)
             }
 
             Logger.debug(

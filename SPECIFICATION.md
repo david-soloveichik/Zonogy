@@ -227,7 +227,7 @@ The gesture works while the Launcher is open: the Launcher keeps its plain arrow
 
 Each display has exactly one floating zone for floating a single managed window over the tiled layout.
 
-When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. After placement, the user may freely move/resize it without affecting tiled frames.
+When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. After placement, the user may freely move/resize it without affecting tiled frames. A floating window that moves to another display becomes that display's floating-zone occupant (swapping places with any window already floating there).
 
 Zonogy records a window's floating-zone size on first placement and updates it on each user resize in the floating zone. The size survives promotions to tiling zones and is cleared only when the window is destroyed.
 

@@ -638,6 +638,11 @@ protocol WindowControllerDelegate: AnyObject {
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect)
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect)
     func windowManualMoveDidAbort(windowId: Int)  // Drag died because the source window vanished mid-gesture.
+    /// The window moved outside an active Zonogy drag and outside a programmatic update —
+    /// typically the window's own application moving it, though it can also fire for the
+    /// first events of a user drag before the drag activates. `frame` is the window's
+    /// fresh accessibility frame.
+    func windowAppDrivenMoveDidUpdate(windowId: Int, frame: CGRect)
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
     /// Called when pending-prune entries are permanently discarded (window truly gone).

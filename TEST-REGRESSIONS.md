@@ -111,3 +111,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: Clearing zones left a placeholder with a large stale pass-through hole over nothing: the post-sync hole refresh ran while the just-minimized windows' animations were still in flight (the WindowServer lists a minimizing window as on-screen until its animation completes), and the suppressed miniaturize notifications skipped the sync that would have recomputed.
   - Think about: Pass-through holes must also be refreshed when a miniaturize notification arrives, before any event-suppression early return, since suppressed (programmatic) minimizes bypass the usual sync trigger.
+
+- Bug report: A floating-zone occupant can end up booked against one display while physically sitting on another (e.g. Zoom re-materializing its window on a different display during a deferred-prune restore), leaving it invisible to WinShot, resize-bar avoidance, and zone promotion on the display it actually occupies.
+  - Think about: Floating-zone occupancy is bookkeeping keyed by display, and several paths update the booking without physically placing the window. Any such path (deferred-prune restore, app-driven moves) must reconcile the booked display against the window's live frame.
