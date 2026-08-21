@@ -11,9 +11,12 @@ extension AppController: CmdTabControllerDelegate {
             Logger.debug("CmdTab: Cancelled")
             restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-cancelled")
         case .selected(let window):
-            let policyOutcome: CmdTabTemporaryTargetPolicy.Outcome = window.isPlacedInZone
-                ? .activatedExistingWindow
-                : .placedOrOpenedWindow
+            let windowStillManaged = window.managedWindowId
+                .map { windowController.window(withId: $0) != nil } ?? false
+            let policyOutcome = CmdTabTemporaryTargetPolicy.outcomeForSelection(
+                isPlacedInZone: window.isPlacedInZone,
+                windowStillManaged: windowStillManaged
+            )
 
             if CmdTabTemporaryTargetPolicy.shouldRestoreOriginalTarget(after: policyOutcome) {
                 restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-restore-existing-window")

@@ -8,6 +8,7 @@ protocol LauncherWindowProvider: AnyObject {
     func windowsForApp(bundleIdentifier: String) -> [LauncherWindowItem]
     func windowCount(for bundleIdentifier: String) -> Int
     func isDefaultWindowInZone(forBundleIdentifier bundleId: String) -> Bool
+    func isWindowPlacedInZone(managedWindowId: Int) -> Bool
 }
 
 @MainActor
@@ -130,6 +131,20 @@ final class LauncherModel: ObservableObject {
         }
         appsWithDefaultWindowInZoneBundleIdentifiers = result
         refreshWindowCounts()
+    }
+
+    /// Re-reads each window row's placed-in-zone flag from the provider so the window icon
+    /// glyphs track minimizes, closes, and restores that land while the window list is open.
+    /// Rows are deliberately not reordered mid-open; the next list rebuild applies the
+    /// usual not-in-zone-first ordering.
+    func refreshWindowItemPlacementStates() {
+        guard case .windowList = mode, let windowProvider else { return }
+        let resolve: (Int) -> Bool = { windowProvider.isWindowPlacedInZone(managedWindowId: $0) }
+        windowItems = windowItems.refreshingPlacement(isPlacedInZone: resolve)
+        let refreshedFiltered = filteredWindowItems.refreshingPlacement(isPlacedInZone: resolve)
+        if refreshedFiltered != filteredWindowItems {
+            filteredWindowItems = refreshedFiltered
+        }
     }
 
     func refreshWindowCounts() {

@@ -3,8 +3,9 @@
 import Foundation
 
 final class CmdTabModel: ObservableObject {
-    /// All managed windows ordered by recency (most recent first)
-    let windows: [LauncherWindowItem]
+    /// All managed windows ordered by recency (most recent first). Membership and order
+    /// are fixed for the session; only each row's placed-in-zone flag is refreshed live.
+    @Published private(set) var windows: [LauncherWindowItem]
 
     /// Whether selection wraps around at list boundaries
     let wrapsAround: Bool
@@ -21,6 +22,16 @@ final class CmdTabModel: ObservableObject {
     init(windows: [LauncherWindowItem], wrapsAround: Bool = false) {
         self.windows = windows
         self.wrapsAround = wrapsAround
+    }
+
+    /// Re-reads each row's placed-in-zone flag through the resolver so the window icon
+    /// glyphs track minimizes, closes, and restores that land while the switcher is open.
+    /// Publishes only on a real change.
+    func refreshPlacementStates(isPlacedInZone: (Int) -> Bool) {
+        let refreshed = windows.refreshingPlacement(isPlacedInZone: isPlacedInZone)
+        if refreshed != windows {
+            windows = refreshed
+        }
     }
 
     /// Move selection to next window

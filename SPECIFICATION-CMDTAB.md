@@ -24,6 +24,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Window entries:** Each entry displays:
   - Application icon (same style as Launcher)
   - Window title (same truncation rules as Launcher)
+  - A window icon glyph for windows currently placed in a zone (same meaning as in the Launcher's window list).
 - Visual styling should match the Launcher (vibrancy/blur, rounded corners, selection highlight)
 
 ## Navigation

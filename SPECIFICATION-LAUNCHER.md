@@ -98,7 +98,7 @@ When a running application is selected, the user can drill down to that applicat
 - Only shows windows that Zonogy has captured (i.e., zone-manageable standard windows)
 - Displays window title from accessibility API (titles change frequently so cannot be cached)
 - **Title cleanup:** Strips redundant app name suffixes (e.g., " - Safari", " — Xcode") since the app is already shown in the header
-- Shows a window icon glyph for windows placed in a zone; windows not in any zone have no icon
+- Shows a window icon glyph for windows placed in a zone; windows not in any zone have no icon. Glyphs stay current while the list is open.
 
 **Window Ordering:**
 

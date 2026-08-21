@@ -410,9 +410,11 @@ extension AppController {
         // recompute where their backgrounds must let clicks pass through.
         schedulePlaceholderPassThroughRefresh(reason: "sync")
         launcherController.repositionIfNeeded()
-        // Refresh Launcher's zone-derived row data; it's snapshotted at open time
-        // and would otherwise stay stale after the optimistic auto-show.
+        // Refresh the Launcher's and CmdTab's zone-derived row data; both are snapshotted
+        // at open time and would otherwise stay stale after the optimistic auto-show, or
+        // after a minimize/close/restore that lands while the chooser is open.
         launcherController.refreshZoneDerivedDataIfActive()
+        cmdTabController.refreshZoneDerivedDataIfActive()
 
         // Occupancy is now settled for this pass: feed it to the WinShot auto-save settle timer.
         evaluateWinShotOccupancyAutoSave()

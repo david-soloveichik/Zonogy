@@ -132,6 +132,9 @@ enum GuardrailTests {
         if !RecentUserMinimizeMarksTests.run() {
             allPassed = false
         }
+        if !LauncherWindowItemTests.run() {
+            allPassed = false
+        }
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }

@@ -16,6 +16,9 @@ protocol CmdTabControllerDelegate: AnyObject {
     /// Provides all managed windows ordered by last active time
     func allManagedWindowsOrderedByRecency() -> [LauncherWindowItem]
 
+    /// Returns whether the managed window is currently placed in a zone (tiled or floating).
+    func isWindowPlacedInZone(managedWindowId: Int) -> Bool
+
     /// Starts a CmdTab row drag session for the given window. Return false to abort the drag.
     func cmdTabController(_ controller: CmdTabController, beginDragForWindow window: LauncherWindowItem) -> Bool
 
@@ -173,6 +176,15 @@ final class CmdTabController {
             return
         }
         positionWindowOnCurrentTarget()
+    }
+
+    /// Mirrors `LauncherController.refreshZoneDerivedDataIfActive`: re-derives each visible
+    /// row's placed-in-zone glyph after a zone sync. The row list is snapshotted at open
+    /// time and would otherwise stay stale — e.g. a Cmd-M minimize whose AX notification
+    /// lands only after the minimize animation completes, while the switcher is already up.
+    func refreshZoneDerivedDataIfActive() {
+        guard isActive, let delegate else { return }
+        model?.refreshPlacementStates { delegate.isWindowPlacedInZone(managedWindowId: $0) }
     }
 
     private func positionWindowOnCurrentTarget() {

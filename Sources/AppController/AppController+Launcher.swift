@@ -927,4 +927,10 @@ extension AppController: LauncherWindowProvider {
         }
         return preferredWindow.isPlacedInZone
     }
+
+    // Serves both LauncherWindowProvider and CmdTabControllerDelegate: live placement
+    // state for a chooser row (a destroyed window reads as not placed).
+    func isWindowPlacedInZone(managedWindowId: Int) -> Bool {
+        windowController.window(withId: managedWindowId)?.isPlacedInZone ?? false
+    }
 }
