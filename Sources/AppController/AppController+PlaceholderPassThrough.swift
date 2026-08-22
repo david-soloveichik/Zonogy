@@ -7,17 +7,20 @@ extension AppController {
     /// Schedule a pass-through refresh for the next runloop turn (coalescing repeated requests).
     /// Event-driven (no polling): requested after full zone syncs (which re-front placeholders),
     /// after unmanaged-focus state updates (which follow app activation and focused-window
-    /// changes), shortly after a placeholder press ends (the click raises its panel; see
-    /// `placeholderPressEnded`), after app terminations (which can remove windows
-    /// without any sync), after a managed window finishes miniaturizing (a minimizing
-    /// window stays in the on-screen list until its animation ends, so a refresh during
-    /// the animation punches a hole over it; programmatic minimizes suppress the
-    /// notification's zone-removal sync, leaving that trigger as the only heal),
-    /// shortly after any global click while holes are active (see
+    /// changes), when an observed application creates a window, shortly after a placeholder
+    /// press ends (the click raises its panel; see `placeholderPressEnded`), after app
+    /// terminations (which can remove windows without any sync), after a managed window
+    /// finishes miniaturizing (a minimizing window stays in the on-screen list until its
+    /// animation ends, so a refresh during the animation punches a hole over it; programmatic
+    /// minimizes suppress the notification's zone-removal sync, leaving that trigger as the
+    /// only heal), when the Launcher opens or moves to a new target (to record what it now
+    /// covers), shortly after any
+    /// global click while holes are active or the Launcher is open (see
     /// `installPlaceholderPassThroughClickMonitor`), and after debounced Desktop folder or
-    /// volume-mount changes (see `DesktopChangeWatchService`). Windows that move or close
-    /// without any such event leave a stale region until the next trigger — at worst until
-    /// the next click anywhere, since stale regions only matter when clicked.
+    /// volume-mount changes (see `DesktopChangeWatchService`). Windows that move,
+    /// close, or appear without any such event leave a stale region (or an unyielding
+    /// Launcher) until the next trigger — at worst until the next click anywhere, since stale
+    /// regions only matter when clicked.
     /// The refresh must not run in the same runloop turn that issues an ordering change:
     /// a same-turn `CGWindowListCopyWindowInfo` would still report the pre-change z-order.
     internal func schedulePlaceholderPassThroughRefresh(reason: String) {
@@ -33,7 +36,10 @@ extension AppController {
     }
 
     /// Recompute the pass-through regions on every active placeholder from the current
-    /// WindowServer snapshot.
+    /// WindowServer snapshot, then let the Launcher yield to unmanaged windows that the same
+    /// snapshot shows beneath it (see `AppController+LauncherCoveredWindows`). The refresh
+    /// triggers are the events that can put a window there, so the open Launcher keeps the
+    /// refresh running even with no placeholder to punch.
     private func refreshPlaceholderPassThrough(reason: String) {
         // Desktop events (volume unmounts, folder writes) can arrive around sleep, and the
         // refresh performs synchronous AX calls into Finder, which can hang until the session
@@ -42,7 +48,7 @@ extension AppController {
             return
         }
         let placeholders = placeholderCoordinator.allActivePlaceholders()
-        guard !placeholders.isEmpty else {
+        guard !placeholders.isEmpty || launcherController.isActive else {
             placeholderPassThroughHasHoles = false
             return
         }
@@ -51,32 +57,29 @@ extension AppController {
         }
 
         let zonogyPid = getpid()
-        let desktopIconFrames = currentDesktopIconFrames()
+        // Icon frames cost a synchronous walk of Finder's hierarchy; skip it when nothing punches.
+        let desktopIconFrames = placeholders.isEmpty ? [] : currentDesktopIconFrames()
 
         var anyHoles = false
         for placeholder in placeholders {
-            let holes = PlaceholderPassThroughPolicy.holeRects(
+            let holes = PlaceholderPassThroughPolicy.holes(
                 placeholderCgWindowId: placeholder.cgWindowId,
                 rowsFrontToBack: rows,
                 zonogyPid: zonogyPid,
                 desktopIconFrames: desktopIconFrames
             )
             anyHoles = anyHoles || !holes.isEmpty
-            let cocoaScreenRects = holes.map {
-                CoordinateConversion.accessibilityToCocoa(
-                    accessibilityFrame: $0,
-                    primaryScreenBounds: primaryScreenBounds
-                )
-            }
-            if placeholder.setPassThroughRegions(cocoaScreenRects: cocoaScreenRects) {
+            if placeholder.setPassThroughHoles(holes, primaryScreenBounds: primaryScreenBounds) {
                 let screenIndex = screenContextStore.loggingIndex(for: placeholder.screenDisplayId)
                 Logger.debug(
                     "Placeholder pass-through updated for zone \(placeholder.zoneIndex) on screen \(screenIndex): " +
-                        "\(holes.count) hole(s) (reason: \(reason))"
+                        "\(holes.rects.count) hole(s) (reason: \(reason))"
                 )
             }
         }
         placeholderPassThroughHasHoles = anyHoles
+
+        yieldLauncherToUnmanagedWindows(rows: rows)
     }
 
     /// How long a successful desktop-icon read stays fresh. Icon-frame invalidation is
@@ -109,17 +112,18 @@ extension AppController {
 
     /// While any hole is active, clicks in other apps can change what the hole should cover
     /// (raise the window under it, hit a stale region over the desktop or an already-active
-    /// app) without producing any focus or sync event. A global mouse-up monitor re-checks
+    /// app) without producing any focus or sync event; while the Launcher is open, a window
+    /// may have appeared beneath it just as silently. A global mouse-up monitor re-checks
     /// after such clicks; like the placeholder press path, it waits out the window server's
     /// asynchronous click-raise. Icon movement needs no mouse tracking: Finder persists
     /// desktop icon positions at drag-drop time, which `DesktopChangeWatchService` observes.
-    /// Installed once at startup; the hole-free fast path is a single boolean test.
+    /// Installed once at startup; the idle fast path is two boolean tests.
     internal func installPlaceholderPassThroughClickMonitor() {
         guard placeholderPassThroughMouseUpMonitor == nil else {
             return
         }
         placeholderPassThroughMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]) { [weak self] _ in
-            guard let self, self.placeholderPassThroughHasHoles else {
+            guard let self, self.placeholderPassThroughHasHoles || self.launcherController.isActive else {
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in

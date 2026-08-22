@@ -1122,6 +1122,9 @@ extension AppController {
             return
         }
         checkWindowFullScreenState(element: element, pid: pid)
+        // A new window of an observed application (e.g. a background app's dialog) can land
+        // behind a placeholder or beneath the open Launcher without any focus or sync event.
+        schedulePlaceholderPassThroughRefresh(reason: "window-created")
     }
 
     func windowElementDidResize(element: AXUIElement, pid: pid_t) {

@@ -65,16 +65,20 @@ final class PlaceholderWindow {
     }
 
     /// Punch pass-through holes into the click-catching background so clicks over windows
-    /// behind this placeholder reach them. Rects are in Cocoa screen coordinates;
-    /// pass an empty array to restore the fully click-catching background.
-    /// Returns true when the holes actually changed.
+    /// behind this placeholder (and desktop icons under it) reach them. Holes are in
+    /// accessibility screen coordinates; pass no holes to restore the fully click-catching
+    /// background. Returns true when the holes actually changed.
     @discardableResult
-    func setPassThroughRegions(cocoaScreenRects: [CGRect]) -> Bool {
+    func setPassThroughHoles(_ holes: PlaceholderPassThroughPolicy.Holes, primaryScreenBounds: CGRect) -> Bool {
         guard let contentView else {
             return false
         }
-        let viewRects = cocoaScreenRects.map { rect in
-            contentView.convert(panel.convertFromScreen(rect), from: nil)
+        let viewRects = holes.rects.map { rect in
+            let cocoaRect = CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: rect,
+                primaryScreenBounds: primaryScreenBounds
+            )
+            return contentView.convert(panel.convertFromScreen(cocoaRect), from: nil)
         }
         return contentView.setPassThroughHoles(viewRects)
     }

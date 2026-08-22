@@ -120,6 +120,13 @@ extension AppController {
             return false
         }
 
+        // An auto-shown Launcher yields to an unmanaged window that shows through a placeholder
+        // beneath it; explicit opens are honored regardless (see `LauncherCoveredWindowPolicy`).
+        if autoShow, autoShownLauncherWouldCoverUnmanagedWindow(at: launcherController.frameForCurrentTarget()) {
+            Logger.debug("Launcher: Auto-show suppressed because it would cover an unmanaged window (trigger: \(trigger))")
+            return false
+        }
+
         if autoShow {
             launcherController.autoShow()
         } else {

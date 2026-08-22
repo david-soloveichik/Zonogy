@@ -23,6 +23,7 @@ The Launcher opens via:
     (See "Accessibility API Workarounds" section below.)
   - After a zone is added.
   - Zone navigation is released over an empty zone, tiling or floating (targeting it).
+- **Covered unmanaged windows:** The Launcher does not auto-show where it would cover an unmanaged window in an empty tiling zone: there the placeholder's pass-through holes (see **Click-through over covered windows** in the main specification) let the user interact with the window. Explicit opens are honored regardless.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
 - **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
   Exceptions to dismissal on occupied-target: the Launcher shortcut's toggle retarget (above), and gestures that explicitly open the Launcher on a zone of the user's choosing even when it is occupied (Control-Command-double-click, zone navigation's Show Launcher key).
@@ -43,6 +44,7 @@ So the launcher automatically dismisses when:
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
 - Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it) — including zone navigation focusing a window, which dismisses immediately on the commit
 - A window is placed into a zone (so the user can interact with it)
+- An unmanaged window appears beneath the Launcher (see "Covered unmanaged windows"). Windows already beneath the Launcher when it opened or moved are tolerated (the user may have opened the Launcher over them deliberately).
 - A zone is removed (see "Zone removal behavior")
 - Zonogy opens its own Preferences window or an update-check alert (so the Launcher does not cover them)
 

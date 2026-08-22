@@ -86,6 +86,14 @@ extension WindowController {
         pendingPrunedWindows.hasEntry(forWindowId: windowId)
     }
 
+    /// CGWindowIDs of every managed window plus those staged for deferred prune. The latter
+    /// are still Zonogy's: a genuinely closing window is staged while the window server still
+    /// lists it (see the liveness check in `WindowController+NotificationHandling`), and a
+    /// spuriously destroyed one stays on screen until it is re-adopted.
+    internal var managedOrPendingPruneCgWindowIds: Set<Int> {
+        Set(allWindows.map { $0.backing.cgWindowId }).union(pendingPrunedWindows.cgWindowIds)
+    }
+
     internal func consumeRestoredPendingPruneDestination(for windowId: Int) -> PendingPrunedWindowDestination? {
         restoredPendingPruneDestinationsByWindowId.removeValue(forKey: windowId)
     }

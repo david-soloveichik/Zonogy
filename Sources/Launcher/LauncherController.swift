@@ -58,6 +58,10 @@ protocol LauncherControllerDelegate: AnyObject {
 
     /// Called when the user presses a zone-removal shortcut (Cmd-M or Cmd-W) while the Launcher is open
     func launcherControllerDidRequestRemoveZone(_ controller: LauncherController)
+
+    /// Called once the Launcher has been shown or moved to a new target, so the delegate can
+    /// record what now lies beneath it (see `yieldToUnmanagedWindows`).
+    func launcherControllerDidPlace(_ controller: LauncherController)
 }
 
 final class LauncherController {
@@ -79,7 +83,9 @@ final class LauncherController {
     private var flagsLocalMonitor: Any?
     private var clickMonitor: ClickOutsideMonitor?
     private var appTerminationObserver: Any?
-    private var lastAnchor: Anchor?
+    /// The unmanaged windows the open Launcher was last found over, and where (see
+    /// `yieldToUnmanagedWindows`). Nil until the first pass-through refresh after opening.
+    private var placement: LauncherCoveredWindowPolicy.Placement?
     private var autoShowGraceUntil: Date?
     private var pendingAutoShowGraceOnOpen = false
     private var clickSuppressionGate = LauncherClickSuppressionGate()
@@ -109,12 +115,6 @@ final class LauncherController {
 
     /// Grace period duration for auto-show (prevents immediate dismissal from macOS auto-focus)
     private static let autoShowGracePeriod: TimeInterval = 0.5
-
-    private enum Anchor: Equatable {
-        case zone(frame: CGRect, screenId: CGDirectDisplayID)
-        case screen(screenId: CGDirectDisplayID)
-        case main
-    }
 
     /// Show the Launcher with a grace period that prevents immediate dismissal from focus changes.
     /// Use this when auto-showing (e.g., zone became empty) to handle macOS auto-focus behavior.
@@ -151,10 +151,8 @@ final class LauncherController {
             model.windowProvider = delegate.launcherWindowProvider
             self.model = model
 
-            // Create window if needed
-            if window == nil {
-                window = LauncherWindow()
-            }
+            // Positioning creates the window on first use.
+            positionWindowOnCurrentTarget()
 
             // Create the SwiftUI view
             let launcherView = LauncherView(
@@ -182,22 +180,6 @@ final class LauncherController {
                 ])
             }
 
-            // Position window on targeted zone
-            if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
-                window?.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
-                self.lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
-            } else if let screenId = delegate.targetedScreenId() {
-                // No zone frame means floating zone is targeted - position lower on screen
-                window?.centerOnScreen(screenId, forFloatingZone: true)
-                self.lastAnchor = .screen(screenId: screenId)
-            } else {
-                // Fall back to main screen
-                if NSScreen.main != nil {
-                    window?.center()
-                    self.lastAnchor = .main
-                }
-            }
-
             window?.makeKeyAndOrderFront(nil)
 
             if shouldStartAutoShowGrace {
@@ -215,6 +197,7 @@ final class LauncherController {
 
         isActive = true
         Logger.debug("Launcher: Opened")
+        delegate.launcherControllerDidPlace(self)
     }
 
     func hide() {
@@ -249,7 +232,7 @@ final class LauncherController {
         window?.orderOut(nil)
         hostingView = nil
         model = nil
-        lastAnchor = nil
+        placement = nil
         pendingAutoShowGraceOnOpen = false
         autoShowGraceUntil = nil
         clickSuppressionGate.clear()
@@ -314,27 +297,66 @@ final class LauncherController {
     }
 
     func repositionToCurrentTarget() {
-        guard isActive,
-              let delegate,
-              let window else {
+        guard isActive else {
             return
         }
+        positionWindowOnCurrentTarget()
+        refreshKeyWindowIfActive()
+        delegate?.launcherControllerDidPlace(self)
+    }
 
+    /// Called by each pass-through refresh with the unmanaged windows now beneath the open
+    /// Launcher: dismisses it when one arrived since it was last found here. The first reading
+    /// after opening, and the first after any move, instead records what it was placed over;
+    /// `launcherControllerDidPlace` has the delegate refresh promptly in both cases, while a
+    /// sync-driven move (`repositionIfNeeded`) relies on the sync's own refresh.
+    func yieldToUnmanagedWindows(_ windowNumbers: Set<Int>) {
+        guard isActive, let window else {
+            return
+        }
+        switch LauncherCoveredWindowPolicy.yieldDecision(
+            placement: placement,
+            launcherFrame: window.frame,
+            coveredWindowNumbers: windowNumbers
+        ) {
+        case .keep(let placement):
+            self.placement = placement
+        case .yield:
+            Logger.debug("Launcher: Dismissed because an unmanaged window appeared beneath it")
+            hide()
+        }
+    }
+
+    /// Moves the window to where the current target puts it, creating it on first use. Moving
+    /// it while hidden is harmless, so this also serves `frameForCurrentTarget()`.
+    private func positionWindowOnCurrentTarget() {
+        if window == nil {
+            window = LauncherWindow()
+        }
+        guard let delegate, let window else {
+            return
+        }
         if let (zoneFrame, descriptor) = delegate.targetedZoneFrame() {
             window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
-            lastAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
         } else if let screenId = delegate.targetedScreenId() {
             // No zone frame means floating zone is targeted - position lower on screen
             window.centerOnScreen(screenId, forFloatingZone: true)
-            lastAnchor = .screen(screenId: screenId)
-        } else {
-            if NSScreen.main != nil {
-                window.center()
-            }
-            lastAnchor = .main
+        } else if NSScreen.main != nil {
+            // Fall back to main screen
+            window.center()
         }
+    }
 
-        refreshKeyWindowIfActive()
+    /// Where the Launcher would appear for the current target, in Cocoa screen coordinates:
+    /// positions the (hidden) window there and reports its frame.
+    func frameForCurrentTarget() -> CGRect {
+        positionWindowOnCurrentTarget()
+        return window?.frame ?? .zero
+    }
+
+    /// The open Launcher's frame in Cocoa screen coordinates, or nil while it is not showing.
+    var visibleFrame: CGRect? {
+        isActive ? window?.frame : nil
     }
 
     /// Refreshes Launcher keyboard focus during ordinary UI repositioning without activating Zonogy.
@@ -366,41 +388,17 @@ final class LauncherController {
         }
     }
 
+    /// Re-anchors the open Launcher when its target or that target's frame moved; positioning
+    /// is idempotent, so the keyboard-focus refresh is gated on the window actually having moved.
     func repositionIfNeeded() {
-        guard isActive,
-              let delegate,
-              let window else {
+        guard isActive, let window else {
             return
         }
-
-        let zoneInfo = delegate.targetedZoneFrame()
-        let screenId = delegate.targetedScreenId()
-
-        let newAnchor: Anchor
-        if let (zoneFrame, descriptor) = zoneInfo {
-            newAnchor = .zone(frame: zoneFrame, screenId: descriptor.displayId)
-        } else if let screenId {
-            newAnchor = .screen(screenId: screenId)
-        } else {
-            newAnchor = .main
-        }
-
-        guard newAnchor != lastAnchor else {
+        let previousFrame = window.frame
+        positionWindowOnCurrentTarget()
+        guard window.frame != previousFrame else {
             return
         }
-
-        if let (zoneFrame, descriptor) = zoneInfo {
-            window.centerOnZone(frame: zoneFrame, screenDescriptor: descriptor)
-        } else if let screenId {
-            // No zone frame means floating zone is targeted - position lower on screen
-            window.centerOnScreen(screenId, forFloatingZone: true)
-        } else {
-            if NSScreen.main != nil {
-                window.center()
-            }
-        }
-
-        lastAnchor = newAnchor
         refreshKeyWindowIfActive()
     }
 

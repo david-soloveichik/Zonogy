@@ -88,4 +88,8 @@ struct PendingPrunedWindowStore {
     func hasEntry(forWindowId windowId: Int) -> Bool {
         entriesByIdentifier.values.contains { $0.windowId == windowId }
     }
+
+    var cgWindowIds: Set<Int> {
+        Set(entriesByIdentifier.keys.map(\.cgWindowId))
+    }
 }

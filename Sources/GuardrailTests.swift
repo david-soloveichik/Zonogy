@@ -135,6 +135,9 @@ enum GuardrailTests {
         if !LauncherWindowItemTests.run() {
             allPassed = false
         }
+        if !LauncherCoveredWindowPolicyTests.run() {
+            allPassed = false
+        }
         if !ActiveFitPolicyTests.run() {
             allPassed = false
         }
