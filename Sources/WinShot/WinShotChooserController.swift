@@ -1,4 +1,4 @@
-/// Coordinates the WinShot chooser UI, key monitoring, and snapshot selection
+/// Coordinates the WinShot chooser UI, key monitoring, snapshot selection, and thumbnail drags
 import AppKit
 import Carbon
 
@@ -11,6 +11,21 @@ protocol WinShotChooserControllerDelegate: AnyObject {
 
     /// Called when the chooser is cancelled (Escape or click outside)
     func chooserControllerDidCancel(_ controller: WinShotChooserController)
+
+    /// Called when a thumbnail drag starts (the chooser has already closed).
+    func chooserControllerDidBeginDrag(_ controller: WinShotChooserController)
+
+    /// Called repeatedly while a thumbnail drag is in flight, as the cursor moves.
+    func chooserControllerDidUpdateDrag(_ controller: WinShotChooserController, cursorPointAX: CGPoint?)
+
+    /// Called when a thumbnail drag ends. Returns true if the drop opened the snapshot.
+    func chooserController(_ controller: WinShotChooserController, didEndDragOf snapshotId: UUID, cursorPointAX: CGPoint?) -> Bool
+
+    /// Called when the user cancels an in-flight thumbnail drag (Escape).
+    func chooserControllerDidCancelDrag(_ controller: WinShotChooserController)
+
+    /// Current cursor position in Accessibility coordinates, for drag updates.
+    func chooserCurrentCursorAccessibilityPoint() -> CGPoint?
 }
 
 final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotChooserViewDelegate {
@@ -18,9 +33,37 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
     private var window: WinShotChooserWindow?
     private var chooserView: WinShotChooserView?
+    /// The snapshots currently shown, newest first (for the thumbnail a drag carries).
+    private var snapshots: [WinShotSnapshot] = []
     private let modifierMonitor = WinShotModifierMonitor()
     private var keyMonitor: Any?
     private var clickMonitor: ClickOutsideMonitor?
+
+    /// Drives a thumbnail drag once the chooser has closed for it: the cursor-following preview,
+    /// mouse tracking, and Escape-to-cancel.
+    private lazy var thumbnailDragController = CursorDrivenRowDragController<UUID>(
+        logPrefix: "WinShot",
+        currentCursorAXProvider: { [weak self] in
+            self?.delegate?.chooserCurrentCursorAccessibilityPoint()
+        },
+        onDidBeginDrag: { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.chooserControllerDidBeginDrag(self)
+        },
+        onDidUpdateDrag: { [weak self] cursorPointAX in
+            guard let self else { return }
+            self.delegate?.chooserControllerDidUpdateDrag(self, cursorPointAX: cursorPointAX)
+        },
+        onDidEndDrag: { [weak self] snapshotId, cursorPointAX in
+            guard let self else { return }
+            let didOpen = self.delegate?.chooserController(self, didEndDragOf: snapshotId, cursorPointAX: cursorPointAX) ?? false
+            Logger.debug(didOpen ? "WinShot: Drag completed" : "WinShot: Drag cancelled")
+        },
+        onDidCancelByUser: { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.chooserControllerDidCancelDrag(self)
+        }
+    )
 
     private(set) var isActive = false
     private(set) var currentScreenId: CGDirectDisplayID?
@@ -39,8 +82,13 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             Logger.debug("WinShot: Cannot show chooser - no snapshots")
             return
         }
+        guard !thumbnailDragController.isDragging else {
+            Logger.debug("WinShot: Cannot show chooser - thumbnail drag in flight")
+            return
+        }
 
         currentScreenId = screenId
+        self.snapshots = snapshots
 
         // Create window if needed
         if window == nil {
@@ -101,6 +149,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
         window?.orderOut(nil)
         chooserView = nil
+        snapshots = []
 
         isActive = false
         currentScreenId = nil
@@ -139,6 +188,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         let previousSelectedId = chooserView?.selectedSnapshotId
         let previousSelectedIndex = chooserView?.selectedThumbnailIndex
 
+        self.snapshots = snapshots
         chooserView?.configure(with: snapshots)
 
         if let restoredIndex = WinShotChooserSelectionRestorePolicy.restoredSelectionIndex(
@@ -277,6 +327,46 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             guard let self = self else { return }
             self.delegate?.chooserController(self, didSelect: snapshotIdToRestore)
         }
+    }
+
+    /// A thumbnail is being dragged out: close the chooser (so releasing the shortcut's modifiers no
+    /// longer restores anything; the drop decides) and let the drag carry the thumbnail to the display
+    /// it will open on.
+    func chooserView(_ view: WinShotChooserView, didBeginDrag snapshotId: UUID) {
+        guard isActive, let snapshot = snapshots.first(where: { $0.id == snapshotId }) else { return }
+
+        hide()
+        Logger.debug("WinShot: Chooser closed for drag")
+
+        thumbnailDragController.beginDrag(
+            for: snapshotId,
+            title: "Snapshot",
+            image: snapshot.thumbnail,
+            initialCursorPointCocoa: NSEvent.mouseLocation,
+            driveViaMouseMonitors: true
+        )
+        // Highlight the starting display right away rather than on the first mouse move.
+        thumbnailDragController.updateDrag()
+    }
+
+    /// The snapshot a thumbnail drag is carrying, if one is in flight.
+    var draggedSnapshotId: UUID? {
+        thumbnailDragController.activePayload
+    }
+
+    /// True from the chooser opening until it closes or, if a thumbnail is dragged out, until that
+    /// drag ends. Mouse gestures that must not interleave with the chooser check this.
+    var isActiveOrDragging: Bool {
+        isActive || thumbnailDragController.isDragging
+    }
+
+    /// Abandons an in-flight thumbnail drag without dropping: for interruptions (sleep, lock) after
+    /// which the mouse-up may never arrive, or when the snapshot it carries no longer exists.
+    func cancelThumbnailDrag(reason: String) {
+        guard thumbnailDragController.isDragging else { return }
+        Logger.debug("WinShot: Thumbnail drag cancelled (reason: \(reason))")
+        thumbnailDragController.cancelDrag()
+        delegate?.chooserControllerDidCancelDrag(self)
     }
 
     deinit {

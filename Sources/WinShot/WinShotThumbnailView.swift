@@ -4,6 +4,8 @@ import AppKit
 protocol WinShotThumbnailViewDelegate: AnyObject {
     func thumbnailView(_ view: WinShotThumbnailView, didRequestDelete snapshotId: UUID)
     func thumbnailView(_ view: WinShotThumbnailView, didClickToSelect snapshotId: UUID)
+    /// The mouse has moved past the drag threshold since pressing on the cell.
+    func thumbnailView(_ view: WinShotThumbnailView, didBeginDrag snapshotId: UUID)
 }
 
 final class WinShotThumbnailView: NSView {
@@ -41,6 +43,12 @@ final class WinShotThumbnailView: NSView {
     private static let borderCornerRadius: CGFloat = 12  // Slightly larger for the outer border
     private static let selectionBorderWidth: CGFloat = 3
     private static let deleteButtonSize: CGFloat = 20
+    private static let dragThreshold: CGFloat = 8
+
+    /// Where the current mouse press started, and whether it has already turned into a drag (after
+    /// which the eventual mouse-up must not count as a click).
+    private var mouseDownPoint: NSPoint?
+    private var dragStarted = false
 
     init(snapshot: WinShotSnapshot) {
         self.snapshotId = snapshot.id
@@ -203,9 +211,29 @@ final class WinShotThumbnailView: NSView {
         return hit === deleteButton ? deleteButton : self
     }
 
+    override func mouseDown(with event: NSEvent) {
+        mouseDownPoint = convert(event.locationInWindow, from: nil)
+        dragStarted = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard !dragStarted, let mouseDownPoint else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        guard hypot(location.x - mouseDownPoint.x, location.y - mouseDownPoint.y) >= Self.dragThreshold else {
+            return
+        }
+        dragStarted = true
+        delegate?.thumbnailView(self, didBeginDrag: snapshotId)
+    }
+
     override func mouseUp(with event: NSEvent) {
+        defer {
+            mouseDownPoint = nil
+            dragStarted = false
+        }
         // hitTest routes delete-button clicks to the button, so any mouseUp reaching the thumbnail is
-        // a click on the cell: request selection/restore.
+        // a click on the cell (unless the press became a drag): request selection/restore.
+        guard !dragStarted else { return }
         delegate?.thumbnailView(self, didClickToSelect: snapshotId)
     }
 

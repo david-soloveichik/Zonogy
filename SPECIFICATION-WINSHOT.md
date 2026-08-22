@@ -7,7 +7,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Explicitly created with the Control-Cmd-/ (default) shortcut on the active display.
 - Automatically created according to the auto-save mode set in Preferences (see **Automatic Snapshots** below).
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, Sticky Resize remembered sizes (if any), and a low-resolution thumbnail. The thumbnail is an abstract composite — each window in the snapshot is captured individually and drawn at its zone position on a plain background, with no desktop, other windows, or Zonogy interface shown. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
-- Snapshots are display-specific (cannot restore across displays).
+- Snapshots belong to the display they were captured on (the chooser shows one display's snapshots), but an arrangement can be opened on another display by dragging its thumbnail there (see **Chooser Window**).
 - Max snapshots per display is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
 - If creating a snapshot with the same zone occupancy signature as an existing one, the old snapshot is replaced. The signature includes each window's zone assignment, the floating-zone occupant, and which tiling zones are present even when empty.
@@ -34,6 +34,7 @@ Opening the chooser captures the current arrangement immediately, and a snapshot
 - Hold the shortcut's modifiers and repeatedly press its key to cycle forward through snapshots; add Shift to cycle in reverse. (If the configured shortcut already includes Shift, reverse cycling is unavailable.)
 - Escape key or click outside to cancel.
 - Release the shortcut's modifiers to restore the selected snapshot. Alternatively, click on a snapshot to immediately restore it.
+- Drag a thumbnail to a display and release to open that arrangement there, fitted to that display (see **Snapshot Restoration**). The thumbnail follows the cursor and the display under it is highlighted. The snapshot stays with the display it was captured on.
 - Red "x" button on each snapshot allows deletion (appears on hover).
 - Thumbnails sit in a single horizontal row, most recent on the left. Each thumbnail is placed by when its arrangement was last on screen (not when it was first set up). The currently live arrangement counts as on screen up to the present. The gap between two consecutive thumbnails encodes the time elapsed between those last-on-screen moments. Spacing is relative to the whole set: intervals are scaled logarithmically — shortest tight, longest wide — so differences stay visible whether the set spans seconds or days. (Roughly even spacing stays uniformly tight; gaps open only where intervals genuinely differ.)
 - Under each thumbnail, two centered rows of application icons describe the snapshot: the top row shows one icon per occupied tiling zone, ordered by zone index, and the bottom row shows the floating-zone window's icon, if any.
@@ -41,13 +42,13 @@ Opening the chooser captures the current arrangement immediately, and a snapshot
 
 ## Snapshot Restoration
 
-- With auto-save snapshots enabled, switching to a prior snapshot first saves the current arrangement. (This should be logically equivalent to first Clear/Reset Zones, and then restore.)
-- Restores zone configuration to the saved count and frames.
+- With auto-save snapshots enabled, switching to a prior snapshot first saves the current arrangement of the display it opens on. (This should be logically equivalent to first Clear/Reset Zones, and then restore.)
+- Restores the saved zone count and frames, fitted to the display's current visible bounds, so the zone proportions carry over when an arrangement opens on another display (or the visible bounds changed since the capture). The floating window keeps its size, centered at the same relative position and nudged to stay within the visible bounds (shrunk only if it is larger than them).
 - Unminimizes all windows (tiled and floating) in parallel first, so users see new windows appear immediately.
 - Current windows not in the snapshot are minimized afterward.
 - Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
-- Restores any saved Sticky Resize remembered sizes for the snapshot's windows, so manually resized windows return to their custom sizes when reactivated.
+- Restores any saved Sticky Resize remembered sizes for the snapshot's windows (scaled along with their zones), so manually resized windows return to their custom sizes when reactivated.
 - Activates the previously active window.
 - **Targeting after restore:**
   - If the current target is on the restored display, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled).

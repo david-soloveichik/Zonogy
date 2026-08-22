@@ -13,13 +13,15 @@ struct WinShotSnapshot {
     /// (when it was last used) instead of back when it was first established.
     var lastActiveAt: Date
 
+    /// The display's visible bounds (screen-local coordinates) the zones were laid out in at capture
+    /// time. Restoring maps the snapshot's geometry from here onto the destination display's current
+    /// visible bounds (see `retargeted(to:layoutBounds:)`), which is what lets an arrangement open on
+    /// another display.
+    let layoutBounds: CGRect
+
     /// Zone configuration at snapshot time
     let zoneCount: Int
     let zoneFrames: [Int: CGRect]  // zoneIndex -> frame
-
-    /// Window frames at snapshot time (zoneIndex -> window frame in screen coordinates).
-    /// Only populated for zones that had a non-placeholder window.
-    let windowFrames: [Int: CGRect]
 
     /// Sticky Resize remembered tiled-window sizes captured at snapshot time (zoneIndex -> size).
     let rememberedTiledWindowSizesByZoneIndex: [Int: CGSize]

@@ -6,6 +6,7 @@ import AppKit
 protocol WinShotChooserViewDelegate: AnyObject {
     func chooserView(_ view: WinShotChooserView, didRequestDelete snapshotId: UUID)
     func chooserView(_ view: WinShotChooserView, didSelect snapshotId: UUID)
+    func chooserView(_ view: WinShotChooserView, didBeginDrag snapshotId: UUID)
 }
 
 final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
@@ -152,6 +153,10 @@ final class WinShotChooserView: NSView, WinShotThumbnailViewDelegate {
 
     func thumbnailView(_ view: WinShotThumbnailView, didClickToSelect snapshotId: UUID) {
         delegate?.chooserView(self, didSelect: snapshotId)
+    }
+
+    func thumbnailView(_ view: WinShotThumbnailView, didBeginDrag snapshotId: UUID) {
+        delegate?.chooserView(self, didBeginDrag: snapshotId)
     }
 
     /// Calculate the preferred window size for displaying the given snapshots on a screen.

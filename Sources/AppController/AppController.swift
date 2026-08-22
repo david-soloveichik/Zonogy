@@ -203,6 +203,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         controller.delegate = self
         return controller
     }()
+    /// Highlights the display a dragged WinShot thumbnail would open its arrangement on.
+    internal let winShotDragOverlayManager = DragOverlayManager()
     internal lazy var launcherController: LauncherController = {
         let controller = LauncherController()
         controller.delegate = self

@@ -99,7 +99,9 @@ extension AppController {
     }
 
     private func handleUnmanagedWindowEdgeMove(element: AXUIElement, pid: pid_t) {
-        guard unmanagedWindowEdgeDragState != nil || (!dragDropCoordinator.isDragging && !floatingDragHandler.isActive) else {
+        guard unmanagedWindowEdgeDragState != nil
+            || (!dragDropCoordinator.isDragging && !floatingDragHandler.isActive
+                && !winShotChooserController.isActiveOrDragging) else {
             return
         }
         guard MouseButtons.isLeftMouseButtonDown() else {
@@ -318,8 +320,8 @@ extension AppController {
             return
         }
         unmanagedWindowEdgeIndicatorMousePassthroughEnabled = enabled
-        addZoneIndicatorManager.setMousePassthroughForUnmanagedWindowEdgeDrag(enabled)
-        floatingIndicatorManager.setMousePassthroughForUnmanagedWindowEdgeDrag(enabled)
+        addZoneIndicatorManager.setMousePassthrough(enabled)
+        floatingIndicatorManager.setMousePassthrough(enabled)
         Logger.debug(
             "Unmanaged edge drag: edge indicators mouse passthrough \(enabled ? "enabled" : "disabled")"
         )

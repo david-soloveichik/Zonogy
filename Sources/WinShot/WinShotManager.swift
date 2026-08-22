@@ -55,7 +55,6 @@ final class WinShotManager {
 
         var zoneFrames: [Int: CGRect] = [:]
         var zoneAssignments: [Int: WindowIdentity] = [:]
-        var windowFrames: [Int: CGRect] = [:]
         // Per-window placements + empty-zone rects feed the composited thumbnail (see captureThumbnail).
         var tiledPlacements: [WinShotThumbnailComposer.Placement] = []
         var emptyZoneRects: [CGRect] = []
@@ -66,9 +65,6 @@ final class WinShotManager {
             if let windowId = zone.occupantWindowId,
                let managed = windowController.window(withId: windowId) {
                 zoneAssignments[zone.index] = WindowIdentity.make(from: managed)
-                // Capture the window's actual frame in screen coordinates for potential future use.
-                let frame = windowController.actualFrameInScreenCoordinates(for: managed, on: screenDescriptor)
-                windowFrames[zone.index] = frame
                 tiledPlacements.append(
                     WinShotThumbnailComposer.Placement(
                         cgWindowId: CGWindowID(managed.backing.cgWindowId),
@@ -150,9 +146,9 @@ final class WinShotManager {
             screenId: screenId,
             createdAt: createdAt,
             lastActiveAt: createdAt,
+            layoutBounds: zoneController.layoutBounds,
             zoneCount: zoneCount,
             zoneFrames: zoneFrames,
-            windowFrames: windowFrames,
             rememberedTiledWindowSizesByZoneIndex: rememberedTiledWindowSizesByZoneIndex,
             zoneAssignments: zoneAssignments,
             floatingZoneOccupant: floatingIdentity,

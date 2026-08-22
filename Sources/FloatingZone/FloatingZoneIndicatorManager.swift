@@ -312,7 +312,7 @@ final class FloatingZoneIndicatorManager {
         handles.values.map { $0.window.frame }
     }
     private var dragHighlightedScreenId: CGDirectDisplayID?
-    private var mousePassthroughForUnmanagedWindowEdgeDrag = false
+    private var mousePassthrough = false
     /// Screens whose pill is mid-pulse, keyed by a generation counter. While a screen is pulsing,
     /// `applyIndicatorFrame` leaves its frame alone so the frequent indicator refreshes (which call
     /// `applyIndicatorFrame(animated: false)`) don't snap the pill back and cut the pop short. The
@@ -326,7 +326,7 @@ final class FloatingZoneIndicatorManager {
             let baseFrame = descriptor.cocoaFrame.standardized
             if let handle = handles[descriptor.screenId] {
                 handle.baseFrame = baseFrame
-                handle.window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+                handle.window.ignoresMouseEvents = mousePassthrough
                 handle.view.edgeOverhang = edgeOverhang(of: handle)
                 handle.view.isTargeted = descriptor.isTargeted
                 handle.view.isOccupied = descriptor.isOccupied
@@ -342,7 +342,7 @@ final class FloatingZoneIndicatorManager {
             }
 
             let window = EdgeIndicatorPanel(contentRect: baseFrame)
-            window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+            window.ignoresMouseEvents = mousePassthrough
             let view = IndicatorView(
                 frame: NSRect(origin: .zero, size: baseFrame.size),
                 screenId: descriptor.screenId,
@@ -375,11 +375,14 @@ final class FloatingZoneIndicatorManager {
         }
     }
 
-    func setMousePassthroughForUnmanagedWindowEdgeDrag(_ enabled: Bool) {
-        guard mousePassthroughForUnmanagedWindowEdgeDrag != enabled else {
+    /// Lets the pills pass the cursor through (no hover, clicks, or drops) while a gesture that
+    /// must not be caught by them is in flight, e.g. an unmanaged-window edge drag or a WinShot
+    /// thumbnail drag.
+    func setMousePassthrough(_ enabled: Bool) {
+        guard mousePassthrough != enabled else {
             return
         }
-        mousePassthroughForUnmanagedWindowEdgeDrag = enabled
+        mousePassthrough = enabled
         for handle in handles.values {
             handle.window.ignoresMouseEvents = enabled
         }

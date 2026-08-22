@@ -227,6 +227,7 @@ extension AppController {
         validationRetryManager.cancelAllValidationRetries()
         cancelUnmanagedFocusRetry()
         cancelUnmanagedWindowEdgeDrag(reason: reason)
+        winShotChooserController.cancelThumbnailDrag(reason: reason)
         cancelWakeReadinessTimer(reason: "cancelled (\(reason))")
         cancelWakeAXWindowPollingTimer(reason: reason)
 

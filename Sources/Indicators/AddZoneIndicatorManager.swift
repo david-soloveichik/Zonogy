@@ -256,7 +256,7 @@ class AddZoneIndicatorManager {
     private var views: [AddZonePillKey: AddZoneIndicatorView] = [:]
     private var baseFrames: [AddZonePillKey: CGRect] = [:]
     private var dragHighlightedPill: AddZonePillKey?
-    private var mousePassthroughForUnmanagedWindowEdgeDrag = false
+    private var mousePassthrough = false
 
     /// Current Cocoa frames of the presented pill windows (reflecting any hover/drag expansion).
     var presentedWindowFrames: [CGRect] {
@@ -285,7 +285,7 @@ class AddZoneIndicatorManager {
             if let existingView = views[descriptor.pill],
                let existingWindow = windows[descriptor.pill] {
                 // Update existing indicator
-                existingWindow.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+                existingWindow.ignoresMouseEvents = mousePassthrough
                 existingView.edgeOverhang = overhang
                 existingView.isDragHighlighted = (dragHighlightedPill == descriptor.pill)
                 existingView.autoresizingMask = [.width, .height]
@@ -295,7 +295,7 @@ class AddZoneIndicatorManager {
                 let window = EdgeIndicatorPanel(contentRect: baseFrame)
                 let view = AddZoneIndicatorView(frame: CGRect(origin: .zero, size: baseFrame.size))
 
-                window.ignoresMouseEvents = mousePassthroughForUnmanagedWindowEdgeDrag
+                window.ignoresMouseEvents = mousePassthrough
                 view.delegate = delegate
                 view.pill = descriptor.pill
                 view.manager = self
@@ -313,11 +313,14 @@ class AddZoneIndicatorManager {
         }
     }
 
-    func setMousePassthroughForUnmanagedWindowEdgeDrag(_ enabled: Bool) {
-        guard mousePassthroughForUnmanagedWindowEdgeDrag != enabled else {
+    /// Lets the pills pass the cursor through (no hover, clicks, or drops) while a gesture that
+    /// must not be caught by them is in flight, e.g. an unmanaged-window edge drag or a WinShot
+    /// thumbnail drag.
+    func setMousePassthrough(_ enabled: Bool) {
+        guard mousePassthrough != enabled else {
             return
         }
-        mousePassthroughForUnmanagedWindowEdgeDrag = enabled
+        mousePassthrough = enabled
         for window in windows.values {
             window.ignoresMouseEvents = enabled
         }

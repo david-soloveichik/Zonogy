@@ -153,6 +153,14 @@ extension AppController {
             return
         }
 
+        // A drag in progress (a zone, floating, or unmanaged-window edge drag of a window, or a
+        // resize-bar drag) would interleave with a restore on its mouse-up; the chooser waits for the mouse.
+        guard !dragDropCoordinator.isDragging, !floatingDragHandler.isActive,
+              unmanagedWindowEdgeDragState == nil, !zoneResizeDragInProgress else {
+            Logger.debug("WinShot: chooser shortcut ignored (drag in progress)")
+            return
+        }
+
         let screenId = activeScreenId()
 
         // In occupancy-change mode, capture the current arrangement now so it's in the chooser from the
@@ -215,10 +223,11 @@ extension AppController {
         let descriptor: ScreenDescriptor
     }
 
-    /// Restore a WinShot snapshot with parallel window operations
-    internal func restoreWinShotSnapshot(_ snapshot: WinShotSnapshot) {
-        let screenId = snapshot.screenId
-
+    /// Restore a WinShot snapshot on `screenId` with parallel window operations. The snapshot's
+    /// geometry is first mapped onto the display's current visible bounds (see
+    /// `WinShotSnapshot.retargeted`), so an arrangement captured on another display opens scaled to
+    /// fit, and one captured on this display reproduces exactly while its visible bounds are unchanged.
+    internal func restoreWinShotSnapshot(_ storedSnapshot: WinShotSnapshot, on screenId: CGDirectDisplayID) {
         guard let context = screenContexts[screenId] else {
             Logger.debug("WinShot: Cannot restore - no context for \(screenContextStore.logDescription(for: screenId))")
             return
@@ -228,6 +237,8 @@ extension AppController {
             Logger.debug("WinShot: Cannot restore - no descriptor for \(screenContextStore.logDescription(for: screenId))")
             return
         }
+
+        let snapshot = storedSnapshot.retargeted(to: screenId, layoutBounds: context.zoneController.layoutBounds)
 
         // Restoring a snapshot implies re-entering managed tiling. Ensure UnderCovers is exited so
         // placeholders are not incorrectly suppressed after the restore.
@@ -245,7 +256,9 @@ extension AppController {
         // Clear any stale pending re-raise from a previous restore whose notifications never arrived.
         pendingRestoreRaise = nil
 
-        Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))")
+        let originDescription = storedSnapshot.screenId == screenId
+            ? "" : " (captured on \(screenContextStore.logDescription(for: storedSnapshot.screenId)))"
+        Logger.debug("WinShot: Restoring snapshot \(snapshot.id) on \(screenContextStore.logDescription(for: screenId))\(originDescription)")
 
         // Step 1: Identify current windows on this screen (excluding placeholders)
         let currentWindows = collectCurrentWindows(on: screenId)
@@ -661,10 +674,18 @@ extension AppController {
         )
     }
 
+    /// Restored tiled windows end up with the snapshot's Sticky Resize remembered sizes, or none:
+    /// whatever they remembered where they came from (e.g. the display an arrangement was dragged
+    /// from) is cleared first. The destination display's own sizes were already cleared along with
+    /// its zone geometry.
     private func restoreStickyResizeRememberedSizes(
         from snapshot: WinShotSnapshot,
         zoneWorkItems: [ZoneRestoreWorkItem]
     ) {
+        for workItem in zoneWorkItems {
+            clearRememberedManualResizeSize(for: workItem.managed.windowId, reason: "winshot-restore")
+        }
+
         guard stickyResizeEnabled,
               !snapshot.rememberedTiledWindowSizesByZoneIndex.isEmpty else {
             return
@@ -749,13 +770,15 @@ extension AppController: WinShotChooserControllerDelegate {
             Logger.debug("WinShot: Selected snapshot \(snapshotId) not found")
             return
         }
+        openWinShotSnapshot(snapshot, on: snapshot.screenId, reason: "winshot-chooser-switch")
+    }
 
-        // Capture the same pre-clear auto-save snapshot that clear/reset would capture,
-        // without running clear/reset UI behavior before restore.
-        let screenId = snapshot.screenId
-        autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: "winshot-chooser-switch")
-
-        restoreWinShotSnapshot(snapshot)
+    /// Opens a snapshot's arrangement on `screenId` the way the chooser does: the display's current
+    /// arrangement gets the same pre-switch auto-save that clear/reset would capture (without any
+    /// clear/reset UI behavior), then the snapshot is restored there.
+    internal func openWinShotSnapshot(_ snapshot: WinShotSnapshot, on screenId: CGDirectDisplayID, reason: String) {
+        autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
+        restoreWinShotSnapshot(snapshot, on: screenId)
     }
 
     func chooserController(_ controller: WinShotChooserController, didRequestDelete snapshotId: UUID) {

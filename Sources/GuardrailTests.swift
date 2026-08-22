@@ -234,6 +234,9 @@ enum GuardrailTests {
         if !WinShotGapLayoutTests.run() {
             allPassed = false
         }
+        if !WinShotSnapshotRetargetingTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

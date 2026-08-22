@@ -279,6 +279,19 @@ final class ZoneResizeHandleManager {
     weak var delegate: ZoneResizeHandleManagerDelegate?
     private let dragOverlay = ZoneResizeDragOverlay()
     private var handles: [String: Handle] = [:] // Key: "screenId-index"
+    private var mousePassthrough = false
+
+    /// Lets the resize bars pass the cursor through (no hover reveal or drags) while a gesture that
+    /// must not be caught by them is in flight, e.g. a WinShot thumbnail drag.
+    func setMousePassthrough(_ enabled: Bool) {
+        guard mousePassthrough != enabled else {
+            return
+        }
+        mousePassthrough = enabled
+        for handle in handles.values {
+            handle.window.ignoresMouseEvents = enabled
+        }
+    }
 
     func present(over descriptors: [ZoneSeparatorDescriptor]) {
         var pendingRemoval = Set(handles.keys)
@@ -309,6 +322,7 @@ final class ZoneResizeHandleManager {
             }
 
             let window = HandleWindow(frame: cocoaFrame)
+            window.ignoresMouseEvents = mousePassthrough
             let view = HandleView(frame: NSRect(origin: .zero, size: cocoaFrame.size), screenId: descriptor.screenId, separatorId: descriptor.id, dragOverlay: dragOverlay)
             view.delegate = delegate
             view.autoresizingMask = [.width, .height]

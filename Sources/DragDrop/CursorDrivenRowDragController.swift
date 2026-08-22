@@ -20,7 +20,8 @@ final class CursorDrivenRowDragController<Payload> {
     private let onDidCancelByUser: ((Payload) -> Void)?
     private let dragPreview = CursorDrivenDragPreview()
 
-    private var activePayload: Payload?
+    /// The payload of the drag in flight, if any.
+    private(set) var activePayload: Payload?
     private var dragGlobalMonitor: Any?
     private var dragLocalMonitor: Any?
     private var flagsGlobalMonitor: Any?
@@ -48,9 +49,12 @@ final class CursorDrivenRowDragController<Payload> {
         activePayload != nil
     }
 
+    /// Starts a drag. The preview shows `image` when given (e.g. a snapshot thumbnail), otherwise a
+    /// pill with `title`.
     func beginDrag(
         for payload: Payload,
         title: String,
+        image: NSImage? = nil,
         initialCursorPointCocoa: CGPoint? = nil,
         driveViaMouseMonitors: Bool,
         newWindowAffordance: NewWindowAffordance? = nil
@@ -66,6 +70,7 @@ final class CursorDrivenRowDragController<Payload> {
         let isOption = newWindowAffordance != nil && NSEvent.modifierFlags.contains(.option)
         dragPreview.show(
             title: previewTitle(forOptionHeld: isOption, fallback: title),
+            image: image,
             at: initialCursorPointCocoa ?? NSEvent.mouseLocation,
             showsNewWindowAffordance: isOption
         )
@@ -219,24 +224,33 @@ final class CursorDrivenRowDragController<Payload> {
     }
 }
 
-/// Floating drag preview that follows the cursor during cursor-driven drags.
+/// Floating drag preview that follows the cursor during cursor-driven drags: a pill with an icon and
+/// title, or an image (e.g. a WinShot snapshot thumbnail) fitted into `maxImageSize`.
 private final class CursorDrivenDragPreview {
+    private static let maxImageSize = NSSize(width: 160, height: 100)
+
     private var feedbackWindow: NSWindow?
     private var titleLabel: NSTextField?
     private var newWindowBadge: NSImageView?
+    private var pillStackView: NSStackView?
+    private var imageView: NSImageView?
     /// Last known cursor position in Cocoa coordinates, fed by the drag pipeline. Cached so
     /// `update(...)` can reposition without falling back to `NSEvent.mouseLocation`, which is
     /// stale for Dock-icon drags whose mouse events are swallowed by the CGEventTap.
     private var lastCursorCocoa: CGPoint = .zero
 
-    func show(title: String, at mouseLocation: CGPoint, showsNewWindowAffordance: Bool) {
+    func show(title: String, image: NSImage?, at mouseLocation: CGPoint, showsNewWindowAffordance: Bool) {
         if feedbackWindow == nil {
             createFeedbackWindow()
         }
 
         guard let feedbackWindow else { return }
 
-        applyContent(title: title, showsNewWindowAffordance: showsNewWindowAffordance)
+        if let image {
+            applyImage(image)
+        } else {
+            applyContent(title: title, showsNewWindowAffordance: showsNewWindowAffordance)
+        }
         updatePosition(at: mouseLocation)
         feedbackWindow.alphaValue = 0
         feedbackWindow.orderFrontRegardless()
@@ -277,9 +291,27 @@ private final class CursorDrivenDragPreview {
         })
     }
 
+    /// Shows `image` scaled to fit `maxImageSize`, sizing the window to the scaled image.
+    private func applyImage(_ image: NSImage) {
+        guard let feedbackWindow, let imageView else { return }
+
+        imageView.image = image
+        imageView.isHidden = false
+        pillStackView?.isHidden = true
+
+        let maxSize = Self.maxImageSize
+        let scale = min(maxSize.width / max(image.size.width, 1), maxSize.height / max(image.size.height, 1), 1)
+        feedbackWindow.setContentSize(NSSize(
+            width: (image.size.width * scale).rounded(),
+            height: (image.size.height * scale).rounded()
+        ))
+    }
+
     private func applyContent(title: String, showsNewWindowAffordance: Bool) {
         guard let feedbackWindow, let titleLabel else { return }
 
+        imageView?.isHidden = true
+        pillStackView?.isHidden = false
         titleLabel.stringValue = title
         titleLabel.sizeToFit()
         newWindowBadge?.isHidden = !showsNewWindowAffordance
@@ -343,7 +375,16 @@ private final class CursorDrivenDragPreview {
         stackView.alignment = .centerY
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
+        let previewImageView = NSImageView()
+        previewImageView.imageScaling = .scaleProportionallyUpOrDown
+        previewImageView.isHidden = true
+        previewImageView.translatesAutoresizingMaskIntoConstraints = false
+        // Let the window's content size (set in applyImage) win over the image's intrinsic size.
+        previewImageView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        previewImageView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+
         visualEffect.addSubview(stackView)
+        visualEffect.addSubview(previewImageView)
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor, constant: 10),
             stackView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor, constant: -10),
@@ -352,10 +393,16 @@ private final class CursorDrivenDragPreview {
             iconView.heightAnchor.constraint(equalToConstant: 14),
             badge.widthAnchor.constraint(equalToConstant: 14),
             badge.heightAnchor.constraint(equalToConstant: 14),
+            previewImageView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+            previewImageView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+            previewImageView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+            previewImageView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
         ])
 
         feedbackWindow = window
         titleLabel = label
         newWindowBadge = badge
+        pillStackView = stackView
+        imageView = previewImageView
     }
 }
