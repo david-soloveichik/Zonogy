@@ -332,6 +332,26 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var pendingWindowIds: Set<Int>
     }
     internal var pendingRestoreRaise: PendingRestoreRaise?
+    /// An arrangement chosen on a display paused for native full-screen, waiting for that display
+    /// to leave its full-screen Space before it opens (see AppController+WinShotFullScreenExit.swift).
+    struct PendingWinShotOpenAfterFullScreenExit {
+        /// Identifies this wait so its timeout and re-check fire only while it is still current.
+        let token: UUID
+        var snapshotId: UUID
+        var reason: String
+        /// The window that was full-screen; the arrangement waits for it to be back on screen.
+        let fullScreenWindow: FullScreenElementInfo
+        let timeout: DispatchWorkItem
+        /// Re-check scheduled while a readiness signal is still outstanding.
+        var recheck: DispatchWorkItem?
+    }
+    /// At most one waiting arrangement per display.
+    internal var pendingWinShotOpensAfterFullScreenExit: [CGDirectDisplayID: PendingWinShotOpenAfterFullScreenExit] = [:]
+    /// How long a chosen arrangement waits for its display to leave full-screen before it is dropped.
+    internal let winShotFullScreenExitTimeout: TimeInterval = 3.0
+    /// Polling interval while a readiness signal is outstanding (the former full-screen window's
+    /// re-presentation is announced by nothing).
+    internal let winShotFullScreenExitRecheckInterval: TimeInterval = 0.05
     /// Minimized windows explicitly selected or dropped by the user should become frontmost
     /// after the deminiaturize path finishes placement or native-tab adoption.
     internal var pendingExplicitUnminimizeFocusWindowIds: Set<Int> = []

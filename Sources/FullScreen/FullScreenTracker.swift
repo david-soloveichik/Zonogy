@@ -97,6 +97,13 @@ final class FullScreenTracker {
         return CFBooleanGetValue(unsafeBitCast(value, to: CFBoolean.self))
     }
 
+    /// Asks a native full-screen window to leave full-screen mode (as the green button or Escape
+    /// would). Returns whether the app accepted the request; the exit itself completes
+    /// asynchronously and surfaces through the usual resize and Space-change tracking.
+    static func requestExitFullScreen(element: AXUIElement) -> Bool {
+        AXCall.setAttribute(element, kAXFullscreenAttribute, kCFBooleanFalse) == .success
+    }
+
     /// Best-effort check for whether a window is visible in the current active Space(s) according to
     /// the WindowServer (i.e., included in the on-screen-only window list).
     /// - Returns:

@@ -15,8 +15,9 @@ extension AppController {
 
         var currentSignatures: [CGDirectDisplayID: WinShotSnapshotOccupancySignature] = [:]
         for screenId in screenOrder {
-            // Skip screens paused for a full-screen Space — their tiling layout isn't user-facing.
-            guard !isScreenPausedForFullScreen(screenId) else {
+            // Skip screens in, or still leaving, a full-screen Space — their tiling layout isn't
+            // user-facing, and dropping them here cancels and forgets any pending settle timer.
+            guard !isScreenInOrLeavingFullScreen(screenId) else {
                 continue
             }
             // Only track arrangements that have something to capture; an all-empty screen produces no
@@ -41,7 +42,8 @@ extension AppController {
     /// before it: capture the current arrangement now so it's present in the chooser from the start.
     /// Occupancy tracking keeps running normally; settled captures just don't refresh an open chooser.
     internal func captureWinShotSnapshotForChooserOpenIfNeeded(on screenId: CGDirectDisplayID) {
-        guard isWinShotOccupancyChangeAutoSaveEnabled else {
+        // Same rule as the settle captures: transition-time state is not a valid arrangement.
+        guard isWinShotOccupancyChangeAutoSaveEnabled, !isScreenInOrLeavingFullScreen(screenId) else {
             return
         }
         createWinShotSnapshot(on: screenId, reason: "winshot-chooser-open")
@@ -54,7 +56,7 @@ extension AppController {
     ) {
         // Conditions can change during the delay; re-check before capturing.
         guard isWinShotOccupancyChangeAutoSaveEnabled,
-              !isScreenPausedForFullScreen(screenId),
+              !isScreenInOrLeavingFullScreen(screenId),
               screenContexts[screenId] != nil else {
             return
         }
@@ -66,6 +68,23 @@ extension AppController {
         // Settled captures are silent: they never refresh an open chooser, so nothing pops in while
         // the user is mid-selection (the snapshot appears the next time the chooser opens).
         createWinShotSnapshot(on: screenId, reason: "occupancy-settled", refreshChooser: false)
+    }
+
+    /// A display entering full screen hides its arrangement and suspends its occupancy tracking, so
+    /// changes whose settle delay had not elapsed would go uncaptured. The zone bookkeeping still
+    /// holds the pre-full-screen arrangement at this point, so capture it now; a capture with the
+    /// same occupancy signature as the newest snapshot replaces it as usual, refreshing geometry
+    /// and remembered sizes the signature does not cover. Native full screen only: it serves the
+    /// chooser opening on a natively paused display, and a heuristic pause discovered by a startup
+    /// or rescan sweep would capture seeded state that was never an arrangement.
+    internal func captureWinShotSnapshotOnFullScreenPauseIfNeeded(on screenId: CGDirectDisplayID) {
+        guard isWinShotOccupancyChangeAutoSaveEnabled,
+              fullScreenTracker.fullScreenWindowInfo(for: screenId)?.isNativeFullScreen == true,
+              let signature = currentSnapshotOccupancySignature(on: screenId),
+              signatureHasOccupant(signature) else {
+            return
+        }
+        createWinShotSnapshot(on: screenId, reason: "full-screen-entered")
     }
 
     private func signatureHasOccupant(_ signature: WinShotSnapshotOccupancySignature) -> Bool {

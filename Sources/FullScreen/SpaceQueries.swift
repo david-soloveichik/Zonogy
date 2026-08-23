@@ -14,7 +14,12 @@
 /// The membership signal is load-bearing in two places — the tracker's on-screen filter
 /// and the focused-window repair heuristic — where it disambiguates AX/active-Space
 /// disagreement. Other callers use it defensively to confirm tracker state. See the
-/// "CGS Spaces membership query" section of SPECIFICATION-IMPLEMENTATION.md.
+/// "CGS Spaces queries" section of SPECIFICATION-IMPLEMENTATION.md.
+///
+/// `CGSCopyManagedDisplaySpaces` answers the complementary per-display question — which
+/// Space is a display showing right now — used to tell when a display has actually left
+/// its full-screen Space (the Space is torn down only at the end of the exit animation,
+/// after the window's own full-screen state has already cleared).
 ///
 /// Symbol binding: the `CGS*` symbols below are private and undocumented but exposed by
 /// the SDK as aliases on `CoreGraphics.framework` (which AppKit transitively links), so
@@ -57,6 +62,9 @@ private func CGSSpaceGetType(
     _ sid: CGSSpaceID
 ) -> Int32
 
+@_silgen_name("CGSCopyManagedDisplaySpaces")
+private func CGSCopyManagedDisplaySpaces(_ cid: CGSConnectionID) -> Unmanaged<CFArray>?
+
 enum SpaceQueries {
     /// Returns `true` if `cgWindowId` currently belongs to a native macOS full-screen Space.
     /// Returns `false` if the window is in a regular user Space, or if the query fails for any reason.
@@ -80,5 +88,31 @@ enum SpaceQueries {
             }
         }
         return false
+    }
+
+    /// Returns `true` if `displayId` is currently showing a native full-screen Space, `false` if it
+    /// is showing a regular Space, or `nil` when CGS has no answer (query failure). When "Displays
+    /// have separate Spaces" is off, CGS reports a single `Main` entry whose current Space is shared
+    /// by every display; that entry answers for any display.
+    static func isDisplayShowingFullScreenSpace(displayId: CGDirectDisplayID) -> Bool? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(displayId)?.takeRetainedValue() else {
+            Logger.debug("SpaceQueries: no UUID for displayId \(displayId)")
+            return nil
+        }
+        let identifier = CFUUIDCreateString(nil, uuid) as String
+        let cid = CGSMainConnectionID()
+        guard let unmanaged = CGSCopyManagedDisplaySpaces(cid) else {
+            Logger.debug("SpaceQueries: CGSCopyManagedDisplaySpaces returned nil")
+            return nil
+        }
+        guard let displays = unmanaged.takeRetainedValue() as? [[String: Any]],
+              let entry = displays.first(where: { ($0["Display Identifier"] as? String) == identifier })
+                ?? displays.first(where: { ($0["Display Identifier"] as? String) == "Main" }),
+              let currentSpace = entry["Current Space"] as? [String: Any],
+              let spaceNumber = currentSpace["ManagedSpaceID"] as? NSNumber else {
+            Logger.debug("SpaceQueries: CGSCopyManagedDisplaySpaces has no current Space for displayId \(displayId)")
+            return nil
+        }
+        return CGSSpaceGetType(cid, spaceNumber.uint64Value) == kCGSSpaceTypeFullscreen
     }
 }

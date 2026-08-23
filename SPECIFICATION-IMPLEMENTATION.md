@@ -155,7 +155,7 @@ Zonogy handles this with two complementary mechanisms:
 - **Gesture heuristics for non-programmatic AX events:**
   - **Moves / drags:** An AXMoved burst is treated as a user drag only if the left mouse button is down and the pointer moves beyond a small activation threshold. Drag end is detected via mouse-up monitoring. This avoids treating incidental or app-driven moves as a drag-and-drop gesture.
   - **Untracked windows from managed apps:** For an untracked window from a managed app, Zonogy tracks only add-zone and floating-zone edge targets. The edge indicator windows pass mouse events through during the gesture; on mouse-up, Zonogy sets the normal placement target that any later capture will use.
-  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until focus loss or the next layout sync. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window).
+  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until focus loss or the next layout sync. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window). Full-screen transitions (native, or the configured non-native heuristic) also arrive as non-programmatic resizes but their sizes are macOS's, not the user's, so they are excluded.
 
 This attribution work is used by:
 
@@ -205,17 +205,19 @@ We listen to `kAXResizedNotification` which fires when windows enter/exit full-s
 
 At startup (after window capture) and after display reconfiguration, we also iterate all managed windows and check their `AXFullScreen` attribute. We also re-scan full-screen state after active Space changes, since some apps (e.g., Safari video) don't emit resize events for their full-screen windows. This rescan is debounced and uses the same `AXFullScreen` query pipeline.
 
-**Returning to the full-screen Space:** When a display has a native full-screen window, MacOS creates a new Space for it on that display. Although Zonogy's pipelines try to target another display, we can't completely stop windows opening in the display that's in full-screen mode. If a window opens on that display, MacOS switches Spaces. This is undesired--instead we want to place any managed window opened in that way into a zone in another (non-full-screen) display and go back to the full-screen Space so we are not interrupted. (For example, we are watching a movie in full-screen, and doing other things at the same time on another display.) To get this behavior, we monitor Spaces through another private API (see "CGS Spaces membership query" below).
+**Returning to the full-screen Space:** When a display has a native full-screen window, MacOS creates a new Space for it on that display. Although Zonogy's pipelines try to target another display, we can't completely stop windows opening in the display that's in full-screen mode. If a window opens on that display, MacOS switches Spaces. This is undesired--instead we want to place any managed window opened in that way into a zone in another (non-full-screen) display and go back to the full-screen Space so we are not interrupted. (For example, we are watching a movie in full-screen, and doing other things at the same time on another display.) To get this behavior, we monitor Spaces through another private API (see "CGS Spaces queries" below).
 
 #### Non-native (heuristic) full screen
 
 For managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their AX frame width matches the display width exactly.
 
-### CGS Spaces membership query (native full-screen only)
+### CGS Spaces queries (native full-screen only)
 
 Going back to the full-screen Space (per the previous section) depends on knowing whether that Space still exists while another Space is showing on the same display. `AXFullScreen` tells us a window claims to be full-screen, but it doesn't say whether its full-screen Space is the active one. The standard on-screen window list (`CGWindowListCopyWindowInfo`) doesn't help either — it only includes windows in the currently active Space, so a window on an inactive full-screen Space looks the same as one that has exited full-screen.
 
 CGS Spaces (`CGSCopySpacesForWindows` + `CGSSpaceGetType == kCGSSpaceFullscreen`) answers the question directly: it reports which Spaces a window currently belongs to. We rely on it in places where we would otherwise mistakenly drop Zonogy's full-screen pause.
+
+**Leaving full-screen for WinShot:** Writing `false` to `AXFullScreen` makes the app leave full-screen as the green button would. The chosen arrangement opens only once the display has fully left full screen, which takes two signals. First, `CGSCopyManagedDisplaySpaces` reports that the display's current Space is no longer a full-screen Space. Second, the former full-screen window is back on screen. If the signals do not both arrive within a few seconds, the arrangement is not opened (see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md)).
 
 ---
 

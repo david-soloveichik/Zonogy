@@ -134,6 +134,18 @@ enum WinShotChooserInitialSelectionPolicyTests {
             assert(index == 0, "same windows in different zones should count as a different snapshot")
         }
 
+        do {
+            let signatures: [WinShotSnapshotOccupancySignature] = [
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 1, 2: 2]),
+                signature(presentZoneIndices: [1, 2], tiledWindowIdsByZoneIndex: [1: 3])
+            ]
+            let index = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+                snapshotOccupancySignatures: signatures,
+                currentOccupancySignature: nil
+            )
+            assert(index == 0, "no current signature (display in full screen) should select the most recent snapshot")
+        }
+
         if allPassed {
             print("WinShotChooserInitialSelectionPolicyTests: all tests passed")
         }

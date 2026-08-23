@@ -591,6 +591,11 @@ extension AppController {
             return
         }
 
+        if isFullScreenTransitionResize(managed: managed, screenId: screenId, frame: frame) {
+            Logger.debug("Window \(windowId) resize is a full-screen transition; not treating as a manual resize")
+            return
+        }
+
         if managed.isInFloatingZone {
             floatingZoneCoordinator.rememberSize(for: windowId, size: frame.size)
         }
@@ -626,6 +631,46 @@ extension AppController {
         } else {
             Logger.debug("Window \(windowId) manual resize ended in zone \(zoneIndex) on unknown screen; deferring snapback until layout sync or focus loss")
         }
+    }
+
+    /// True when a non-programmatic resize is actually a native full-screen transition, whose
+    /// sizes are macOS's rather than the user's. Treating these as manual resizes would detach the
+    /// window and, with Sticky Resize, remember the full-screen size as the user's chosen one.
+    ///
+    /// The tracker's full-screen window is the transition itself (the entry once the tracker has
+    /// latched, and the exit animation, which runs while the window is still tracked). The entry's
+    /// first resizes precede the tracker's debounce, so they are recognized by geometry — a frame
+    /// spanning the display's width or height (Split View spans only the height) — and confirmed
+    /// by the window itself claiming full screen: its `AXFullScreen`, already true then, or the
+    /// configured non-native heuristic. The geometry pre-filter keeps those AX reads off the hot
+    /// path of ordinary edge-drag resizes; an unreadable frame (`.zero`) is checked directly.
+    private func isFullScreenTransitionResize(
+        managed: ManagedWindow,
+        screenId: CGDirectDisplayID?,
+        frame: CGRect
+    ) -> Bool {
+        if fullScreenTracker.displayId(
+            forCgWindowId: CGWindowID(managed.backing.cgWindowId),
+            pid: managed.backing.pid
+        ) != nil {
+            return true
+        }
+        let resolvedScreenId = screenId ?? managed.screenDisplayId ?? detectScreenId(for: managed)
+        guard let resolvedScreenId, let descriptor = descriptor(for: resolvedScreenId) else {
+            return false
+        }
+        let displayBounds = descriptor.cocoaBounds
+        guard frame == .zero || frame.width >= displayBounds.width || frame.height >= displayBounds.height else {
+            return false
+        }
+        if FullScreenTracker.isWindowFullScreen(element: managed.backing.element) {
+            return true
+        }
+        return shouldTreatAXUnknownWindowAsFullScreen(
+            element: managed.backing.element,
+            bundleIdentifier: NSRunningApplication(processIdentifier: managed.backing.pid)?.bundleIdentifier,
+            screenDisplayId: resolvedScreenId
+        )
     }
 
     private func handleSelfResizeSnapIfNeeded(

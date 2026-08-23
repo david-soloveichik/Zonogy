@@ -393,7 +393,7 @@ extension AppController {
         }
     }
 
-    private func shouldTreatAXUnknownWindowAsFullScreen(
+    internal func shouldTreatAXUnknownWindowAsFullScreen(
         element: AXUIElement,
         bundleIdentifier: String?,
         screenDisplayId: CGDirectDisplayID
@@ -450,6 +450,7 @@ extension AppController {
         let isFullScreen = fullScreenTracker.isFullScreen(displayId: displayId)
 
         if isFullScreen {
+            captureWinShotSnapshotOnFullScreenPauseIfNeeded(on: displayId)
             if launcherController.isActive,
                let targetScreenId = targetedScreenId(),
                targetScreenId == displayId {
@@ -490,6 +491,7 @@ extension AppController {
             _ = placeTrackedButUnzonedWindowsAfterFullScreenExit(on: displayId)
             // Re-sync to restore placeholders and indicators on the screen that exited full-screen.
             syncWindowsToZones()
+            attemptPendingWinShotOpenAfterFullScreenExit(on: displayId, reason: "full-screen-exited")
         }
     }
 

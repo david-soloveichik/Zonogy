@@ -5,11 +5,15 @@ enum WinShotChooserInitialSelectionPolicy {
     ///
     /// If the most recent snapshot matches the current occupancy signature, select the next snapshot so a
     /// single invocation behaves like Command-Tab (toggle to the most recent *other* snapshot).
+    ///
+    /// A nil signature means selecting the current arrangement would not be redundant (on a
+    /// display paused for full screen, any choice revives it), so the most recent snapshot is
+    /// selected rather than toggled past.
     static func initialSelectedIndex(
         snapshotOccupancySignatures: [WinShotSnapshotOccupancySignature],
-        currentOccupancySignature: WinShotSnapshotOccupancySignature
+        currentOccupancySignature: WinShotSnapshotOccupancySignature?
     ) -> Int {
-        guard !snapshotOccupancySignatures.isEmpty else {
+        guard let currentOccupancySignature else {
             return 0
         }
 

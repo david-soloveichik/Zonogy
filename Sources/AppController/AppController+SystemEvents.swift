@@ -247,6 +247,7 @@ extension AppController {
             return
         }
         scheduleFullScreenRescanForSpaceChange()
+        attemptPendingWinShotOpensAfterFullScreenExit(reason: "space-change")
     }
 
     func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor) {
@@ -587,6 +588,7 @@ extension AppController {
 
             // Clear placeholders for this display and close the windows.
             placeholderCoordinator.clearPlaceholdersForScreen(displayId)
+            dropPendingWinShotOpenAfterFullScreenExit(on: displayId, reason: "display removed")
 
             let zoneCount = entry.context.zoneController.allZones.count
             Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] with \(zoneCount) zone(s)")

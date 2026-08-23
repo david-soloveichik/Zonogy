@@ -131,6 +131,12 @@ extension AppController {
         // capture a stray position (restoring then centers the window instead).
         let floatingFrame: CGRect? = {
             guard let floatingOccupant, screenContexts[screenId] != nil else { return nil }
+            // A floating occupant currently in full screen is at macOS's frame, not its floating
+            // one; with no frame recorded, restoring falls back to its remembered floating size.
+            guard fullScreenTracker.displayId(
+                forCgWindowId: CGWindowID(floatingOccupant.backing.cgWindowId),
+                pid: floatingOccupant.backing.pid
+            ) == nil else { return nil }
             let frame = windowController.actualFrameInScreenCoordinates(for: floatingOccupant, on: context.descriptor)
             // actualFrameInScreenCoordinates returns .zero on AX read failure; treat as no frame.
             return frame == .zero ? nil : frame
@@ -187,6 +193,14 @@ extension AppController {
 
         let screenId = activeScreenId()
 
+        // Choosing an arrangement on a display paused for native full-screen exits full-screen first
+        // (see AppController+WinShotFullScreenExit.swift). A non-native full-screen pause has nothing
+        // to leave, so the chooser does not open there.
+        if let pause = fullScreenTracker.fullScreenWindowInfo(for: screenId), !pause.isNativeFullScreen {
+            Logger.debug("WinShot: chooser shortcut ignored (\(screenContextStore.logDescription(for: screenId)) paused for non-native full-screen)")
+            return
+        }
+
         // In occupancy-change mode, capture the current arrangement now so it's in the chooser from the
         // start. (Background settle captures keep running but don't refresh an already-open chooser.)
         captureWinShotSnapshotForChooserOpenIfNeeded(on: screenId)
@@ -198,19 +212,16 @@ extension AppController {
             return
         }
 
-        let initialSelectedIndex: Int = {
-            guard snapshots.count > 1 else {
-                return 0
-            }
-
-            guard let currentOccupancySignature = currentSnapshotOccupancySignature(on: screenId) else {
-                return 0
-            }
-            return WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
-                snapshotOccupancySignatures: snapshots.map { WinShotSnapshotOccupancySignature(snapshot: $0) },
-                currentOccupancySignature: currentOccupancySignature
-            )
-        }()
+        // On a paused display every choice acts — it takes the display out of full screen — so
+        // re-offering the newest arrangement is never redundant there: pre-select it (typically
+        // the one from before full screen) instead of the usual toggle (nil signature, see policy).
+        let currentOccupancySignature = isScreenInOrLeavingFullScreen(screenId)
+            ? nil
+            : currentSnapshotOccupancySignature(on: screenId)
+        let initialSelectedIndex = WinShotChooserInitialSelectionPolicy.initialSelectedIndex(
+            snapshotOccupancySignatures: snapshots.map { WinShotSnapshotOccupancySignature(snapshot: $0) },
+            currentOccupancySignature: currentOccupancySignature
+        )
 
         winShotChooserController.show(snapshots: snapshots, on: screenId)
         winShotChooserController.selectIndex(initialSelectedIndex)
@@ -808,8 +819,13 @@ extension AppController: WinShotChooserControllerDelegate {
 
     /// Opens a snapshot's arrangement on `screenId` the way the chooser does: the display's current
     /// arrangement gets the same pre-switch auto-save that clear/reset would capture (without any
-    /// clear/reset UI behavior), then the snapshot is restored there.
+    /// clear/reset UI behavior), then the snapshot is restored there. A display paused for
+    /// full-screen first has to leave it (see AppController+WinShotFullScreenExit.swift).
     internal func openWinShotSnapshot(_ snapshot: WinShotSnapshot, on screenId: CGDirectDisplayID, reason: String) {
+        guard !isScreenInOrLeavingFullScreen(screenId) else {
+            openWinShotSnapshotAfterExitingFullScreen(snapshot, on: screenId, reason: reason)
+            return
+        }
         autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
         restoreWinShotSnapshot(snapshot, on: screenId)
     }

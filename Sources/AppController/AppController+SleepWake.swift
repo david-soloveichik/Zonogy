@@ -228,6 +228,7 @@ extension AppController {
         cancelUnmanagedFocusRetry()
         cancelUnmanagedWindowEdgeDrag(reason: reason)
         winShotChooserController.cancelThumbnailDrag(reason: reason)
+        dropAllPendingWinShotOpensAfterFullScreenExit(reason: reason)
         cancelWakeReadinessTimer(reason: "cancelled (\(reason))")
         cancelWakeAXWindowPollingTimer(reason: reason)
 
