@@ -240,6 +240,9 @@ enum GuardrailTests {
         if !WinShotSnapshotRetargetingTests.run() {
             allPassed = false
         }
+        if !WinShotDisplayMergePolicyTests.run() {
+            allPassed = false
+        }
 
         if allPassed {
             print("GuardrailTests: all tests passed")

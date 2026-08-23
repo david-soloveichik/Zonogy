@@ -3,15 +3,23 @@ import AppKit
 
 struct WinShotSnapshot {
     let id: UUID
+    /// The display this arrangement was captured on — the display whose chooser lists it. While that
+    /// display is disconnected, WinShotManager hosts the snapshot on a neighboring display's list
+    /// instead (see `WinShotDisplayMergePolicy`); this field is how it finds its way back.
     let screenId: CGDirectDisplayID
     let createdAt: Date
 
-    /// The most recent time this arrangement was the live on-screen layout. Starts equal to
-    /// `createdAt` and advances to the capture time of whatever *different* arrangement next
-    /// supersedes it (maintained in WinShotManager). The chooser spaces its timeline by this, not
-    /// by `createdAt`, so an arrangement that stayed on screen a long time sits near the front
-    /// (when it was last used) instead of back when it was first established.
-    var lastActiveAt: Date
+    /// When this arrangement stopped being the live on-screen layout: the capture time of whatever
+    /// *different* arrangement superseded it, or the moment its display was disconnected (maintained
+    /// in WinShotManager). Nil while it still represents the arrangement live up to the present.
+    var supersededAt: Date?
+
+    /// The most recent time this arrangement was the live on-screen layout. The chooser spaces its
+    /// timeline by this, not by `createdAt`, so an arrangement that stayed on screen a long time sits
+    /// near the front (when it was last used) instead of back when it was first established.
+    var lastActiveAt: Date {
+        supersededAt ?? createdAt
+    }
 
     /// The display's visible bounds (screen-local coordinates) the zones were laid out in at capture
     /// time. Restoring maps the snapshot's geometry from here onto the destination display's current
@@ -42,13 +50,13 @@ struct WinShotSnapshot {
     /// with `nil` and filled in once the composited capture completes (see WinShotManager).
     var thumbnail: NSImage?
 
-    /// True once this snapshot has been superseded by a later capture — its `lastActiveAt` has been
-    /// advanced past `createdAt`. While false, the snapshot still represents the arrangement that was
-    /// live up to the present (it sits at the front of its screen's list). Used to avoid re-stamping a
-    /// stale snapshot that merely floated to the front after the live arrangement's snapshot was
-    /// removed (e.g. a window in it closed).
+    /// True once this snapshot's on-screen life has ended (see `supersededAt`). While false, the
+    /// snapshot still represents the arrangement that was live up to the present; a display's list
+    /// holds at most one such snapshot. Distinguishes the live snapshot from one that merely sits at
+    /// the front of the list: a stale one that floated there after the live arrangement's snapshot was
+    /// removed (e.g. a window in it closed), or a newer one merged from a disconnected display.
     var hasBeenSuperseded: Bool {
-        lastActiveAt != createdAt
+        supersededAt != nil
     }
 
     /// Returns all window IDs in this snapshot (zones + floating zone)

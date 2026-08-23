@@ -3,8 +3,9 @@ import AppKit
 import Carbon
 
 protocol WinShotChooserControllerDelegate: AnyObject {
-    /// Called when a snapshot is selected (by releasing modifiers)
-    func chooserController(_ controller: WinShotChooserController, didSelect snapshotId: UUID)
+    /// Called when a snapshot is selected (by releasing modifiers, or clicking it). `screenId` is the
+    /// display the chooser was showing on, where the arrangement should open.
+    func chooserController(_ controller: WinShotChooserController, didSelect snapshotId: UUID, on screenId: CGDirectDisplayID)
 
     /// Called when a snapshot deletion is requested
     func chooserController(_ controller: WinShotChooserController, didRequestDelete snapshotId: UUID)
@@ -290,13 +291,18 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
             cancel()
             return
         }
+        handOff(snapshotId)
+    }
 
-        // Hide the window first, then dispatch restoration asynchronously
-        // so the chooser is fully off-screen before restore-side window moves.
+    /// Close the chooser and hand the snapshot to the delegate to open on the chooser's display.
+    /// Hides the window first, then dispatches restoration asynchronously so the chooser is fully
+    /// off-screen before restore-side window moves.
+    private func handOff(_ snapshotId: UUID) {
+        guard let screenId = currentScreenId else { return }
         hide()
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.delegate?.chooserController(self, didSelect: snapshotId)
+            guard let self else { return }
+            self.delegate?.chooserController(self, didSelect: snapshotId, on: screenId)
         }
     }
 
@@ -320,13 +326,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
 
     func chooserView(_ view: WinShotChooserView, didSelect snapshotId: UUID) {
         // Click on snapshot triggers immediate restoration
-        // Dispatch restoration asynchronously so the window hides immediately
-        let snapshotIdToRestore = snapshotId
-        hide()
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.delegate?.chooserController(self, didSelect: snapshotIdToRestore)
-        }
+        handOff(snapshotId)
     }
 
     /// A thumbnail is being dragged out: close the chooser (so releasing the shortcut's modifiers no

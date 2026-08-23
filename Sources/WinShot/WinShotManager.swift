@@ -5,6 +5,9 @@ import OSLog
 final class WinShotManager {
     private static let thumbnailHeight: CGFloat = 200
 
+    /// Each display's snapshots, newest-first, keyed by the display whose chooser lists them. That is
+    /// the display a snapshot was captured on (`WinShotSnapshot.screenId`) except while that display is
+    /// disconnected, when its snapshots are hosted on a neighboring display's list instead.
     private var snapshots: [CGDirectDisplayID: [WinShotSnapshot]] = [:]
 
     /// Invoked on the main queue once a snapshot's asynchronously captured thumbnail is ready, so an
@@ -20,12 +23,8 @@ final class WinShotManager {
 
     /// Find a snapshot by its unique ID
     func snapshot(withId id: UUID) -> WinShotSnapshot? {
-        for screenSnapshots in snapshots.values {
-            if let found = screenSnapshots.first(where: { $0.id == id }) {
-                return found
-            }
-        }
-        return nil
+        guard let location = locate(id) else { return nil }
+        return snapshots[location.screenId]?[location.index]
     }
 
     /// Check if there are any snapshots for a screen
@@ -36,7 +35,8 @@ final class WinShotManager {
 
     // MARK: - Snapshot Creation
 
-    /// Creates a snapshot for the given screen if eligible
+    /// Creates a snapshot for the given screen if eligible. `floatingZoneFrame` is the floating
+    /// occupant's current frame in screen coordinates, or nil when unknown (restoring then centers it).
     /// Returns the created snapshot, or nil if creation failed or was skipped
     func createSnapshot(
         screenId: CGDirectDisplayID,
@@ -44,6 +44,7 @@ final class WinShotManager {
         windowController: WindowController,
         screenDescriptor: ScreenDescriptor,
         floatingZoneOccupant: ManagedWindow?,
+        floatingZoneFrame: CGRect?,
         rememberedStickyResizeSizesByWindowId: [Int: CGSize],
         activeWindowId: Int?,
         reason: String,
@@ -76,22 +77,11 @@ final class WinShotManager {
             }
         }
 
-        // Get floating zone occupant identity and frame
-        let floatingIdentity: WindowIdentity?
-        let floatingFrame: CGRect?
-        if let floatingOccupant = floatingZoneOccupant {
-            floatingIdentity = WindowIdentity.make(from: floatingOccupant)
-            // actualFrameInScreenCoordinates can return .zero on AX read failure; treat as no frame.
-            let frame = windowController.actualFrameInScreenCoordinates(for: floatingOccupant, on: screenDescriptor)
-            floatingFrame = frame == .zero ? nil : frame
-        } else {
-            floatingIdentity = nil
-            floatingFrame = nil
-        }
+        let floatingIdentity = floatingZoneOccupant.map { WindowIdentity.make(from: $0) }
 
         // Placement for the floating occupant (drawn on top at its actual frame; skipped if unknown).
         let floatingPlacement: WinShotThumbnailComposer.Placement? = {
-            guard let floatingOccupant = floatingZoneOccupant, let frame = floatingFrame else {
+            guard let floatingOccupant = floatingZoneOccupant, let frame = floatingZoneFrame else {
                 return nil
             }
             return WinShotThumbnailComposer.Placement(
@@ -113,12 +103,12 @@ final class WinShotManager {
             tiledWindowIdsByZoneIndex: zoneAssignments.mapValues { $0.windowId },
             floatingZoneWindowId: floatingIdentity?.windowId
         )
-        // If a *different* arrangement was live at the front of this screen's list until now, it has
-        // just been superseded, so its on-screen life ends at this capture's timestamp (applied after
-        // insertion below). Resolved before any same-signature replacement deletion so the lookup sees
-        // the pre-capture front. The policy ignores a same-signature refresh (e.g. the chooser-open
-        // recapture of the current arrangement, which supersedes nothing) and a stale front snapshot
-        // left behind when the live arrangement's snapshot was removed (e.g. a window in it closed).
+        // If a *different* arrangement was live in this screen's list until now, it has just been
+        // superseded, so its on-screen life ends at this capture's timestamp (applied after insertion
+        // below). Resolved before any same-signature replacement deletion so the lookup sees the
+        // pre-capture list. The policy ignores a same-signature refresh (e.g. the chooser-open
+        // recapture of the current arrangement, which supersedes nothing) and finds nothing when the
+        // live arrangement's snapshot was removed (e.g. a window in it closed).
         let supersededSnapshotId = WinShotLastActivePolicy.supersededSnapshotId(
             inNewestFirst: snapshots[screenId] ?? [],
             newSignature: occupancySignature
@@ -145,14 +135,14 @@ final class WinShotManager {
             id: replacedSnapshotId ?? UUID(),
             screenId: screenId,
             createdAt: createdAt,
-            lastActiveAt: createdAt,
+            supersededAt: nil,
             layoutBounds: zoneController.layoutBounds,
             zoneCount: zoneCount,
             zoneFrames: zoneFrames,
             rememberedTiledWindowSizesByZoneIndex: rememberedTiledWindowSizesByZoneIndex,
             zoneAssignments: zoneAssignments,
             floatingZoneOccupant: floatingIdentity,
-            floatingZoneFrame: floatingFrame,
+            floatingZoneFrame: floatingZoneFrame,
             activeWindowId: activeWindowId,
             thumbnail: nil
         )
@@ -160,17 +150,16 @@ final class WinShotManager {
         // Store snapshot
         addSnapshot(snapshot, for: screenId)
 
-        // The superseded arrangement was live right up until this capture, so advance its
-        // last-on-screen time. Done after insertion so the lookup sees the final list.
+        // The superseded arrangement was live right up until this capture, so its on-screen life
+        // ends now. Done after insertion so the lookup sees the final list.
         if let supersededSnapshotId {
-            setLastActiveAt(createdAt, forSnapshot: supersededSnapshotId, on: screenId)
+            markSuperseded(supersededSnapshotId, at: createdAt)
         }
 
         // Kick off the asynchronous per-window capture + composite now that the snapshot is stored.
         captureThumbnail(
             forSnapshot: snapshot.id,
             createdAt: snapshot.createdAt,
-            on: screenId,
             displaySize: screenDescriptor.cocoaBounds.size,
             tiled: tiledPlacements,
             floating: floatingPlacement,
@@ -195,13 +184,9 @@ final class WinShotManager {
 
     /// Delete a snapshot by its ID
     func deleteSnapshot(_ id: UUID) {
-        for (screenId, screenSnapshots) in snapshots {
-            if let index = screenSnapshots.firstIndex(where: { $0.id == id }) {
-                snapshots[screenId]?.remove(at: index)
-                Logger.debug("WinShot: Deleted snapshot \(id) from \(ScreenContextStore.logDescription(for: screenId))")
-                return
-            }
-        }
+        guard let location = locate(id) else { return }
+        snapshots[location.screenId]?.remove(at: location.index)
+        Logger.debug("WinShot: Deleted snapshot \(id) from \(ScreenContextStore.logDescription(for: location.screenId))")
     }
 
     /// Remove all snapshots containing a specific window ID
@@ -251,7 +236,60 @@ final class WinShotManager {
         }
     }
 
+    // MARK: - Display Disconnect / Reconnect
+
+    /// A display was disconnected at `disconnectedAt`, ending the on-screen life of its live
+    /// arrangement. Its snapshots move onto `hostScreenId`, whose chooser shows them alongside the
+    /// host's own (opening there, fitted) until the display returns; the host's limit applies to the
+    /// merged list right away, so the oldest snapshots of either display may be dropped. With no host
+    /// (no display remains) they stay put for the display's return.
+    func handleScreenDisconnected(
+        _ removedScreenId: CGDirectDisplayID,
+        hostScreenId: CGDirectDisplayID?,
+        at disconnectedAt: Date
+    ) {
+        let removedCount = snapshots[removedScreenId]?.count ?? 0
+        guard removedCount > 0 else { return }
+        snapshots = WinShotDisplayMergePolicy.lists(
+            afterDisconnecting: removedScreenId,
+            into: hostScreenId,
+            disconnectedAt: disconnectedAt,
+            from: snapshots
+        )
+        guard let hostScreenId else {
+            Logger.debug("WinShot: No display remains to host the \(removedCount) snapshot(s) of removed \(ScreenContextStore.logDescription(for: removedScreenId))")
+            return
+        }
+        trimSnapshotsIfNeeded(for: hostScreenId, maxPerScreen: WinShotPreferencesStore.loadMaxSnapshotsStored())
+        Logger.debug(
+            "WinShot: Merged \(removedCount) snapshot(s) of removed \(ScreenContextStore.logDescription(for: removedScreenId)) onto \(ScreenContextStore.logDescription(for: hostScreenId))"
+        )
+    }
+
+    /// A display was connected: every surviving snapshot captured on it returns from wherever it was
+    /// merged, so the display's chooser lists its own snapshots again.
+    func handleScreenConnected(_ screenId: CGDirectDisplayID) {
+        let countBefore = snapshots[screenId]?.count ?? 0
+        snapshots = WinShotDisplayMergePolicy.lists(afterConnecting: screenId, from: snapshots)
+        let returnedCount = (snapshots[screenId]?.count ?? 0) - countBefore
+        guard returnedCount > 0 else { return }
+        trimSnapshotsIfNeeded(for: screenId, maxPerScreen: WinShotPreferencesStore.loadMaxSnapshotsStored())
+        Logger.debug(
+            "WinShot: Returned \(returnedCount) snapshot(s) to reconnected \(ScreenContextStore.logDescription(for: screenId))"
+        )
+    }
+
     // MARK: - Private Helpers
+
+    /// Where a snapshot is stored, by id — on whichever display's list currently hosts it.
+    private func locate(_ id: UUID) -> (screenId: CGDirectDisplayID, index: Int)? {
+        for (screenId, screenSnapshots) in snapshots {
+            if let index = screenSnapshots.firstIndex(where: { $0.id == id }) {
+                return (screenId, index)
+            }
+        }
+        return nil
+    }
 
     private func addSnapshot(_ snapshot: WinShotSnapshot, for screenId: CGDirectDisplayID) {
         if snapshots[screenId] == nil {
@@ -297,11 +335,12 @@ final class WinShotManager {
     /// gates `onThumbnailReady` so silent captures don't disturb an open chooser even once their image
     /// lands. `createdAt` identifies this exact snapshot instance: a same-occupancy capture reuses the id
     /// but gets a fresh `createdAt`, so a stale in-flight capture is dropped (it neither clobbers the
-    /// newer thumbnail nor refreshes the chooser).
+    /// newer thumbnail nor refreshes the chooser). The snapshot is found by id when the image lands,
+    /// since it may have moved to another display's list meanwhile (a display-removal capture is
+    /// merged onto the neighbor right away).
     private func captureThumbnail(
         forSnapshot id: UUID,
         createdAt: Date,
-        on screenId: CGDirectDisplayID,
         displaySize: CGSize,
         tiled: [WinShotThumbnailComposer.Placement],
         floating: WinShotThumbnailComposer.Placement?,
@@ -310,7 +349,7 @@ final class WinShotManager {
     ) {
         let signpostState = ZonogySignposts.pointsOfInterest.beginInterval(
             "WinShotCaptureThumbnail",
-            "screenId=\(screenId)"
+            "snapshot=\(id)"
         )
 
         WinShotThumbnailComposer.composeThumbnail(
@@ -329,39 +368,32 @@ final class WinShotManager {
 
             // Apply only if this exact snapshot instance is still stored. Drops captures whose snapshot
             // was trimmed/deleted, or superseded by a newer same-id capture (fresh createdAt).
-            guard self.setThumbnail(thumbnail, forSnapshot: id, createdAt: createdAt, on: screenId) else {
+            guard let hostScreenId = self.setThumbnail(thumbnail, forSnapshot: id, createdAt: createdAt) else {
                 return
             }
 
             if notifiesReady {
-                self.onThumbnailReady?(screenId, id)
+                self.onThumbnailReady?(hostScreenId, id)
             }
         }
     }
 
-    /// Advance a stored snapshot's `lastActiveAt` (its last-on-screen time). No-op if the snapshot
-    /// is no longer stored (e.g. trimmed away in this same capture).
-    private func setLastActiveAt(_ date: Date, forSnapshot id: UUID, on screenId: CGDirectDisplayID) {
-        guard let index = snapshots[screenId]?.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        snapshots[screenId]?[index].lastActiveAt = date
+    /// End a stored snapshot's on-screen life at `date`. No-op if the snapshot is no longer stored
+    /// (e.g. trimmed away in this same capture).
+    private func markSuperseded(_ id: UUID, at date: Date) {
+        guard let location = locate(id) else { return }
+        snapshots[location.screenId]?[location.index].supersededAt = date
     }
 
     /// Update a stored snapshot's thumbnail in place, matching by id *and* `createdAt` so a stale
-    /// in-flight capture can't write onto a newer same-id snapshot. Returns false if no such snapshot
-    /// is currently stored.
-    @discardableResult
-    private func setThumbnail(
-        _ thumbnail: NSImage,
-        forSnapshot id: UUID,
-        createdAt: Date,
-        on screenId: CGDirectDisplayID
-    ) -> Bool {
-        guard let index = snapshots[screenId]?.firstIndex(where: { $0.id == id && $0.createdAt == createdAt }) else {
-            return false
+    /// in-flight capture can't write onto a newer same-id snapshot. Returns the display whose list
+    /// holds the snapshot, or nil if no such snapshot is currently stored.
+    private func setThumbnail(_ thumbnail: NSImage, forSnapshot id: UUID, createdAt: Date) -> CGDirectDisplayID? {
+        guard let location = locate(id),
+              snapshots[location.screenId]?[location.index].createdAt == createdAt else {
+            return nil
         }
-        snapshots[screenId]?[index].thumbnail = thumbnail
-        return true
+        snapshots[location.screenId]?[location.index].thumbnail = thumbnail
+        return location.screenId
     }
 }

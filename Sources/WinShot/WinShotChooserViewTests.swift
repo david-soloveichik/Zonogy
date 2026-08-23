@@ -18,7 +18,7 @@ enum WinShotChooserViewTests {
                 id: UUID(),
                 screenId: 0,
                 createdAt: createdAt,
-                lastActiveAt: createdAt,
+                supersededAt: nil,
                 layoutBounds: .zero,
                 zoneCount: 1,
                 zoneFrames: [:],

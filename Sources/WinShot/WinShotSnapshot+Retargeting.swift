@@ -49,7 +49,7 @@ extension WinShotSnapshot {
             id: id,
             screenId: screenId,
             createdAt: createdAt,
-            lastActiveAt: lastActiveAt,
+            supersededAt: supersededAt,
             layoutBounds: isUnchanged ? source : destination,
             zoneCount: zoneCount,
             zoneFrames: zoneFrames.mapValues(mapped),

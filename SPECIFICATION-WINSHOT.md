@@ -7,7 +7,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 - Explicitly created with the Control-Cmd-/ (default) shortcut on the active display.
 - Automatically created according to the auto-save mode set in Preferences (see **Automatic Snapshots** below).
 - Each snapshot stores: zone configuration (count and frames), windows in zones (including floating zone), active window info, Sticky Resize remembered sizes (if any), and a low-resolution thumbnail. The thumbnail is an abstract composite — each window in the snapshot is captured individually and drawn at its zone position on a plain background, with no desktop, other windows, or Zonogy interface shown. When a floating zone occupant exists, it is always recorded as the active window, although actually a non-overlapping tiling zone might be active (so that it becomes frontmost after restoration).
-- Snapshots belong to the display they were captured on (the chooser shows one display's snapshots), but an arrangement can be opened on another display by dragging its thumbnail there (see **Chooser Window**).
+- Snapshots belong to the display they were captured on (the chooser shows one display's snapshots), but an arrangement can be opened on another display by dragging its thumbnail there (see **Chooser Window**). While a display is disconnected, its snapshots are kept on a neighboring display (see **Disconnected Displays**).
 - Max snapshots per display is configured in Preferences; oldest removed when limit exceeded.
 - A snapshot is removed when any window in it is closed.
 - If creating a snapshot with the same zone occupancy signature as an existing one, the old snapshot is replaced. The signature includes each window's zone assignment, the floating-zone occupant, and which tiling zones are present even when empty.
@@ -17,7 +17,7 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 Preferences offers an auto-save mode with three settings, each a superset of the one before it:
 
 - **Off**: snapshots are created only with the Control-Cmd-/ shortcut (default).
-- **On Clear/Reset Zones**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first.
+- **On Clear/Reset Zones**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
 - **On every zone occupancy change**: everything the previous mode does, plus continuous background capture as described below.
 
 ### Auto-save on zone occupancy change
@@ -27,6 +27,10 @@ In this mode each display's arrangement is saved automatically once it has staye
 Tracking is per display, and the settle delay restarts on each occupancy change so only the arrangement that ultimately settles is captured. Displays paused for a full-screen Space are not tracked.
 
 Opening the chooser captures the current arrangement immediately, and a snapshot that settles while the chooser is open is saved without disturbing it.
+
+## Disconnected Displays
+
+When a display is disconnected, its snapshots move to the neighboring display: the remaining display it touched along the longest edge. The merged list is subject to the neighbor's snapshot limit, so the oldest snapshots of either display may be dropped. When the display is reconnected, its surviving snapshots return to it.
 
 ## Chooser Window
 

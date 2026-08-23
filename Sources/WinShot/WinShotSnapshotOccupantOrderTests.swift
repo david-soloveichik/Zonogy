@@ -28,7 +28,7 @@ enum WinShotSnapshotOccupantOrderTests {
                 id: UUID(),
                 screenId: 0,
                 createdAt: Date(timeIntervalSinceReferenceDate: 0),
-                lastActiveAt: Date(timeIntervalSinceReferenceDate: 0),
+                supersededAt: nil,
                 layoutBounds: .zero,
                 zoneCount: zones.count,
                 zoneFrames: Dictionary(uniqueKeysWithValues: zones.keys.map { ($0, CGRect.zero) }),

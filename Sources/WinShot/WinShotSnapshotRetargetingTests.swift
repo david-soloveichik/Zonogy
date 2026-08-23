@@ -31,7 +31,7 @@ enum WinShotSnapshotRetargetingTests {
             id: UUID(),
             screenId: 1,
             createdAt: createdAt,
-            lastActiveAt: createdAt,
+            supersededAt: nil,
             layoutBounds: source,
             zoneCount: 2,
             zoneFrames: [
@@ -99,7 +99,7 @@ enum WinShotSnapshotRetargetingTests {
                 id: snapshot.id,
                 screenId: 1,
                 createdAt: createdAt,
-                lastActiveAt: createdAt,
+                supersededAt: nil,
                 layoutBounds: source,
                 zoneCount: 1,
                 zoneFrames: [1: source],

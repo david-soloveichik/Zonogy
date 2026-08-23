@@ -58,10 +58,7 @@ extension AppController {
         Logger.debug("WinShot: settings updated maxSnapshotsStored=\(normalized)")
         WinShotPreferencesStore.saveMaxSnapshotsStored(normalized)
         winShotManager.enforceConfiguredSnapshotLimit()
-
-        if let chooserScreenId = winShotChooserController.currentScreenId {
-            refreshWinShotChooserIfNeeded(for: chooserScreenId)
-        }
+        refreshOpenWinShotChooser()
     }
 
     // MARK: - Snapshot Creation
@@ -78,22 +75,27 @@ extension AppController {
 
     /// Auto-save a pre-clear snapshot when the screen currently has managed windows.
     internal func autoSavePreClearWinShotSnapshotIfNeeded(on screenId: CGDirectDisplayID, clearReason: String) {
-        guard isWinShotPreClearAutoSaveEnabled else {
+        guard let context = screenContexts[screenId] else {
             return
         }
+        autoSavePreClearWinShotSnapshotIfNeeded(in: context, clearReason: clearReason)
+    }
 
-        guard let context = screenContexts[screenId] else {
+    /// Variant taking the screen context itself, for a display that has just left the screen-context
+    /// store (display removal): its zone state is still intact in the removed context.
+    internal func autoSavePreClearWinShotSnapshotIfNeeded(in context: ScreenContext, clearReason: String) {
+        guard isWinShotPreClearAutoSaveEnabled else {
             return
         }
 
         let hasManagedWindows =
             context.zoneController.allZones.contains(where: { !$0.isEmpty }) ||
-            floatingZoneCoordinator.occupant(on: screenId) != nil
+            floatingZoneCoordinator.occupant(on: context.descriptor.displayId) != nil
         guard hasManagedWindows else {
             return
         }
 
-        createWinShotSnapshot(on: screenId, reason: "clear-zones-\(clearReason)")
+        createWinShotSnapshot(in: context, reason: "clear-zones-\(clearReason)")
     }
 
     /// Create a WinShot snapshot for the specified screen if eligible.
@@ -109,9 +111,30 @@ extension AppController {
             Logger.debug("WinShot: Cannot create snapshot - no context for \(screenContextStore.logDescription(for: screenId))")
             return nil
         }
+        return createWinShotSnapshot(in: context, reason: reason, refreshChooser: refreshChooser)
+    }
+
+    /// Create a WinShot snapshot of a screen context's arrangement if eligible (see above).
+    @discardableResult
+    private func createWinShotSnapshot(
+        in context: ScreenContext,
+        reason: String,
+        refreshChooser: Bool = true
+    ) -> WinShotSnapshot? {
+        let screenId = context.descriptor.displayId
 
         // Get floating zone occupant for this screen
         let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId)
+
+        // The floating window's live frame. Unknown for a display that has left the screen-context
+        // store (display removal): macOS has already moved its windows elsewhere, so a read now would
+        // capture a stray position (restoring then centers the window instead).
+        let floatingFrame: CGRect? = {
+            guard let floatingOccupant, screenContexts[screenId] != nil else { return nil }
+            let frame = windowController.actualFrameInScreenCoordinates(for: floatingOccupant, on: context.descriptor)
+            // actualFrameInScreenCoordinates returns .zero on AX read failure; treat as no frame.
+            return frame == .zero ? nil : frame
+        }()
 
         // Determine active window ID.
         // When a floating zone occupant exists, always mark it as the active window so that
@@ -124,6 +147,7 @@ extension AppController {
             windowController: windowController,
             screenDescriptor: context.descriptor,
             floatingZoneOccupant: floatingOccupant,
+            floatingZoneFrame: floatingFrame,
             rememberedStickyResizeSizesByWindowId: rememberedManualResizeSizesByWindowId,
             activeWindowId: activeWindowId,
             reason: reason,
@@ -201,6 +225,13 @@ extension AppController {
 
         let snapshots = winShotManager.snapshots(for: screenId)
         winShotChooserController.refreshSnapshots(snapshots)
+    }
+
+    /// Refresh the WinShot chooser if it's open on any screen (for changes that can touch any list).
+    internal func refreshOpenWinShotChooser() {
+        if let chooserScreenId = winShotChooserController.currentScreenId {
+            refreshWinShotChooserIfNeeded(for: chooserScreenId)
+        }
     }
 
     // MARK: - Snapshot Restoration
@@ -765,12 +796,14 @@ extension AppController {
 // MARK: - WinShotChooserControllerDelegate
 
 extension AppController: WinShotChooserControllerDelegate {
-    func chooserController(_ controller: WinShotChooserController, didSelect snapshotId: UUID) {
+    func chooserController(_ controller: WinShotChooserController, didSelect snapshotId: UUID, on screenId: CGDirectDisplayID) {
         guard let snapshot = winShotManager.snapshot(withId: snapshotId) else {
             Logger.debug("WinShot: Selected snapshot \(snapshotId) not found")
             return
         }
-        openWinShotSnapshot(snapshot, on: snapshot.screenId, reason: "winshot-chooser-switch")
+        // The chooser's display: the snapshot's own, or the neighbor hosting it while its own display
+        // is disconnected (see AppController+WinShotDisplayChanges.swift).
+        openWinShotSnapshot(snapshot, on: screenId, reason: "winshot-chooser-switch")
     }
 
     /// Opens a snapshot's arrangement on `screenId` the way the chooser does: the display's current

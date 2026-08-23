@@ -487,6 +487,9 @@ extension AppController {
         cancelZoneNavigationForTopologyChange(reason: "screen-topology-refresh")
 
         let screens = NSScreen.screens
+        // The arrangement before this refresh: a removed display's snapshots go to the display that
+        // neighbored it in that arrangement (the remaining displays may shift once it is gone).
+        let framesBeforeRefresh = screenContexts.mapValues { $0.descriptor.cocoaBounds }
         let rebuildResult = screenContextStore.rebuild(with: screens)
 
         // The primary display may have changed size/identity; fan the refreshed value out to every
@@ -523,7 +526,11 @@ extension AppController {
         }
 
         if !rebuildResult.removedContexts.isEmpty {
-            handleRemovedScreens(rebuildResult.removedContexts)
+            handleRemovedScreens(rebuildResult.removedContexts, framesBeforeRemoval: framesBeforeRefresh)
+        }
+
+        for displayId in rebuildResult.addedDisplayIds {
+            handleWinShotSnapshotsForAddedScreen(displayId)
         }
 
         targetedZoneManager.ensureTargetedZone(reason: "screens-changed")
@@ -566,7 +573,10 @@ extension AppController {
         fullScreenDebugOverlay?.updatePrimaryScreenBounds(primaryScreenBounds)
     }
 
-    private func handleRemovedScreens(_ removed: [ScreenContextStore.RebuildResult.RemovedContext]) {
+    private func handleRemovedScreens(
+        _ removed: [ScreenContextStore.RebuildResult.RemovedContext],
+        framesBeforeRemoval: [CGDirectDisplayID: CGRect]
+    ) {
         for entry in removed {
             let displayId = entry.displayId
 
@@ -580,6 +590,10 @@ extension AppController {
 
             let zoneCount = entry.context.zoneController.allZones.count
             Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] with \(zoneCount) zone(s)")
+
+            // Save the arrangement the minimization below dismantles (auto-save mode permitting) and
+            // hand the display's WinShot snapshots to its neighbor, while the zone state is intact.
+            handleWinShotSnapshotsForRemovedScreen(entry.context, framesBeforeRemoval: framesBeforeRemoval)
 
             // Minimize every non-placeholder managed window that was on the removed display,
             // instead of reassigning it to another screen. We rely on the pre-snapshot
