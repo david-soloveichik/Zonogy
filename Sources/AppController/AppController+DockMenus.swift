@@ -117,7 +117,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         return LauncherWindowItem(
             title: title,
-            isPlacedInZone: preferredManaged.isPlacedInZone,
+            isPlacedInZone: isWindowVisiblyPlaced(preferredManaged),
             axElement: element,
             lastActiveTime: windowController.lastActiveTime(for: preferredManaged.windowId),
             bundleIdentifier: bundleId,
@@ -218,6 +218,10 @@ extension AppController: DockMenusCoordinatorDelegate {
         dragDropCoordinator.tearDownDragSession()
     }
 
+    // Both retarget gates below run before the selection and are evaluated against the target of
+    // that moment; the action re-decides against the final target. In the all-displays-full-screen
+    // corner this can retarget ahead of a selection that ends up ignored — accepted, since target
+    // semantics are already degraded when nothing is visible.
     private func shouldDockMenusRetargetForAppClick(_ appURL: URL) -> Bool {
         guard dockMenusTargetsZoneWithActiveWindowEnabled else {
             return false
@@ -228,7 +232,7 @@ extension AppController: DockMenusCoordinatorDelegate {
             return true
         }
 
-        return !preferredWindow.isPlacedInZone
+        return !preferredWindow.isPlacedInZone || selectionPlacesWindowParkedBehindFullScreen(preferredWindow)
     }
 
     private func shouldDockMenusRetargetForWindowSelection(_ window: LauncherWindowItem) -> Bool {
@@ -238,7 +242,7 @@ extension AppController: DockMenusCoordinatorDelegate {
 
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
-            return !managed.isPlacedInZone
+            return !managed.isPlacedInZone || selectionPlacesWindowParkedBehindFullScreen(managed)
         }
 
         return !window.isPlacedInZone

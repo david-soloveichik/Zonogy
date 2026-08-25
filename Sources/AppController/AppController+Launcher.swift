@@ -474,7 +474,11 @@ extension AppController: LauncherControllerDelegate {
     ///   - window: The selected window item.
     ///   - activateInPlace: If true (DockMenus mode), windows already in a zone and not minimized
     ///     are activated without being moved to the targeted zone.
-    internal func handleWindowSelection(_ window: LauncherWindowItem, activateInPlace: Bool) {
+    @discardableResult
+    internal func handleWindowSelection(
+        _ window: LauncherWindowItem,
+        activateInPlace: Bool
+    ) -> CmdTabTemporaryTargetPolicy.SelectionAction {
         // Completing an explicit selection means the user has moved past whatever they just
         // minimized; stop skipping those windows in CmdTab's initial selection.
         recentUserMinimizeTracker.clearAllMarks()
@@ -483,14 +487,29 @@ extension AppController: LauncherControllerDelegate {
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
 
-            // If activateInPlace: if window is already in a zone (tiling or floating), just activate it
-            if activateInPlace && managed.isPlacedInZone {
+            // A window parked behind a full-screen Space is effectively minimized, and one
+            // observation decides its disposition for every caller (including the Launcher's
+            // plain move): never activated in place (that would pull its display out of full
+            // screen), placed only onto a destination confirmed to show a regular Space, and
+            // otherwise ignored — showing it anywhere would just be bounced back by the
+            // parked-Space invariant.
+            let behindFullScreen = isWindowBehindFullScreenSpace(managed)
+            if !behindFullScreen && activateInPlace && managed.isPlacedInZone {
                 Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
                 activateWindow(managed)
-                return
+                return .activatedInPlace
             }
 
             let destination = launcherSelectionDestination(for: managed)
+            if behindFullScreen {
+                guard let destination,
+                      let destinationScreenId = screenId(for: destination),
+                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destinationScreenId) == false else {
+                    Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space with no visible destination; ignoring selection")
+                    return .ignored
+                }
+                Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space; placing into the targeted zone")
+            }
             let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: managed, destination: $0) }
 
             // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
@@ -503,16 +522,16 @@ extension AppController: LauncherControllerDelegate {
                     reason: "launcher",
                     focusAfterPlacement: true
                 )
-                return
+                return .placed
             }
             // Place in targeted zone
-            placeSelectedWindow(managed, destination: destination)
-            return
+            return placeSelectedWindow(managed, destination: destination)
         }
 
         // Window no longer tracked (removed between item construction and selection) -
         // focus via Accessibility API and let Zonogy recapture it
         focusWindowViaAccessibility(window)
+        return .selectionUntracked
     }
 
     private func focusWindowViaAccessibility(_ window: LauncherWindowItem) {
@@ -564,14 +583,24 @@ extension AppController: LauncherControllerDelegate {
         if let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: url),
            let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
 
-            // If activateInPlace: if window is already in a zone, just activate it without moving
-            if activateInPlace && preferredWindow.isPlacedInZone {
+            // Same single-observation disposition as handleWindowSelection.
+            let behindFullScreen = isWindowBehindFullScreenSpace(preferredWindow)
+            if !behindFullScreen && activateInPlace && preferredWindow.isPlacedInZone {
                 Logger.debug("Launcher: window \(preferredWindow.windowId) already in zone, activating in place")
                 activateWindow(preferredWindow)
                 return
             }
 
             let destination = launcherSelectionDestination(for: preferredWindow)
+            if behindFullScreen {
+                guard let destination,
+                      let destinationScreenId = screenId(for: destination),
+                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destinationScreenId) == false else {
+                    Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space with no visible destination; ignoring selection")
+                    return
+                }
+                Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space; placing into the targeted zone")
+            }
             let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: preferredWindow, destination: $0) }
 
             // Pre-position and unminimize if needed. Do not assign a minimized window to a zone;
@@ -641,7 +670,9 @@ extension AppController: LauncherControllerDelegate {
             PreferredWindowSelection.Candidate(
                 windowId: window.windowId,
                 cgWindowId: window.backing.cgWindowId,
-                isPlacedInZone: window.isPlacedInZone,
+                // Visible placement, so app clicks and drags pick the same window the list's
+                // ordering puts first (a parked window counts as minimized there too).
+                isPlacedInZone: isWindowVisiblyPlaced(window),
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId)
             )
         }
@@ -764,13 +795,14 @@ extension AppController: LauncherControllerDelegate {
 
     // MARK: - Private Helpers
 
+    @discardableResult
     private func placeSelectedWindow(
         _ managed: ManagedWindow,
         destination: TargetedZoneManager.TargetedDestination?
-    ) {
+    ) -> CmdTabTemporaryTargetPolicy.SelectionAction {
         guard let destination else {
             activateWindow(managed)
-            return
+            return .activatedInPlace
         }
 
         var didActivateInPlacement = false
@@ -799,7 +831,7 @@ extension AppController: LauncherControllerDelegate {
         case .floating:
             // Sync to create placeholder for the now-empty source zone.
             syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
-            return
+            return .placed
         case .tiled:
             break
         }
@@ -810,6 +842,7 @@ extension AppController: LauncherControllerDelegate {
         // Placement already applied the target frame; sync will consume placement
         // bookkeeping and skip one immediate geometry reapply for this window.
         syncWindowsToZones()
+        return .placed
     }
 
     private func launcherSelectionDestination(for managed: ManagedWindow) -> TargetedZoneManager.TargetedDestination? {
@@ -898,7 +931,7 @@ extension AppController: LauncherWindowProvider {
 
             let item = LauncherWindowItem(
                 title: title,
-                isPlacedInZone: window.isPlacedInZone,
+                isPlacedInZone: isWindowVisiblyPlaced(window),
                 axElement: element,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleIdentifier,
@@ -932,12 +965,13 @@ extension AppController: LauncherWindowProvider {
         guard let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
             return false
         }
-        return preferredWindow.isPlacedInZone
+        return isWindowVisiblyPlaced(preferredWindow)
     }
 
     // Serves both LauncherWindowProvider and CmdTabControllerDelegate: live placement
-    // state for a chooser row (a destroyed window reads as not placed).
+    // state for a chooser row (a destroyed window reads as not placed, and a window parked
+    // behind a full-screen Space reads as not placed — effectively minimized).
     func isWindowPlacedInZone(managedWindowId: Int) -> Bool {
-        windowController.window(withId: managedWindowId)?.isPlacedInZone ?? false
+        windowController.window(withId: managedWindowId).map(isWindowVisiblyPlaced) ?? false
     }
 }

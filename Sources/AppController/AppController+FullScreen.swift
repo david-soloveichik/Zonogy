@@ -88,6 +88,132 @@ extension AppController {
         return SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId)
     }
 
+    /// True when `managed` is parked behind a full-screen Space: placed on a display whose
+    /// current Space is a full-screen one, without being the full-screen window itself. Such a
+    /// window is visible nowhere — effectively minimized in the user's model — and raising it in
+    /// place would pull its display out of full screen.
+    internal func isWindowBehindFullScreenSpace(_ managed: ManagedWindow) -> Bool {
+        guard managed.isPlacedInZone,
+              let screenId = managed.screenDisplayId,
+              SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == true else {
+            return false
+        }
+        if let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
+           info.cgWindowId == CGWindowID(managed.backing.cgWindowId),
+           info.pid == managed.backing.pid {
+            return false
+        }
+        return true
+    }
+
+    /// True when selecting `managed` places it into the targeted zone even though it is already
+    /// placed: it is parked behind a full-screen Space (effectively minimized), and the targeted
+    /// destination's display is confirmed to be showing a regular Space to receive it. When it is
+    /// not (every display is full screen, or the state cannot be read), the selection does nothing:
+    /// showing the window would pull a display out of full screen only for the parked-Space
+    /// invariant to bounce it back. The one decision shared by the activation gates, CmdTab's
+    /// target-restoration classification, and DockMenus' retarget, so they always agree.
+    internal func selectionPlacesWindowParkedBehindFullScreen(_ managed: ManagedWindow) -> Bool {
+        isWindowBehindFullScreenSpace(managed) && isTargetedDisplayShowingRegularSpace()
+    }
+
+    /// Whether `managed` is placed in a zone the user can currently see. A window parked behind
+    /// a full-screen Space is placed but effectively minimized, so the switchers list it — and
+    /// treat it — like a minimized window (no placed-window glyph, selection places it).
+    internal func isWindowVisiblyPlaced(_ managed: ManagedWindow) -> Bool {
+        managed.isPlacedInZone && !isWindowBehindFullScreenSpace(managed)
+    }
+
+    /// A managed window raised from behind a full-screen Space by something outside Zonogy
+    /// (another launcher, a notification, the app itself) pulls its display out of full screen.
+    /// Applies the effectively-minimized rule after the fact: place the window into the targeted
+    /// zone — the move brings it to the visible display — and re-raise the origin's full-screen
+    /// window so the display returns to its full-screen Space, then hand focus to the placed
+    /// window. Zonogy's own selection paths never arrive here: they move the window to a visible
+    /// display before focusing it. When no visible destination exists (everything is full
+    /// screen) the rescue stands down and the parked-Space invariant enforcer bounces the display
+    /// back. External raises during Zonogy's brief bulk operations (activity suppression) are
+    /// likewise left to the enforcer, which restores the invariant without placing.
+    internal func rescueWindowRaisedFromBehindFullScreen(_ managed: ManagedWindow) {
+        guard selectionPlacesWindowParkedBehindFullScreen(managed) else {
+            return
+        }
+        let originScreenId = managed.screenDisplayId
+        guard let destination = targetedZoneManager.targetedDestination else {
+            return
+        }
+        Logger.debug(
+            "Window \(managed.windowId) was raised from behind a full-screen Space; " +
+                "placing it into the targeted zone and returning its display to full screen"
+        )
+        // Focus must end on the placed window, so the origin's return to full screen is always
+        // queued before the final raise of the placed window. A floating destination activates
+        // the window through its own asynchronous chain, so there the re-raise is queued first
+        // and that chain's activation lands last; a tiled destination sequences both explicitly.
+        let afterPlacementAction: (() -> Void)?
+        switch destination {
+        case .floating:
+            if let originScreenId {
+                restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
+            }
+            afterPlacementAction = nil
+        case .tiled:
+            afterPlacementAction = { [weak self] in
+                guard let self else { return }
+                if let originScreenId {
+                    self.restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
+                }
+                self.recordActiveWindowForHistory(windowId: managed.windowId, reason: "behind-full-screen-raise")
+                self.raiseWindow(managed)
+            }
+        }
+        windowPlacementManager.placeWindow(
+            managed,
+            into: destination,
+            centerFloatingWindow: true,
+            reason: "behind-full-screen-raise",
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: false,
+            afterPlacementAction: afterPlacementAction
+        )
+    }
+
+    /// True when the targeted destination's display is confirmed to be showing a regular Space
+    /// (no destination, or an unreadable state, counts as not confirmed).
+    private func isTargetedDisplayShowingRegularSpace() -> Bool {
+        targetedZoneManager.ensureTargetedZone(reason: "behind-full-screen-selection")
+        guard let destination = targetedZoneManager.targetedDestination,
+              let screenId = screenId(for: destination) else {
+            return false
+        }
+        return SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == false
+    }
+
+    /// Invariant: while a display's native full-screen Space exists, the regular Space parked
+    /// behind it is not shown — Zonogy overrides native Spaces, so even a deliberate switch there
+    /// bounces back. Runs after the debounced Space-change rescan, so it sees a freshly
+    /// reconciled tracker, and re-raises the full-screen window of any display currently showing
+    /// its parked Space. It never places anything: a raise-driven switch was already rescued by
+    /// the focus path, so a remaining violation has no window to relocate. Even an unmanaged
+    /// dialog raised from behind (a save prompt) bounces back with its Space — the user exits
+    /// full screen to reach it. Tolerated exception: a display whose chosen WinShot arrangement
+    /// is still leaving full screen.
+    internal func enforceHiddenParkedSpaces(reason: String) {
+        for (screenId, info) in fullScreenTracker.fullScreenWindows {
+            guard info.isNativeFullScreen,
+                  SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId),
+                  SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == false,
+                  pendingWinShotOpensAfterFullScreenExit[screenId] == nil else {
+                continue
+            }
+            Logger.debug(
+                "Screen \(screenContextStore.loggingIndex(for: screenId)) is showing the Space parked " +
+                    "behind its full-screen window (\(reason)); returning it to full screen"
+            )
+            restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: screenId)
+        }
+    }
+
     /// Partial-pause follow-up: re-raises `originScreenId`'s full-screen window so macOS
     /// switches that display back to its full-screen Space. Invoked only after a
     /// `placeNewWindow` whose decision was `.placeAndRestoreNativeFullScreenSpace`. The
@@ -233,6 +359,7 @@ extension AppController {
             Logger.debug("FullScreenTracker: refreshing full-screen state after active space change")
             self.scanAllWindowsForFullScreenState()
             self.updateUnmanagedFocusState()
+            self.enforceHiddenParkedSpaces(reason: "space-change")
         }
 
         pendingFullScreenSpaceChangeWorkItem?.cancel()

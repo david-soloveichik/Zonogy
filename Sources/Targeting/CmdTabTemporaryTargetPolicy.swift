@@ -10,11 +10,25 @@ enum CmdTabTemporaryTargetPolicy {
         case interrupted
     }
 
-    /// Classifies a row selection: a vanished window places nothing, a placed window is
-    /// merely activated, and a still-managed unplaced window unminimizes into the target.
-    static func outcomeForSelection(isPlacedInZone: Bool, windowStillManaged: Bool) -> Outcome {
-        guard windowStillManaged else { return .selectedVanishedWindow }
-        return isPlacedInZone ? .activatedExistingWindow : .placedOrOpenedWindow
+    /// What the shared Launcher selection path actually did with a chooser row.
+    enum SelectionAction {
+        case activatedInPlace
+        case placed
+        /// Nothing happened: a window parked behind a full-screen Space had no visible destination.
+        case ignored
+        case selectionUntracked
+    }
+
+    /// Classifies a completed row selection from what it actually did, so target restoration can
+    /// never disagree with the action. (The action itself decides place-versus-activate: a window
+    /// parked behind a full-screen Space is placed anew like a minimized one when a visible
+    /// destination exists, and its selection is ignored otherwise.)
+    static func outcomeForSelection(action: SelectionAction) -> Outcome {
+        switch action {
+        case .activatedInPlace: return .activatedExistingWindow
+        case .placed: return .placedOrOpenedWindow
+        case .ignored, .selectionUntracked: return .selectedVanishedWindow
+        }
     }
 
     static func shouldRestoreOriginalTarget(after outcome: Outcome) -> Bool {

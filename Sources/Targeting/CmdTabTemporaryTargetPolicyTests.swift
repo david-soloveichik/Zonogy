@@ -32,14 +32,14 @@ enum CmdTabTemporaryTargetPolicyTests {
             "selecting a vanished window places nothing, so the original target should be restored"
         )
 
-        // Selection classification: placed/unplaced crossed with managed/vanished.
-        func outcome(placed: Bool, managed: Bool) -> CmdTabTemporaryTargetPolicy.Outcome {
-            CmdTabTemporaryTargetPolicy.outcomeForSelection(isPlacedInZone: placed, windowStillManaged: managed)
+        // Selection classification mirrors the performed action one-to-one.
+        func outcome(_ action: CmdTabTemporaryTargetPolicy.SelectionAction) -> CmdTabTemporaryTargetPolicy.Outcome {
+            CmdTabTemporaryTargetPolicy.outcomeForSelection(action: action)
         }
-        assert(outcome(placed: true, managed: true) == .activatedExistingWindow, "a placed managed window is merely activated")
-        assert(outcome(placed: false, managed: true) == .placedOrOpenedWindow, "an unplaced managed window unminimizes into the target")
-        assert(outcome(placed: false, managed: false) == .selectedVanishedWindow, "a vanished window is classified as vanished")
-        assert(outcome(placed: true, managed: false) == .selectedVanishedWindow, "a stale placed flag cannot outrank a vanished window")
+        assert(outcome(.activatedInPlace) == .activatedExistingWindow, "an in-place activation restores the original target")
+        assert(outcome(.placed) == .placedOrOpenedWindow, "a placement (unminimize, or a window parked behind full screen) keeps the temporary target")
+        assert(outcome(.selectionUntracked) == .selectedVanishedWindow, "an untracked selection places nothing, so the original target is restored")
+        assert(outcome(.ignored) == .selectedVanishedWindow, "an ignored selection places nothing, so the original target is restored")
 
         if allPassed {
             print("CmdTabTemporaryTargetPolicyTests: all tests passed")

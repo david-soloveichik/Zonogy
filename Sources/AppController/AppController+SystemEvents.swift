@@ -98,6 +98,12 @@ extension AppController {
         if focusedManagedWindow != nil {
             exitPinnedResizeBarMode(reason: "managed-window-activation")
         }
+
+        // App activation raises the app's focused window without an in-app focus change, so the
+        // windowFocusChanged rescue never sees it; rescue a parked window from here as well.
+        if let focusedManagedWindow, !isActivityRecordingSuppressed() {
+            rescueWindowRaisedFromBehindFullScreen(focusedManagedWindow)
+        }
         setCurrentFrontmostManagedWindowId(focusedManagedWindow?.windowId, reason: "workspace-activate")
         refreshResizeHandles()
 
@@ -543,6 +549,7 @@ extension AppController {
         // Clear first, then scan all windows to re-detect current state
         fullScreenTracker.clearAllState()
         scanAllWindowsForFullScreenState()
+        enforceHiddenParkedSpaces(reason: "display-change-recapture")
 
         // Recapture after displays settle when meaningful changes occurred.
         // Always recapture after wake to catch windows that were deminiaturized or

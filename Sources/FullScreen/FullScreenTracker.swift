@@ -46,7 +46,9 @@ protocol FullScreenTrackerDelegate: AnyObject {
 final class FullScreenTracker {
     weak var delegate: FullScreenTrackerDelegate?
 
-    /// Maps display IDs to the window causing full-screen mode on that display.
+    /// Maps display IDs to the window causing full-screen mode on that display. One entry per
+    /// display: with several native full-screen windows on the same display, the most recently
+    /// observed one wins, so exclusion and re-raise decisions approximate in that (rare) setup.
     private(set) var fullScreenWindows: [CGDirectDisplayID: FullScreenWindowInfo] = [:]
 
     /// Screens currently in full-screen mode.

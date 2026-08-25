@@ -236,6 +236,13 @@ extension AppController {
            (managed.zoneIndex != nil || isWindowInFloatingZone(windowId)) {
             dismissLauncherIfActiveRespectingAutoShowGrace()
             exitPinnedResizeBarMode(reason: "managed-window-focus")
+
+            // Something outside Zonogy may have raised a window parked behind a full-screen
+            // Space (another launcher, a notification); treat it like a restored minimized
+            // window. Skipped while activity is suppressed (Zonogy's own bulk operations).
+            if !activitySuppressed {
+                rescueWindowRaisedFromBehindFullScreen(managed)
+            }
         }
 
         // When focus changes in an application, validate its windows

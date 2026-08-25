@@ -11,22 +11,24 @@ extension AppController: CmdTabControllerDelegate {
             Logger.debug("CmdTab: Cancelled")
             restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-cancelled")
         case .selected(let window):
-            let windowStillManaged = window.managedWindowId
-                .map { windowController.window(withId: $0) != nil } ?? false
-            let policyOutcome = CmdTabTemporaryTargetPolicy.outcomeForSelection(
-                isPlacedInZone: window.isPlacedInZone,
-                windowStillManaged: windowStillManaged
-            )
+            Logger.debug("CmdTab: Selected \(window.title)")
+            // Reuse the Launcher's window selection logic. What it actually did (activate in
+            // place, or place — a window parked behind a full-screen Space is placed like a
+            // minimized one) decides whether the tentative target commits or is restored, so
+            // classification and action can never disagree. Restoring afterward is safe: an
+            // in-place activation never consumes the target.
+            // Pass live placement state (the item snapshot reports a parked window as not placed
+            // for presentation), so the handler's gate makes the place-vs-activate decision.
+            let livePlaced = window.managedWindowId
+                .flatMap { windowController.window(withId: $0) }?.isPlacedInZone ?? false
+            let action = handleWindowSelection(window, activateInPlace: livePlaced)
+            let policyOutcome = CmdTabTemporaryTargetPolicy.outcomeForSelection(action: action)
 
             if CmdTabTemporaryTargetPolicy.shouldRestoreOriginalTarget(after: policyOutcome) {
                 restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-restore-existing-window")
             } else {
                 cmdTabRetargetSession = nil
             }
-
-            Logger.debug("CmdTab: Selected \(window.title)")
-            // Reuse the Launcher's window selection logic.
-            handleWindowSelection(window, activateInPlace: window.isPlacedInZone)
         case .interrupted:
             Logger.debug("CmdTab: Interrupted")
             cmdTabRetargetSession = nil
@@ -95,7 +97,7 @@ extension AppController: CmdTabControllerDelegate {
 
             let item = LauncherWindowItem(
                 title: title,
-                isPlacedInZone: window.isPlacedInZone,
+                isPlacedInZone: isWindowVisiblyPlaced(window),
                 axElement: element,
                 lastActiveTime: windowController.lastActiveTime(for: window.windowId),
                 bundleIdentifier: bundleId,

@@ -6,9 +6,10 @@ import Foundation
 struct LauncherWindowItem: Identifiable, Equatable {
     let id: UUID
     let title: String
-    /// Whether this window is currently placed in a zone (tiled or floating).
-    /// Windows not placed in any zone are considered minimized. Mutable so open
-    /// choosers can refresh it in place (see `refreshingPlacement`).
+    /// Whether this window is placed in a zone (tiled or floating) the user can currently see.
+    /// Windows not placed in any zone are considered minimized, and a window parked behind a
+    /// full-screen Space counts the same — no placed-window glyph, and selecting it places it.
+    /// Mutable so open choosers can refresh it in place (see `refreshingPlacement`).
     var isPlacedInZone: Bool
     let axElement: AXUIElement
     let lastActiveTime: Date?

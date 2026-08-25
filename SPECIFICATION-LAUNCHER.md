@@ -6,6 +6,8 @@ This specification describes the Launcher feature for Zonogy - a window switcher
 
 The Launcher provides a quick way to switch between windows or launch applications, with the launched/selected window being placed into the targeted zone. The Launcher appears as a floating overlay over the currently targeted zone.
 
+For the purposes of this spec, a window on another Space of a display with a full-screen window counts as minimized (in particular, as not placed in a zone); see **Full-screen pause** in [SPECIFICATION.md](SPECIFICATION.md).
+
 ## Activation
 
 The Launcher opens via:

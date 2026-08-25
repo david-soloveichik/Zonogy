@@ -52,6 +52,13 @@ extension AppController {
                 return
             }
 
+            // Skip re-raise if full screen has since covered the window's display: raising it
+            // would pull the display back out of the full-screen Space.
+            if self.isWindowBehindFullScreenSpace(managed) {
+                Logger.debug("Floating zone protection expired for window \(windowId); skipping raise (behind full screen)")
+                return
+            }
+
             // Use simple direct activation (no Zonogy-first workaround needed here).
             Logger.debug("Floating zone protection expired for window \(windowId); reactivating")
             self.raiseWindow(managed)
