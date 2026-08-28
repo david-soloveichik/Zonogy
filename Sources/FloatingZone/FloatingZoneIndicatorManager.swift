@@ -320,6 +320,10 @@ final class FloatingZoneIndicatorManager {
     private var pulseGenerations: [CGDirectDisplayID: Int] = [:]
 
     func present(over descriptors: [FloatingZoneIndicatorDescriptor]) {
+        // The views below render highlight from the descriptors, so mirror that into the cache:
+        // a stale cache would make updateDragHighlight skip a later hover that re-targets the
+        // same screen after its bar was removed and re-added mid-gesture.
+        dragHighlightedScreenId = descriptors.first(where: { $0.isDragHighlighted })?.screenId
         var pendingRemoval = Set(handles.keys)
 
         for descriptor in descriptors {

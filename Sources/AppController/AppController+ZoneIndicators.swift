@@ -138,7 +138,6 @@ extension AppController {
         addIndicatorTracker.updateHitAreas(newAddZoneHitAreas)
 
         if addZoneDescriptors.isEmpty {
-            addZoneIndicatorManager.updateDragHighlight(pill: nil)
             addZoneIndicatorManager.tearDown()
         } else {
             addZoneIndicatorManager.present(for: addZoneDescriptors)
@@ -167,7 +166,6 @@ extension AppController {
         floatingIndicatorTracker.updateHitAreas(newFloatingHitAreas)
 
         if floatingDescriptors.isEmpty {
-            floatingIndicatorTracker.setHighlighted(nil)
             floatingIndicatorManager.tearDown()
         } else {
             floatingIndicatorManager.present(over: floatingDescriptors)
@@ -282,9 +280,11 @@ extension AppController {
     }
 
     func updateAddZoneIndicatorHighlight(pill: AddZonePillKey?) {
-        if addIndicatorTracker.setHighlighted(pill) {
-            addZoneIndicatorManager.updateDragHighlight(pill: pill)
-        }
+        // The tracker can drop the highlight on its own when hit areas change mid-drag
+        // (e.g. a drop onto the bar fills the screen to max zones and removes it), so the
+        // manager must see every update, not just tracker-visible changes; it self-guards.
+        addIndicatorTracker.highlighted = pill
+        addZoneIndicatorManager.updateDragHighlight(pill: pill)
     }
 
     func floatingIndicatorHitAreas() -> [CGDirectDisplayID: CGRect] {
@@ -292,9 +292,9 @@ extension AppController {
     }
 
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?) {
-        if floatingIndicatorTracker.setHighlighted(screenId) {
-            floatingIndicatorManager.updateDragHighlight(screenId: screenId)
-        }
+        // Unconditional for the same reason as the add-zone highlight above.
+        floatingIndicatorTracker.highlighted = screenId
+        floatingIndicatorManager.updateDragHighlight(screenId: screenId)
     }
 
     // MARK: - Resize Handles
