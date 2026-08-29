@@ -390,19 +390,22 @@ extension AppController {
     }
 
     /// Minimizes the currently active/key window using Cmd-M shortcut override.
-    internal func minimizeActiveWindow() {
+    @discardableResult
+    internal func minimizeActiveWindow() -> ShortcutHoldPolicy.PressOutcome {
         guard let (managed, pid) = managedWindowForFrontmostApplication(
             logPrefix: "minimizeActiveWindow"
         ) else {
             Logger.debug("minimizeActiveWindow: No eligible frontmost window to minimize")
-            return
+            return .noAction
         }
 
         Logger.debug(
             "minimizeActiveWindow: Minimizing window \(managed.windowId) from pid \(pid)"
         )
 
+        let vacatedZone = tiledVacatedZone(for: managed)
         userInitiatedMinimize(managed, optimisticReason: "cmd-m-optimistic")
+        return .minimizedWindow(vacatedZone: vacatedZone)
     }
 
 }

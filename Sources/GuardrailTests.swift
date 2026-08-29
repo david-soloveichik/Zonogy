@@ -90,6 +90,9 @@ enum GuardrailTests {
         if !ZoneShortcutRemovalPolicyTests.run() {
             allPassed = false
         }
+        if !ShortcutHoldPolicyTests.run() {
+            allPassed = false
+        }
         if !ZoneOccupancyReconcilerTests.run() {
             allPassed = false
         }

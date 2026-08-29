@@ -152,6 +152,8 @@ Pressing Control-Cmd-Escape clears all zones on the active display and empties t
 
 Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the display currently holding the mouse pointer.
 
+**Hold to clear and reset:** A quick press clears the display; a 0.5-second hold clears and resets it to one zone. If the display is already clear, either gesture resets it immediately.
+
 ### Targeting
 
 **Targeting rule:** Exactly one zone (tiling zone or floating zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
@@ -320,6 +322,8 @@ Pressing Control-Cmd-M performs a cursor-targeted action:
 
 - If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
 - Otherwise, if the mouse pointer is over an empty zone's placeholder, remove that zone.
+
+**Hold to minimize and remove the zone:** When either shortcut minimizes a tiled window, holding it for 0.5 seconds also removes that window's zone.
 
 ### Application Hide
 

@@ -57,6 +57,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let dragDropCoordinator = DragDropCoordinator()
     internal let screenContextStore: ScreenContextStore
     internal let hotkeyService = HotkeyService()
+    /// The armed hold follow-up of the most recent paired-shortcut press, if its chord may still
+    /// be held (see `AppController+ShortcutHold.swift`).
+    internal var pendingShortcutHoldFollowUp: PendingShortcutHoldFollowUp?
     internal let cmdTabKeyInterceptor = CmdTabKeyInterceptor()
     internal let zoneNavigationInterceptor = ZoneNavigationInterceptor()
     internal let zoneNavigationDotOverlay = ZoneNavigationDotOverlay()

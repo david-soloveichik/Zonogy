@@ -35,9 +35,16 @@ final class SystemEventMonitor {
     }
 
     private func installLocalMonitor() {
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged], handler: { [weak self] event in
             guard let self = self,
                   let delegate = self.delegate else {
+                return event
+            }
+
+            guard event.type == .keyDown else {
+                // Key-ups and modifier changes are observed (never consumed) so locally
+                // triggered hold-follow-up shortcuts can detect their chord breaking.
+                delegate.systemEventMonitor(self, observeChordBreak: event)
                 return event
             }
 
@@ -169,6 +176,8 @@ final class SystemEventMonitor {
 
 protocol SystemEventMonitorDelegate: AnyObject {
     func systemEventMonitor(_ monitor: SystemEventMonitor, handleKeyEvent event: NSEvent) -> Bool
+    /// A local key-up or modifier change, observed without consuming it (chord-break detection).
+    func systemEventMonitor(_ monitor: SystemEventMonitor, observeChordBreak event: NSEvent)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didLaunch application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didUnhide application: NSRunningApplication?)

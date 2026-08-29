@@ -14,6 +14,8 @@ extension AppController {
             if action != .captureTimeTravelLogs {
                 self.zoneNavigationInterceptor.resetEngagement()
                 self.cancelZoneNavigation(reason: "hotkey-\(action)")
+                // A new shortcut invalidates whatever pair a still-held chord was completing.
+                self.cancelShortcutHoldFollowUp(reason: "hotkey-\(action)")
             }
             switch action {
             case .addZone:
@@ -25,9 +27,9 @@ extension AppController {
             case .captureTimeTravelLogs:
                 self.captureTimeTravelLogs(triggerReason: "shortcut")
             case .clearOrResetZones:
-                self.clearOrResetZones()
+                self.armShortcutHoldFollowUp(action: action, outcome: self.clearOrResetZones())
             case .clearOrResetZonesAtCursor:
-                self.clearOrResetZonesAtCursor()
+                self.armShortcutHoldFollowUp(action: action, outcome: self.clearOrResetZonesAtCursor())
             case .toggleTargetZoneWithFocusedWindow:
                 self.toggleTargetZoneWithFocusedWindow()
             case .moveFocusedWindowToTargetZone:
@@ -35,13 +37,15 @@ extension AppController {
             case .minimizeActiveWindow:
                 // If Launcher is open and targeting a tiled zone, remove that zone instead.
                 // If only 1 zone on screen, just hide Launcher (don't enter UnderCovers).
+                // (That press already performed the pair's second kind of action, so it arms
+                // no hold follow-up.)
                 if self.launcherController.isActive {
                     self.launcherControllerDidRequestRemoveZone(self.launcherController)
                 } else {
-                    self.minimizeActiveWindow()
+                    self.armShortcutHoldFollowUp(action: action, outcome: self.minimizeActiveWindow())
                 }
             case .minimizeWindowOrRemoveZoneAtCursor:
-                self.minimizeWindowOrRemoveZoneAtCursor()
+                self.armShortcutHoldFollowUp(action: action, outcome: self.minimizeWindowOrRemoveZoneAtCursor())
             case .saveWinShotSnapshot:
                 self.saveWinShotSnapshot()
             case .showWinShotChooser:

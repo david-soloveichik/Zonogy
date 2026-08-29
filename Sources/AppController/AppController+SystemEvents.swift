@@ -48,10 +48,22 @@ extension AppController {
         triggerShortcut(action)
     }
 
+    func hotkeyService(_ service: HotkeyService, didRelease action: HotkeyService.Action) {
+        // Dispatch like triggerShortcut does so a quick tap's release is handled after the
+        // press block that armed the hold follow-up (main-queue FIFO), never before it.
+        DispatchQueue.main.async { [weak self] in
+            self?.handleShortcutHoldRelease(action)
+        }
+    }
+
     // MARK: - SystemEventMonitorDelegate
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, handleKeyEvent event: NSEvent) -> Bool {
         hotkeyService.handleLocalShortcut(event: event)
+    }
+
+    func systemEventMonitor(_ monitor: SystemEventMonitor, observeChordBreak event: NSEvent) {
+        hotkeyService.handleLocalChordBreak(event: event)
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
@@ -452,8 +464,11 @@ extension AppController {
         includesWake: Bool = false
     ) {
         // A display change invalidates the zone-navigation snapshot; drop any in-flight gesture.
+        // Likewise drop any pending shortcut-hold follow-up now, at schedule time: the debounced
+        // refresh below can run after the follow-up would fire on stale pre-refresh state.
         zoneNavigationInterceptor.resetEngagement()
         cancelZoneNavigation(reason: "screen-topology-refresh")
+        cancelShortcutHoldFollowUp(reason: "screen-topology-refresh-scheduled")
         suppressManualMoveHandling(for: manualMoveSuppressionDuration, reason: reason)
         if let existingReason = pendingScreenChangeReason {
             pendingScreenChangeReason = "\(existingReason),\(reason)"
