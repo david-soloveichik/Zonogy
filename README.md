@@ -110,7 +110,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-=` | Add a zone |
 | `Control-Cmd--` | Remove zone (preferring empty, keeping current window open) |
 | `Control-Cmd-0` | Collapse to one zone (same as pressing remove zone repeatedly until one tiling zone remains) |
-| `Cmd-M` | Minimize active window; with Launcher open, `Cmd-M` or `Cmd-W` removes the zone (so `Cmd-M` twice = minimize + remove zone, and `Cmd-W` twice = close + remove zone) |
+| `Cmd-M` | Minimize active window (hold to also remove the zone it emptied); with Launcher open, `Cmd-M` or `Cmd-W` removes the zone (so `Cmd-M` twice = minimize + remove zone, and `Cmd-W` twice = close + remove zone) |
 | `Cmd-Tab` | CmdTab window switcher (<code>Cmd-\`</code> cycles current app's windows) |
 | `Control-Cmd-/` | Save WinShot snapshot |
 | `Control-Cmd-Tab` | Browse WinShot snapshots |
@@ -120,7 +120,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-Return` | Move focused window to destination (swapping if occupied) |
 | `Control-Cmd-\` | Toggle destination with focused window |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
-| `Control-Cmd-Escape` | Clear zones on active display (optionally automatically saving snapshot). Pressing twice resets to single-zone layout. |
+| `Control-Cmd-Escape` | Clear zones on active display (optionally automatically saving snapshot). Pressing twice (or holding once) resets to single-zone layout. |
 
 ## Installation
 

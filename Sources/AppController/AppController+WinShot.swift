@@ -282,6 +282,11 @@ extension AppController {
 
         let snapshot = storedSnapshot.retargeted(to: screenId, layoutBounds: context.zoneController.layoutBounds)
 
+        // A restore replaces the zone topology without going through the shared add/remove paths;
+        // a pending shortcut-hold follow-up's captured zone would be stale. (Restores can land
+        // asynchronously, e.g. a delayed open after a full-screen exit.)
+        cancelShortcutHoldFollowUp(reason: "winshot-restore")
+
         // Restoring a snapshot implies re-entering managed tiling. Ensure UnderCovers is exited so
         // placeholders are not incorrectly suppressed after the restore.
         endUnderCovers(on: screenId, reason: "winshot-restore", recreatePlaceholders: false)

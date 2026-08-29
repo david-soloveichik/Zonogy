@@ -254,6 +254,16 @@ extension AppController {
     /// zone), which rebuilds the gesture around the new topology instead (see
     /// `continueZoneNavigation`).
     internal func cancelZoneNavigationForTopologyChange(reason: String) {
+        // A topology change reindexes zones, so a pending hold follow-up's captured zone index
+        // may now denote a different zone; drop it regardless of who drove the change. (A
+        // follow-up's own zone operation runs after the pending record is cleared, so this
+        // never cancels the follow-up performing it.) The full-screen pause-change caller
+        // cancels deliberately too — including a change the press itself caused, e.g. by
+        // minimizing a managed window that had entered full screen (such windows keep their
+        // zone assignment): a follow-up must not fire into a display in the middle of a
+        // full-screen transition. WinShot restores and display-change scheduling cancel at
+        // their own sites.
+        cancelShortcutHoldFollowUp(reason: "topology-\(reason)")
         guard !zoneNavigationDrivenTopologyChange else { return }
         zoneNavigationInterceptor.resetEngagement()
         cancelZoneNavigation(reason: reason)

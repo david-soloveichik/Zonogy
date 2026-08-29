@@ -7,24 +7,27 @@ extension AppController {
     // MARK: - Keyboard Shortcuts
 
     /// Clear all zones on active screen. If zones are already empty, go to one-zone configuration.
-    internal func clearOrResetZones() {
+    @discardableResult
+    internal func clearOrResetZones() -> ShortcutHoldPolicy.PressOutcome {
         clearOrResetZones(on: activeScreenId(), reason: "shortcut-active-screen")
     }
 
     /// Run the clear/reset shortcut on the screen containing the mouse cursor (fallback to active).
-    internal func clearOrResetZonesAtCursor() {
+    @discardableResult
+    internal func clearOrResetZonesAtCursor() -> ShortcutHoldPolicy.PressOutcome {
         if let cursorScreenId = resolveCursorScreenId() {
-            clearOrResetZones(on: cursorScreenId, reason: "shortcut-cursor-screen")
+            return clearOrResetZones(on: cursorScreenId, reason: "shortcut-cursor-screen")
         } else {
             Logger.debug("Clear/reset zones (shortcut-cursor-screen): cursor outside managed displays, falling back to active screen")
-            clearOrResetZones()
+            return clearOrResetZones()
         }
     }
 
-    private func clearOrResetZones(on screenId: CGDirectDisplayID, reason: String) {
+    @discardableResult
+    internal func clearOrResetZones(on screenId: CGDirectDisplayID, reason: String) -> ShortcutHoldPolicy.PressOutcome {
         guard let context = screenContexts[screenId] else {
             Logger.debug("Clear/reset zones (\(reason)): screen context unavailable")
-            return
+            return .noAction
         }
         cancelZoneNavigationForTopologyChange(reason: "clear-or-reset-zones")
 
@@ -126,7 +129,7 @@ extension AppController {
                 }
                 self.autoShowLauncherIfEmptyTargetedTiledZone()
             }
-            return
+            return .clearedZones(screenId: screenId)
         }
 
         // Reset branch only: target zone 1 and auto-show Launcher.
@@ -136,6 +139,7 @@ extension AppController {
             targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
         }
         autoShowLauncherIfEmptyTargetedTiledZone()
+        return .resetZones
     }
 
     internal func resolveCursorScreenId() -> CGDirectDisplayID? {
@@ -163,10 +167,11 @@ extension AppController {
     }
 
     /// Minimize the managed window under the mouse cursor, or remove the empty zone under the cursor.
-    internal func minimizeWindowOrRemoveZoneAtCursor() {
+    @discardableResult
+    internal func minimizeWindowOrRemoveZoneAtCursor() -> ShortcutHoldPolicy.PressOutcome {
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
             Logger.debug("Cursor shortcut: unable to resolve cursor position; ignoring")
-            return
+            return .noAction
         }
 
         // First priority: minimize a managed (non-placeholder) window under the cursor.
@@ -190,8 +195,9 @@ extension AppController {
                 endUnderCovers(on: screenId, reason: "cursor-shortcut-minimize", recreatePlaceholders: false)
             }
 
+            let vacatedZone = tiledVacatedZone(for: managed)
             userInitiatedMinimize(managed, optimisticReason: "cursor-minimize-optimistic")
-            return
+            return .minimizedWindow(vacatedZone: vacatedZone)
         }
 
         // Second priority: remove the empty zone under the cursor (placeholder frame).
@@ -201,11 +207,12 @@ extension AppController {
                 "minimizeWindowOrRemoveZoneAtCursor: Removing zone \(zoneKey.index) on screen \(screenIndex) under cursor"
             )
             endUnderCovers(on: zoneKey.screenId, reason: "cursor-shortcut-remove-zone", recreatePlaceholders: false)
-            _ = performRemoveZone(at: zoneKey.index, on: zoneKey.screenId, announce: false)
-            return
+            let removed = performRemoveZone(at: zoneKey.index, on: zoneKey.screenId, announce: false) != nil
+            return removed ? .removedZone : .noAction
         }
 
         Logger.debug("minimizeWindowOrRemoveZoneAtCursor: No managed window or empty zone under cursor; doing nothing")
+        return .noAction
     }
 
     /// Find the topmost tiled managed (non-placeholder) window at the given accessibility point.

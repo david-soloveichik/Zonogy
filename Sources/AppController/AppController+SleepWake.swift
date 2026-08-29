@@ -81,6 +81,10 @@ extension AppController {
         // the gesture and its held-key marks.
         zoneNavigationInterceptor.resetInputState()
         cancelZoneNavigation(reason: reason)
+        // Same for hold-follow-up shortcuts: a lost release would leave a pending follow-up and
+        // a stale chord-held mark that swallows every later press of that hotkey.
+        cancelShortcutHoldFollowUp(reason: reason)
+        hotkeyService.resetHoldInputState()
         // Just-minimized marks are stale across sleep/lock, and modifier releases while the
         // session is locked never reach the monitors; drop the marks and their gestures.
         recentUserMinimizeTracker.clearAllMarks()
