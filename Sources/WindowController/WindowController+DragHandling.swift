@@ -22,8 +22,20 @@ extension WindowController {
     // Returns true once the pointer has moved far enough (with button down) to
     // consider the gesture a live drag; false keeps accumulating movement.
     internal func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
-        if currentDraggingWindowId == managed.windowId {
+        // One left button means one gesture — see ManualDragGatePolicy for the ownership rules.
+        switch ManualDragGatePolicy.gate(
+            windowId: managed.windowId,
+            suppressedUntilMouseUp: manualDragSuppressedUntilMouseUp,
+            cursorDrivenDragActive: delegate?.isCursorDrivenDragActive() == true,
+            tombstonedWindowId: manualDragTombstonedWindowId,
+            currentDraggingWindowId: currentDraggingWindowId
+        ) {
+        case .blocked:
+            return false
+        case .continueCurrentDrag:
             return true
+        case .mayBecomeCandidate:
+            break
         }
 
         guard MouseButtons.isLeftMouseButtonDown() else {
@@ -55,10 +67,48 @@ extension WindowController {
         return Date().timeIntervalSince(movedAt) < Self.externalMoveReassertSuppressionWindow
     }
 
+    /// Ends manual-move tracking for `windowId` without delivering an end/abort event — for a
+    /// window whose drag Zonogy terminally tore down mid-gesture (e.g. evicted from its
+    /// floating zone). A no-op when no gesture involves the window; only the matching field is
+    /// cleared, so cancelling a mere candidate cannot kill another window's live drag. The
+    /// window is tombstoned through the gesture's mouse-up: with the button still held, its
+    /// next AX move would otherwise seed a fresh candidate and restart the drag; the tombstone
+    /// also keeps the global mouse-up monitor installed so it gets cleared. Returns whether a
+    /// gesture was actually cancelled.
+    @discardableResult
+    internal func cancelManualDragTracking(windowId: Int) -> Bool {
+        let matchedCandidate = dragCandidate?.windowId == windowId
+        let matchedCurrent = currentDraggingWindowId == windowId
+        guard matchedCandidate || matchedCurrent else {
+            return false
+        }
+        if matchedCandidate {
+            dragCandidate = nil
+        }
+        if matchedCurrent {
+            currentDraggingWindowId = nil
+        }
+        manualDragTombstonedWindowId = windowId
+        updateMouseUpGlobalMonitorInstallation()
+        return true
+    }
+
+    /// Claims the in-progress mouse gesture for a cursor-driven chooser-row drag: drops any
+    /// manual-drag candidate seeded before the row crossed its drag threshold, and blocks new
+    /// candidates until the gesture's mouse-up (surviving an early cancellation of the row
+    /// session, e.g. via Escape, while the button stays held).
+    internal func suppressManualDragUntilMouseUp() {
+        dragCandidate = nil
+        manualDragSuppressedUntilMouseUp = true
+        updateMouseUpGlobalMonitorInstallation()
+    }
+
     internal func handleMouseUp() {
         defer {
             updateMouseUpGlobalMonitorInstallation()
         }
+        manualDragTombstonedWindowId = nil
+        manualDragSuppressedUntilMouseUp = false
 
         // If the user never crossed the activation threshold, treat the gesture as a
         // cancelled drag and trigger a manual move end so the window snaps back.

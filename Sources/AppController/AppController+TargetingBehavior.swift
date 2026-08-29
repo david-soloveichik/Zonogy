@@ -178,25 +178,12 @@ extension AppController {
         }
     }
 
+    /// The targeted zone is occupied, so advancing mirrors the standard retarget-after-fill.
     private func advanceTargetOffZone(
         _ destination: TargetedZoneManager.TargetedDestination,
         reason: String
     ) {
-        switch destination {
-        case .tiled(let key):
-            // The targeted zone is occupied, so this mirrors the standard retarget-after-fill.
-            targetedZoneManager.retargetAfterFillingZone(key, reason: reason)
-        case .floating(let screenId):
-            // Advancing off a floating zone prefers an empty tiling zone (same screen, then another).
-            // When none exists, preferredRetargetDestination returns this same floating zone, so
-            // applying it is a no-op: we deliberately stay put rather than hop to another screen's
-            // floating zone — no window moves, so that would just oscillate the target.
-            if let next = targetedZoneManager.preferredRetargetDestination(preferredSameScreenId: screenId) {
-                applyTargetedDestination(next, reason: reason)
-            } else {
-                targetedZoneManager.ensureTargetedZone(reason: reason)
-            }
-        }
+        targetedZoneManager.retargetAsIfJustFilled(destination, reason: reason)
     }
 
     internal func currentActiveManagedWindowForTriggeredTargeting() -> ManagedWindow? {

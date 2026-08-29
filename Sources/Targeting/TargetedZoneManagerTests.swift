@@ -46,6 +46,15 @@ enum TargetedZoneManagerTests {
             let expectedPreferred = ZoneKey(screenId: screen2, index: 1)
             assert(preferred == expectedPreferred, "lowestIndexEmptyZone should honor preferred screen when indexes tie (got \(String(describing: preferred)))")
 
+            // With unequal indexes, the globally lowest index wins over the preferred screen —
+            // callers wanting a same-screen preference must try lowestIndexEmptyZoneOnSameScreen first.
+            controller2.removeWindow(windowId: 601)
+            controller2.assignWindow(windowId: 601, toZoneIndex: 1)
+            let global = manager.lowestIndexEmptyZone(preferredScreenId: screen2)
+            assert(global == ZoneKey(screenId: screen1, index: 1), "lowestIndexEmptyZone should pick the globally lowest index regardless of the preferred screen (got \(String(describing: global)))")
+            let sameScreen = manager.lowestIndexEmptyZoneOnSameScreen(screenId: screen2)
+            assert(sameScreen == ZoneKey(screenId: screen2, index: 2), "lowestIndexEmptyZoneOnSameScreen should stay on the requested screen (got \(String(describing: sameScreen)))")
+
             let excluded = manager.lowestIndexEmptyZone(excluding: expectedPreferred)
             let expectedExcluded = ZoneKey(screenId: screen1, index: 1)
             assert(excluded == expectedExcluded, "lowestIndexEmptyZone should exclude the provided zone key (got \(String(describing: excluded)))")
@@ -161,6 +170,269 @@ enum TargetedZoneManagerTests {
 
         do {
             let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1201, toZoneIndex: 1)
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+
+            let expected = ZoneKey(screenId: screen1, index: 2)
+            assert(manager.targetedZoneKey == expected, "retargetAfterFillingFloatingZone should select an empty tiling zone on the same screen (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            controller1.assignWindow(windowId: 1202, toZoneIndex: 1)
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+
+            let expected = ZoneKey(screenId: screen2, index: 1)
+            assert(manager.targetedZoneKey == expected, "retargetAfterFillingFloatingZone should fall back to an empty tiling zone on another screen (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+            controller1.assignWindow(windowId: 1203, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1204, toZoneIndex: 1)
+            delegate.occupiedFloatingScreenIds = [screen1]
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+
+            assert(manager.targetedFloatingScreenId == screen2, "retargetAfterFillingFloatingZone should target another screen's empty floating zone when no empty tiling zone exists (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+            controller1.assignWindow(windowId: 1205, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1206, toZoneIndex: 1)
+            delegate.occupiedFloatingScreenIds = [screen1, screen2]
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+
+            assert(manager.targetedFloatingScreenId == screen1, "retargetAfterFillingFloatingZone should keep the just-filled floating zone targeted when every zone on every screen is occupied (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+            controller1.assignWindow(windowId: 1207, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1208, toZoneIndex: 1)
+            delegate.occupiedFloatingScreenIds = [screen1]
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 1), reason: "test")
+            manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 1), reason: "filled")
+
+            assert(manager.targetedFloatingScreenId == screen2, "retargetAfterFillingZone should prefer another screen's empty floating zone over the same screen's occupied one (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 3],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1301, toZoneIndex: 3)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                to: .tiled(ZoneKey(screenId: screen1, index: 3)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "a move out of the targeted zone should retarget as if the destination was just filled, per the fill priority rather than back to the vacated zone (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1302, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .floating(screenId: screen1),
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "a move into the targeted zone should retarget as if it was just filled (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 3],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1303, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 3), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .tiled(ZoneKey(screenId: screen1, index: 1)),
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 3)),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 3)
+            assert(manager.targetedZoneKey == expected, "a move not touching the target should leave the uninvolved target alone (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1304, toZoneIndex: 1)
+            delegate.occupiedFloatingScreenIds = [screen1]
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .floating(screenId: screen1),
+                to: .floating(screenId: screen1),
+                preMoveTarget: .floating(screenId: screen1),
+                reason: "moved"
+            )
+
+            assert(manager.targetedFloatingScreenId == screen1, "a reposition within the same zone is not a move and should not retarget (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1401, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: nil,
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "a sourceless move into the targeted zone should retarget as a fill (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 3],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1402, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 3), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: nil,
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 3)),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 3)
+            assert(manager.targetedZoneKey == expected, "a sourceless move into a non-targeted zone should leave the uninvolved target alone (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1403, toZoneIndex: 2)
+
+            manager.setTargetedZone(nil, reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .tiled(ZoneKey(screenId: screen1, index: 1)),
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: nil,
+                reason: "moved"
+            )
+
+            assert(manager.targetedDestination == nil, "with no pre-move target, a move should retarget nothing (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 2],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            controller.assignWindow(windowId: 1404, toZoneIndex: 2)
+
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .floating(screenId: screen1),
+                to: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                preMoveTarget: .floating(screenId: screen1),
+                reason: "moved"
+            )
+
+            let expected = ZoneKey(screenId: screen1, index: 1)
+            assert(manager.targetedZoneKey == expected, "a promotion out of the targeted floating zone should retarget as if the destination was just filled (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 3],
+                screenOrder: [screen1]
+            )
+            let controller = delegate.zoneController(for: screen1)!
+            // Occupancy as it stands after a swap settles: the destination holds the moved
+            // window and the origin holds the swap partner, so only the floating zone is free.
+            controller.assignWindow(windowId: 1405, toZoneIndex: 1)
+            controller.assignWindow(windowId: 1406, toZoneIndex: 3)
+            controller.assignWindow(windowId: 1407, toZoneIndex: 2)
+
+            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 2), reason: "test")
+            manager.retargetAfterMovingWindow(
+                from: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                to: .tiled(ZoneKey(screenId: screen1, index: 3)),
+                preMoveTarget: .tiled(ZoneKey(screenId: screen1, index: 2)),
+                reason: "moved"
+            )
+
+            assert(manager.targetedFloatingScreenId == screen1, "a swap move should evaluate after the partner settles: the refilled origin is not a candidate (got \(String(describing: manager.targetedDestination)))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
                 zoneCounts: [screen1: 1, screen2: 1],
                 screenOrder: [screen1, screen2]
             )
@@ -237,6 +509,7 @@ enum TargetedZoneManagerTests {
         var screenOrder: [CGDirectDisplayID]
         var primaryScreenId: CGDirectDisplayID
         var fullScreenDisplayIds: Set<CGDirectDisplayID>
+        var occupiedFloatingScreenIds: Set<CGDirectDisplayID> = []
         var refreshCount = 0
 
         init(
@@ -253,6 +526,10 @@ enum TargetedZoneManagerTests {
 
         func zoneController(for screenId: CGDirectDisplayID) -> ZoneController? {
             screenContexts[screenId]?.zoneController
+        }
+
+        func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool {
+            occupiedFloatingScreenIds.contains(screenId)
         }
 
         func refreshIndicators() {

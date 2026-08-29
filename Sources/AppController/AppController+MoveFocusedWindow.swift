@@ -23,8 +23,9 @@ extension AppController {
     /// Move the focused window `windowId` into `destination`. An occupied destination swaps: the
     /// occupant takes the moved window's origin — including across the tiling/floating boundary.
     /// (Without an origin to give it, the occupant is displaced through the normal placement path
-    /// and minimizes.) Targeting follows the normal placement rules: the vacated origin does not
-    /// steal the target, and filling the targeted zone retargets away.
+    /// and minimizes.) Targeting follows the move rule, applied once after the swap settles: a
+    /// move touching the target retargets as if the destination was just filled; an uninvolved
+    /// target stays put.
     ///
     /// The origin is derived here, on the main queue, rather than carried over from the caller's
     /// decision: everything below runs in one synchronous block against that live state, so an
@@ -47,6 +48,7 @@ extension AppController {
             Logger.debug("\(reason): window \(windowId) already at \(destination); ignoring")
             return
         }
+        let preMoveTarget = targetedZoneManager.targetedDestination
 
         // Identify the swap partner while pre-move occupancy is still accurate, and detach it so
         // the placements below displace (and minimize) nothing.
@@ -75,7 +77,7 @@ extension AppController {
                 centerFloatingWindow: true,
                 reason: reason,
                 retargetOnRemoval: false,
-                forceRetargetAfterFill: false,
+                retargetAfterFill: false,
                 afterPlacementAction: {
                     didActivateInPlacement = true
                     self.recordActiveWindowForHistory(windowId: managed.windowId, reason: reason)
@@ -93,7 +95,7 @@ extension AppController {
                 centerFloatingWindow: true,
                 reason: reason,
                 retargetOnRemoval: false,
-                forceRetargetAfterFill: false
+                retargetAfterFill: false
             )
             recentlyPlacedInFloatingZone = managed.windowId
         }
@@ -105,7 +107,7 @@ extension AppController {
                 centerFloatingWindow: true,
                 reason: "\(reason)-swap",
                 retargetOnRemoval: false,
-                forceRetargetAfterFill: false,
+                retargetAfterFill: false,
                 activate: false
             )
             if case .floating = origin {
@@ -113,7 +115,19 @@ extension AppController {
             }
         }
 
-        syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone)
+        targetedZoneManager.retargetAfterMovingWindow(
+            from: origin,
+            to: destination,
+            preMoveTarget: preMoveTarget,
+            reason: "\(reason)-filled"
+        )
+        // A tiling zone vacated by an explicit move into the floating zone is exempt from
+        // floating-occupant promotion on this sync (with a swap partner it is refilled anyway).
+        let vacatedTilingZone: ZoneKey? = {
+            guard case .floating = destination, case .tiled(let originKey)? = origin else { return nil }
+            return originKey
+        }()
+        syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone, explicitlyVacatedZone: vacatedTilingZone)
     }
 
     /// Bookkeeping-only removal of a swap partner from its zone (no minimize), mirroring the

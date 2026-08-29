@@ -78,6 +78,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var isSyncingWindows = false
     internal var pendingSync = false
     internal var pendingSyncRecentlyPlacedInFloatingZone: Int?
+    internal var pendingSyncExplicitlyVacatedZones: Set<ZoneKey> = []
     /// PIDs already queued for next-runloop validation after a prune decision was deferred.
     internal var pendingPrunePidValidationRequests: Set<pid_t> = []
     /// Window IDs whose geometry reapply should be skipped for an immediate full sync pass.

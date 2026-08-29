@@ -15,17 +15,15 @@ extension AppController {
         retarget: Bool = true,
         logIfUnassigned: Bool = true
     ) {
-        if dragDropCoordinator.currentDragWindowId == windowId {
-            // Ensure overlays go away when the dragged window disappears.
-            dragDropCoordinator.tearDownDragSession()
-        }
-        if floatingDragHandler.draggingWindowId == windowId {
-            // A floating-zone drag uses a separate handler and overlay manager from the
-            // tiled coordinator above, so it needs its own teardown. Without this, a window
-            // that disappears mid floating-drag (e.g. a Chrome tab tears out, or the window
-            // is minimized while being dragged) leaves the blue zone overlays stuck on screen.
-            floatingDragHandler.abortDrag()
-        }
+        // A window leaving the zone system (destroyed, minimized, hidden) terminates any
+        // gesture it was part of, including a pending tiled-to-floating conversion: a stale
+        // origin must never be restored later, and the eventual mouse-up must not re-place
+        // the window. The disappearance is treated plainly — the vacated origin stays empty
+        // and a conversion's displaced floating occupant stays minimized, exactly as if the
+        // vanished window had displaced it outside a drag. This also runs for placements'
+        // pre-detach (placeWindow routes through here); every gesture-specific teardown step
+        // is gesture-gated, so placing a window that is not mid-gesture is a no-op.
+        terminateManualGestureState(for: windowId)
 
         // Capture floating-zone occupancy before any clearing happens, so we can apply
         // the floating-empty retarget rule below after the floating slot is cleared.
@@ -67,8 +65,8 @@ extension AppController {
         // Specification: when a floating zone is emptied (window minimized/closed) and the
         // current target is *another* floating zone, retarget to the now-empty floating zone.
         // Floating zones are "weaker" — they never steal targeting from tiling zones. Gated
-        // by `retarget` to honor the explicit-reassignment exception (Launcher/DockMenu drops
-        // pass `retarget: false`).
+        // by `retarget` because moves out of the floating zone follow the move rule instead
+        // (movers pass `retarget: false`).
         if retarget,
            let emptiedFloatingScreenId = floatingScreenIdBeforeClear,
            let retargetScreenId = FloatingZoneEmptyRetargetPolicy.retargetScreenId(

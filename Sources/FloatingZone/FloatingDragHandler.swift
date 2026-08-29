@@ -9,12 +9,7 @@ protocol FloatingDragHandlerHost: AnyObject {
     func resolveFloatingDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID?
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
-    func revertFloatingDragToTiled(
-        windowId: Int,
-        frame: CGRect,
-        originZoneKey: ZoneKey?,
-        originScreenId: CGDirectDisplayID?
-    )
+    func revertFloatingDragToTiled(windowId: Int, frame: CGRect)
     func finalizeFloatingDrop(
         windowId: Int,
         finalFrame: CGRect,
@@ -36,7 +31,6 @@ final class FloatingDragHandler {
     private struct State {
         let windowId: Int
         let originScreenId: CGDirectDisplayID?
-        let originZoneKey: ZoneKey?
         let requiresGestureModifiers: Bool
         var hoveredAddZonePill: AddZonePillKey?
         var hoveredFloatingScreenId: CGDirectDisplayID?
@@ -55,13 +49,11 @@ final class FloatingDragHandler {
     func beginDrag(
         windowId: Int,
         originScreenId: CGDirectDisplayID?,
-        originZoneKey: ZoneKey? = nil,
         requiresGestureModifiers: Bool = false
     ) {
         state = State(
             windowId: windowId,
             originScreenId: originScreenId,
-            originZoneKey: originZoneKey,
             requiresGestureModifiers: requiresGestureModifiers,
             hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
@@ -78,12 +70,7 @@ final class FloatingDragHandler {
             if !host.areGestureModifiersHeld {
                 tearDownOverlaysIfNeeded(&current)
                 state = nil
-                host.revertFloatingDragToTiled(
-                    windowId: current.windowId,
-                    frame: frame,
-                    originZoneKey: current.originZoneKey,
-                    originScreenId: current.originScreenId
-                )
+                host.revertFloatingDragToTiled(windowId: current.windowId, frame: frame)
                 return
             }
         } else if host.areGestureModifiersHeld {

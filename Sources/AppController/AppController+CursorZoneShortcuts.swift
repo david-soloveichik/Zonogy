@@ -42,6 +42,9 @@ extension AppController {
         let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId)
         if let floatingOccupant {
             floatingZoneCoordinator.clear(windowId: floatingOccupant.windowId, minimize: false, reason: "clear-zones-shortcut")
+            // The batched minimize below makes this an eviction, so run the eviction teardown
+            // the bookkeeping-only clear skips.
+            floatingOccupantEvicted(windowId: floatingOccupant.windowId)
         }
 
         if allEmpty {

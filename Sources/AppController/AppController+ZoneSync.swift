@@ -51,11 +51,28 @@ extension AppController {
     ///    when policy conditions are met.
     /// 8. Refresh targeted zone state, floating-zone targeting, and visual
     ///    indicators so the UI matches the new layout.
-    internal func syncWindowsToZones(recentlyPlacedInFloatingZone: Int? = nil) {
+    /// `explicitlyVacatedZone` names a tiling zone emptied because the user explicitly moved its
+    /// window into the floating zone; per the promotion exception, this pass must not promote a
+    /// floating occupant into it. Both promotion exceptions must be requested from outside a
+    /// running sync pass (every caller is a user-event entry point): a request issued mid-pass
+    /// only protects the coalesced follow-up pass, not the one already running.
+    internal func syncWindowsToZones(
+        recentlyPlacedInFloatingZone: Int? = nil,
+        explicitlyVacatedZone: ZoneKey? = nil
+    ) {
         runZoneSync(
             mode: .full,
             recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone,
+            explicitlyVacatedZones: explicitlyVacatedZone.map { [$0] } ?? []
         )
+    }
+
+    /// Records that `key` was re-occupied outside a sync pass (e.g. a cancelled floating-zone
+    /// conversion rebooking its origin), so the zone's next genuine emptying is again detected
+    /// as newly empty for floating-occupant promotion.
+    internal func noteZoneReoccupiedOutsideSync(_ key: ZoneKey) {
+        lastSyncEmptyZoneKeys.remove(key)
+        lastSyncKnownZoneKeys.insert(key)
     }
 
     /// Fast sync path for live zone-resize dragging.
@@ -64,11 +81,17 @@ extension AppController {
         runZoneSync(
             mode: .liveResize(screenId: screenId),
             recentlyPlacedInFloatingZone: nil,
+            explicitlyVacatedZones: []
         )
     }
 
-    private func nextCoalescedZoneSyncMode(pendingFloatingZoneExclusion: Int?) -> ZoneSyncMode {
-        if pendingFloatingZoneExclusion != nil {
+    private func nextCoalescedZoneSyncMode(
+        pendingFloatingZoneExclusion: Int?,
+        pendingVacatedZones: Set<ZoneKey>
+    ) -> ZoneSyncMode {
+        // Any pending promotion exception needs a full pass; a live-resize pass would consume
+        // the request without processing promotion suppression.
+        if pendingFloatingZoneExclusion != nil || !pendingVacatedZones.isEmpty {
             return .full
         }
         if zoneResizeDragInProgress, let dragScreenId = zoneResizeDragScreenId {
@@ -77,7 +100,11 @@ extension AppController {
         return .full
     }
 
-    private func runZoneSync(mode: ZoneSyncMode, recentlyPlacedInFloatingZone: Int?) {
+    private func runZoneSync(
+        mode: ZoneSyncMode,
+        recentlyPlacedInFloatingZone: Int?,
+        explicitlyVacatedZones: Set<ZoneKey> = []
+    ) {
         let floatingZoneExclusion = recentlyPlacedInFloatingZone
         let isLiveResizeSync = mode.isLiveResize
 
@@ -89,6 +116,7 @@ extension AppController {
             if let recentlyPlacedInFloatingZone {
                 pendingSyncRecentlyPlacedInFloatingZone = recentlyPlacedInFloatingZone
             }
+            pendingSyncExplicitlyVacatedZones.formUnion(explicitlyVacatedZones)
             return
         }
         // One-pass geometry-skip marks are only relevant for full syncs.
@@ -109,8 +137,17 @@ extension AppController {
                 pendingSync = false
                 let pendingFloatingZoneExclusion = pendingSyncRecentlyPlacedInFloatingZone
                 pendingSyncRecentlyPlacedInFloatingZone = nil
-                let nextMode = nextCoalescedZoneSyncMode(pendingFloatingZoneExclusion: pendingFloatingZoneExclusion)
-                runZoneSync(mode: nextMode, recentlyPlacedInFloatingZone: pendingFloatingZoneExclusion)
+                let pendingVacatedZones = pendingSyncExplicitlyVacatedZones
+                pendingSyncExplicitlyVacatedZones.removeAll()
+                let nextMode = nextCoalescedZoneSyncMode(
+                    pendingFloatingZoneExclusion: pendingFloatingZoneExclusion,
+                    pendingVacatedZones: pendingVacatedZones
+                )
+                runZoneSync(
+                    mode: nextMode,
+                    recentlyPlacedInFloatingZone: pendingFloatingZoneExclusion,
+                    explicitlyVacatedZones: pendingVacatedZones
+                )
             }
         }
 
@@ -376,9 +413,13 @@ extension AppController {
             }
 
             let prePromotionSnapshot = snapshotZoneKeys()
-            let newlyEmptiedZones = prePromotionSnapshot.empty
+            var newlyEmptiedZones = prePromotionSnapshot.empty
                 .intersection(lastSyncKnownZoneKeys)
                 .subtracting(lastSyncEmptyZoneKeys)
+            // A zone the user explicitly vacated by moving its window into the floating zone is
+            // exempt from promotion for this emptying event (see the promotion exception in the
+            // specification) — on any display, not just the one that received the window.
+            newlyEmptiedZones.subtract(explicitlyVacatedZones)
 
             promoteFloatingZoneOccupantsIfNeeded(
                 newlyEmptiedZones: newlyEmptiedZones,

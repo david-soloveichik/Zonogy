@@ -25,6 +25,7 @@ protocol FloatingZoneCoordinatorHost: AnyObject {
     func shouldProtectFloatingZoneOccupant(windowId: Int) -> Bool
     func scheduleFloatingZoneProtection(windowId: Int)
     func clearFloatingZoneProtection(windowId: Int)
+    func floatingOccupantEvicted(windowId: Int)
     func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String)
 }
 
@@ -127,6 +128,7 @@ final class FloatingZoneCoordinator {
             evictExistingWindowId: { occupantId in
                 host.clearFloatingZoneProtection(windowId: occupantId)
                 occupants.removeValue(forKey: screenId)
+                host.floatingOccupantEvicted(windowId: occupantId)
             },
             clearDisplacedAssignment: { host.clearManagedWindowZone($0) },
             // For `.synchronous`: AX kAXMinimized's brief flash-to-key on the displaced
@@ -187,6 +189,7 @@ final class FloatingZoneCoordinator {
         occupant.isInFloatingZone = false
         occupants.removeValue(forKey: screenId)
         host.clearManagedWindowZone(occupant)
+        host.floatingOccupantEvicted(windowId: occupant.windowId)
         host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
         Logger.debug(
             "Floating zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
@@ -208,6 +211,10 @@ final class FloatingZoneCoordinator {
         Logger.debug("Cleared floating zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
         if minimize, let window = host.windowController.window(withId: windowId) {
             host.clearManagedWindowZone(window)
+            // A minimizing clear is an eviction; a bookkeeping-only clear (minimize: false) is
+            // owned by a flow managing the window itself (drag conversion/revert, clear-zones'
+            // batched minimize), which handles or invokes the eviction teardown as needed.
+            host.floatingOccupantEvicted(windowId: windowId)
             host.minimizeWindowProgrammatically(window, reason: reason)
         }
         host.refreshIndicators()
@@ -310,10 +317,22 @@ final class FloatingZoneCoordinator {
             occupant.isInFloatingZone = false
             host.clearManagedWindowZone(occupant)
         }
+        host.floatingOccupantEvicted(windowId: windowId)
 
         host.refreshIndicators()
         host.refreshResizeHandles()
         return true
+    }
+
+    /// How the dropped window entered the floating drag, for resolving the move rule's origin.
+    /// The mid-drag floating booking of a converted tiled drag is transient and never counts as
+    /// an origin — including when an earlier cancelled conversion already lost the tiled source.
+    enum FloatingDropOrigin {
+        /// An ordinary drag of a floating-zone window; the origin is its booked floating zone.
+        case floatingWindow
+        /// A tiled drag converted mid-gesture (Control-Command); the origin is the tiling zone
+        /// the gesture started in, or nil when the drag had no source zone.
+        case convertedTiledDrag(originZoneKey: ZoneKey?)
     }
 
     func finalizeFloatingDrop(
@@ -321,12 +340,24 @@ final class FloatingZoneCoordinator {
         _ finalFrame: CGRect,
         hoveredAddZonePill: AddZonePillKey?,
         hoveredFloatingScreenId: CGDirectDisplayID?,
-        finalCursorPoint: CGPoint?
+        finalCursorPoint: CGPoint?,
+        dropOrigin: FloatingDropOrigin
     ) {
         guard let host,
               let managed = host.windowController.window(withId: windowId) else {
             return
         }
+
+        let preMoveTarget = host.targetedZoneManager.targetedDestination
+        let entryFloatingScreenId = occupants.first(where: { $0.value == windowId })?.key
+        let origin: TargetedZoneManager.TargetedDestination? = {
+            switch dropOrigin {
+            case .convertedTiledDrag(let originZoneKey):
+                return originZoneKey.map { .tiled($0) }
+            case .floatingWindow:
+                return entryFloatingScreenId.map { .floating(screenId: $0) }
+            }
+        }()
 
         let addZonePill = hoveredAddZonePill ??
             addZoneDropTarget(for: finalCursorPoint)
@@ -334,6 +365,8 @@ final class FloatingZoneCoordinator {
         if let addZonePill,
            let newZone = host.addZone(on: addZonePill.screenId, side: addZonePill.side, announce: false, promoteFloatingOccupant: false) {
             clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
+            // Zone creation applied its own targeting rule; the standard retarget-after-fill
+            // then runs inside the assignment, so the move rule adds nothing here.
             if let result = host.windowPlacementManager.assignWindowFromDrag(
                 managed,
                 to: ZoneKey(screenId: addZonePill.screenId, index: newZone.index)
@@ -347,16 +380,24 @@ final class FloatingZoneCoordinator {
             return
         }
 
+        // Resolve the drop's floating destination; without a handled indicator or cross-screen
+        // drop, the window simply stays floating where it is.
+        var destinationScreenId = entryFloatingScreenId
         if let hoveredFloatingScreenId,
            handleFloatingIndicatorDrop(managed: managed, destinationScreenId: hoveredFloatingScreenId) {
-            return
+            destinationScreenId = hoveredFloatingScreenId
+        } else if handleCrossScreenFloatingDrop(managed: managed, finalFrame: finalFrame) {
+            destinationScreenId = host.screenIdForAccessibilityFrame(finalFrame) ?? entryFloatingScreenId
         }
 
-        if handleCrossScreenFloatingDrop(managed: managed, finalFrame: finalFrame) {
-            return
+        if let destinationScreenId {
+            host.targetedZoneManager.retargetAfterMovingWindow(
+                from: origin,
+                to: .floating(screenId: destinationScreenId),
+                preMoveTarget: preMoveTarget,
+                reason: "floating-drop"
+            )
         }
-
-        // Otherwise, leaving the floating zone simply keeps the window floating.
     }
 
     private func handleFloatingIndicatorDrop(managed: ManagedWindow, destinationScreenId: CGDirectDisplayID) -> Bool {

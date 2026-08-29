@@ -61,6 +61,13 @@ class WindowController {
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
     internal var currentDraggingWindowId: Int?
+    /// A window whose manual drag was terminally cancelled mid-gesture; its AX moves are
+    /// ignored until the gesture's mouse-up clears this (see `cancelManualDragTracking`).
+    internal var manualDragTombstonedWindowId: Int?
+    /// True while the in-progress mouse gesture belongs to a cursor-driven chooser-row drag:
+    /// no window may seed a manual drag until the gesture's mouse-up, even if the row session
+    /// itself is cancelled early (e.g. by Escape) while the button stays held.
+    internal var manualDragSuppressedUntilMouseUp = false
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
     /// Primary display bounds for Cocoa<->Accessibility conversion (cursor/drag mapping).
@@ -141,6 +148,7 @@ class WindowController {
 
     internal func updateMouseUpGlobalMonitorInstallation() {
         let needsGlobalMonitor = dragCandidate != nil || currentDraggingWindowId != nil
+            || manualDragTombstonedWindowId != nil || manualDragSuppressedUntilMouseUp
         if needsGlobalMonitor {
             installMouseUpGlobalMonitorIfNeeded()
         } else {
@@ -634,6 +642,9 @@ protocol WindowControllerDelegate: AnyObject {
     func windowElementDidClose(element: AXUIElement, pid: pid_t)
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)
     func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    /// Whether a cursor-driven chooser-row drag currently owns the mouse button (blocks
+    /// manual-drag candidate detection for the gesture's duration).
+    func isCursorDrivenDragActive() -> Bool
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect)
     func windowManualMoveDidUpdate(windowId: Int, frame: CGRect)
     func windowManualMoveDidEnd(windowId: Int, finalFrame: CGRect)

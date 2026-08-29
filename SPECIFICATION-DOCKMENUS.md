@@ -78,6 +78,7 @@ Window entries in the DockMenu can be dragged directly to zones. This uses the s
 
 - **Drag initiation:** When the user drags a window entry (minimum 8px drag distance), the DockMenu dismisses immediately.
 - **Minimized windows:** If the dragged window is minimized, it is pre-positioned to the target zone frame before unminimizing for smooth animation.
+- **Drop targeting:** Dropping a window entry places it into the drop destination (a tiling zone, the floating zone, or a newly added zone) and then retargets as if that destination had been targeted and filled (see **Targeting** in [SPECIFICATION.md](SPECIFICATION.md)).
 
 ## Dismissal / Lifetime
 

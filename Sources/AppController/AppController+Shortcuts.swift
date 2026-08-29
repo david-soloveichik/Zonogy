@@ -356,6 +356,13 @@ extension AppController {
         )
 
         let reason = "collapse-floating-active"
+        let preCollapseTargetWasOnThisDisplay: Bool = {
+            switch targetedZoneManager.targetedDestination {
+            case .tiled(let key): return key.screenId == screenId
+            case .floating(let targetScreenId): return targetScreenId == screenId
+            case nil: return false
+            }
+        }()
         endUnderCovers(on: screenId, reason: reason, recreatePlaceholders: false)
         clearRememberedManualResizeSizes(on: screenId, reason: reason)
         placeholderCoordinator.clearPlaceholdersForScreen(screenId)
@@ -376,9 +383,10 @@ extension AppController {
 
         // Move the floating window into tiling zone 1 via the standard placement pipeline so
         // floating-zone bookkeeping, frame retargeting, and activation all stay consistent.
-        // Explicit floating→tile promotion: don't retarget on removal of the floating source
-        // (preserves the user's current target per the spec's reassignment exception, including
-        // the case where target is a floating zone on a different screen).
+        // Collapse is carved out of the move rule: it expresses focus on THIS display, so a
+        // target that was here must not advance to another display when zone 1 fills — it
+        // settles on this display's floating zone (now empty), per the spec's collapse rule.
+        // A target on another display was uninvolved and stays put.
         let zone1Key = ZoneKey(screenId: screenId, index: 1)
         windowPlacementManager.placeWindow(
             floatingWindow,
@@ -386,8 +394,14 @@ extension AppController {
             centerFloatingWindow: true,
             reason: reason,
             retargetOnRemoval: false,
-            forceRetargetAfterFill: false
+            retargetAfterFill: false
         )
+        if preCollapseTargetWasOnThisDisplay {
+            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+        } else {
+            // The collapse may have removed the zone a stale target pointed at; repair if so.
+            targetedZoneManager.ensureTargetedZone(reason: reason)
+        }
 
         syncWindowsToZones()
         activeFitRefreshAfterZoneTopologyChange(reason: reason)

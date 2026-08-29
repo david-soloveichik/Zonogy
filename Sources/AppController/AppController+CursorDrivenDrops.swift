@@ -10,6 +10,12 @@ extension AppController {
             return false
         }
 
+        // Claim the gesture BEFORE snapshotting the origin: cancelling a phantom manual drag
+        // can revert this very window's tiled-to-floating conversion, and the session must
+        // record its restored origin, not the transient pre-revert one. (The session-begin
+        // claim below is then an idempotent no-op.)
+        claimMouseGestureForCursorDrivenDrag()
+
         let originZoneKey = zoneKey(forManagedWindow: managed)
         let originScreenId = detectScreenId(for: managed)
         let originatedFromFloating = isWindowInFloatingZone(managed.windowId)
@@ -227,9 +233,22 @@ extension AppController {
             return true
         }
 
-        removeWindowFromAllZones(windowId: managed.windowId, reason: reason, retarget: false)
-        assignWindowToFloatingZone(managed, on: screenId, centerWindow: true, reason: reason)
-        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
+        // Captured before placement clears it: the vacated tiling zone is exempt from
+        // floating-occupant promotion on the sync below.
+        let vacatedTilingZone: ZoneKey? = {
+            guard let zoneIndex = managed.zoneIndex, let sourceScreenId = managed.screenDisplayId else { return nil }
+            return ZoneKey(screenId: sourceScreenId, index: zoneIndex)
+        }()
+        // Mirror placeWindowIntoZone: a row drop fills its destination and advances the
+        // target as if that zone had been targeted and filled.
+        windowPlacementManager.placeWindow(
+            managed,
+            into: .floating(screenId: screenId),
+            reason: reason,
+            retargetOnRemoval: false,
+            forceRetargetAfterFill: true
+        )
+        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: vacatedTilingZone)
         refreshIndicators()
         return true
     }

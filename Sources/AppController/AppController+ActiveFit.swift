@@ -394,6 +394,15 @@ extension AppController {
         Logger.debug("ActiveFit: suspended for window \(windowId) during drag")
     }
 
+    /// Drops the drag suppression without re-evaluating reveal state — for terminal gesture
+    /// teardown, where the window is leaving its assignment (or the zone system) and
+    /// evaluating the stale assignment could move the frame it is about to lose.
+    internal func activeFitClearDragSuppression(windowId: Int) {
+        if activeFitSuppressedWindowIds.remove(windowId) != nil {
+            Logger.debug("ActiveFit: cleared drag suppression for window \(windowId) (terminal teardown)")
+        }
+    }
+
     /// Resumes reveal mode evaluation after a drag ends and re-evaluates the window.
     internal func activeFitResumeAfterDrag(windowId: Int) {
         guard activeFitSuppressedWindowIds.remove(windowId) != nil else {

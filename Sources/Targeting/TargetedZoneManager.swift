@@ -9,6 +9,7 @@ protocol TargetedZoneManagerDelegate: AnyObject {
     var fullScreenDisplayIds: Set<CGDirectDisplayID> { get }
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
+    func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool
     func refreshIndicators()
     /// Called when the targeted destination changes. Allows delegate to respond (e.g., reposition/dismiss Launcher).
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?)
@@ -152,10 +153,8 @@ class TargetedZoneManager {
         }
     }
 
-    /// Retargets after a zone is filled, per spec: "if another empty normal zone exists
-    /// on the same screen, retarget to such zone with the lowest index; if none exist,
-    /// retarget to the lowest-index empty tiling zone on another screen; if none exist,
-    /// target the floating zone (same screen preferred)."
+    /// Retargets after a tiling zone is filled, per the spec's fill priority
+    /// (see `preferredRetargetDestination`).
     func retargetAfterFillingZone(_ filledKey: ZoneKey, reason: String) {
         guard let destination = preferredRetargetDestination(
             preferredSameScreenId: filledKey.screenId,
@@ -167,11 +166,57 @@ class TargetedZoneManager {
         applyRetargetDestination(destination, reason: reason)
     }
 
-    /// Shared retarget preference order for when a targeted tiling zone is filled or removed:
+    /// Retargets after the floating zone on `screenId` is filled, using the same priority
+    /// order as filling a tiling zone. The just-filled floating zone is occupied, so an empty
+    /// floating zone on another screen outranks it; when every floating zone elsewhere is
+    /// occupied too, the shared order returns the just-filled zone itself and the target stays
+    /// put. Hopping only to empty floating zones cannot oscillate the target: a later fill of
+    /// the hopped-to zone finds this one still occupied. (The Toggle Target Zone with Focused
+    /// Window shortcut also routes here to advance off a filled floating target; its
+    /// back-and-forth between that zone and an empty one elsewhere is the toggle's intended
+    /// alternation, not oscillation.)
+    func retargetAfterFillingFloatingZone(on screenId: CGDirectDisplayID, reason: String) {
+        guard let destination = preferredRetargetDestination(preferredSameScreenId: screenId) else {
+            ensureTargetedZone(reason: reason)
+            return
+        }
+        applyRetargetDestination(destination, reason: reason)
+    }
+
+    /// Retargets as if `destination` had been targeted and just filled.
+    func retargetAsIfJustFilled(_ destination: TargetedDestination, reason: String) {
+        switch destination {
+        case .tiled(let key):
+            retargetAfterFillingZone(key, reason: reason)
+        case .floating(let screenId):
+            retargetAfterFillingFloatingZone(on: screenId, reason: reason)
+        }
+    }
+
+    /// The move rule: moving a window from `origin` to `destination` retargets only when the
+    /// move touched the target — the pre-move target was the origin or the destination. It then
+    /// retargets as if the destination had been targeted and just filled (so callers should
+    /// invoke this after the move settles, including any swap partner's placement). A target
+    /// uninvolved in the move stays put. `origin` is nil for a window that held no zone.
+    func retargetAfterMovingWindow(
+        from origin: TargetedDestination?,
+        to destination: TargetedDestination,
+        preMoveTarget: TargetedDestination?,
+        reason: String
+    ) {
+        guard let preMoveTarget,
+              origin != destination,
+              preMoveTarget == destination || preMoveTarget == origin else {
+            return
+        }
+        retargetAsIfJustFilled(destination, reason: reason)
+    }
+
+    /// Shared retarget preference order for when a targeted zone is filled or removed:
     /// 1) Lowest-index empty tiling zone on the same screen
     /// 2) Lowest-index empty tiling zone on a different screen (tie-break by screen index)
-    /// 3) Floating zone on the same screen
-    /// 4) Floating zone on a different screen (tie-break by screen index)
+    /// 3) Empty floating zone (same screen first, then screen order)
+    /// 4) Any floating zone (same screen first, then screen order)
     func preferredRetargetDestination(
         preferredSameScreenId: CGDirectDisplayID?,
         excluding excluded: ZoneKey? = nil
@@ -191,19 +236,32 @@ class TargetedZoneManager {
             return .tiled(selection)
         }
 
-        if let preferredSameScreenId,
-           isScreenTargetable(preferredSameScreenId) {
-            return .floating(screenId: preferredSameScreenId)
+        if let emptyFloating = floatingRetargetCandidate(
+            preferredSameScreenId: preferredSameScreenId,
+            requireEmpty: true
+        ) {
+            return emptyFloating
+        }
+        return floatingRetargetCandidate(preferredSameScreenId: preferredSameScreenId, requireEmpty: false)
+    }
+
+    /// The floating zone to retarget to: the preferred (same) screen's first, then the rest in
+    /// screen order. With `requireEmpty`, only unoccupied floating zones qualify.
+    private func floatingRetargetCandidate(
+        preferredSameScreenId: CGDirectDisplayID?,
+        requireEmpty: Bool
+    ) -> TargetedDestination? {
+        func qualifies(_ screenId: CGDirectDisplayID) -> Bool {
+            guard isScreenTargetable(screenId) else { return false }
+            return !requireEmpty || delegate?.isFloatingZoneOccupied(on: screenId) == false
         }
 
+        if let preferredSameScreenId, qualifies(preferredSameScreenId) {
+            return .floating(screenId: preferredSameScreenId)
+        }
         guard let delegate else { return nil }
-        for screenId in delegate.screenOrder {
-            if let preferredSameScreenId, screenId == preferredSameScreenId {
-                continue
-            }
-            if isScreenTargetable(screenId) {
-                return .floating(screenId: screenId)
-            }
+        for screenId in delegate.screenOrder where screenId != preferredSameScreenId && qualifies(screenId) {
+            return .floating(screenId: screenId)
         }
         return nil
     }

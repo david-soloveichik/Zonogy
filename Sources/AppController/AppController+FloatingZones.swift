@@ -11,6 +11,19 @@ extension AppController {
         floatingZoneCoordinator.isWindowInFloatingZone(windowId)
     }
 
+    func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool {
+        floatingZoneOccupant(on: screenId) != nil
+    }
+
+    /// An eviction can strike a window mid floating drag — a new arrival filling the targeted
+    /// floating zone, occlusion or focus minimization, recapture, or Clear Zones. Terminate
+    /// the window's whole gesture so a later mouse-up or abort cannot restore stale state over
+    /// the newer placement; per the conversion policy, nothing is restored on the evicted
+    /// window's behalf. A no-op for the ordinary case of an evicted window not being dragged.
+    func floatingOccupantEvicted(windowId: Int) {
+        terminateManualGestureState(for: windowId)
+    }
+
     func cancelPendingMinimization(windowId: Int) {
         deferredMinimizationCoordinator.cancel(windowId: windowId)
     }
@@ -122,8 +135,8 @@ extension AppController {
             }
 
             Logger.debug("Promoting floating zone occupant \(occupant.windowId) to zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))")
-            // Explicit floating→tile promotion: don't retarget on removal of the floating
-            // source (preserves the user's current target per the spec's reassignment exception).
+            // Explicit floating→tile promotion: the source emptying itself must not retarget —
+            // the move rule decides (placeWindow applies it via origin/destination involvement).
             windowPlacementManager.placeWindow(
                 occupant,
                 into: .tiled(zoneKey),
@@ -172,7 +185,9 @@ extension AppController {
             finalFrame,
             hoveredAddZonePill: hoveredAddZonePill,
             hoveredFloatingScreenId: hoveredFloatingScreenId,
-            finalCursorPoint: finalCursorPoint
+            finalCursorPoint: finalCursorPoint,
+            dropOrigin: tiledToFloatingDragContexts[windowId]
+                .map { .convertedTiledDrag(originZoneKey: $0.originZoneKey) } ?? .floatingWindow
         )
         tiledToFloatingDragContexts.removeValue(forKey: windowId)
     }

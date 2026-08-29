@@ -133,9 +133,9 @@ When invoking Control-Cmd-[minus], never remove the zone containing the currentl
 
 Removing a zone reindexes the survivors sequentially and re-tiles them. In the single-bar layouts, the survivors take the layout's shape for the new count (higher-index survivors collapse inward). In the both-sides layout, each survivor keeps its side — a zone left alone on its side expands to the full column — except that when a removal leaves both survivors stacked on one side, they re-tile to one per side, lower zone number on the left. If the removed zone contained a window, if no tiling zone remains for it on that display after the collapse, minimize it instead.
 
-Pressing Control-Cmd-0 performs that same shortcut-removal action repeatedly on the active display until only one tiling zone remains.
+Pressing Control-Cmd-0 effectively performs that same shortcut-removal action repeatedly on the active display until only one tiling zone remains.
 
-If the currently active (key) managed window is a floating-zone occupant, Control-Cmd-0 collapses that window's display to a single tiling zone (minimizing every tiled occupant on that display) and promotes the floating window into tiling zone 1 on that display.
+If the currently active (key) managed window is a floating-zone occupant, Control-Cmd-0 collapses that window's display to a single tiling zone (minimizing every tiled occupant on that display) and promotes the floating window into tiling zone 1 on that display. Collapsing expresses focus on this display, so a target that was on it settles on its now-empty floating zone instead of following the move rule to another display; a target elsewhere stays put.
 
 The minimum number of zones is 1. In other words, we cannot remove the last zone. The maximum number of zones is 3 in the single-bar layouts and 4 in the both-sides layout.
 
@@ -180,21 +180,27 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 
 - Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher. (Within a placeholder's click-through region, clicks go to the window or desktop icon beneath instead; see **Placeholders**.)
 - Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
-- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. Exception: if the zone became empty as a side effect of explicitly placing that window into a different destination (e.g., Launcher moving a window), preserve the user's intended target (do not retarget to the source zone).
+- Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. When the window was instead moved into another zone, the move rule below decides targeting; the emptying itself never retargets to the source zone.
 - When a new tiling zone is created on a display: always target the lowest-index empty tiling zone on that display.
-- Whenever a window is placed into the targeted tiling zone: retarget using this priority:
+- Whenever a window is placed into the targeted zone (tiling or floating): retarget using this priority:
   1. Lowest-index empty tiling zone on the same display
   2. Lowest-index empty tiling zone on a different display (tie-break by screen index; lower is preferred)
-  3. Floating zone on the same display
-  4. Floating zone on a different display (tie-break by screen index; lower is preferred)
-- If a floating zone is filled: keep the current target.
+  3. Empty floating zone (same display preferred; then by screen index)
+  4. Any floating zone (same display preferred; then by screen index)
+- Moving a window from one zone to another (dragging the window itself, Move Focused Window to Target, zone navigation's move key, floating-zone promotions): if the move's source or destination zone was targeted before the move, retarget as if the destination had been targeted and just filled. Otherwise keep the target: a zone uninvolved in the move keeps it.
+  - Exception: drag-dropping from DockMenus or Launcher always treats its drop destination as if originally targeted and then filled. (This is because it's hard to do it otherwise when we have to wait for a new window; other drops match for uniformity.)
 - If a floating zone is emptied because its window is minimized or closed (etc): If the current target is another floating zone (e.g., on a different display), retarget to the now-empty floating zone. (Conceptually, floating-zone emptying is "weaker" than tiling-zone emptying as it never steals targeting from a tiling zone, only from another floating zone.)
 - If the targeted tiling zone is removed: retarget using the same priority order as above.
 - If the targeted destination becomes invalid (zone removed, display removed, etc): repair it using the same priority order as above.
 
 **Targeting shortcuts:**
 
-- Control-Cmd-[backslash]: Toggle Target Zone with Focused Window. If the currently targeted zone is a filled tiling zone, re-target as if that zone was just filled. Otherwise, if a managed window is focused in a non-targeted zone, target that zone. It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
+- Control-Cmd-[backslash]: Toggle Target Zone with Focused Window. The first rule that applies wins:
+  1. The targeted zone is a filled tiling zone: re-target as if it was just filled.
+  2. A managed window is focused in a non-targeted zone: target that zone.
+  3. The targeted zone is a filled floating zone: re-target as if it was just filled.
+
+  It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
 - Targeting a zone from the keyboard is part of **Zone Navigation** below: releasing the gesture over an empty zone targets it, and the Show Launcher key targets any selected zone.
 
 **Moving the focused window to the target:** Control-Cmd-Return (Move Focused Window to Target Zone) moves the currently focused managed window into the targeted zone (swap if occupied).
@@ -226,7 +232,7 @@ The gesture works while the Launcher is open: the Launcher keeps its plain arrow
 
 Each display has exactly one floating zone for floating a single managed window over the tiled layout.
 
-When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. After placement, the user may freely move/resize it without affecting tiled frames. A floating window that moves to another display becomes that display's floating-zone occupant (swapping places with any window already floating there).
+When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. After placement, the user may freely move/resize it without affecting tiled frames. A floating window that moves to another display becomes that display's floating-zone occupant (swapping places with any window already floating there); when the application itself relocates the window, this rebooking does not retarget.
 
 Zonogy records a window's floating-zone size on first placement and updates it on each user resize in the floating zone. The size survives promotions to tiling zones and is cleared only when the window is destroyed.
 
@@ -294,7 +300,7 @@ If a tiled window is dropped onto a floating zone indicator, place it into that 
 
 Holding Control-Command promotes the drag into the full zone overlay + drop pipeline for occupied zones, but the behavior is inverted for empty zones: Control-Command over an empty zone merely repositions the floating window (no drop). In this mode, dropping onto an occupied tiling zone uses the usual replace pipeline, except that if the drop displaces an occupied window, the displaced window is minimized (it does not swap back into the floating zone). You can start a normal floating drag and then hold Control-Command to enter this mode; releasing Control-Command returns to normal floating dragging.
 
-Holding Control-Command during a tiled drag promotes it into a floating-zone drag (the window is moved into the floating zone immediately). Releasing Control-Command cancels the conversion and resumes the tiled drag.
+Holding Control-Command during a tiled drag promotes it into a floating-zone drag (the window is moved into the floating zone immediately). Releasing Control-Command cancels the conversion and resumes the tiled drag. Targeting resolves only when the drag ends (see **Targeting**), so a cancelled conversion leaves the target untouched.
 
 If a window is dragged and dropped over an add-zone indicator ("new zone" pill), we immediately add the zone on that indicator's side and place the dragged window into it (works for both tiled and floating-zone drags). During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 

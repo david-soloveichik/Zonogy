@@ -816,6 +816,14 @@ extension AppController: LauncherControllerDelegate {
                 self.activateWindow(managed)
             }
         }
+        // Captured before placement clears it: a tiling zone vacated by an explicit move into
+        // the floating zone is exempt from floating-occupant promotion on the sync below.
+        let vacatedTilingZone: ZoneKey? = {
+            guard case .floating = destination,
+                  let zoneIndex = managed.zoneIndex,
+                  let screenId = managed.screenDisplayId else { return nil }
+            return ZoneKey(screenId: screenId, index: zoneIndex)
+        }()
 
         windowPlacementManager.placeWindow(
             managed,
@@ -830,7 +838,7 @@ extension AppController: LauncherControllerDelegate {
         switch destination {
         case .floating:
             // Sync to create placeholder for the now-empty source zone.
-            syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId)
+            syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: vacatedTilingZone)
             return .placed
         case .tiled:
             break

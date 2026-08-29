@@ -63,11 +63,14 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     // Targeted zone management
     var targetedZoneManager: TargetedZoneManager { get }
 
+    // Gesture ownership
+    func claimMouseGestureForCursorDrivenDrag()
+
     // Window placement
     var windowPlacementManager: WindowPlacementManager { get }
 
     // Synchronization
-    func syncWindowsToZones(recentlyPlacedInFloatingZone: Int?)
+    func syncWindowsToZones(recentlyPlacedInFloatingZone: Int?, explicitlyVacatedZone: ZoneKey?)
 
     // Full-screen handling
     func isScreenPausedForFullScreen(_ screenId: CGDirectDisplayID) -> Bool
@@ -81,7 +84,11 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
 
     // Floating zone placement
-    func dropWindowIntoFloatingZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID)
+    func dropWindowIntoFloatingZone(
+        _ managed: ManagedWindow,
+        from origin: TargetedZoneManager.TargetedDestination?,
+        on screenId: CGDirectDisplayID
+    )
     var areGestureModifiersHeld: Bool { get }
     func resumeFloatingDrag(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?)
     func promoteTiledDragToFloating(
@@ -110,6 +117,21 @@ class DragDropCoordinator {
 
     var currentDragWindowId: Int? {
         dragSession?.windowId
+    }
+
+    /// The window of an ordinary manual window drag; nil for cursor-driven chooser-row
+    /// sessions, whose lifecycle is owned by the chooser (a row's window being minimized or
+    /// evicted must not cancel the row drag — row drops handle minimized windows).
+    var currentManualDragWindowId: Int? {
+        guard let session = dragSession, !session.isCursorDriven else {
+            return nil
+        }
+        return session.windowId
+    }
+
+    /// Whether a cursor-driven chooser-row session currently owns the mouse button.
+    var isCursorDrivenDragActive: Bool {
+        dragSession?.isCursorDriven == true
     }
 
     func beginDragSession(
@@ -149,6 +171,10 @@ class DragDropCoordinator {
         zoneDropPolicy: CursorDrivenZoneDropPolicy = .allZones
     ) {
         cursorPointOverrideAX = nil
+        // The gesture now belongs to this row drag: terminate any manual drag a pre-threshold
+        // app-driven move may have activated, drop any pending candidate, and block new ones
+        // through the gesture's mouse-up.
+        delegate?.claimMouseGestureForCursorDrivenDrag()
         let cursorFrame = cursorSyntheticFrame()
         dragSession = DragSession(
             windowId: windowId,
@@ -266,11 +292,25 @@ class DragDropCoordinator {
             )
         }
 
+        // A cursor-driven session is ended by the chooser's own drop flow, never by manual
+        // move-end events (which cannot legitimately arise while it owns the button; see
+        // `ensureManualDragBegan`'s ownership guard). Defensively leave it fully untouched —
+        // no drag-update recording either.
+        if let session = dragSession, session.isCursorDriven {
+            return EndDragSessionResult(
+                displacedWindow: nil,
+                preferredScreenId: nil,
+                displacedDisposition: .reassign,
+                originatedFromFloating: false,
+                didResolveDrop: false
+            )
+        }
+
         recordDragUpdate(windowId: windowId, frame: finalFrame)
 
         guard let session = dragSession, session.windowId == windowId else {
             tearDownDragSession()
-            delegate.syncWindowsToZones(recentlyPlacedInFloatingZone: nil)
+            delegate.syncWindowsToZones(recentlyPlacedInFloatingZone: nil, explicitlyVacatedZone: nil)
             return EndDragSessionResult(
                 displacedWindow: nil,
                 preferredScreenId: nil,
@@ -579,6 +619,15 @@ class DragDropCoordinator {
         return performDrop(session: session, targetKey: newKey)
     }
 
+    /// The move's logical origin for targeting: the session's source tiling zone, or the
+    /// floating zone a floating-origin session started from.
+    private func moveOrigin(for session: DragSession) -> TargetedZoneManager.TargetedDestination? {
+        session.originZoneKey.map { .tiled($0) }
+            ?? (session.originatedFromFloating
+                ? session.originScreenId.map { .floating(screenId: $0) }
+                : nil)
+    }
+
     private func performDropIntoFloatingZone(session: DragSession, screenId: CGDirectDisplayID) -> DropResult? {
         guard let delegate = delegate,
               let windowId = session.windowId,
@@ -586,7 +635,7 @@ class DragDropCoordinator {
             return nil
         }
 
-        delegate.dropWindowIntoFloatingZone(managed, from: session.originZoneKey, on: screenId)
+        delegate.dropWindowIntoFloatingZone(managed, from: moveOrigin(for: session), on: screenId)
         return DropResult(displacedWindow: nil, preferredScreenId: screenId)
     }
 
@@ -624,6 +673,9 @@ class DragDropCoordinator {
             return DropResult(displacedWindow: nil, preferredScreenId: nil)
         }
 
+        // Captured before any bookkeeping so the move rule below sees the pre-move target.
+        let preMoveTarget = delegate.targetedZoneManager.targetedDestination
+
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId] {
             sourceContext.zoneController.removeWindow(windowId: windowId)
@@ -644,7 +696,12 @@ class DragDropCoordinator {
             Logger.debug("Pre-minimized displaced occupant \(existingOccupantId) before floating-origin drop into zone \(targetKey.index)")
         }
 
-        guard let assignment = delegate.windowPlacementManager.assignWindowFromDrag(managed, to: targetKey) else {
+        // The move rule is applied below, once the drop (including any swap-back) has settled.
+        guard let assignment = delegate.windowPlacementManager.assignWindowFromDrag(
+            managed,
+            to: targetKey,
+            retargetAfterFill: false
+        ) else {
             Logger.debug("Drag drop failed: unable to assign window \(windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
             return nil
         }
@@ -652,24 +709,28 @@ class DragDropCoordinator {
         let displacedWindow = assignment.displacedWindow
         Logger.debug("Window \(windowId) dropped into zone \(targetKey.index) on \(targetContext.descriptor.localizedName)")
 
+        var result = DropResult(displacedWindow: nil, preferredScreenId: nil)
         if let sourceKey,
            let sourceContext = delegate.screenContexts[sourceKey.screenId],
            let displaced = displacedWindow {
             sourceContext.zoneController.assignWindow(windowId: displaced.windowId, toZoneIndex: sourceKey.index)
             delegate.setManagedWindow(displaced, screenId: sourceKey.screenId, zoneIndex: sourceKey.index)
             Logger.debug("Swapped displaced window \(displaced.windowId) back into original zone \(sourceKey.index)")
-            return DropResult(displacedWindow: nil, preferredScreenId: nil)
-        }
-
-        if let displaced = displacedWindow {
+        } else if let displaced = displacedWindow {
             Logger.debug("Window \(displaced.windowId) displaced from zone \(targetKey.index); will reassign later")
-            return DropResult(
+            result = DropResult(
                 displacedWindow: displaced,
                 preferredScreenId: targetKey.screenId,
                 displacedDisposition: session.originatedFromFloating ? .minimize : .reassign
             )
         }
 
-        return DropResult(displacedWindow: nil, preferredScreenId: nil)
+        delegate.targetedZoneManager.retargetAfterMovingWindow(
+            from: moveOrigin(for: session),
+            to: .tiled(targetKey),
+            preMoveTarget: preMoveTarget,
+            reason: "drag-drop-filled"
+        )
+        return result
     }
 }

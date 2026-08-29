@@ -459,9 +459,9 @@ extension AppController {
         // returned above). Mark it so CmdTab's initial selection skips the window.
         recentUserMinimizeTracker.recordUserMinimize(windowId: windowId)
 
-        if dragDropCoordinator.currentDragWindowId == windowId {
-            dragDropCoordinator.tearDownDragSession()
-        }
+        // Gesture teardown (manual drag session, tracking, conversion) happens inside
+        // removeWindowFromAllZones; a cursor-driven row drag of this window survives — row
+        // drops handle minimized windows.
         removeWindowFromAllZones(windowId: windowId, reason: "delegate-did-miniaturize", retarget: true)
         // Sync handles floating zone promotion automatically
         syncWindowsToZones()
@@ -818,6 +818,12 @@ extension AppController {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidEnd(\(windowId))") {
             return
         }
+        // A manual move-end cannot belong to a gesture owned by a cursor-driven row drag;
+        // defense in depth for the ownership guard in `ensureManualDragBegan` — nothing here
+        // (session, sync, fallback placement, ActiveFit) may run for a spurious end.
+        if dragDropCoordinator.isCursorDrivenDragActive {
+            return
+        }
         if suppressManagedMoveForUnmanagedWindowEdgeDrag(windowId: windowId, frame: finalFrame, event: "move-end") {
             return
         }
@@ -891,6 +897,68 @@ extension AppController {
         )
     }
 
+    /// Terminally tears down every piece of an in-flight manual gesture for `windowId`: the
+    /// tiled drag session, the floating drag handler, the WindowController move tracking
+    /// (tombstoned through mouse-up so the held button cannot restart the drag), the drag's
+    /// ActiveFit suppression, and any pending tiled-to-floating conversion. Every step is a
+    /// no-op for a window without the corresponding state.
+    internal func terminateManualGestureState(for windowId: Int) {
+        var hadGesture = false
+        if dragDropCoordinator.currentManualDragWindowId == windowId {
+            // Ensure overlays go away when the dragged window disappears. Cursor-driven
+            // chooser-row sessions are deliberately not manual gestures: they survive their
+            // window's minimize/eviction and are cancelled by the chooser lifecycle instead.
+            dragDropCoordinator.tearDownDragSession()
+            hadGesture = true
+        }
+        if floatingDragHandler.draggingWindowId == windowId {
+            // A floating-zone drag uses a separate handler and overlay manager from the tiled
+            // coordinator, so it needs its own teardown — without it, a window that disappears
+            // mid floating-drag leaves the blue zone overlays stuck on screen.
+            floatingDragHandler.abortDrag()
+            hadGesture = true
+        }
+        if windowController.cancelManualDragTracking(windowId: windowId) {
+            hadGesture = true
+        }
+        if hadGesture {
+            // Clear-only: the window is leaving its assignment, so the normal resume's
+            // re-evaluation would act on stale state. Gated to actual gestures so unrelated
+            // suppressions (e.g. WinShot's timed one) are never touched.
+            activeFitClearDragSuppression(windowId: windowId)
+        }
+        // Deliberately unconditional, unlike the gesture-gated steps above: a stale conversion
+        // context must die even when its drag state is already gone.
+        tiledToFloatingDragContexts.removeValue(forKey: windowId)
+    }
+
+    func isCursorDrivenDragActive() -> Bool {
+        dragDropCoordinator.isCursorDrivenDragActive
+    }
+
+    /// Claims the in-progress mouse gesture for a cursor-driven chooser-row drag: cancels any
+    /// manual drag that pre-threshold app-driven moves may have activated, then blocks
+    /// manual-drag candidates until the gesture's mouse-up. Cancellation — not disappearance:
+    /// the phantom drag's window is still managed, so this mirrors the abnormal-abort flow —
+    /// a tiled-to-floating conversion it made is reverted (restoring the origin and the
+    /// displaced occupant), and ActiveFit resumes with the restored assignment. (When the
+    /// revert instead recovered through normal placement because the origin was taken, the
+    /// suppression is already cleared and the placement pipeline owns re-evaluation.)
+    func claimMouseGestureForCursorDrivenDrag() {
+        if let phantomWindowId = windowController.currentDraggingWindowId {
+            if dragDropCoordinator.currentManualDragWindowId == phantomWindowId {
+                dragDropCoordinator.tearDownDragSession()
+            }
+            if floatingDragHandler.draggingWindowId == phantomWindowId {
+                floatingDragHandler.abortDrag()
+            }
+            cancelTiledFloatingConversionIfNeeded(windowId: phantomWindowId, reason: "cursor-drag-claim")
+            windowController.cancelManualDragTracking(windowId: phantomWindowId)
+            activeFitResumeAfterDrag(windowId: phantomWindowId)
+        }
+        windowController.suppressManualDragUntilMouseUp()
+    }
+
     func windowManualMoveDidAbort(windowId: Int) {
         if shouldIgnoreDueToSleepWake(event: "windowManualMoveDidAbort(\(windowId))") {
             return
@@ -898,6 +966,7 @@ extension AppController {
         if floatingDragHandler.isActive {
             floatingDragHandler.abortDrag()
             cancelTiledFloatingConversionIfNeeded(windowId: windowId, reason: "floating-drag-abort")
+            activeFitResumeAfterDrag(windowId: windowId)
             return
         }
         if dragDropCoordinator.currentDragWindowId == windowId {
@@ -908,19 +977,30 @@ extension AppController {
         activeFitResumeAfterDrag(windowId: windowId)
     }
 
-    func dropWindowIntoFloatingZone(_ managed: ManagedWindow, from originKey: ZoneKey?, on screenId: CGDirectDisplayID) {
+    func dropWindowIntoFloatingZone(
+        _ managed: ManagedWindow,
+        from origin: TargetedZoneManager.TargetedDestination?,
+        on screenId: CGDirectDisplayID
+    ) {
+        let preMoveTarget = targetedZoneManager.targetedDestination
+        let vacatedTilingZone: ZoneKey? = {
+            if case .tiled(let originKey) = origin { return originKey }
+            return nil
+        }()
         // Clear both sides: zone's record and window's record of the assignment
-        if let originKey,
-           let originContext = screenContexts[originKey.screenId] {
+        if let vacatedTilingZone,
+           let originContext = screenContexts[vacatedTilingZone.screenId] {
             originContext.zoneController.removeWindow(windowId: managed.windowId)
         }
         clearManagedWindowZone(managed)
         assignWindowToFloatingZone(managed, on: screenId, centerWindow: true, reason: "drag-to-floating-zone")
-        handleZoneEmptiedByFloatingDrag(
-            originZoneKey: originKey,
-            recentlyPlacedInFloatingZone: managed.windowId,
+        targetedZoneManager.retargetAfterMovingWindow(
+            from: origin,
+            to: .floating(screenId: screenId),
+            preMoveTarget: preMoveTarget,
             reason: "drag-to-floating-zone"
         )
+        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: vacatedTilingZone)
     }
 
     internal func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?) {
@@ -987,20 +1067,16 @@ extension AppController {
             centerWindow: false,
             reason: "control-command-drag-to-floating"
         )
-        handleZoneEmptiedByFloatingDrag(
-            originZoneKey: originZoneKey,
-            recentlyPlacedInFloatingZone: windowId,
-            reason: "control-command-drag-to-floating"
-        )
+        // Sync so the vacated zone's placeholder appears immediately, without promoting a
+        // floating occupant into it (promotion exception). The conversion itself leaves the
+        // target untouched — targeting resolves when the drag ends (the move rule runs at the
+        // drop, and a cancelled conversion must leave the target as it was).
+        syncWindowsToZones(recentlyPlacedInFloatingZone: windowId, explicitlyVacatedZone: originZoneKey)
 
-        floatingDragHandler.beginDrag(
-            windowId: windowId,
-            originScreenId: destinationScreenId,
-            originZoneKey: originZoneKey,
-            requiresGestureModifiers: true
-        )
-        floatingDragHandler.updateDrag(frame: frame)
-
+        // Store the conversion context BEFORE starting the handler: the first updateDrag can
+        // observe that Control-Command was already released and synchronously revert, which
+        // must find (and consume) this context — storing it afterwards would leave the window
+        // stuck floating with a stale context and no active drag.
         tiledToFloatingDragContexts[windowId] = TiledToFloatingDragContext(
             originZoneKey: originZoneKey,
             originScreenId: originScreenId,
@@ -1009,34 +1085,26 @@ extension AppController {
             displacedWindowFrame: displacedFrame
         )
 
+        floatingDragHandler.beginDrag(
+            windowId: windowId,
+            originScreenId: destinationScreenId,
+            requiresGestureModifiers: true
+        )
+        floatingDragHandler.updateDrag(frame: frame)
+
         return true
     }
 
-    private func handleZoneEmptiedByFloatingDrag(
-        originZoneKey: ZoneKey?,
-        recentlyPlacedInFloatingZone windowId: Int,
-        reason: String
-    ) {
-        if let originZoneKey,
-           let originContext = screenContexts[originZoneKey.screenId],
-           originContext.zoneController.zone(at: originZoneKey.index) != nil {
-            targetedZoneManager.setTargetedZone(originZoneKey, reason: reason)
-        }
-        syncWindowsToZones(recentlyPlacedInFloatingZone: windowId)
-    }
-
-    func revertFloatingDragToTiled(
-        windowId: Int,
-        frame: CGRect,
-        originZoneKey: ZoneKey?,
-        originScreenId: CGDirectDisplayID?
-    ) {
+    func revertFloatingDragToTiled(windowId: Int, frame: CGRect) {
         guard let context = tiledToFloatingDragContexts.removeValue(forKey: windowId),
               let managed = windowController.window(withId: windowId) else {
             return
         }
 
-        reinstateWindowFromFloatingContext(
+        // Resume the tiled drag with the origin the reinstatement actually restored; if the
+        // origin was taken mid-conversion, the drag continues sourceless (its drop then places
+        // or swaps like a tear-out drag instead of clobbering the origin's new occupant).
+        let restoredOriginKey = reinstateWindowFromFloatingContext(
             windowId: windowId,
             context: context,
             managed: managed,
@@ -1046,7 +1114,7 @@ extension AppController {
         dragDropCoordinator.beginDragSession(
             windowId: windowId,
             frame: frame,
-            originZoneKey: context.originZoneKey,
+            originZoneKey: restoredOriginKey,
             originScreenId: context.originScreenId,
             originatedFromFloating: false
         )
@@ -1343,15 +1411,30 @@ extension AppController {
             return
         }
 
+        let preMoveTarget = targetedZoneManager.targetedDestination
+        let origin: TargetedZoneManager.TargetedDestination? = managed.isInFloatingZone
+            ? managed.screenDisplayId.map { .floating(screenId: $0) }
+            : nil
+
         clearFloatingZone(for: windowId, minimize: false, reason: "auto-promote-drop-into-empty-zone")
 
-        if let result = windowPlacementManager.assignWindowFromDrag(managed, to: zoneKey) {
+        if let result = windowPlacementManager.assignWindowFromDrag(
+            managed,
+            to: zoneKey,
+            retargetAfterFill: false
+        ) {
             displacedWindowCoordinator.resolve(
                 result.displacedWindow,
                 preferredScreenId: zoneKey.screenId,
                 disposition: .reassign
             )
         }
+        targetedZoneManager.retargetAfterMovingWindow(
+            from: origin,
+            to: .tiled(zoneKey),
+            preMoveTarget: preMoveTarget,
+            reason: "auto-promote-drop-into-empty-zone"
+        )
 
         syncWindowsToZones()
         Logger.debug("Auto-promoted floating drag: window \(windowId) dropped into empty zone \(zoneKey.index) on screen \(screenContextStore.loggingIndex(for: zoneKey.screenId))")
@@ -1512,6 +1595,20 @@ extension AppController {
               let displaced = windowController.window(withId: displacedId) else {
             return
         }
+        // Restore only an occupant that is still ours to restore: if it was independently
+        // re-placed meanwhile (e.g. its app unminimized it and it landed in a zone), or the
+        // floating slot has since gained a new occupant, leave things as they are.
+        guard displaced.zoneIndex == nil,
+              !displaced.isInFloatingZone,
+              floatingZoneOccupant(on: context.floatingScreenId) == nil else {
+            return
+        }
+        // The revert re-books the occupant itself below; suppress the deminiaturize
+        // notification so the unminimize pipeline doesn't re-place (and re-target) it as a
+        // newly arrived window. Armed unconditionally: the AX state may already read
+        // unminimized while the notification is still in flight, and the suppression is
+        // count-limited and time-bounded, so it cannot linger if no event ever arrives.
+        suppressNextEvents(for: [displacedId], events: [.deminiaturized], reason: "floating-drag-revert")
         unminimizeWithPrePositioning(displaced, reason: "floating-drag-revert")
         assignWindowToFloatingZone(
             displaced,
@@ -1528,22 +1625,37 @@ extension AppController {
         }
     }
 
+    /// Returns the origin zone the window was rebooked into, or nil when the origin was
+    /// occupied or gone and the window was left unzoned.
+    @discardableResult
     private func reinstateWindowFromFloatingContext(
         windowId: Int,
         context: TiledToFloatingDragContext,
         managed: ManagedWindow,
         reason: String
-    ) {
+    ) -> ZoneKey? {
         clearFloatingZone(for: windowId, minimize: false, reason: reason)
         restoreFloatingOccupant(from: context)
 
+        // Only rebook the origin zone if it is still empty — something else may have filled it
+        // mid-conversion (e.g. a new window arriving in a still-targeted origin). Overwriting
+        // would strand that occupant's assignment; leaving the window unzoned lets the caller
+        // route it through the ongoing drag or the normal placement pipeline.
         if let originKey = context.originZoneKey,
-           let originContext = screenContexts[originKey.screenId] {
+           let originContext = screenContexts[originKey.screenId],
+           let originZone = originContext.zoneController.zone(at: originKey.index),
+           originZone.isEmpty {
             originContext.zoneController.assignWindow(windowId: windowId, toZoneIndex: originKey.index)
             setManagedWindow(managed, screenId: originKey.screenId, zoneIndex: originKey.index)
-        } else if let screenId = context.originScreenId {
+            // The conversion's sync recorded this zone as empty; without this, its next
+            // genuine emptying would not register as newly empty for promotion.
+            noteZoneReoccupiedOutsideSync(originKey)
+            return originKey
+        }
+        if let screenId = context.originZoneKey?.screenId ?? context.originScreenId {
             setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
         }
+        return nil
     }
 
     internal func cancelTiledFloatingConversionIfNeeded(windowId: Int, reason: String) {
@@ -1551,7 +1663,18 @@ extension AppController {
               let managed = windowController.window(withId: windowId) else {
             return
         }
-        reinstateWindowFromFloatingContext(windowId: windowId, context: context, managed: managed, reason: reason)
-        syncWindowsToZones()
+        let restoredOriginKey = reinstateWindowFromFloatingContext(
+            windowId: windowId,
+            context: context,
+            managed: managed,
+            reason: reason
+        )
+        if restoredOriginKey == nil {
+            // The origin was taken mid-conversion; route the window through normal placement
+            // instead of leaving it unzoned.
+            windowPlacementManager.placeNewWindow(managed)
+        } else {
+            syncWindowsToZones()
+        }
     }
 }
