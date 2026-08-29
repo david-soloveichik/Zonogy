@@ -381,7 +381,6 @@ extension AppController {
             into: .tiled(zoneKey(for: screenId, index: zoneIndex)),
             centerFloatingWindow: true,
             reason: "placeholder-activated-promotion",
-            retargetOnRemoval: false,
             forceRetargetAfterFill: false
         )
     }
@@ -899,7 +898,7 @@ extension AppController {
 
     /// Terminally tears down every piece of an in-flight manual gesture for `windowId`: the
     /// tiled drag session, the floating drag handler, the WindowController move tracking
-    /// (tombstoned through mouse-up so the held button cannot restart the drag), the drag's
+    /// (blocked through mouse-up so the held button cannot restart the drag), the drag's
     /// ActiveFit suppression, and any pending tiled-to-floating conversion. Every step is a
     /// no-op for a window without the corresponding state.
     internal func terminateManualGestureState(for windowId: Int) {
@@ -983,10 +982,7 @@ extension AppController {
         on screenId: CGDirectDisplayID
     ) {
         let preMoveTarget = targetedZoneManager.targetedDestination
-        let vacatedTilingZone: ZoneKey? = {
-            if case .tiled(let originKey) = origin { return originKey }
-            return nil
-        }()
+        let vacatedTilingZone = origin?.tiledKey
         // Clear both sides: zone's record and window's record of the assignment
         if let vacatedTilingZone,
            let originContext = screenContexts[vacatedTilingZone.screenId] {
@@ -1412,9 +1408,7 @@ extension AppController {
         }
 
         let preMoveTarget = targetedZoneManager.targetedDestination
-        let origin: TargetedZoneManager.TargetedDestination? = managed.isInFloatingZone
-            ? managed.screenDisplayId.map { .floating(screenId: $0) }
-            : nil
+        let origin = managed.zoneDestination
 
         clearFloatingZone(for: windowId, minimize: false, reason: "auto-promote-drop-into-empty-zone")
 

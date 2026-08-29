@@ -19,16 +19,29 @@ class TargetedZoneManager {
     enum TargetedDestination: Equatable {
         case tiled(ZoneKey)
         case floating(screenId: CGDirectDisplayID)
+
+        /// The tiling zone this destination names, or nil for a floating zone.
+        var tiledKey: ZoneKey? {
+            if case .tiled(let key) = self {
+                return key
+            }
+            return nil
+        }
+
+        /// The display this destination lives on.
+        var screenId: CGDirectDisplayID {
+            switch self {
+            case .tiled(let key): return key.screenId
+            case .floating(let screenId): return screenId
+            }
+        }
     }
 
     weak var delegate: TargetedZoneManagerDelegate?
     private(set) var targetedDestination: TargetedDestination?
 
     var targetedZoneKey: ZoneKey? {
-        if case .tiled(let key) = targetedDestination {
-            return key
-        }
-        return nil
+        targetedDestination?.tiledKey
     }
 
     var targetedFloatingScreenId: CGDirectDisplayID? {
@@ -197,7 +210,10 @@ class TargetedZoneManager {
     /// move touched the target — the pre-move target was the origin or the destination. It then
     /// retargets as if the destination had been targeted and just filled (so callers should
     /// invoke this after the move settles, including any swap partner's placement). A target
-    /// uninvolved in the move stays put. `origin` is nil for a window that held no zone.
+    /// uninvolved in the move stays put, and a re-placement within one zone (`origin ==
+    /// destination`) is not a move. A fill is a move with no origin: with `from: nil` the rule
+    /// retargets exactly when the destination was the pre-move target, so placement paths use
+    /// this for plain fills too.
     func retargetAfterMovingWindow(
         from origin: TargetedDestination?,
         to destination: TargetedDestination,

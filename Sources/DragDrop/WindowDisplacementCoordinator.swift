@@ -58,7 +58,6 @@ final class DisplacedWindowCoordinator {
             displacedWindow,
             into: .floating(screenId: screenId),
             reason: fallbackFloatingReason,
-            retargetOnRemoval: false,
             logIfUnassignedOnRemoval: false
         )
     }

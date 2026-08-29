@@ -87,7 +87,6 @@ extension AppController {
             into: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
             centerFloatingWindow: true,
             reason: "add-zone-promote-overlap",
-            retargetOnRemoval: false,
             forceRetargetAfterFill: false
         )
     }
@@ -188,7 +187,7 @@ extension AppController {
         // the re-affirm flash in `retargetForUserGesture`; a same-screen survivor fires no change
         // event, so this never double-flashes with the standard one.
         let targetSurvivedInPlace = targetedZoneManager.targetedDestination == destinationBefore
-        let targetOnRemovalScreen = destinationBefore.flatMap { self.screenId(for: $0) } == screenId
+        let targetOnRemovalScreen = destinationBefore?.screenId == screenId
         if hasCompletedInitialStartup, !suppressTargetChangeFlash,
            targetSurvivedInPlace, targetOnRemovalScreen {
             flashCurrentTargetFeedback()

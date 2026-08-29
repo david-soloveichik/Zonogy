@@ -75,8 +75,7 @@ extension AppController {
             return
         }
 
-        if let screenId = screenId(for: effectiveDestination),
-           isScreenPausedForFullScreen(screenId) {
+        if isScreenPausedForFullScreen(effectiveDestination.screenId) {
             launcherController.hide()
             Logger.debug("Launcher: Hidden because target screen is full-screen")
             return
@@ -333,8 +332,7 @@ extension AppController {
             return
         }
 
-        if let temporaryScreenId = screenId(for: temporaryTarget),
-           isScreenPausedForFullScreen(temporaryScreenId) {
+        if isScreenPausedForFullScreen(temporaryTarget.screenId) {
             Logger.debug("Launcher: Skipping shortcut retarget because resolved screen is full-screen")
             return
         }
@@ -503,8 +501,7 @@ extension AppController: LauncherControllerDelegate {
             let destination = launcherSelectionDestination(for: managed)
             if behindFullScreen {
                 guard let destination,
-                      let destinationScreenId = screenId(for: destination),
-                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destinationScreenId) == false else {
+                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false else {
                     Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space with no visible destination; ignoring selection")
                     return .ignored
                 }
@@ -594,8 +591,7 @@ extension AppController: LauncherControllerDelegate {
             let destination = launcherSelectionDestination(for: preferredWindow)
             if behindFullScreen {
                 guard let destination,
-                      let destinationScreenId = screenId(for: destination),
-                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destinationScreenId) == false else {
+                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false else {
                     Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space with no visible destination; ignoring selection")
                     return
                 }
@@ -757,21 +753,7 @@ extension AppController: LauncherControllerDelegate {
     }
 
     func targetedScreenId() -> CGDirectDisplayID? {
-        // Return the targeted screen (floating zone screen or tiled zone screen)
-        if let destination = targetedZoneManager.targetedDestination,
-           let screenId = screenId(for: destination) {
-            return screenId
-        }
-        return activeScreenId()
-    }
-
-    internal func screenId(for destination: TargetedZoneManager.TargetedDestination) -> CGDirectDisplayID? {
-        switch destination {
-        case .floating(let screenId):
-            return screenId
-        case .tiled(let key):
-            return key.screenId
-        }
+        targetedZoneManager.targetedDestination?.screenId ?? activeScreenId()
     }
 
     func menuBarOwnerPid() -> pid_t? {
@@ -819,10 +801,8 @@ extension AppController: LauncherControllerDelegate {
         // Captured before placement clears it: a tiling zone vacated by an explicit move into
         // the floating zone is exempt from floating-occupant promotion on the sync below.
         let vacatedTilingZone: ZoneKey? = {
-            guard case .floating = destination,
-                  let zoneIndex = managed.zoneIndex,
-                  let screenId = managed.screenDisplayId else { return nil }
-            return ZoneKey(screenId: screenId, index: zoneIndex)
+            guard case .floating = destination else { return nil }
+            return managed.zoneDestination?.tiledKey
         }()
 
         windowPlacementManager.placeWindow(
@@ -830,7 +810,6 @@ extension AppController: LauncherControllerDelegate {
             into: destination,
             centerFloatingWindow: true,
             reason: "launcher-selection",
-            retargetOnRemoval: false,
             forceRetargetAfterFill: false,
             afterPlacementAction: afterPlacementAction
         )
@@ -867,7 +846,6 @@ extension AppController: LauncherControllerDelegate {
             into: .tiled(zoneKey),
             centerFloatingWindow: true,
             reason: "dockmenu-drag-placement",
-            retargetOnRemoval: false,
             forceRetargetAfterFill: true,
             afterPlacementAction: {
                 didActivateInPlacement = true

@@ -76,7 +76,6 @@ extension AppController {
                 into: destination,
                 centerFloatingWindow: true,
                 reason: reason,
-                retargetOnRemoval: false,
                 retargetAfterFill: false,
                 afterPlacementAction: {
                     didActivateInPlacement = true
@@ -94,7 +93,6 @@ extension AppController {
                 into: destination,
                 centerFloatingWindow: true,
                 reason: reason,
-                retargetOnRemoval: false,
                 retargetAfterFill: false
             )
             recentlyPlacedInFloatingZone = managed.windowId
@@ -106,7 +104,6 @@ extension AppController {
                 into: origin,
                 centerFloatingWindow: true,
                 reason: "\(reason)-swap",
-                retargetOnRemoval: false,
                 retargetAfterFill: false,
                 activate: false
             )
@@ -124,8 +121,8 @@ extension AppController {
         // A tiling zone vacated by an explicit move into the floating zone is exempt from
         // floating-occupant promotion on this sync (with a swap partner it is refilled anyway).
         let vacatedTilingZone: ZoneKey? = {
-            guard case .floating = destination, case .tiled(let originKey)? = origin else { return nil }
-            return originKey
+            guard case .floating = destination else { return nil }
+            return origin?.tiledKey
         }()
         syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone, explicitlyVacatedZone: vacatedTilingZone)
     }

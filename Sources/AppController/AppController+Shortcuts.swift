@@ -356,13 +356,7 @@ extension AppController {
         )
 
         let reason = "collapse-floating-active"
-        let preCollapseTargetWasOnThisDisplay: Bool = {
-            switch targetedZoneManager.targetedDestination {
-            case .tiled(let key): return key.screenId == screenId
-            case .floating(let targetScreenId): return targetScreenId == screenId
-            case nil: return false
-            }
-        }()
+        let preCollapseTargetWasOnThisDisplay = targetedZoneManager.targetedDestination?.screenId == screenId
         endUnderCovers(on: screenId, reason: reason, recreatePlaceholders: false)
         clearRememberedManualResizeSizes(on: screenId, reason: reason)
         placeholderCoordinator.clearPlaceholdersForScreen(screenId)
@@ -393,7 +387,6 @@ extension AppController {
             into: .tiled(zone1Key),
             centerFloatingWindow: true,
             reason: reason,
-            retargetOnRemoval: false,
             retargetAfterFill: false
         )
         if preCollapseTargetWasOnThisDisplay {

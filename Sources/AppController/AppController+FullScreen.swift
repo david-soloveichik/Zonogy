@@ -172,7 +172,6 @@ extension AppController {
             into: destination,
             centerFloatingWindow: true,
             reason: "behind-full-screen-raise",
-            retargetOnRemoval: false,
             forceRetargetAfterFill: false,
             afterPlacementAction: afterPlacementAction
         )
@@ -182,11 +181,10 @@ extension AppController {
     /// (no destination, or an unreadable state, counts as not confirmed).
     private func isTargetedDisplayShowingRegularSpace() -> Bool {
         targetedZoneManager.ensureTargetedZone(reason: "behind-full-screen-selection")
-        guard let destination = targetedZoneManager.targetedDestination,
-              let screenId = screenId(for: destination) else {
+        guard let destination = targetedZoneManager.targetedDestination else {
             return false
         }
-        return SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == false
+        return SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false
     }
 
     /// Invariant: while a display's native full-screen Space exists, the regular Space parked
@@ -652,7 +650,6 @@ extension AppController {
                 into: destination,
                 centerFloatingWindow: true,
                 reason: "\(baseReason)-deferred-placement",
-                retargetOnRemoval: true,
                 forceRetargetAfterFill: false,
                 logIfUnassignedOnRemoval: false
             )

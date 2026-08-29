@@ -142,7 +142,6 @@ extension AppController {
                 into: .tiled(zoneKey),
                 centerFloatingWindow: true,
                 reason: reason,
-                retargetOnRemoval: false,
                 forceRetargetAfterFill: false
             )
         }

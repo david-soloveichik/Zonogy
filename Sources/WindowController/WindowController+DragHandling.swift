@@ -25,9 +25,8 @@ extension WindowController {
         // One left button means one gesture — see ManualDragGatePolicy for the ownership rules.
         switch ManualDragGatePolicy.gate(
             windowId: managed.windowId,
-            suppressedUntilMouseUp: manualDragSuppressedUntilMouseUp,
+            blockedUntilMouseUp: manualDragBlockedUntilMouseUp,
             cursorDrivenDragActive: delegate?.isCursorDrivenDragActive() == true,
-            tombstonedWindowId: manualDragTombstonedWindowId,
             currentDraggingWindowId: currentDraggingWindowId
         ) {
         case .blocked:
@@ -70,9 +69,9 @@ extension WindowController {
     /// Ends manual-move tracking for `windowId` without delivering an end/abort event — for a
     /// window whose drag Zonogy terminally tore down mid-gesture (e.g. evicted from its
     /// floating zone). A no-op when no gesture involves the window; only the matching field is
-    /// cleared, so cancelling a mere candidate cannot kill another window's live drag. The
-    /// window is tombstoned through the gesture's mouse-up: with the button still held, its
-    /// next AX move would otherwise seed a fresh candidate and restart the drag; the tombstone
+    /// cleared, so cancelling a mere candidate cannot kill another window's live drag. The rest
+    /// of the gesture is blocked through mouse-up: with the button still held, the window's
+    /// next AX move would otherwise seed a fresh candidate and restart the drag; the block
     /// also keeps the global mouse-up monitor installed so it gets cleared. Returns whether a
     /// gesture was actually cancelled.
     @discardableResult
@@ -88,7 +87,7 @@ extension WindowController {
         if matchedCurrent {
             currentDraggingWindowId = nil
         }
-        manualDragTombstonedWindowId = windowId
+        manualDragBlockedUntilMouseUp = true
         updateMouseUpGlobalMonitorInstallation()
         return true
     }
@@ -99,7 +98,7 @@ extension WindowController {
     /// session, e.g. via Escape, while the button stays held).
     internal func suppressManualDragUntilMouseUp() {
         dragCandidate = nil
-        manualDragSuppressedUntilMouseUp = true
+        manualDragBlockedUntilMouseUp = true
         updateMouseUpGlobalMonitorInstallation()
     }
 
@@ -107,8 +106,7 @@ extension WindowController {
         defer {
             updateMouseUpGlobalMonitorInstallation()
         }
-        manualDragTombstonedWindowId = nil
-        manualDragSuppressedUntilMouseUp = false
+        manualDragBlockedUntilMouseUp = false
 
         // If the user never crossed the activation threshold, treat the gesture as a
         // cancelled drag and trigger a manual move end so the window snaps back.

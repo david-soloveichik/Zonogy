@@ -61,13 +61,12 @@ class WindowController {
     internal var accessibilityPermissionWarningShown = false
     weak var delegate: WindowControllerDelegate?
     internal var currentDraggingWindowId: Int?
-    /// A window whose manual drag was terminally cancelled mid-gesture; its AX moves are
-    /// ignored until the gesture's mouse-up clears this (see `cancelManualDragTracking`).
-    internal var manualDragTombstonedWindowId: Int?
-    /// True while the in-progress mouse gesture belongs to a cursor-driven chooser-row drag:
-    /// no window may seed a manual drag until the gesture's mouse-up, even if the row session
-    /// itself is cancelled early (e.g. by Escape) while the button stays held.
-    internal var manualDragSuppressedUntilMouseUp = false
+    /// True while the in-progress mouse gesture can no longer seed or continue a manual drag:
+    /// a cursor-driven chooser-row drag has claimed the button, or a terminally cancelled
+    /// gesture's window would otherwise restart its drag from continued AX moves. Survives an
+    /// early cancellation of the claiming session (e.g. by Escape) while the button stays held;
+    /// cleared on mouse-up.
+    internal var manualDragBlockedUntilMouseUp = false
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
     /// Primary display bounds for Cocoa<->Accessibility conversion (cursor/drag mapping).
@@ -148,7 +147,7 @@ class WindowController {
 
     internal func updateMouseUpGlobalMonitorInstallation() {
         let needsGlobalMonitor = dragCandidate != nil || currentDraggingWindowId != nil
-            || manualDragTombstonedWindowId != nil || manualDragSuppressedUntilMouseUp
+            || manualDragBlockedUntilMouseUp
         if needsGlobalMonitor {
             installMouseUpGlobalMonitorIfNeeded()
         } else {

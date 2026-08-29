@@ -280,8 +280,7 @@ extension AppController {
             return
         }
 
-        if let screenId = screenId(for: effectiveDestination),
-           isScreenPausedForFullScreen(screenId) {
+        if isScreenPausedForFullScreen(effectiveDestination.screenId) {
             cmdTabController.hideForExternalInterruption()
             Logger.debug("CmdTab: Hidden because target screen is full-screen")
             return

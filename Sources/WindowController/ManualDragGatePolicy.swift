@@ -1,9 +1,9 @@
 import Foundation
 
 /// Pure gate deciding whether a window's AX move may participate in manual-drag detection.
-/// One left button means one gesture: a cursor-driven chooser-row drag or a cancelled
-/// gesture's tombstone owns the button through its mouse-up, and a live drag excludes every
-/// other window.
+/// One left button means one gesture: a block through mouse-up (a cursor-driven chooser-row
+/// drag claimed the button, or a cancelled gesture must not restart) excludes every window,
+/// and a live drag excludes every other window.
 enum ManualDragGatePolicy {
     enum Gate: Equatable {
         /// The window's live manual drag continues.
@@ -16,15 +16,11 @@ enum ManualDragGatePolicy {
 
     static func gate(
         windowId: Int,
-        suppressedUntilMouseUp: Bool,
+        blockedUntilMouseUp: Bool,
         cursorDrivenDragActive: Bool,
-        tombstonedWindowId: Int?,
         currentDraggingWindowId: Int?
     ) -> Gate {
-        if suppressedUntilMouseUp || cursorDrivenDragActive {
-            return .blocked
-        }
-        if tombstonedWindowId != nil {
+        if blockedUntilMouseUp || cursorDrivenDragActive {
             return .blocked
         }
         if currentDraggingWindowId == windowId {

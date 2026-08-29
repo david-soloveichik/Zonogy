@@ -235,17 +235,13 @@ extension AppController {
 
         // Captured before placement clears it: the vacated tiling zone is exempt from
         // floating-occupant promotion on the sync below.
-        let vacatedTilingZone: ZoneKey? = {
-            guard let zoneIndex = managed.zoneIndex, let sourceScreenId = managed.screenDisplayId else { return nil }
-            return ZoneKey(screenId: sourceScreenId, index: zoneIndex)
-        }()
+        let vacatedTilingZone = managed.zoneDestination?.tiledKey
         // Mirror placeWindowIntoZone: a row drop fills its destination and advances the
         // target as if that zone had been targeted and filled.
         windowPlacementManager.placeWindow(
             managed,
             into: .floating(screenId: screenId),
             reason: reason,
-            retargetOnRemoval: false,
             forceRetargetAfterFill: true
         )
         syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: vacatedTilingZone)

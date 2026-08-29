@@ -104,20 +104,6 @@ class WindowPlacementManager {
         return true
     }
 
-    /// Whether a placement into the floating zone should apply the retarget-after-fill rule:
-    /// the destination was targeted (or the caller forces the rule as if it were), and the
-    /// window is not the floating zone's own occupant being re-placed — re-centering the
-    /// current occupant is not a fill.
-    ///
-    /// Exposed for guardrail tests; callers should generally prefer the higher-level placement APIs.
-    static func shouldRetargetAfterFloatingFill(
-        destinationWasTargeted: Bool,
-        forceRetargetAfterFill: Bool,
-        wasAlreadyOccupantOfDestination: Bool
-    ) -> Bool {
-        (destinationWasTargeted || forceRetargetAfterFill) && !wasAlreadyOccupantOfDestination
-    }
-
     // MARK: - Public Methods
 
     /// Places a newly captured window into the best zone (targeted or preferred screen).
@@ -162,19 +148,8 @@ class WindowPlacementManager {
 
         delegate.targetedZoneManager.ensureTargetedZone(reason: "placing-window")
         let targetedDestination = delegate.targetedZoneManager.targetedDestination
-        let targetedKey: ZoneKey? = {
-            if case .tiled(let key) = targetedDestination {
-                return key
-            }
-            return nil
-        }()
-        let targetedScreenId: CGDirectDisplayID? = {
-            switch targetedDestination {
-            case .tiled(let key): return key.screenId
-            case .floating(let id): return id
-            case .none: return nil
-            }
-        }()
+        let targetedKey = targetedDestination?.tiledKey
+        let targetedScreenId = targetedDestination?.screenId
 
         let decision = delegate.decideNewWindowPlacement(
             managed,
@@ -220,7 +195,6 @@ class WindowPlacementManager {
             into: targetedDestination,
             centerFloatingWindow: true,
             reason: baseReason,
-            retargetOnRemoval: true,
             forceRetargetAfterFill: false,
             logIfUnassignedOnRemoval: false,
             displacement: displacement
@@ -248,72 +222,6 @@ class WindowPlacementManager {
         delegate.minimizeWindowProgrammatically(managed, reason: "zone-removal-minimize")
     }
 
-    /// Moves an already managed window between zones, optionally minimizing displaced occupants.
-    ///
-    /// Defaults the displacement strategy to `.synchronous` because this is a Zonogy-initiated
-    /// single-window swap; the displaced occupant cannot be in another app's mid-launch
-    /// unminimize queue. See `DisplacementStrategy` for the trade-off.
-    func moveWindow(
-        _ managed: ManagedWindow,
-        from originKey: ZoneKey,
-        to destinationKey: ZoneKey,
-        reason: String = "move-window",
-        minimizeDisplacedWindows: Bool = true,
-        displacement: DisplacementStrategy = .synchronous
-    ) -> Bool {
-        guard let delegate = delegate else { return false }
-
-        if originKey == destinationKey {
-            Logger.debug("Move window skipped: window \(managed.windowId) already in zone \(originKey.index) on screen \(ScreenContextStore.loggingIndex(for: originKey.screenId))")
-            return true
-        }
-
-        guard let originContext = delegate.screenContexts[originKey.screenId],
-              let _ = originContext.zoneController.zone(at: originKey.index),
-              let destinationContext = delegate.screenContexts[destinationKey.screenId],
-              let descriptor = delegate.descriptor(for: destinationKey.screenId),
-              let destinationZone = destinationContext.zoneController.zone(at: destinationKey.index) else {
-            Logger.debug(
-                "Move window aborted: missing origin/destination (\(originKey.screenId):\(originKey.index) -> \(destinationKey.screenId):\(destinationKey.index))"
-            )
-            return false
-        }
-
-        // Clear both sides: zone's record and window's record of the assignment
-        originContext.zoneController.removeWindow(windowId: managed.windowId)
-        delegate.clearManagedWindowZone(managed)
-
-        let plan = displacementPlanIfNeeded(
-            in: destinationZone,
-            controller: destinationContext.zoneController,
-            excluding: managed.windowId,
-            minimizeReason: "\(reason)-displaced",
-            displacement: displacement
-        )
-
-        // For `.synchronous` displacement: finalize before assigning the incoming window so the
-        // displaced occupant's AX kAXMinimized flash-to-key cannot appear above the just-positioned
-        // incoming window. See `SingleOccupantReplacement` for the full rationale. For `.deferred`,
-        // finalize just queues — order vs. assign does not affect visual outcome.
-        if minimizeDisplacedWindows {
-            plan?.finalize()
-        }
-
-        assignWindowToZone(
-            managed,
-            zone: destinationZone,
-            screenId: destinationKey.screenId,
-            descriptor: descriptor
-        )
-
-        let originScreenIndex = delegate.screenOrder.firstIndex(of: originKey.screenId) ?? Int(originKey.screenId)
-        let destinationScreenIndex = delegate.screenOrder.firstIndex(of: destinationKey.screenId) ?? Int(destinationKey.screenId)
-        Logger.debug(
-            "Move window completed: \(managed.windowId) from screen \(originScreenIndex) zone \(originKey.index) to screen \(destinationScreenIndex) zone \(destinationKey.index)"
-        )
-        return true
-    }
-
     // MARK: - Private Methods
 
     private func bundleIdentifier(for managed: ManagedWindow) -> String? {
@@ -333,38 +241,33 @@ class WindowPlacementManager {
             return
         }
 
+        let preFillTarget = delegate.targetedZoneManager.targetedDestination
+        let zone: Zone
         if let emptyZone = controller.findEmptyZone() {
-            assignWindowToZone(
-                managed,
-                zone: emptyZone,
-                screenId: screenId,
-                descriptor: descriptor
+            zone = emptyZone
+        } else if let highestZone = controller.highestIndexZone() {
+            let plan = displacementPlanIfNeeded(
+                in: highestZone,
+                controller: controller,
+                excluding: managed.windowId,
+                minimizeReason: "\(reason)-displaced",
+                displacement: displacement
             )
+            // For `.synchronous`: finalize before assigning so the displaced occupant's AX
+            // kAXMinimized flash-to-key happens before the incoming window is positioned/raised.
+            // For `.deferred`: order does not matter; finalize just queues.
+            plan?.finalize()
+            zone = highestZone
+        } else {
             return
         }
 
-        guard let highestZone = controller.highestIndexZone() else {
-            return
-        }
-
-        let plan = displacementPlanIfNeeded(
-            in: highestZone,
-            controller: controller,
-            excluding: managed.windowId,
-            minimizeReason: "\(reason)-displaced",
-            displacement: displacement
-        )
-
-        // For `.synchronous`: finalize before assigning so the displaced occupant's AX
-        // kAXMinimized flash-to-key happens before the incoming window is positioned/raised.
-        // For `.deferred`: order does not matter; finalize just queues.
-        plan?.finalize()
-
-        assignWindowToZone(
-            managed,
-            zone: highestZone,
-            screenId: screenId,
-            descriptor: descriptor
+        assignWindowToZone(managed, zone: zone, screenId: screenId, descriptor: descriptor)
+        delegate.targetedZoneManager.retargetAfterMovingWindow(
+            from: nil,
+            to: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
+            preMoveTarget: preFillTarget,
+            reason: "zone-filled"
         )
     }
 
@@ -380,7 +283,6 @@ class WindowPlacementManager {
             into: .tiled(zoneKey),
             centerFloatingWindow: true,
             reason: reason,
-            retargetOnRemoval: true,
             forceRetargetAfterFill: false,
             displacement: displacement
         )
@@ -394,14 +296,10 @@ class WindowPlacementManager {
     ///   - centerFloatingWindow: If placing into a floating zone, whether to apply the initial centering/resizing.
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
-    ///   - retargetOnRemoval: Whether stale zone records found during removal may apply the disappearance
-    ///     retargets (the emptied-zone and floating-emptied rules). A window verifiably holding a zone is
-    ///     being *moved*, so the move rule governs instead and this flag is ignored for it.
-    ///   - forceRetargetAfterFill: Even if the destination zone isn't currently targeted, pretend like it is for
-    ///     the purposes of applying the spec's "retarget after filling the targeted zone" rule. A window moved
-    ///     out of the targeted zone gets this treatment automatically, per the spec's move rule.
-    ///   - retargetAfterFill: Pass `false` to place without any retarget-after-fill — for callers that
-    ///     orchestrate a multi-placement move (e.g. a swap) and apply the move rule once afterwards via
+    ///   - forceRetargetAfterFill: Pretend the destination was the pre-move target, so the placement always
+    ///     retargets as if the targeted destination was just filled (chooser drops, per the spec's move rule).
+    ///   - retargetAfterFill: Pass `false` to place without applying the move rule — for callers that
+    ///     orchestrate a multi-placement move (e.g. a swap) and apply the rule once afterwards via
     ///     `TargetedZoneManager.retargetAfterMovingWindow`.
     ///   - activate: Whether to present the placed window as the active one — floating placements
     ///     activate/raise it (with protection), tiled placements raise it and record its recency.
@@ -417,7 +315,6 @@ class WindowPlacementManager {
         into destination: TargetedZoneManager.TargetedDestination,
         centerFloatingWindow: Bool = true,
         reason: String,
-        retargetOnRemoval: Bool = true,
         forceRetargetAfterFill: Bool = false,
         retargetAfterFill: Bool = true,
         logIfUnassignedOnRemoval: Bool = true,
@@ -446,36 +343,37 @@ class WindowPlacementManager {
             return
         }
 
-        // A pre-move snapshot, captured before the removal below mutates anything: the target,
-        // and the window's zone. Together they express the move rule through the fill machinery
-        // — retarget when the destination was the pre-move target (a fill), when the origin was
-        // (a move out of the target), or when the caller forces it (chooser drops) — and they
-        // recognize a re-placement of the floating zone's own occupant (re-centering is not a
-        // fill, so it must not retarget).
+        // The move rule needs the pre-move state, captured before the removal below mutates
+        // anything: the target, and the zone the window holds. The placement then retargets per
+        // that one rule — a fill is a move with no origin, forcing (chooser drops) pretends the
+        // destination was the pre-move target, and re-placing a zone's own occupant (origin ==
+        // destination, e.g. re-centering the floating occupant) is not a move and never retargets.
         let preMoveTarget = delegate.targetedZoneManager.targetedDestination
-        let originDestination: TargetedZoneManager.TargetedDestination? = {
-            if managed.isInFloatingZone, let screenId = managed.screenDisplayId {
-                return .floating(screenId: screenId)
-            }
-            if let zoneIndex = managed.zoneIndex, let screenId = managed.screenDisplayId {
-                return .tiled(ZoneKey(screenId: screenId, index: zoneIndex))
-            }
-            return nil
-        }()
-        let destinationWasTargeted = preMoveTarget == destination
-        let originWasTargeted = originDestination != nil && originDestination == preMoveTarget
-        let forceRetarget = forceRetargetAfterFill || originWasTargeted
+        let origin = managed.zoneDestination
 
         // A window verifiably holding a zone is being moved, and a move's emptying never applies
-        // the disappearance retargets — the pre-move involvement below decides. The flag still
-        // governs stale records the removal scan may find for a window believed unzoned.
+        // the disappearance retargets — the move rule below decides. For a window believed
+        // unzoned, stale records the removal scan finds retarget normally.
         delegate.removeWindowFromAllZones(
             windowId: managed.windowId,
             reason: reason,
-            retarget: retargetOnRemoval && originDestination == nil,
+            retarget: origin == nil,
             logIfUnassigned: logIfUnassignedOnRemoval
         )
         managed.zoneIndex = nil
+
+        // Applied immediately after an assignment settles — before any afterPlacementAction —
+        // so targeting updates keep their order relative to activation; a failed placement
+        // (zone gone) never applies it.
+        let applyMoveRule = {
+            guard retargetAfterFill else { return }
+            delegate.targetedZoneManager.retargetAfterMovingWindow(
+                from: origin,
+                to: destination,
+                preMoveTarget: forceRetargetAfterFill ? destination : preMoveTarget,
+                reason: "\(reason)-filled"
+            )
+        }
 
         switch destination {
         case .floating(let screenId):
@@ -487,23 +385,13 @@ class WindowPlacementManager {
                 reason: reason,
                 displacement: displacement
             )
-            if retargetAfterFill, Self.shouldRetargetAfterFloatingFill(
-                destinationWasTargeted: destinationWasTargeted,
-                forceRetargetAfterFill: forceRetarget,
-                wasAlreadyOccupantOfDestination: originDestination == destination
-            ) {
-                delegate.targetedZoneManager.retargetAfterFillingFloatingZone(
-                    on: screenId,
-                    reason: "\(reason)-filled"
-                )
-            }
+            applyMoveRule()
         case .tiled(let zoneKey):
             placePreparedWindowIntoZone(
                 managed,
                 zoneKey: zoneKey,
                 reason: reason,
-                forceRetargetAfterFill: forceRetarget || destinationWasTargeted,
-                retargetAfterFill: retargetAfterFill,
+                afterAssignment: applyMoveRule,
                 afterPlacementAction: afterPlacementAction,
                 activate: activate,
                 displacement: displacement
@@ -516,12 +404,14 @@ class WindowPlacementManager {
         }
     }
 
+    /// Runs `afterAssignment` immediately after the window is assigned — before
+    /// `afterPlacementAction` — so the caller's targeting update keeps its order relative to
+    /// activation. Neither closure runs when the zone no longer exists.
     private func placePreparedWindowIntoZone(
         _ managed: ManagedWindow,
         zoneKey: ZoneKey,
         reason: String,
-        forceRetargetAfterFill: Bool,
-        retargetAfterFill: Bool = true,
+        afterAssignment: () -> Void,
         afterPlacementAction: (() -> Void)?,
         activate: Bool = true,
         displacement: DisplacementStrategy
@@ -538,7 +428,6 @@ class WindowPlacementManager {
         delegate.cancelPendingMinimization(windowId: managed.windowId)
 
         let displacedMinimizeReason = "\(reason)-displaced"
-        let retargetReason = "\(reason)-filled"
         let finalizeDisplaced = displacementFinalizeClosure(
             for: displacement,
             reason: displacedMinimizeReason
@@ -563,11 +452,9 @@ class WindowPlacementManager {
                     zone: zone,
                     screenId: zoneKey.screenId,
                     descriptor: descriptor,
-                    forceRetargetAfterFill: forceRetargetAfterFill,
-                    retargetAfterFill: retargetAfterFill,
-                    retargetReason: retargetReason,
                     activate: activate
                 )
+                afterAssignment()
             },
             afterAssignIncoming: {
                 afterPlacementAction?()
@@ -575,7 +462,8 @@ class WindowPlacementManager {
         )
     }
 
-    /// Assigns a managed window to a zone and updates targeted-zone bookkeeping. `activate: false`
+    /// Assigns a managed window to a zone: frame, records, and activity — no targeting. Each
+    /// placement path applies the move rule itself once its assignment settles. `activate: false`
     /// places passively — no raise and no recency recording — for a window that must stay behind
     /// the active one (e.g. the swap partner of a zone-navigation move).
     private func assignWindowToZone(
@@ -583,9 +471,6 @@ class WindowPlacementManager {
         zone: Zone,
         screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor,
-        forceRetargetAfterFill: Bool = false,
-        retargetAfterFill: Bool = true,
-        retargetReason: String = "zone-filled",
         activate: Bool = true
     ) {
         guard let delegate = delegate else { return }
@@ -607,9 +492,6 @@ class WindowPlacementManager {
 
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
-        let filledZoneKey = ZoneKey(screenId: screenId, index: zone.index)
-        let wasTargetedZone = delegate.targetedZoneManager.targetedZoneKey == filledZoneKey
-
         // Placeholder windows are now managed separately by PlaceholderCoordinator
         // and are not in the WindowController's allWindows list
 
@@ -624,15 +506,11 @@ class WindowPlacementManager {
         // one immediate reapply for this window to avoid redundant AX writes.
         delegate.markWindowForNextSyncGeometrySkip(windowId: managed.windowId)
         delegate.setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
-
-        if retargetAfterFill, wasTargetedZone || forceRetargetAfterFill {
-            delegate.targetedZoneManager.retargetAfterFillingZone(filledZoneKey, reason: retargetReason)
-        }
     }
 
     /// Assigns a dragged window into the specified zone, returning its displaced occupant if any.
-    /// `retargetAfterFill: false` skips the retarget-after-fill for callers that apply the move
-    /// rule themselves once the drop (including any swap-back) settles.
+    /// `retargetAfterFill: false` skips the fill retarget for callers that apply the move rule
+    /// themselves once the drop (including any swap-back) settles.
     func assignWindowFromDrag(
         _ managed: ManagedWindow,
         to targetKey: ZoneKey,
@@ -645,6 +523,7 @@ class WindowPlacementManager {
             return nil
         }
 
+        let preFillTarget = delegate.targetedZoneManager.targetedDestination
         let displacement = DisplacedWindowPlanner.planIfNeeded(
             existingWindowId: zone.occupantWindowId,
             incomingWindowId: managed.windowId,
@@ -658,9 +537,16 @@ class WindowPlacementManager {
             managed,
             zone: zone,
             screenId: targetKey.screenId,
-            descriptor: descriptor,
-            retargetAfterFill: retargetAfterFill
+            descriptor: descriptor
         )
+        if retargetAfterFill {
+            delegate.targetedZoneManager.retargetAfterMovingWindow(
+                from: nil,
+                to: .tiled(targetKey),
+                preMoveTarget: preFillTarget,
+                reason: "zone-filled"
+            )
+        }
         return DragAssignmentResult(displacedWindow: displacement?.displaced)
     }
 

@@ -51,6 +51,19 @@ class ManagedWindow {
         zoneIndex != nil || isInFloatingZone
     }
 
+    /// The zone this window currently holds, as a placement destination: its floating zone,
+    /// its tiling zone, or nil when it holds neither (per this window's own bookkeeping; the
+    /// floating booking wins if records ever disagree).
+    var zoneDestination: TargetedZoneManager.TargetedDestination? {
+        if isInFloatingZone, let screenDisplayId {
+            return .floating(screenId: screenDisplayId)
+        }
+        if let zoneIndex, let screenDisplayId {
+            return .tiled(ZoneKey(screenId: screenDisplayId, index: zoneIndex))
+        }
+        return nil
+    }
+
     init(windowId: Int, backing: ManagedWindowBacking) {
         self.windowId = windowId
         self.backing = backing
