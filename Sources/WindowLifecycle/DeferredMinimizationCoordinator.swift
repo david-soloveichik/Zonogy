@@ -1,8 +1,7 @@
 /// Debounced minimization queue used to batch rapid window minimizations.
 ///
 /// Used by occlusion- and focus-driven floating-zone minimization (where rapid
-/// signals genuinely benefit from coalescing), the floating-zone explicit
-/// `minimizeOccupant` path, and any placement that flows through
+/// signals genuinely benefit from coalescing) and any placement that flows through
 /// `WindowPlacementManager.placeNewWindow` — i.e. the entry point for "a window
 /// arrived" events (external unminimizes, fresh window captures, manual capture,
 /// recapture, startup, drag tear-out reassignment). Those placements pass

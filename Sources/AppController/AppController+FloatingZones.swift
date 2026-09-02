@@ -147,8 +147,8 @@ extension AppController {
         }
     }
 
-    func clearFloatingZone(for windowId: Int, minimize: Bool, reason: String) {
-        floatingZoneCoordinator.clear(windowId: windowId, minimize: minimize, reason: reason)
+    func clearFloatingZone(for windowId: Int, reason: String) {
+        floatingZoneCoordinator.clear(windowId: windowId, reason: reason)
         clearFloatingZoneProtection(windowId: windowId)
     }
 

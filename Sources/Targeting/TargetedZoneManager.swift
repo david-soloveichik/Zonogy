@@ -196,6 +196,16 @@ class TargetedZoneManager {
         applyRetargetDestination(destination, reason: reason)
     }
 
+    /// The floating counterpart of "an emptied tiling zone takes the target": a floating zone
+    /// emptied by its window disappearing (minimized, closed, hidden) takes the target only from
+    /// another floating zone, never from a tiling zone. Floating zones are the weaker kind, and
+    /// with a floating target an empty floating zone is the better destination, exactly as the
+    /// fill priority ranks them. Emptying the targeted floating zone itself changes nothing.
+    func retargetAfterEmptyingFloatingZone(on screenId: CGDirectDisplayID, reason: String) {
+        guard case .floating(let currentScreenId) = targetedDestination, currentScreenId != screenId else { return }
+        setFloatingTarget(on: screenId, reason: reason)
+    }
+
     /// Retargets as if `destination` had been targeted and just filled.
     func retargetAsIfJustFilled(_ destination: TargetedDestination, reason: String) {
         switch destination {

@@ -471,6 +471,31 @@ enum TargetedZoneManagerTests {
             assert(manager.targetedFloatingScreenId == screen1, "when all screens are full-screen and no empty zones remain, target floating zone on screen 0 (got \(String(describing: manager.targetedDestination)))")
         }
 
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+
+            // An emptied floating zone takes the target from another floating zone, whether or
+            // not that one is occupied...
+            delegate.occupiedFloatingScreenIds = [screen2]
+            manager.setFloatingTarget(on: screen2, reason: "test")
+            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
+            assert(manager.targetedFloatingScreenId == screen1, "retargetAfterEmptyingFloatingZone should take the target from another floating zone (got \(String(describing: manager.targetedDestination)))")
+
+            // Emptying the targeted floating zone itself changes nothing, not even a refresh...
+            let refreshCountBefore = delegate.refreshCount
+            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
+            assert(manager.targetedFloatingScreenId == screen1 && delegate.refreshCount == refreshCountBefore, "retargetAfterEmptyingFloatingZone should be a no-op for the already-targeted floating zone (got \(String(describing: manager.targetedDestination)), extra refreshes: \(delegate.refreshCount - refreshCountBefore))")
+
+            // ...and a tiling target is never taken, not even one on the same screen.
+            let tiled = ZoneKey(screenId: screen1, index: 1)
+            manager.setTargetedZone(tiled, reason: "test")
+            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
+            assert(manager.targetedZoneKey == tiled, "retargetAfterEmptyingFloatingZone should never take the target from a tiling zone (got \(String(describing: manager.targetedDestination)))")
+        }
+
         if allPassed {
             print("TargetedZoneManagerTests: all tests passed")
         }

@@ -141,8 +141,11 @@ extension AppController {
         guard !snapshot.isEmpty else { return 0 }
 
         var minimizedCount = 0
-        for (bookedScreenId, windowId) in snapshot {
-            guard let managed = windowController.window(withId: windowId),
+        // Screen order keeps the pass deterministic: each removal may retarget to the emptied
+        // floating zone, so the order decides which one ends up targeted.
+        for bookedScreenId in screenOrder {
+            guard let windowId = snapshot[bookedScreenId],
+                  let managed = windowController.window(withId: windowId),
                   !managed.isMinimizedPerAccessibility,
                   let actualScreenId = detectScreenId(for: managed.backing.element),
                   actualScreenId != bookedScreenId else {
@@ -152,11 +155,9 @@ extension AppController {
             Logger.debug(
                 "\(reason.capitalized): minimizing floating occupant window \(windowId); live frame on screen \(screenContextStore.loggingIndex(for: actualScreenId)) but booked on screen \(screenContextStore.loggingIndex(for: bookedScreenId))"
             )
-            floatingZoneCoordinator.clear(
-                windowId: windowId,
-                minimize: true,
-                reason: "\(reason)-floating-screen-drifted"
-            )
+            let driftReason = "\(reason)-floating-screen-drifted"
+            removeWindowFromAllZones(windowId: windowId, reason: driftReason)
+            minimizeWindowProgrammatically(managed, reason: driftReason)
             minimizedCount += 1
         }
         return minimizedCount

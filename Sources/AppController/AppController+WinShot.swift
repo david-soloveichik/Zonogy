@@ -562,7 +562,7 @@ extension AppController {
 
         // Clear from any floating zone
         if isWindowInFloatingZone(managed.windowId) {
-            clearFloatingZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+            clearFloatingZone(for: managed.windowId, reason: "winshot-restore")
         }
 
         let targetFrame = frameWithMargin(for: zone, in: context.zoneController)
@@ -599,7 +599,7 @@ extension AppController {
 
         // Clear from any floating zone
         if isWindowInFloatingZone(managed.windowId) {
-            clearFloatingZone(for: managed.windowId, minimize: false, reason: "winshot-restore")
+            clearFloatingZone(for: managed.windowId, reason: "winshot-restore")
         }
 
         return FloatingRestoreWorkItem(

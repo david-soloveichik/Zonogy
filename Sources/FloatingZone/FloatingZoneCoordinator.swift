@@ -10,6 +10,7 @@ protocol FloatingZoneCoordinatorHost: AnyObject {
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
     func queueDeferredMinimization(windowId: Int, reason: String)
     func cancelPendingMinimization(windowId: Int)
+    func removeWindowFromAllZones(windowId: Int, reason: String, retarget: Bool, logIfUnassigned: Bool)
 
     func refreshResizeHandles()
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
@@ -180,25 +181,12 @@ final class FloatingZoneCoordinator {
         host.refreshResizeHandles()
     }
 
-    func minimizeOccupant(on screenId: CGDirectDisplayID, reason: String) {
-        guard let host,
-              let occupant = occupant(on: screenId) else {
-            return
-        }
-        host.clearFloatingZoneProtection(windowId: occupant.windowId)
-        occupant.isInFloatingZone = false
-        occupants.removeValue(forKey: screenId)
-        host.clearManagedWindowZone(occupant)
-        host.floatingOccupantEvicted(windowId: occupant.windowId)
-        host.queueDeferredMinimization(windowId: occupant.windowId, reason: reason)
-        Logger.debug(
-            "Floating zone queued minimization for occupant \(occupant.windowId) on screen \(host.screenContextStore.loggingIndex(for: screenId)) (reason: \(reason))"
-        )
-        host.refreshIndicators()
-        host.refreshResizeHandles()
-    }
-
-    func clear(windowId: Int, minimize: Bool, reason: String) {
+    /// Bookkeeping-only release of a floating slot, for flows that go on to manage the window
+    /// themselves (moves out of the floating zone, drag conversion and revert, clear-zones'
+    /// batched minimize). A window that disappears instead leaves through the host's
+    /// `removeWindowFromAllZones`, which releases the slot here and then applies the
+    /// floating-zone emptying retarget.
+    func clear(windowId: Int, reason: String) {
         guard let host,
               let entry = occupants.first(where: { $0.value == windowId }) else {
             return
@@ -209,14 +197,6 @@ final class FloatingZoneCoordinator {
         }
         occupants.removeValue(forKey: entry.key)
         Logger.debug("Cleared floating zone occupant \(windowId) on screen \(host.screenContextStore.loggingIndex(for: entry.key)) (reason: \(reason))")
-        if minimize, let window = host.windowController.window(withId: windowId) {
-            host.clearManagedWindowZone(window)
-            // A minimizing clear is an eviction; a bookkeeping-only clear (minimize: false) is
-            // owned by a flow managing the window itself (drag conversion/revert, clear-zones'
-            // batched minimize), which handles or invokes the eviction teardown as needed.
-            host.floatingOccupantEvicted(windowId: windowId)
-            host.minimizeWindowProgrammatically(window, reason: reason)
-        }
         host.refreshIndicators()
         host.refreshResizeHandles()
     }
@@ -287,8 +267,8 @@ final class FloatingZoneCoordinator {
     }
 
     /// Prepare host/delegate state right before deferred minimization executes.
-    /// For focus-driven floating-zone minimization, we only proceed if the window is
-    /// still the floating occupant at flush time.
+    /// For occlusion-driven floating-zone minimization, we only proceed if the window is
+    /// still the floating occupant, and still occluded, at flush time.
     func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
         guard let host else { return false }
 
@@ -310,17 +290,9 @@ final class FloatingZoneCoordinator {
             return false
         }
 
-        host.clearFloatingZoneProtection(windowId: windowId)
-        occupants.removeValue(forKey: screenId)
-
-        if let occupant = host.windowController.window(withId: windowId) {
-            occupant.isInFloatingZone = false
-            host.clearManagedWindowZone(occupant)
-        }
-        host.floatingOccupantEvicted(windowId: windowId)
-
-        host.refreshIndicators()
-        host.refreshResizeHandles()
+        // The occupant is leaving the zone system, so it takes the same path as any other
+        // minimized window: the slot is released and the floating-zone emptying retarget applies.
+        host.removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: true, logIfUnassigned: true)
         return true
     }
 
@@ -364,7 +336,7 @@ final class FloatingZoneCoordinator {
 
         if let addZonePill,
            let newZone = host.addZone(on: addZonePill.screenId, side: addZonePill.side, announce: false, promoteFloatingOccupant: false) {
-            clear(windowId: windowId, minimize: false, reason: "floating-drop-add-zone")
+            clear(windowId: windowId, reason: "floating-drop-add-zone")
             // Zone creation applied its own targeting rule; the standard retarget-after-fill
             // then runs inside the assignment, so the move rule adds nothing here.
             if let result = host.windowPlacementManager.assignWindowFromDrag(

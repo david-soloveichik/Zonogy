@@ -139,7 +139,7 @@ extension AppController {
             screenContexts[key.screenId]?.zoneController.removeWindow(windowId: managed.windowId)
             clearManagedWindowZone(managed)
         case .floating:
-            clearFloatingZone(for: managed.windowId, minimize: false, reason: reason)
+            clearFloatingZone(for: managed.windowId, reason: reason)
             clearManagedWindowZone(managed)
         }
     }

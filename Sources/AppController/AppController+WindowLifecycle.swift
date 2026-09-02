@@ -1007,7 +1007,7 @@ extension AppController {
         guard let managed = windowController.window(withId: windowId) else {
             return
         }
-        clearFloatingZone(for: windowId, minimize: false, reason: "control-command-drag")
+        clearFloatingZone(for: windowId, reason: "control-command-drag")
         activeFitSuspendForDrag(windowId: windowId)
         updateAddZoneIndicatorHighlight(pill: nil)
         updateFloatingIndicatorHighlight(screenId: nil)
@@ -1410,7 +1410,7 @@ extension AppController {
         let preMoveTarget = targetedZoneManager.targetedDestination
         let origin = managed.zoneDestination
 
-        clearFloatingZone(for: windowId, minimize: false, reason: "auto-promote-drop-into-empty-zone")
+        clearFloatingZone(for: windowId, reason: "auto-promote-drop-into-empty-zone")
 
         if let result = windowPlacementManager.assignWindowFromDrag(
             managed,
@@ -1628,7 +1628,7 @@ extension AppController {
         managed: ManagedWindow,
         reason: String
     ) -> ZoneKey? {
-        clearFloatingZone(for: windowId, minimize: false, reason: reason)
+        clearFloatingZone(for: windowId, reason: reason)
         restoreFloatingOccupant(from: context)
 
         // Only rebook the origin zone if it is still empty — something else may have filled it

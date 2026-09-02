@@ -1,6 +1,6 @@
 # Zonogy Regression Notes
 
-Use this file as a pre-change checklist for tricky behaviors that have previously regressed.
+Use this file as a pre-change checklist for tricky behaviors that have regressed before or seem likely to.
 Each entry is a brief bug report plus something an LLM should be sure to think about to avoid regressing when editing related code.
 Keep entries short. When applicable, prefer phrasing them generally rather than tying them too tightly to one specific change, since the LLM should be able to figure out the rest when guided this way.
 

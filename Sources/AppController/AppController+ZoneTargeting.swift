@@ -26,7 +26,7 @@ extension AppController {
         terminateManualGestureState(for: windowId)
 
         // Capture floating-zone occupancy before any clearing happens, so we can apply
-        // the floating-empty retarget rule below after the floating slot is cleared.
+        // the floating-zone emptying retarget below after the floating slot is released.
         let floatingScreenIdBeforeClear = floatingZoneCoordinator.occupants
             .first(where: { $0.value == windowId })?.key
 
@@ -60,23 +60,15 @@ extension AppController {
             autoShowLauncherIfEmptyTargetedTiledZone()
         }
 
-        clearFloatingZone(for: windowId, minimize: false, reason: reason)
+        clearFloatingZone(for: windowId, reason: reason)
 
-        // Specification: when a floating zone is emptied (window minimized/closed) and the
-        // current target is *another* floating zone, retarget to the now-empty floating zone.
-        // Floating zones are "weaker" — they never steal targeting from tiling zones. Gated
-        // by `retarget` because moves out of the floating zone follow the move rule instead
-        // (movers pass `retarget: false`).
-        if retarget,
-           let emptiedFloatingScreenId = floatingScreenIdBeforeClear,
-           let retargetScreenId = FloatingZoneEmptyRetargetPolicy.retargetScreenId(
-               emptiedScreenId: emptiedFloatingScreenId,
-               currentTarget: targetedZoneManager.targetedDestination
-           ) {
-            targetedZoneManager.setFloatingTarget(on: retargetScreenId, reason: reason)
+        // Gated by `retarget` like the tiling rule above: moves out of the floating zone follow
+        // the move rule instead (movers pass `retarget: false`).
+        if retarget, let emptiedFloatingScreenId = floatingScreenIdBeforeClear {
+            targetedZoneManager.retargetAfterEmptyingFloatingZone(on: emptiedFloatingScreenId, reason: reason)
         }
 
-        if !removed, logIfUnassigned {
+        if !removed, floatingScreenIdBeforeClear == nil, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
     }
@@ -116,7 +108,7 @@ extension AppController {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
         if zoneIndex != nil {
-            clearFloatingZone(for: managed.windowId, minimize: false, reason: "assigned-to-tiled-zone")
+            clearFloatingZone(for: managed.windowId, reason: "assigned-to-tiled-zone")
         }
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
     }
