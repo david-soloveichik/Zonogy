@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Initial window seeding at launch and accessibility-grant restart.
+/// Initial window seeding and focus at launch, and accessibility-grant restart.
 extension AppController {
     /// Restarts the app after accessibility permissions are granted.
     /// This ensures all global input interceptors (DockMenus, ZoneClickInterceptor,
@@ -92,6 +92,18 @@ extension AppController {
                 minimizeWindowProgrammatically(window, reason: "startup-unassigned-window")
             }
         }
+    }
+
+    /// Focus the window seeded into tiling zone 1 on the primary display, if there is one, so
+    /// launching Zonogy leaves a predictable window active. A primary display paused for full
+    /// screen is left alone rather than interrupted.
+    internal func focusStartupWindow() {
+        guard !isScreenPausedForFullScreen(primaryScreenId),
+              let occupant = occupant(of: .tiled(ZoneKey(screenId: primaryScreenId, index: 1))) else {
+            return
+        }
+        Logger.debug("Startup focusing window \(occupant.windowId) in tiling zone 1 on the primary display")
+        raiseWindow(occupant)
     }
 
     /// Compute the left edge of a window in screen coordinates for ordering.

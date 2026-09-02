@@ -482,6 +482,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         prepareExistingApplicationWindows()
         scanAllWindowsForFullScreenState()
         enforceHiddenParkedSpaces(reason: "startup")
+        focusStartupWindow()
         hotkeyService.start(delegate: self)
         systemEventMonitor.start(delegate: self)
         displayMonitor.start(delegate: self)

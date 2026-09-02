@@ -338,6 +338,7 @@ When an app is hidden (via MacOS's Cmd-H or any hide action), treat every curren
 ### Startup
 
 - **Initial target:** Tiling zone 1 on the primary display. After seeding completes, if no empty tiling zone exists anywhere, target the floating zone on the primary display instead.
+- **Initial focus:** The window in tiling zone 1 on the primary display, if there is one, so launching Zonogy leaves a predictable window active. A primary display paused for full screen is left alone.
 - On launch, Zonogy seeds tiling zones per display. The initial zone count on each display equals the number of unminimized windows on that display (minimum 1, up to the zone layout's maximum); extra windows are minimized. Floating zones start empty.
 - Windows are assigned to zones in zone-index order by selecting the remaining window whose bounds overlap the zone the most (falling back to the left-most window if nothing overlaps).
 
