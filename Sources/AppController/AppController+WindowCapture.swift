@@ -75,12 +75,14 @@ extension AppController {
     }
 
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?) {
+        // The observation flag is set only from the placeholder's own drag tracking, which has
+        // already checked the pasteboard content, so this runs at drag-event rate without another
+        // pasteboard read.
         guard PlaceholderExternalDragPolicy.shouldResumePlaceholderOverlay(
             gestureModifiersHeld: shouldApplyGestureModifierExternalDrag(),
             isLeftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
             hasObservedRealPlaceholderExternalDrag: hasObservedRealPlaceholderExternalDragThisGesture
         ),
-              ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint else {
             return
         }

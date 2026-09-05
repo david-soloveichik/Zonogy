@@ -48,6 +48,9 @@ enum GuardrailTests {
         if !EdgePillDropRescuePolicyTests.run() {
             allPassed = false
         }
+        if !ExternalDragSessionTrackerTests.run() {
+            allPassed = false
+        }
         if !EdgeIndicatorHoverExitPolicyTests.run() {
             allPassed = false
         }

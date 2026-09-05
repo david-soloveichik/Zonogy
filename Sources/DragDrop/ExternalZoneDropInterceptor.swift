@@ -29,11 +29,10 @@ final class ExternalZoneDropInterceptor {
     private var localMonitor: Any?
     private var isInterceptionActive = false
     private var pendingMouseUpTearDownWorkItem: DispatchWorkItem?
-    /// Drag-pasteboard change count as of the last finished (or cancelled) gesture. The drag
-    /// pasteboard keeps its content after a drag ends, so content alone cannot distinguish a live
-    /// external drag from a stale leftover; a differing change count under a held button is the
-    /// signal that a fresh drag session has started.
-    private var handledDragPasteboardChangeCount = NSPasteboard(name: .drag).changeCount
+    /// All pasteboard reads go through the session tracker, which polls the change count sparingly
+    /// and examines a recognized session's content once (see ExternalDragSessionTracker).
+    private let dragPasteboard = NSPasteboard(name: .drag)
+    private var dragSession: ExternalDragSessionTracker
     private var isDrivingEdgePillHover = false
     /// Installed only while a live external drag is being driven: Escape cancels the drag
     /// session at the AppKit level with the button still down, and without observing it the
@@ -44,6 +43,7 @@ final class ExternalZoneDropInterceptor {
     init(host: ExternalZoneDropInterceptorHost) {
         self.host = host
         self.overlayManager = DragOverlayManager(externalDropDelegate: host, windowLevel: .statusBar)
+        self.dragSession = ExternalDragSessionTracker(handledChangeCount: dragPasteboard.changeCount)
     }
 
     func start() {
@@ -51,7 +51,7 @@ final class ExternalZoneDropInterceptor {
             return
         }
 
-        handledDragPasteboardChangeCount = NSPasteboard(name: .drag).changeCount
+        dragSession = ExternalDragSessionTracker(handledChangeCount: dragPasteboard.changeCount)
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: Constants.monitoredEvents) { [weak self] event in
             self?.handle(event: event)
         }
@@ -84,6 +84,15 @@ final class ExternalZoneDropInterceptor {
     private func handle(event: NSEvent) {
         switch event.type {
         case .leftMouseDragged:
+            // A drag event is a gesture in progress. If the previous gesture's mouse-up teardown is
+            // still pending, finish that gesture now, before this one presents anything: a later
+            // teardown would tear down this gesture's visuals, and a skipped one would leak the
+            // previous gesture's source and placeholder state into this one.
+            if let pending = pendingMouseUpTearDownWorkItem {
+                pending.cancel()
+                pendingMouseUpTearDownWorkItem = nil
+                finishGesture()
+            }
             refreshInterceptionState(allowBeginInterception: true)
         case .flagsChanged:
             refreshInterceptionState(allowBeginInterception: false)
@@ -98,7 +107,7 @@ final class ExternalZoneDropInterceptor {
             // Record the gesture's pasteboard state synchronously: the delayed teardown below
             // can be cancelled by the next gesture's first drag event, and a stale count would
             // make leftover pasteboard content look like a live drag.
-            handledDragPasteboardChangeCount = NSPasteboard(name: .drag).changeCount
+            dragSession.endGesture(changeCount: dragPasteboard.changeCount)
             scheduleMouseUpTearDown()
         default:
             break
@@ -106,17 +115,21 @@ final class ExternalZoneDropInterceptor {
     }
 
     private func refreshInterceptionState(allowBeginInterception: Bool) {
-        pendingMouseUpTearDownWorkItem?.cancel()
-        pendingMouseUpTearDownWorkItem = nil
-
+        let isButtonDown = MouseButtons.isLeftMouseButtonDown()
+        // After a mouse-up, the pending teardown owns the end of the gesture; a modifier release
+        // inside its brief delay must not tear the visuals down early.
+        if !isButtonDown, pendingMouseUpTearDownWorkItem != nil {
+            return
+        }
         let cursorPoint = host?.currentCursorAccessibilityPoint()
-        refreshEdgePillHover(cursorPoint: cursorPoint)
+        refreshEdgePillHover(isButtonDown: isButtonDown, cursorPoint: cursorPoint)
 
+        // Free checks first; the pasteboard was consulted, if at all, by the tracker above.
         guard let host,
+              isButtonDown,
               !host.isManagedWindowDragInProgress,
-              MouseButtons.isLeftMouseButtonDown(),
               NSEvent.modifierFlags.contains(ModifierCombinationPreferences.mouseGestures.modifiers.nsEventFlags),
-              ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
+              dragSession.isLiveExternalDrag,
               let cursorPoint else {
             tearDownOverlays()
             host?.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
@@ -156,11 +169,23 @@ final class ExternalZoneDropInterceptor {
     /// Drives edge-pill (add-zone + floating) drag hover from the monitor's precise cursor
     /// position while a live external drag is in flight. This backs up the pills' own AppKit
     /// drag tracking, which misses a cursor pinned on a screen-boundary coordinate.
-    private func refreshEdgePillHover(cursorPoint: CGPoint?) {
-        let dragPasteboard = NSPasteboard(name: .drag)
-        let liveExternalDrag = MouseButtons.isLeftMouseButtonDown()
-            && dragPasteboard.changeCount != handledDragPasteboardChangeCount
-            && ExternalDropParser.canAccept(dragPasteboard)
+    private func refreshEdgePillHover(isButtonDown: Bool, cursorPoint: CGPoint?) {
+        if isButtonDown {
+            let now = Date()
+            if dragSession.shouldPollChangeCount(now: now) {
+                dragSession.recordPoll(changeCount: dragPasteboard.changeCount, now: now) {
+                    ExternalDropParser.canAccept(dragPasteboard)
+                }
+            }
+        } else if dragSession.isTrackingGesture {
+            // The mouse-up that ends a gesture can be missed; the button being up says it is over,
+            // so finish it now (there is no drop animation to wait for). This also rebaselines the
+            // change count for a drag the throttle never recognized, so its leftover content cannot
+            // pass for a fresh session in the next gesture.
+            dragSession.endGesture(changeCount: dragPasteboard.changeCount)
+            finishGesture()
+        }
+        let liveExternalDrag = isButtonDown && dragSession.isLiveExternalDrag
 
         if liveExternalDrag {
             if !isDrivingEdgePillHover {
@@ -184,8 +209,9 @@ final class ExternalZoneDropInterceptor {
     private func handleEscapeDuringExternalDrag() {
         guard isDrivingEdgePillHover else { return }
         Logger.debug("External drag cancelled with Escape; disarming edge-pill hover and drop rescue")
-        handledDragPasteboardChangeCount = NSPasteboard(name: .drag).changeCount
-        stopDrivingEdgePillHover()
+        dragSession.endGesture(changeCount: dragPasteboard.changeCount)
+        // Nothing to wait for (no drop, so no drop animation): finish the gesture at once.
+        finishGesture()
     }
 
     private func installEscapeMonitors() {
@@ -214,30 +240,34 @@ final class ExternalZoneDropInterceptor {
         }
     }
 
+    /// Defers `finishGesture` briefly so the drop animation completes before the overlays go.
     private func scheduleMouseUpTearDown() {
         pendingMouseUpTearDownWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingMouseUpTearDownWorkItem = nil
-            if self.isDrivingEdgePillHover {
-                self.stopDrivingEdgePillHover()
-            }
-            self.tearDownOverlays()
-            self.host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-mouse-up")
-            self.host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-mouse-up")
-            self.host?.resetExternalDragSourceBundleIdentifier(reason: "external-zone-drop-mouse-up")
+            self.finishGesture()
         }
         pendingMouseUpTearDownWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+    }
+
+    /// Ends the gesture's visuals and the per-gesture host state, whichever of them is active.
+    private func finishGesture() {
+        if isDrivingEdgePillHover {
+            stopDrivingEdgePillHover()
+        }
+        tearDownOverlays()
+        host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-mouse-up")
+        host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-mouse-up")
+        host?.resetExternalDragSourceBundleIdentifier(reason: "external-zone-drop-mouse-up")
     }
 
     private func tearDownOverlays() {
         guard isInterceptionActive else {
             return
         }
-        pendingMouseUpTearDownWorkItem?.cancel()
-        pendingMouseUpTearDownWorkItem = nil
         overlayManager.tearDown()
         isInterceptionActive = false
         Logger.debug("External zone drop interception ended")
