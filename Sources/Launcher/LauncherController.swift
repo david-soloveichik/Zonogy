@@ -331,7 +331,9 @@ final class LauncherController {
     /// it while hidden is harmless, so this also serves `frameForCurrentTarget()`.
     private func positionWindowOnCurrentTarget() {
         if window == nil {
-            window = LauncherWindow()
+            let newWindow = LauncherWindow()
+            newWindow.onDidBecomeKey = { [weak self] in self?.refocusSearchField() }
+            window = newWindow
         }
         guard let delegate, let window else {
             return
@@ -361,10 +363,17 @@ final class LauncherController {
 
     /// Refreshes Launcher keyboard focus during ordinary UI repositioning without activating Zonogy.
     private func refreshKeyWindowIfActive() {
-        MainActor.assumeIsolated {
-            guard self.isActive, let window = self.window else { return }
+        guard isActive, let window else { return }
+        window.makeKeyAndOrderFront(nil)
+    }
 
-            window.makeKeyAndOrderFront(nil)
+    /// Re-focuses the search field whenever the panel becomes key (`LauncherWindow.onDidBecomeKey`).
+    /// SwiftUI ends the field's editing when the panel resigns key, as when the WinShot chooser opens
+    /// over the Launcher, and does not resume it when the panel becomes key again (AppKit hands key
+    /// status back once the chooser closes), which would leave the Launcher visible but deaf to typing.
+    private func refocusSearchField() {
+        guard isActive else { return }
+        MainActor.assumeIsolated {
             self.model?.requestSearchFieldFocus()
         }
     }
@@ -383,6 +392,8 @@ final class LauncherController {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.isActive, let window = self.window else { return }
             window.makeKeyAndOrderFront(nil)
+            // Explicit here: after wake the panel may still count as key, so becoming key would not
+            // re-focus the field, and this recovery runs only once per wake.
             self.model?.requestSearchFieldFocus()
             Logger.debug("Launcher: Made key after system event - isNowKey:\(window.isKeyWindow)")
         }
@@ -456,7 +467,10 @@ final class LauncherController {
 
     private func startKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self, self.isActive else { return event }
+            // Only while the Launcher holds keyboard focus: local monitors see every key event Zonogy
+            // receives, in installation order, so without this the Launcher would take Escape (and the
+            // arrows) away from a Zonogy panel that opened over it, such as the WinShot chooser.
+            guard let self, self.isActive, self.window?.isKeyWindow == true else { return event }
             return self.handleKeyDown(event) ? nil : event
         }
     }

@@ -9,9 +9,11 @@ extension AppController {
     }
 
     func hotkeyService(_ service: HotkeyService, didTrigger action: HotkeyService.Action) {
-        // If WinShot chooser is active, dismiss it instead of triggering other actions.
-        // Exception: showWinShotChooser cycles to the next snapshot (handled in showWinShotChooser()).
-        if winShotChooserController.isActive && action != .showWinShotChooser {
+        // While the WinShot chooser is open, other shortcuts dismiss it instead of running. Exceptions:
+        // showWinShotChooser cycles to the next snapshot (handled in showWinShotChooser()), and the
+        // time-travel debug capture runs as at any other time and leaves the chooser open (it changes
+        // nothing, and it may well be capturing the chooser's own misbehavior).
+        if winShotChooserController.isActive, action != .showWinShotChooser, action != .captureTimeTravelLogs {
             Logger.debug("Hotkey \(action) dismissed WinShot chooser")
             winShotChooserController.hide()
             return

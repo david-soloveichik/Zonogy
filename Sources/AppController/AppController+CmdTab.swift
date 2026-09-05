@@ -121,9 +121,15 @@ extension AppController: CmdTabKeyInterceptorDelegate {
         // already anchored to the current target, so that target should remain authoritative.
         beginCmdTabRetargetSessionIfNeeded(mode: mode, reason: "cmdtab-open")
 
-        // Dismiss Launcher if active to avoid overlapping overlays.
+        // Dismiss the Launcher and the WinShot chooser if open, to avoid overlapping overlays. (The
+        // chooser can still be open here only with customized shortcuts: with the defaults, releasing
+        // Control to press Cmd-Tab has already confirmed it.)
         if launcherController.isActive {
             launcherController.hide()
+        }
+        if winShotChooserController.isActive {
+            Logger.debug("CmdTab dismissed WinShot chooser")
+            winShotChooserController.hide()
         }
 
         // Capture the app that is frontmost as the chord is pressed. It is this CmdTab session's

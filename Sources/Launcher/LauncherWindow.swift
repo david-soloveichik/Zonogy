@@ -68,6 +68,15 @@ final class LauncherWindow: NSPanel {
         false
     }
 
+    /// Runs each time the panel becomes key, including when AppKit hands key status back after
+    /// another Zonogy panel that opened over the Launcher (the WinShot chooser) closes.
+    var onDidBecomeKey: (() -> Void)?
+
+    override func becomeKey() {
+        super.becomeKey()
+        onDidBecomeKey?()
+    }
+
     /// Position the window centered on the specified zone frame (in screen coordinates)
     /// The zone frame uses screen coordinates (y:0 at top-left), so we convert to Cocoa coordinates
     func centerOnZone(frame zoneFrame: CGRect, screenDescriptor: ScreenDescriptor) {
