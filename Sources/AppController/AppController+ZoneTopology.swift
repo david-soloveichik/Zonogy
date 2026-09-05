@@ -41,7 +41,7 @@ extension AppController {
               let newZone = context.zoneController.addZone(preferredSide: side) else {
             if announce {
                 let maxZones = screenContexts[screenId]?.zoneController.layoutStyle.maxZoneCount ?? 3
-                print("Failed to add zone (max \(maxZones) zones)")
+                Logger.debug("Failed to add zone (max \(maxZones) zones)")
             }
             return nil
         }
@@ -60,7 +60,7 @@ extension AppController {
             activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
         }
         if announce {
-            print("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
+            Logger.debug("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
         }
         autoShowLauncherIfEmptyTargetedTiledZone()
         return newZone
@@ -94,12 +94,12 @@ extension AppController {
     func removeZone(at index: Int) {
         let screenId = activeScreenId()
         guard let context = screenContexts[screenId] else {
-            print("Active screen not available")
+            Logger.error("Active screen not available")
             return
         }
 
         guard performRemoveZone(at: index, on: screenId, announce: true, context: context) != nil else {
-            print("Failed to remove zone \(index)")
+            Logger.error("Failed to remove zone \(index)")
             return
         }
     }
@@ -194,7 +194,7 @@ extension AppController {
         }
 
         if announce {
-            print("Removed zone \(index) on \(context.descriptor.localizedName)")
+            Logger.debug("Removed zone \(index) on \(context.descriptor.localizedName)")
         }
 
         return removalResult
@@ -203,17 +203,17 @@ extension AppController {
     func resizeZone(at index: Int, frame: CGRect) {
         let screenId = activeScreenId()
         guard let context = screenContexts[screenId] else {
-            print("Active screen not available")
+            Logger.error("Active screen not available")
             return
         }
 
         guard let zone = context.zoneController.zone(at: index) else {
-            print("Zone \(index) not found on \(context.descriptor.localizedName)")
+            Logger.debug("Zone \(index) not found on \(context.descriptor.localizedName)")
             return
         }
 
         guard zone.isEmpty else {
-            print("Zone \(index) is occupied; minimize or close its window before resizing.")
+            Logger.debug("Zone \(index) is occupied; minimize or close its window before resizing.")
             return
         }
 
@@ -224,12 +224,12 @@ extension AppController {
             clearRememberedManualResizeSizes(on: screenId, reason: "zone-resized-command")
             syncWindowsToZones()
             if let updatedZone = context.zoneController.zone(at: index) {
-                print("Resized zone \(index) on \(context.descriptor.localizedName) to \(updatedZone.frame)")
+                Logger.debug("Resized zone \(index) on \(context.descriptor.localizedName) to \(updatedZone.frame)")
             } else {
-                print("Zone \(index) resized")
+                Logger.debug("Zone \(index) resized")
             }
         } else {
-            print("Failed to resize zone \(index)")
+            Logger.error("Failed to resize zone \(index)")
         }
     }
 }

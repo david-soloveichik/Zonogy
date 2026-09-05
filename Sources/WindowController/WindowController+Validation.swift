@@ -27,7 +27,7 @@ extension WindowController {
         }
         if !accessibilityPermissionWarningShown {
             accessibilityPermissionWarningShown = true
-            print("Zonogy requires Accessibility access. Enable it in System Settings > Privacy & Security > Accessibility.")
+            Logger.debug("Zonogy requires Accessibility access. Enable it in System Settings > Privacy & Security > Accessibility.")
         }
         return false
     }

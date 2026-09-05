@@ -11,12 +11,12 @@ extension AppController {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            let bundleId = frontmost.bundleIdentifier,
            configuration.ignoredBundleIdentifiers.contains(bundleId) {
-            print("Frontmost application \(bundleId) is configured to be ignored.")
+            Logger.debug("Frontmost application \(bundleId) is configured to be ignored.")
             return
         }
 
         guard let managed = windowController.captureFrontmostWindow() else {
-            print("No frontmost window available. Make sure Accessibility permissions are granted and another app has a visible window.")
+            Logger.debug("No frontmost window available. Make sure Accessibility permissions are granted and another app has a visible window.")
             return
         }
 
@@ -25,12 +25,12 @@ extension AppController {
            let zone = context.zoneController.zone(at: key.index),
            zone.occupantWindowId == managed.windowId {
             syncWindowsToZones()
-            print("Window \(managed.windowId) is already managed in zone \(key.index)")
+            Logger.debug("Window \(managed.windowId) is already managed in zone \(key.index)")
             return
         }
 
         windowPlacementManager.placeNewWindow(managed)
-        print("Captured window \(managed.windowId)")
+        Logger.debug("Captured window \(managed.windowId)")
     }
 
     // MARK: - ZoneResizeHandleManagerDelegate
