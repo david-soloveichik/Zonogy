@@ -1293,7 +1293,8 @@ extension AppController {
     func debugTargetedZoneDescription() -> String? {
         if let floatingScreenId = targetedFloatingScreenId {
             let screenIndex = screenContextStore.loggingIndex(for: floatingScreenId)
-            return "floating zone on screen \(screenIndex)"
+            let kind = targetedZoneManager.isFloatingTargetExplicit ? "explicit" : "implicit"
+            return "floating zone on screen \(screenIndex) (\(kind))"
         }
         guard let key = targetedZoneManager.targetedZoneKey else {
             return "none"

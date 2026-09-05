@@ -2,16 +2,17 @@ import CoreGraphics
 
 /// Decision logic for the "Toggle Target Zone w/ Focused Window" shortcut.
 ///
-/// A filled tiling target always advances (re-targets as if just filled), regardless of focus.
+/// A filled tiling target always re-targets as if just filled, regardless of focus.
 /// Otherwise, target the focused window's zone when it differs from the current target; failing that,
-/// advance off the target if it holds a window (a filled floating zone), else do nothing.
+/// re-target as if just filled when the target holds a window (a filled floating zone, which with no
+/// empty tiling zone left stays targeted, implicitly), else do nothing.
 enum FocusedWindowToggleTargetPolicy {
     enum Action: Equatable {
         /// Nothing to do (no focused window to target and the current target is empty).
         case none
         /// Target the focused window's zone (it is not currently targeted).
         case target(TargetedZoneManager.TargetedDestination)
-        /// Advance the target off the currently targeted zone per standard fill-priority rules.
+        /// Re-target as if the currently targeted zone had just been filled (standard fill priority).
         case advance(from: TargetedZoneManager.TargetedDestination)
     }
 

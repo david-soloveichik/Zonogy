@@ -8,117 +8,86 @@ final class DebugPreferencesViewController: NSViewController {
     private var showPassThroughHolesCheckbox: NSButton?
     private var disablePrePositionCheckbox: NSButton?
     private var disableNativeTabsCheckbox: NSButton?
+    private var highlightImplicitFloatingTargetCheckbox: NSButton?
     private var timeTravelHintLabel: NSTextField?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 560))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 525))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
-        let saveLogCheckbox = NSButton(
-            checkboxWithTitle: "Save debug log to file",
-            target: self,
+        let saveLog = makeToggle(
+            title: "Save debug log to file",
+            hint: "When enabled, Zonogy writes /tmp/zonogy-debug.log. Turning this on clears that file.",
             action: #selector(saveLogToggled(_:))
         )
-        saveLogCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(saveLogCheckbox)
-        self.saveLogCheckbox = saveLogCheckbox
-
-        let saveLogHintLabel = NSTextField(
-            wrappingLabelWithString: "When enabled, Zonogy writes /tmp/zonogy-debug.log. Turning this on clears that file."
-        )
-        saveLogHintLabel.font = NSFont.systemFont(ofSize: 12)
-        saveLogHintLabel.textColor = .secondaryLabelColor
-        saveLogHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(saveLogHintLabel)
-
-        let dockOverlayCheckbox = NSButton(
-            checkboxWithTitle: "Show Dock debug rectangle",
-            target: self,
+        saveLogCheckbox = saveLog.checkbox
+        let dockOverlay = makeToggle(
+            title: "Show Dock debug rectangle",
+            hint: "Shows a blue rectangle around the Dock frame used by DockMenus.",
             action: #selector(dockOverlayToggled(_:))
         )
-        dockOverlayCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockOverlayCheckbox)
-        self.dockOverlayCheckbox = dockOverlayCheckbox
-
-        let dockOverlayHintLabel = NSTextField(
-            wrappingLabelWithString: "Shows a blue rectangle around the Dock frame used by DockMenus."
-        )
-        dockOverlayHintLabel.font = NSFont.systemFont(ofSize: 12)
-        dockOverlayHintLabel.textColor = .secondaryLabelColor
-        dockOverlayHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(dockOverlayHintLabel)
-
-        let fullScreenOverlayCheckbox = NSButton(
-            checkboxWithTitle: "Show full-screen debug rectangles",
-            target: self,
+        dockOverlayCheckbox = dockOverlay.checkbox
+        let fullScreenOverlay = makeToggle(
+            title: "Show full-screen debug rectangles",
+            hint: "Shows orange rectangles around displays detected as native macOS full-screen.",
             action: #selector(fullScreenOverlayToggled(_:))
         )
-        fullScreenOverlayCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(fullScreenOverlayCheckbox)
-        self.fullScreenOverlayCheckbox = fullScreenOverlayCheckbox
-
-        let fullScreenOverlayHintLabel = NSTextField(
-            wrappingLabelWithString: "Shows orange rectangles around displays detected as native macOS full-screen."
-        )
-        fullScreenOverlayHintLabel.font = NSFont.systemFont(ofSize: 12)
-        fullScreenOverlayHintLabel.textColor = .secondaryLabelColor
-        fullScreenOverlayHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(fullScreenOverlayHintLabel)
-
-        let showPassThroughHolesCheckbox = NSButton(
-            checkboxWithTitle: "Show placeholder pass-through holes",
-            target: self,
+        fullScreenOverlayCheckbox = fullScreenOverlay.checkbox
+        let showPassThroughHoles = makeToggle(
+            title: "Show placeholder pass-through holes",
+            hint: "Paints the placeholder click-catching background visibly, so pass-through holes over covered windows appear as clear cut-outs.",
             action: #selector(showPassThroughHolesToggled(_:))
         )
-        showPassThroughHolesCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(showPassThroughHolesCheckbox)
-        self.showPassThroughHolesCheckbox = showPassThroughHolesCheckbox
-
-        let showPassThroughHolesHintLabel = NSTextField(
-            wrappingLabelWithString: "Paints the placeholder click-catching background visibly, so pass-through holes over covered windows appear as clear cut-outs."
-        )
-        showPassThroughHolesHintLabel.font = NSFont.systemFont(ofSize: 12)
-        showPassThroughHolesHintLabel.textColor = .secondaryLabelColor
-        showPassThroughHolesHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(showPassThroughHolesHintLabel)
-
-        let disablePrePositionCheckbox = NSButton(
-            checkboxWithTitle: "Disable pre-position of minimized windows prior to unminimize",
-            target: self,
+        showPassThroughHolesCheckbox = showPassThroughHoles.checkbox
+        let disablePrePosition = makeToggle(
+            title: "Disable pre-position of minimized windows prior to unminimize",
+            hint: "When on, Zonogy skips moving a minimized window to its destination frame before unminimizing; the window is positioned only after it is restored.",
             action: #selector(disablePrePositionToggled(_:))
         )
-        disablePrePositionCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(disablePrePositionCheckbox)
-        self.disablePrePositionCheckbox = disablePrePositionCheckbox
-
-        let disablePrePositionHintLabel = NSTextField(
-            wrappingLabelWithString: "When on, Zonogy skips moving a minimized window to its destination frame before unminimizing; the window is positioned only after it is restored."
-        )
-        disablePrePositionHintLabel.font = NSFont.systemFont(ofSize: 12)
-        disablePrePositionHintLabel.textColor = .secondaryLabelColor
-        disablePrePositionHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(disablePrePositionHintLabel)
-
-        let disableNativeTabsCheckbox = NSButton(
-            checkboxWithTitle: "Disable native macOS tab handling",
-            target: self,
+        disablePrePositionCheckbox = disablePrePosition.checkbox
+        let disableNativeTabs = makeToggle(
+            title: "Disable native macOS tab handling",
+            hint: "When on, disables Zonogy's special handling of native macOS tabs.",
             action: #selector(disableNativeTabsToggled(_:))
         )
-        disableNativeTabsCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(disableNativeTabsCheckbox)
-        self.disableNativeTabsCheckbox = disableNativeTabsCheckbox
-
-        let disableNativeTabsHintLabel = NSTextField(
-            wrappingLabelWithString: "When on, disables Zonogy's special handling of native macOS tabs."
+        disableNativeTabsCheckbox = disableNativeTabs.checkbox
+        let highlightImplicitFloatingTarget = makeToggle(
+            title: "Show the floating zone used when no zone is the destination",
+            hint: "Tints red the Floating Zone Bar of the floating zone that receives new windows while no zone is the destination.",
+            action: #selector(highlightImplicitFloatingTargetToggled(_:))
         )
-        disableNativeTabsHintLabel.font = NSFont.systemFont(ofSize: 12)
-        disableNativeTabsHintLabel.textColor = .secondaryLabelColor
-        disableNativeTabsHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(disableNativeTabsHintLabel)
+        highlightImplicitFloatingTargetCheckbox = highlightImplicitFloatingTarget.checkbox
+
+        // The toggles scroll between the fixed title above and the fixed file locations below.
+        let toggleDocument = FlippedView()
+        toggleDocument.translatesAutoresizingMaskIntoConstraints = false
+        let toggles = [saveLog, dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
+        var previousBottom = toggleDocument.topAnchor
+        for (index, toggle) in toggles.enumerated() {
+            toggleDocument.addSubview(toggle.view)
+            NSLayoutConstraint.activate([
+                toggle.view.topAnchor.constraint(equalTo: previousBottom, constant: index == 0 ? 0 : 14),
+                toggle.view.leadingAnchor.constraint(equalTo: toggleDocument.leadingAnchor, constant: 20),
+                toggle.view.trailingAnchor.constraint(equalTo: toggleDocument.trailingAnchor, constant: -20),
+            ])
+            previousBottom = toggle.view.bottomAnchor
+        }
+        previousBottom.constraint(equalTo: toggleDocument.bottomAnchor).isActive = true
+
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        // A persistent scroller track, unlike an overlay one, shows that the list continues below.
+        scrollView.scrollerStyle = .legacy
+        scrollView.documentView = toggleDocument
+        containerView.addSubview(scrollView)
 
         let filesHeaderLabel = NSTextField(labelWithString: "Debug File Locations")
         filesHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
@@ -153,49 +122,14 @@ final class DebugPreferencesViewController: NSViewController {
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            saveLogCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
-            saveLogCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
+            scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            // Sized so the list's cut lands mid-line through a hint rather than in a gap, which
+            // is what shows that it continues; tuned to the current toggles.
+            scrollView.bottomAnchor.constraint(equalTo: filesHeaderLabel.topAnchor, constant: -30),
+            toggleDocument.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
-            saveLogHintLabel.topAnchor.constraint(equalTo: saveLogCheckbox.bottomAnchor, constant: 6),
-            saveLogHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            saveLogHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            dockOverlayCheckbox.topAnchor.constraint(equalTo: saveLogHintLabel.bottomAnchor, constant: 14),
-            dockOverlayCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            dockOverlayHintLabel.topAnchor.constraint(equalTo: dockOverlayCheckbox.bottomAnchor, constant: 6),
-            dockOverlayHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            dockOverlayHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            fullScreenOverlayCheckbox.topAnchor.constraint(equalTo: dockOverlayHintLabel.bottomAnchor, constant: 14),
-            fullScreenOverlayCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            fullScreenOverlayHintLabel.topAnchor.constraint(equalTo: fullScreenOverlayCheckbox.bottomAnchor, constant: 6),
-            fullScreenOverlayHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            fullScreenOverlayHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            showPassThroughHolesCheckbox.topAnchor.constraint(equalTo: fullScreenOverlayHintLabel.bottomAnchor, constant: 14),
-            showPassThroughHolesCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            showPassThroughHolesHintLabel.topAnchor.constraint(equalTo: showPassThroughHolesCheckbox.bottomAnchor, constant: 6),
-            showPassThroughHolesHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            showPassThroughHolesHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            disablePrePositionCheckbox.topAnchor.constraint(equalTo: showPassThroughHolesHintLabel.bottomAnchor, constant: 14),
-            disablePrePositionCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            disablePrePositionHintLabel.topAnchor.constraint(equalTo: disablePrePositionCheckbox.bottomAnchor, constant: 6),
-            disablePrePositionHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            disablePrePositionHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            disableNativeTabsCheckbox.topAnchor.constraint(equalTo: disablePrePositionHintLabel.bottomAnchor, constant: 14),
-            disableNativeTabsCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            disableNativeTabsHintLabel.topAnchor.constraint(equalTo: disableNativeTabsCheckbox.bottomAnchor, constant: 6),
-            disableNativeTabsHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            disableNativeTabsHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            filesHeaderLabel.topAnchor.constraint(equalTo: disableNativeTabsHintLabel.bottomAnchor, constant: 20),
             filesHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             debugLogPathLabel.topAnchor.constraint(equalTo: filesHeaderLabel.bottomAnchor, constant: 8),
@@ -209,11 +143,36 @@ final class DebugPreferencesViewController: NSViewController {
             timeTravelHintLabel.topAnchor.constraint(equalTo: timeTravelLogPathLabel.bottomAnchor, constant: 10),
             timeTravelHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             timeTravelHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            timeTravelHintLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 560)
+        self.preferredContentSize = NSSize(width: 580, height: 525)
         syncControls()
+    }
+
+    /// A checkbox with its explanatory hint beneath, indented like the rest of the pane.
+    private func makeToggle(title: String, hint: String, action: Selector) -> (view: NSView, checkbox: NSButton) {
+        let checkbox = NSButton(checkboxWithTitle: title, target: self, action: action)
+        checkbox.translatesAutoresizingMaskIntoConstraints = false
+        let hintLabel = NSTextField(wrappingLabelWithString: hint)
+        hintLabel.font = NSFont.systemFont(ofSize: 12)
+        hintLabel.textColor = .secondaryLabelColor
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let view = NSView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(checkbox)
+        view.addSubview(hintLabel)
+        NSLayoutConstraint.activate([
+            checkbox.topAnchor.constraint(equalTo: view.topAnchor),
+            checkbox.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hintLabel.topAnchor.constraint(equalTo: checkbox.bottomAnchor, constant: 6),
+            hintLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            hintLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hintLabel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        return (view, checkbox)
     }
 
     /// Shortcuts may have been rebound since the tab was last shown.
@@ -258,6 +217,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func highlightImplicitFloatingTargetToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setHighlightImplicitFloatingTargetFromSettings(enabled)
+        syncControls()
+    }
+
     private func syncControls() {
         saveLogCheckbox?.state = AppController.shared.isDebugLogToFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
@@ -265,6 +230,7 @@ final class DebugPreferencesViewController: NSViewController {
         showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off
         disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
         disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off
+        highlightImplicitFloatingTargetCheckbox?.state = AppController.shared.isHighlightImplicitFloatingTargetInSettings ? .on : .off
         timeTravelHintLabel?.stringValue =
             "Time-travel log capture uses \(KeyboardShortcutPreferences.shared.keyPhrase(for: .captureTimeTravelLogs)) (settable in Shortcuts) and does not depend on these toggles."
     }

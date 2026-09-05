@@ -165,18 +165,24 @@ When a display is full-screen and (another Space of) it has a window opened, unm
 - **Native full-screen** (the green-button kind that creates a dedicated Space): Place the window into the currently targeted zone (which by the retargeting rule lives on a different, non-paused display) then re-raise the originating display's full-screen window so macOS switches that display back to its full-screen Space. This avoids interrupting what user was doing (eg watching full screen movie).
 - **Otherwise** meaning non-native full-screen (an ordinary window merely covering the display) or the all-displays-full-screen fallback: Defer placement of an opened or unminimized window until the display exits full-screen mode, then place it on that same display (into the lowest-index empty tiling zone, or its floating zone if none is empty).
 
-Focus changes do not retarget zones by themselves. Targeting is controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the Launcher, DockMenus, and CmdTab specifications.
+Focus changes do not retarget zones, with the exception of an implicitly targeted floating zone (see **Implicit and explicit floating targets** below). Targeting is otherwise controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the Launcher, DockMenus, and CmdTab specifications.
+
+**Implicit and explicit floating targets:** A floating zone can be targeted either explicitly or implicitly. Explicit targeting represents direct user interaction: for example, clicking its bar or targeting it through keyboard zone navigation. Opening the Launcher at a floating zone also makes it explicitly targeted. Other retargets that land on a floating zone target it implicitly.
+
+An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) An explicit target holds until the next retarget of any kind, whose result is implicit unless it is itself an explicit targeting. Only an explicit floating target colors its bar and flashes.
+
+README and Preferences present a simpler user mental model: an implicitly targeted floating zone is described as there being no destination zone at all, with new windows going into the floating zone of the display the user is working on.
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. When the targeted tiling zone is empty, its placeholder border is highlighted with a bluish tint (see **Placeholders**). When the targeted tiling zone is occupied, an analogous bluish border is drawn over the zone frame, on top of the occupant window, so the destination of the next window is apparent.
 
-**Floating zone indicator UI:** Each display renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the true display bottom so edge clicks hit it (when the Dock is on that bottom edge, the indicator sits beneath the Dock's icons in the margin). If that floating zone is targeted, the indicator is highlighted. When a floating zone becomes targeted (or an explicit gesture re-selects the already-targeted floating zone), its indicator briefly flashes (enlarges and settles back to confirm the target). This is the floating-zone counterpart to the tiling-zone target change flash.
+**Floating zone indicator UI:** Each display renders a bottom-edge pill indicator for its floating zone (whether it's targeted or not). The indicator sits flush with the true display bottom so edge clicks hit it (when the Dock is on that bottom edge, the indicator sits beneath the Dock's icons in the margin). If that floating zone is explicitly targeted, the indicator is highlighted. When a floating zone becomes explicitly targeted (or a gesture re-selects it), its indicator briefly flashes (enlarges and settles back to confirm the target). This is the floating-zone counterpart to the tiling-zone target change flash.
 
 **Target change flash (tiling zones):** Whenever the targeted tiling zone changes a brief bluish border flash confirms the new target: empty tiling zones pulse the placeholder border; occupied tiling zones pulse their zone-frame border (settling into the persistent border described above). Explicit gestures (Control-Command-click, clicking a placeholder, picking a zone in CmdTab, or releasing zone navigation over an empty zone) flash even when re-selecting the already-targeted zone. Removing a zone likewise confirms the surviving target with a flash. Creating a tiling zone does not flash, even though it can move the target (per the normal zone-creation rule).
 
 **Indicator click behavior:**
 
 - Tiling zone indicator (shown only on the targeted tiling zone): clicking or double-clicking opens the Launcher.
-- Floating zone indicator: clicking a non-targeted indicator targets that floating zone; clicking an already-targeted indicator opens the Launcher. Double-clicking targets that floating zone and opens the Launcher.
+- Floating zone indicator: clicking an indicator that is not explicitly targeted targets that floating zone explicitly; clicking an explicitly targeted indicator opens the Launcher. Double-clicking explicitly targets that floating zone and opens the Launcher.
 
 **Target selection:**
 
@@ -187,11 +193,9 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
 - Whenever a window is placed into the targeted zone (tiling or floating): retarget using this priority:
   1. Lowest-index empty tiling zone on the same display
   2. Lowest-index empty tiling zone on a different display (tie-break by screen index; lower is preferred)
-  3. Empty floating zone (same display preferred; then by screen index)
-  4. Any floating zone (same display preferred; then by screen index)
+  3. The floating zone on the same display, or the first floating zone by screen index when that display is paused for full screen (an implicit target; see **Implicit and explicit floating targets**)
 - Moving a window from one zone to another (dragging the window itself, Move Focused Window to Target, zone navigation's move key, floating-zone promotions): if the move's source or destination zone was targeted before the move, retarget as if the destination had been targeted and just filled. Otherwise keep the target: a zone uninvolved in the move keeps it.
   - Exception: drag-dropping from DockMenus or Launcher always treats its drop destination as if originally targeted and then filled. (This is because it's hard to do it otherwise when we have to wait for a new window; other drops match for uniformity.)
-- If a floating zone is emptied because its window is minimized or closed (etc): If the current target is another floating zone (e.g., on a different display), retarget to the now-empty floating zone. (Conceptually, floating-zone emptying is "weaker" than tiling-zone emptying as it never steals targeting from a tiling zone, only from another floating zone.)
 - If the targeted tiling zone is removed: retarget using the same priority order as above.
 - If the targeted destination becomes invalid (zone removed, display removed, etc): repair it using the same priority order as above.
 
@@ -201,6 +205,8 @@ Focus changes do not retarget zones by themselves. Targeting is controlled by th
   1. The targeted zone is a filled tiling zone: re-target as if it was just filled.
   2. A managed window is focused in a non-targeted zone: target that zone.
   3. The targeted zone is a filled floating zone: re-target as if it was just filled.
+
+  Because a floating result of rules 1 and 3 is implicit, the shortcut also serves to release an explicitly targeted floating zone when pressed twice.
 
   It also works while the Launcher or CmdTab chooser is open — the chooser stays open and re-anchors to the new target. Inside a chooser the retarget is tentative: cancelling the chooser restores the target it started with (and in CmdTab, choosing an already-open window does too).
 - Targeting a zone from the keyboard is part of **Zone Navigation** below: releasing the gesture over an empty zone targets it, and the Show Launcher key targets any selected zone.
@@ -434,7 +440,7 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 
 ### Debug Preferences
 
-Zonogy Preferences includes a **Debug** tab with six independent debug toggles, all **off by default**:
+Zonogy Preferences includes a **Debug** tab with several independent debug toggles, all **off by default**:
 
 - Save debug log to file (`/tmp/zonogy-debug.log`)
 - Show Dock debug rectangle
@@ -442,12 +448,15 @@ Zonogy Preferences includes a **Debug** tab with six independent debug toggles, 
 - Show placeholder pass-through holes
 - Disable pre-position of minimized windows prior to unminimize
 - Disable native macOS tab handling
+- Show the floating zone used when no zone is the destination
 
 Changes apply immediately while Zonogy is running.
 
 The "Show placeholder pass-through holes" toggle paints the placeholder's normally imperceptible click-catching interior at a visible opacity, so the pass-through holes over covered windows and desktop icons (see **Placeholders**) stand out as clear cut-outs.
 
 The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
+
+The "Show the floating zone used when no zone is the destination" toggle tints the implicitly targeted floating zone's indicator red (see **Implicit and explicit floating targets** under **Targeting**).
 
 The "Disable native macOS tab handling" toggle turns off the native-tab behaviors — the tab-switch frame wait and replacement, the tab-close rebind to a surviving sibling, and the last-tab merge collapse — so native-tab candidates are treated like ordinary separate windows (and closing a tab empties its zone even when other tabs of that window remain).
 

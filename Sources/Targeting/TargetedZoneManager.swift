@@ -9,7 +9,6 @@ protocol TargetedZoneManagerDelegate: AnyObject {
     var fullScreenDisplayIds: Set<CGDirectDisplayID> { get }
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
-    func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool
     func refreshIndicators()
     /// Called when the targeted destination changes. Allows delegate to respond (e.g., reposition/dismiss Launcher).
     func targetedZoneDidChange(from oldDestination: TargetedZoneManager.TargetedDestination?, to newDestination: TargetedZoneManager.TargetedDestination?)
@@ -39,6 +38,12 @@ class TargetedZoneManager {
 
     weak var delegate: TargetedZoneManagerDelegate?
     private(set) var targetedDestination: TargetedDestination?
+    /// How a floating target was chosen. Explicit: the user pointed at the floating zone (bar
+    /// click, zone navigation, the Launcher shown at it); it holds until the next retarget of any
+    /// kind and is the only floating target that colors its bar. Implicit: any other rule landed
+    /// the target on a floating zone; it follows the frontmost window's display silently (see
+    /// `moveImplicitFloatingTarget(toDisplay:reason:)`). Always `false` for a tiling target.
+    private(set) var isFloatingTargetExplicit = false
 
     var targetedZoneKey: ZoneKey? {
         targetedDestination?.tiledKey
@@ -115,6 +120,7 @@ class TargetedZoneManager {
 
         let oldDestination = targetedDestination
         targetedDestination = newDestination
+        isFloatingTargetExplicit = false
 
         if let key {
             // Convert display ID to a user-facing index for logging, using current screen ordering.
@@ -128,7 +134,9 @@ class TargetedZoneManager {
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
     }
 
-    func setFloatingTarget(on screenId: CGDirectDisplayID, reason: String) {
+    /// Targets the floating zone on `screenId`. `explicit` records whether the user pointed at it
+    /// (see `isFloatingTargetExplicit`); re-selecting the targeted floating zone updates that alone.
+    func setFloatingTarget(on screenId: CGDirectDisplayID, reason: String, explicit: Bool = false) {
         guard screenExists(screenId) else {
             delegate?.refreshIndicators()
             return
@@ -143,18 +151,41 @@ class TargetedZoneManager {
             return
         }
 
+        let screenIndex = delegate?.screenOrder.firstIndex(of: screenId) ?? Int(screenId)
+        let kind = explicit ? "explicitly" : "implicitly"
         let newDestination = TargetedDestination.floating(screenId: screenId)
         if targetedDestination == newDestination {
+            if isFloatingTargetExplicit != explicit {
+                isFloatingTargetExplicit = explicit
+                Logger.debug("Targeted floating zone on screen \(screenIndex) now \(kind) targeted due to \(reason)")
+            }
             delegate?.refreshIndicators()
             return
         }
 
         let oldDestination = targetedDestination
         targetedDestination = newDestination
-        let screenIndex = delegate?.screenOrder.firstIndex(of: screenId) ?? Int(screenId)
-        Logger.debug("Targeted floating zone set on screen \(screenIndex) due to \(reason)")
+        isFloatingTargetExplicit = explicit
+        Logger.debug("Targeted floating zone set on screen \(screenIndex), \(kind), due to \(reason)")
         delegate?.refreshIndicators()
         delegate?.targetedZoneDidChange(from: oldDestination, to: newDestination)
+    }
+
+    /// Call once the Launcher has been shown at the current target: the Launcher shown at a
+    /// floating zone targets it explicitly. Returns whether an implicit target became explicit.
+    @discardableResult
+    func markFloatingTargetExplicit(reason: String) -> Bool {
+        guard case .floating(let screenId) = targetedDestination, !isFloatingTargetExplicit else { return false }
+        setFloatingTarget(on: screenId, reason: reason, explicit: true)
+        return true
+    }
+
+    /// An implicit floating target follows the frontmost window's display; call with that display
+    /// whenever it may have changed. Explicit floating targets and tiling targets are left alone.
+    func moveImplicitFloatingTarget(toDisplay screenId: CGDirectDisplayID, reason: String) {
+        guard case .floating(let currentScreenId) = targetedDestination, !isFloatingTargetExplicit,
+              screenId != currentScreenId, isScreenTargetable(screenId) else { return }
+        setFloatingTarget(on: screenId, reason: reason)
     }
 
     /// When a new tiling zone is created on a screen, always target the lowest-index empty tiling zone on that screen.
@@ -180,30 +211,15 @@ class TargetedZoneManager {
     }
 
     /// Retargets after the floating zone on `screenId` is filled, using the same priority
-    /// order as filling a tiling zone. The just-filled floating zone is occupied, so an empty
-    /// floating zone on another screen outranks it; when every floating zone elsewhere is
-    /// occupied too, the shared order returns the just-filled zone itself and the target stays
-    /// put. Hopping only to empty floating zones cannot oscillate the target: a later fill of
-    /// the hopped-to zone finds this one still occupied. (The Toggle Target Zone with Focused
-    /// Window shortcut also routes here to advance off a filled floating target; its
-    /// back-and-forth between that zone and an empty one elsewhere is the toggle's intended
-    /// alternation, not oscillation.)
+    /// order as filling a tiling zone; with no empty tiling zone anywhere, the just-filled zone
+    /// stays targeted, implicitly. (The Toggle Target Zone with Focused Window shortcut also
+    /// routes here for a filled floating target.)
     func retargetAfterFillingFloatingZone(on screenId: CGDirectDisplayID, reason: String) {
         guard let destination = preferredRetargetDestination(preferredSameScreenId: screenId) else {
             ensureTargetedZone(reason: reason)
             return
         }
         applyRetargetDestination(destination, reason: reason)
-    }
-
-    /// The floating counterpart of "an emptied tiling zone takes the target": a floating zone
-    /// emptied by its window disappearing (minimized, closed, hidden) takes the target only from
-    /// another floating zone, never from a tiling zone. Floating zones are the weaker kind, and
-    /// with a floating target an empty floating zone is the better destination, exactly as the
-    /// fill priority ranks them. Emptying the targeted floating zone itself changes nothing.
-    func retargetAfterEmptyingFloatingZone(on screenId: CGDirectDisplayID, reason: String) {
-        guard case .floating(let currentScreenId) = targetedDestination, currentScreenId != screenId else { return }
-        setFloatingTarget(on: screenId, reason: reason)
     }
 
     /// Retargets as if `destination` had been targeted and just filled.
@@ -241,8 +257,8 @@ class TargetedZoneManager {
     /// Shared retarget preference order for when a targeted zone is filled or removed:
     /// 1) Lowest-index empty tiling zone on the same screen
     /// 2) Lowest-index empty tiling zone on a different screen (tie-break by screen index)
-    /// 3) Empty floating zone (same screen first, then screen order)
-    /// 4) Any floating zone (same screen first, then screen order)
+    /// 3) The floating zone on the same screen, else the first floating zone in screen order
+    ///    (an implicit target; see `isFloatingTargetExplicit`)
     func preferredRetargetDestination(
         preferredSameScreenId: CGDirectDisplayID?,
         excluding excluded: ZoneKey? = nil
@@ -262,34 +278,16 @@ class TargetedZoneManager {
             return .tiled(selection)
         }
 
-        if let emptyFloating = floatingRetargetCandidate(
-            preferredSameScreenId: preferredSameScreenId,
-            requireEmpty: true
-        ) {
-            return emptyFloating
-        }
-        return floatingRetargetCandidate(preferredSameScreenId: preferredSameScreenId, requireEmpty: false)
+        return floatingRetargetCandidate(preferredSameScreenId: preferredSameScreenId)
     }
 
-    /// The floating zone to retarget to: the preferred (same) screen's first, then the rest in
-    /// screen order. With `requireEmpty`, only unoccupied floating zones qualify.
-    private func floatingRetargetCandidate(
-        preferredSameScreenId: CGDirectDisplayID?,
-        requireEmpty: Bool
-    ) -> TargetedDestination? {
-        func qualifies(_ screenId: CGDirectDisplayID) -> Bool {
-            guard isScreenTargetable(screenId) else { return false }
-            return !requireEmpty || delegate?.isFloatingZoneOccupied(on: screenId) == false
-        }
-
-        if let preferredSameScreenId, qualifies(preferredSameScreenId) {
+    /// The floating zone an implicit target settles on: the preferred (same) screen's, else the
+    /// first targetable screen's in screen order. From there it follows the frontmost window.
+    private func floatingRetargetCandidate(preferredSameScreenId: CGDirectDisplayID?) -> TargetedDestination? {
+        if let preferredSameScreenId, isScreenTargetable(preferredSameScreenId) {
             return .floating(screenId: preferredSameScreenId)
         }
-        guard let delegate else { return nil }
-        for screenId in delegate.screenOrder where screenId != preferredSameScreenId && qualifies(screenId) {
-            return .floating(screenId: screenId)
-        }
-        return nil
+        return delegate?.screenOrder.first(where: isScreenTargetable).map { .floating(screenId: $0) }
     }
 
     func zoneExists(_ key: ZoneKey) -> Bool {

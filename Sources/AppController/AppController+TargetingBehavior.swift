@@ -97,7 +97,7 @@ extension AppController {
                 Logger.debug("Toggle target zone w/ focused window: targeting focused window's zone")
                 applyTargetedDestination(destination, reason: reason)
             case .advance(let from):
-                Logger.debug("Toggle target zone w/ focused window: targeted zone occupied; advancing off it")
+                Logger.debug("Toggle target zone w/ focused window: targeted zone occupied; re-targeting as if just filled")
                 advanceTargetOffZone(from, reason: reason)
             }
         }
@@ -227,7 +227,8 @@ extension AppController {
 
     internal func applyTargetedDestination(
         _ destination: TargetedZoneManager.TargetedDestination?,
-        reason: String
+        reason: String,
+        explicit: Bool = false
     ) {
         guard let destination else {
             targetedZoneManager.setTargetedZone(nil, reason: reason)
@@ -238,7 +239,7 @@ extension AppController {
         case .tiled(let key):
             targetedZoneManager.setTargetedZone(key, reason: reason)
         case .floating(let screenId):
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason, explicit: explicit)
         }
     }
 

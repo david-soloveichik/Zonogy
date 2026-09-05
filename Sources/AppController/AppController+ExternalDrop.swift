@@ -38,7 +38,7 @@ extension AppController {
     func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem]) {
         guard !items.isEmpty else { return }
         lastEdgePillExternalDropAt = Date()
-        targetedZoneManager.setFloatingTarget(on: screenId, reason: "floating-zone-drop")
+        targetFloatingZoneForDrop(on: screenId, reason: "floating-zone-drop")
         openExternalDropItems(items)
     }
 

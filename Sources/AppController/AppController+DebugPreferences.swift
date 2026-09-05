@@ -18,6 +18,10 @@ extension AppController {
         DebugPreferencesStore.loadDisableNativeTabHandling()
     }
 
+    internal var isHighlightImplicitFloatingTargetInSettings: Bool {
+        DebugPreferencesStore.loadHighlightImplicitFloatingTarget()
+    }
+
     internal func setDebugLogToFileEnabledFromSettings(_ enabled: Bool) {
         let wasEnabled = Logger.logToFile
         DebugPreferencesStore.saveLogToFileEnabled(enabled)
@@ -54,5 +58,11 @@ extension AppController {
         Logger.debug("Debug: disable native macOS tab handling=\(disabled)")
         DebugPreferencesStore.saveDisableNativeTabHandling(disabled)
         windowController.nativeTabHandlingDisabled = disabled
+    }
+
+    internal func setHighlightImplicitFloatingTargetFromSettings(_ enabled: Bool) {
+        Logger.debug("Debug: highlight implicitly targeted floating zone bar=\(enabled)")
+        DebugPreferencesStore.saveHighlightImplicitFloatingTarget(enabled)
+        refreshIndicators()
     }
 }

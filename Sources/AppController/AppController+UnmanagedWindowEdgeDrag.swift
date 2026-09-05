@@ -268,7 +268,7 @@ extension AppController {
             return true
 
         case .floatingZone(let screenId):
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: "unmanaged-window-floating-zone-drop")
+            targetFloatingZoneForDrop(on: screenId, reason: "unmanaged-window-floating-zone-drop")
             return true
         }
     }

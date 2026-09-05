@@ -27,7 +27,7 @@ The Launcher opens via:
   - Zone navigation is released over an empty zone, tiling or floating (targeting it).
 - **Covered unmanaged windows:** The Launcher does not auto-show where it would cover an unmanaged window in an empty tiling zone: there the placeholder's pass-through holes (see **Click-through over covered windows** in the main specification) let the user interact with the window. Explicit opens are honored regardless.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses.
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. Showing it at a floating zone targets that zone explicitly (see **Targeting** in [SPECIFICATION.md](SPECIFICATION.md)).
   Exceptions to dismissal on occupied-target: the Launcher shortcut's toggle retarget (above), and gestures that explicitly open the Launcher on a zone of the user's choosing even when it is occupied (Control-Command-double-click, zone navigation's Show Launcher key).
 
 ## Dismissal

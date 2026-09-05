@@ -155,7 +155,9 @@ extension AppController {
             let descriptor = FloatingZoneIndicatorDescriptor(
                 screenId: screenId,
                 cocoaFrame: frames.cocoa,
-                isTargeted: targetedFloatingScreenId == screenId,
+                isTargeted: explicitlyTargetedFloatingScreenId == screenId,
+                isDebugImplicitTarget: isHighlightImplicitFloatingTargetInSettings
+                    && implicitlyTargetedFloatingScreenId == screenId,
                 isOccupied: floatingZoneOccupant(on: screenId) != nil,
                 isDragHighlighted: floatingIndicatorTracker.highlighted == screenId
             )

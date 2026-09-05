@@ -122,7 +122,7 @@ final class ZonesPreferencesViewController: NSViewController {
         containerView.addSubview(destinationTitleLabel)
 
         let destinationDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "Windows open into the current destination zone, marked with the glowing indicator. Emptying a zone (for example, by minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
+            wrappingLabelWithString: "Windows open into the current destination zone, marked with the glowing indicator. When no zone is the destination, new windows go into the floating zone of the display you are working on. Emptying a zone (for example, by minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
         )
         destinationDescriptionLabel.font = NSFont.systemFont(ofSize: 12)
         destinationDescriptionLabel.textColor = .secondaryLabelColor
@@ -192,7 +192,7 @@ final class ZonesPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 585)
+        self.preferredContentSize = NSSize(width: 580, height: 600)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()

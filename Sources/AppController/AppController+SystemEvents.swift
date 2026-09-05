@@ -289,15 +289,20 @@ extension AppController {
     /// Updates `unmanagedFocusedWindowScreenId` based on the current frontmost window.
     /// If the focused window is confirmed unmanaged, stores its screen ID; otherwise clears the state.
     /// Calls `refreshResizeHandles()` when the state changes (the state drives resize-bar hiding).
+    /// Also lets an implicit floating target follow a placed or unmanaged frontmost window's display.
     internal func updateUnmanagedFocusState() {
         let previousScreenId = unmanagedFocusedWindowScreenId
         let resolution = resolveUnmanagedFocusState()
         let newScreenId: CGDirectDisplayID?
+        // A placed managed window or an unmanaged one says where the user is working; the other
+        // resolutions (Zonogy's own windows, windows still on their way into a zone) say nothing.
+        var frontmostScreenId: CGDirectDisplayID?
 
         switch resolution {
         case .managed(let window, let pid, let focusedElement):
             cancelUnmanagedFocusRetry()
             let focusedScreenId = window.screenDisplayId ?? detectScreenId(for: window)
+            frontmostScreenId = focusedScreenId
             if let focusedScreenId {
                 repairFullScreenPauseStateFromFocusedWindowIfNeeded(
                     focusedWindow: focusedElement,
@@ -317,6 +322,7 @@ extension AppController {
             newScreenId = screenId
         case .unmanaged(let screenId, let pid, let focusedElement, let reason):
             cancelUnmanagedFocusRetry()
+            frontmostScreenId = screenId
             repairFullScreenPauseStateFromFocusedWindowIfNeeded(
                 focusedWindow: focusedElement,
                 pid: pid,
@@ -340,6 +346,12 @@ extension AppController {
         }
 
         unmanagedFocusedWindowScreenId = newScreenId
+        // Not while CmdTab is open: its tentative target must stay restorable, and the chooser
+        // must not jump displays under the user. The next focus change after CmdTab closes moves
+        // the target.
+        if let frontmostScreenId, !cmdTabController.isActive {
+            targetedZoneManager.moveImplicitFloatingTarget(toDisplay: frontmostScreenId, reason: "frontmost-window")
+        }
 
         // Focus/activation changes reorder windows relative to placeholders (e.g. a clicked
         // window rises above one): recompute placeholder pass-through regions.

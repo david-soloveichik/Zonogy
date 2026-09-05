@@ -25,10 +25,9 @@ extension AppController {
         // is gesture-gated, so placing a window that is not mid-gesture is a no-op.
         terminateManualGestureState(for: windowId)
 
-        // Capture floating-zone occupancy before any clearing happens, so we can apply
-        // the floating-zone emptying retarget below after the floating slot is released.
-        let floatingScreenIdBeforeClear = floatingZoneCoordinator.occupants
-            .first(where: { $0.value == windowId })?.key
+        // Remembered before the slot is released below, so a floating occupant leaving is not
+        // logged as a window that held no zone.
+        let wasFloatingOccupant = floatingZoneCoordinator.isWindowInFloatingZone(windowId)
 
         // Clear the window's record of its zone assignment (ManagedWindow -> Zone)
         if let managed = windowController.window(withId: windowId) {
@@ -62,16 +61,32 @@ extension AppController {
 
         clearFloatingZone(for: windowId, reason: reason)
 
-        // Gated by `retarget` like the tiling rule above: moves out of the floating zone follow
-        // the move rule instead (movers pass `retarget: false`).
-        if retarget, let emptiedFloatingScreenId = floatingScreenIdBeforeClear {
-            targetedZoneManager.retargetAfterEmptyingFloatingZone(on: emptiedFloatingScreenId, reason: reason)
-        }
-
-        if !removed, floatingScreenIdBeforeClear == nil, logIfUnassigned {
+        if !removed, !wasFloatingOccupant, logIfUnassigned {
             Logger.debug("Requested removal of window \(windowId) from all zones but none were assigned (reason: \(reason))")
         }
     }
+    /// The floating zone whose bar is colored: an explicitly targeted one. An implicit floating
+    /// target draws no indicator (see `TargetedZoneManager.isFloatingTargetExplicit`).
+    internal var explicitlyTargetedFloatingScreenId: CGDirectDisplayID? {
+        targetedZoneManager.isFloatingTargetExplicit ? targetedFloatingScreenId : nil
+    }
+
+    /// The implicitly targeted floating zone, drawn only by the debug highlight.
+    internal var implicitlyTargetedFloatingScreenId: CGDirectDisplayID? {
+        targetedZoneManager.isFloatingTargetExplicit ? nil : targetedFloatingScreenId
+    }
+
+    /// Targets a floating zone dropped onto (a pointing gesture): explicit until the arriving
+    /// window fills it, and confirmed with the bar's flash even when the zone was already targeted,
+    /// which fires no change event of its own.
+    internal func targetFloatingZoneForDrop(on screenId: CGDirectDisplayID, reason: String) {
+        let wasAlreadyTargeted = targetedZoneManager.targetedDestination == .floating(screenId: screenId)
+        targetedZoneManager.setFloatingTarget(on: screenId, reason: reason, explicit: true)
+        if wasAlreadyTargeted {
+            pulseFloatingTargetFeedback(for: screenId)
+        }
+    }
+
     internal func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {
         ZoneKey(screenId: screenId, index: index)
     }
@@ -240,8 +255,8 @@ extension AppController {
         // Ctrl+Cmd-click on the Floating Zone indicator should behave like a regular left-click.
         for (screenId, hitArea) in floatingIndicatorTracker.hitAreas {
             if hitArea.contains(location) {
-                let wasAlreadyTargeted = targetedFloatingScreenId == screenId
-                floatingZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: wasAlreadyTargeted, isDoubleClick: false)
+                let wasAlreadyTargeted = explicitlyTargetedFloatingScreenId == screenId
+                floatingZoneIndicatorActivated(screenId: screenId, wasAlreadyTargeted: wasAlreadyTargeted, isDoubleClick: clickCount >= 2)
                 return true
             }
         }
@@ -343,8 +358,8 @@ extension AppController {
     /// state so we only pop when this floating zone is still the final target.
     func pulseFloatingTargetFeedback(for screenId: CGDirectDisplayID) {
         DispatchQueue.main.async { [weak self] in
-            guard let self,
-                  self.targetedZoneManager.targetedDestination == .floating(screenId: screenId) else { return }
+            // Only an explicit floating target is drawn, so only it can be confirmed.
+            guard let self, self.explicitlyTargetedFloatingScreenId == screenId else { return }
             self.floatingIndicatorManager.pulseTargeted(screenId: screenId)
         }
     }

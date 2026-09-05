@@ -131,6 +131,12 @@ extension AppController {
         } else {
             launcherController.show()
         }
+        // The Launcher shown at a floating zone targets it explicitly; a bar that just became
+        // explicit flashes to confirm, as for any gesture that selects a floating zone.
+        if targetedZoneManager.markFloatingTargetExplicit(reason: "launcher-shown"),
+           let screenId = targetedFloatingScreenId {
+            pulseFloatingTargetFeedback(for: screenId)
+        }
         // Pin the search pill highlight on the anchor zone's placeholder.
         refreshIndicators()
         return true
@@ -184,7 +190,8 @@ extension AppController {
         // refresh path's commit-on-change to act on.
         launcherRetargetSession = nil
         cmdTabRetargetSession = nil
-        applyTargetedDestination(destination, reason: reason)
+        // Pointing at a floating zone targets it explicitly (see `isFloatingTargetExplicit`).
+        applyTargetedDestination(destination, reason: reason, explicit: true)
         // Re-affirming the already-targeted zone fires no change event, so flash here to confirm the
         // gesture — unless flashes are suppressed (e.g. the second click of a double-click).
         if wasAlreadyTargeted, !suppressTargetChangeFlash {

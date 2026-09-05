@@ -33,6 +33,7 @@ enum UserDefaultsKeys {
     static let showPlaceholderPassThroughHoles = "Zonogy.debug.showPlaceholderPassThroughHoles"
     static let disablePrePositionBeforeUnminimize = "Zonogy.debug.disablePrePositionBeforeUnminimize"
     static let disableNativeTabHandling = "Zonogy.debug.disableNativeTabHandling"
+    static let highlightImplicitFloatingTarget = "Zonogy.debug.highlightImplicitFloatingTarget"
 
     // MARK: - Launcher
     static let launcherAutoShowForEmptyZones = "Zonogy.launcher.autoShowForEmptyZones"

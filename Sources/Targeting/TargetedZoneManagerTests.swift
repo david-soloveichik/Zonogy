@@ -207,12 +207,11 @@ enum TargetedZoneManagerTests {
             let controller2 = delegate.zoneController(for: screen2)!
             controller1.assignWindow(windowId: 1203, toZoneIndex: 1)
             controller2.assignWindow(windowId: 1204, toZoneIndex: 1)
-            delegate.occupiedFloatingScreenIds = [screen1]
 
-            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.setFloatingTarget(on: screen1, reason: "test", explicit: true)
             manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
 
-            assert(manager.targetedFloatingScreenId == screen2, "retargetAfterFillingFloatingZone should target another screen's empty floating zone when no empty tiling zone exists (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen1 && !manager.isFloatingTargetExplicit, "filling a floating zone with no empty tiling zone left should keep it targeted, implicitly (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
         }
 
         do {
@@ -224,12 +223,12 @@ enum TargetedZoneManagerTests {
             let controller2 = delegate.zoneController(for: screen2)!
             controller1.assignWindow(windowId: 1205, toZoneIndex: 1)
             controller2.assignWindow(windowId: 1206, toZoneIndex: 1)
-            delegate.occupiedFloatingScreenIds = [screen1, screen2]
 
-            manager.setFloatingTarget(on: screen1, reason: "test")
-            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+            manager.setFloatingTarget(on: screen2, reason: "test")
+            delegate.fullScreenDisplayIds = [screen2]
+            manager.retargetAfterFillingFloatingZone(on: screen2, reason: "filled")
 
-            assert(manager.targetedFloatingScreenId == screen1, "retargetAfterFillingFloatingZone should keep the just-filled floating zone targeted when every zone on every screen is occupied (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen1, "a floating fill on a screen paused for full screen should fall back to the first floating zone in screen order (got \(String(describing: manager.targetedDestination)))")
         }
 
         do {
@@ -239,14 +238,13 @@ enum TargetedZoneManagerTests {
             )
             let controller1 = delegate.zoneController(for: screen1)!
             let controller2 = delegate.zoneController(for: screen2)!
-            controller1.assignWindow(windowId: 1207, toZoneIndex: 1)
-            controller2.assignWindow(windowId: 1208, toZoneIndex: 1)
-            delegate.occupiedFloatingScreenIds = [screen1]
+            controller1.assignWindow(windowId: 1209, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1210, toZoneIndex: 1)
 
-            manager.setTargetedZone(ZoneKey(screenId: screen1, index: 1), reason: "test")
-            manager.retargetAfterFillingZone(ZoneKey(screenId: screen1, index: 1), reason: "filled")
+            manager.setTargetedZone(ZoneKey(screenId: screen2, index: 1), reason: "test")
+            manager.retargetAfterFillingZone(ZoneKey(screenId: screen2, index: 1), reason: "filled")
 
-            assert(manager.targetedFloatingScreenId == screen2, "retargetAfterFillingZone should prefer another screen's empty floating zone over the same screen's occupied one (got \(String(describing: manager.targetedDestination)))")
+            assert(manager.targetedFloatingScreenId == screen2, "retargetAfterFillingZone should fall to the just-filled screen's floating zone, not the first in screen order (got \(String(describing: manager.targetedDestination)))")
         }
 
         do {
@@ -316,7 +314,6 @@ enum TargetedZoneManagerTests {
             )
             let controller = delegate.zoneController(for: screen1)!
             controller.assignWindow(windowId: 1304, toZoneIndex: 1)
-            delegate.occupiedFloatingScreenIds = [screen1]
 
             manager.setFloatingTarget(on: screen1, reason: "test")
             manager.retargetAfterMovingWindow(
@@ -477,23 +474,36 @@ enum TargetedZoneManagerTests {
                 screenOrder: [screen1, screen2]
             )
 
-            // An emptied floating zone takes the target from another floating zone, whether or
-            // not that one is occupied...
-            delegate.occupiedFloatingScreenIds = [screen2]
-            manager.setFloatingTarget(on: screen2, reason: "test")
-            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
-            assert(manager.targetedFloatingScreenId == screen1, "retargetAfterEmptyingFloatingZone should take the target from another floating zone (got \(String(describing: manager.targetedDestination)))")
+            let controller1 = delegate.zoneController(for: screen1)!
+            let controller2 = delegate.zoneController(for: screen2)!
+            controller1.assignWindow(windowId: 1501, toZoneIndex: 1)
+            controller2.assignWindow(windowId: 1502, toZoneIndex: 1)
 
-            // Emptying the targeted floating zone itself changes nothing, not even a refresh...
+            // An implicit floating target follows the frontmost window's display...
+            manager.setFloatingTarget(on: screen1, reason: "test")
+            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            assert(manager.targetedFloatingScreenId == screen2 && !manager.isFloatingTargetExplicit, "an implicit floating target should follow the frontmost window's display (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+
+            // ...and an explicit one ignores the frontmost window altogether.
+            manager.setFloatingTarget(on: screen1, reason: "test", explicit: true)
+            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit, "an explicit floating target should not follow the frontmost window (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+
+            // Any retarget demotes an explicit target, even one landing on the same zone: with every
+            // zone occupied, filling screen 1's floating zone retargets right back to it, implicitly.
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+            assert(manager.targetedFloatingScreenId == screen1 && !manager.isFloatingTargetExplicit, "a retarget landing on the explicitly targeted floating zone should still make it implicit (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+
+            // Re-selecting the targeted floating zone explicitly changes only how it is targeted.
             let refreshCountBefore = delegate.refreshCount
-            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
-            assert(manager.targetedFloatingScreenId == screen1 && delegate.refreshCount == refreshCountBefore, "retargetAfterEmptyingFloatingZone should be a no-op for the already-targeted floating zone (got \(String(describing: manager.targetedDestination)), extra refreshes: \(delegate.refreshCount - refreshCountBefore))")
+            manager.markFloatingTargetExplicit(reason: "launcher-shown")
+            assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit && delegate.refreshCount == refreshCountBefore + 1, "marking the targeted floating zone explicit should keep the destination and refresh the indicators once (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit), refreshes: \(delegate.refreshCount - refreshCountBefore))")
 
-            // ...and a tiling target is never taken, not even one on the same screen.
+            // A tiling target is neither explicit nor moved by the frontmost window.
             let tiled = ZoneKey(screenId: screen1, index: 1)
             manager.setTargetedZone(tiled, reason: "test")
-            manager.retargetAfterEmptyingFloatingZone(on: screen1, reason: "emptied")
-            assert(manager.targetedZoneKey == tiled, "retargetAfterEmptyingFloatingZone should never take the target from a tiling zone (got \(String(describing: manager.targetedDestination)))")
+            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            assert(manager.targetedZoneKey == tiled && !manager.isFloatingTargetExplicit, "a tiling target should never be explicit or follow the frontmost window (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
         }
 
         if allPassed {
@@ -534,7 +544,6 @@ enum TargetedZoneManagerTests {
         var screenOrder: [CGDirectDisplayID]
         var primaryScreenId: CGDirectDisplayID
         var fullScreenDisplayIds: Set<CGDirectDisplayID>
-        var occupiedFloatingScreenIds: Set<CGDirectDisplayID> = []
         var refreshCount = 0
 
         init(
@@ -551,10 +560,6 @@ enum TargetedZoneManagerTests {
 
         func zoneController(for screenId: CGDirectDisplayID) -> ZoneController? {
             screenContexts[screenId]?.zoneController
-        }
-
-        func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool {
-            occupiedFloatingScreenIds.contains(screenId)
         }
 
         func refreshIndicators() {

@@ -134,7 +134,7 @@ extension AppController {
             )
             return true
         case .floatingZone(let screenId):
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+            targetFloatingZoneForDrop(on: screenId, reason: reason)
             openExternalDropItems(items)
             return true
         case .addZone(let pill):
@@ -162,7 +162,7 @@ extension AppController {
             targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
             return true
         case .floatingZone(let screenId):
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+            targetFloatingZoneForDrop(on: screenId, reason: reason)
             return true
         case .addZone(let pill):
             guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
@@ -221,7 +221,7 @@ extension AppController {
         }
 
         if managed.isMinimizedPerAccessibility {
-            targetedZoneManager.setFloatingTarget(on: screenId, reason: reason)
+            targetFloatingZoneForDrop(on: screenId, reason: reason)
             let targetFrame = floatingZoneCoordinator.computePlacementFrame(for: managed, on: screenId)
             unminimizeWithPrePositioning(
                 managed,

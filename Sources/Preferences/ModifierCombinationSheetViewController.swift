@@ -487,12 +487,6 @@ class ModifierCombinationSheetViewController: NSViewController {
     }
 }
 
-/// Top-anchors the scrolling content, so short content sits at the top of the sheet rather than
-/// against its bottom edge.
-private final class FlippedView: NSView {
-    override var isFlipped: Bool { true }
-}
-
 /// The blank trigger of a step that can't be performed. It states a zero intrinsic size rather
 /// than leaving one to the autoresizing mask, which no longer supplies a frame once translation is
 /// disabled — an unsized subview would make the slot's height ambiguous.

@@ -5,6 +5,8 @@ struct FloatingZoneIndicatorDescriptor {
     let screenId: CGDirectDisplayID
     let cocoaFrame: CGRect
     let isTargeted: Bool
+    /// Debug-only red tint for the implicitly targeted floating zone, which draws nothing otherwise.
+    let isDebugImplicitTarget: Bool
     let isOccupied: Bool
     let isDragHighlighted: Bool
 }
@@ -32,6 +34,7 @@ final class FloatingZoneIndicatorManager {
         weak var manager: FloatingZoneIndicatorManager?
         let screenId: CGDirectDisplayID
         var isTargeted: Bool { didSet { applyStyle() } }
+        var isDebugImplicitTarget: Bool { didSet { applyStyle() } }
         var isOccupied: Bool { didSet { applyStyle() } }
         var isDragHighlighted: Bool {
             didSet {
@@ -74,6 +77,9 @@ final class FloatingZoneIndicatorManager {
         private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
         private let targetedFillColor = IndicatorPalette.targetedFillColor
         private let targetedBorderColor = IndicatorPalette.targetedBorderColor
+        private let debugImplicitFillColor = NSColor.systemRed.withAlphaComponent(0.45)
+        private let debugImplicitBorderColor = NSColor.systemRed.withAlphaComponent(0.7)
+        private let debugImplicitShadowColor = NSColor.systemRed.withAlphaComponent(0.5).cgColor
         private let occupiedFillColor = NSColor.systemBlue.withAlphaComponent(0.22)
         private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
         private let untargetedFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
@@ -84,9 +90,17 @@ final class FloatingZoneIndicatorManager {
         private let hoverShadowOpacity: Float = 0.55
         private let hoverShadowRadius: CGFloat = 7
 
-        init(frame frameRect: NSRect, screenId: CGDirectDisplayID, targeted: Bool, occupied: Bool, dragHighlighted: Bool) {
+        init(
+            frame frameRect: NSRect,
+            screenId: CGDirectDisplayID,
+            targeted: Bool,
+            debugImplicitTarget: Bool,
+            occupied: Bool,
+            dragHighlighted: Bool
+        ) {
             self.screenId = screenId
             self.isTargeted = targeted
+            self.isDebugImplicitTarget = debugImplicitTarget
             self.isOccupied = occupied
             self.isDragHighlighted = dragHighlighted
             super.init(frame: frameRect)
@@ -223,6 +237,13 @@ final class FloatingZoneIndicatorManager {
                 shadowOpacity = IndicatorPalette.targetedShadowOpacity
                 shadowRadius = IndicatorPalette.targetedShadowRadius
                 borderWidth = IndicatorPalette.defaultBorderWidth
+            } else if isDebugImplicitTarget {
+                background = debugImplicitFillColor
+                border = debugImplicitBorderColor
+                shadowColor = debugImplicitShadowColor
+                shadowOpacity = IndicatorPalette.targetedShadowOpacity
+                shadowRadius = IndicatorPalette.targetedShadowRadius
+                borderWidth = IndicatorPalette.defaultBorderWidth
             } else if isHovered {
                 background = hoverFillColor
                 border = hoverBorderColor
@@ -333,6 +354,7 @@ final class FloatingZoneIndicatorManager {
                 handle.window.ignoresMouseEvents = mousePassthrough
                 handle.view.edgeOverhang = edgeOverhang(of: handle)
                 handle.view.isTargeted = descriptor.isTargeted
+                handle.view.isDebugImplicitTarget = descriptor.isDebugImplicitTarget
                 handle.view.isOccupied = descriptor.isOccupied
                 handle.view.isDragHighlighted = descriptor.isDragHighlighted
                 handle.view.delegate = delegate
@@ -351,6 +373,7 @@ final class FloatingZoneIndicatorManager {
                 frame: NSRect(origin: .zero, size: baseFrame.size),
                 screenId: descriptor.screenId,
                 targeted: descriptor.isTargeted,
+                debugImplicitTarget: descriptor.isDebugImplicitTarget,
                 occupied: descriptor.isOccupied,
                 dragHighlighted: descriptor.isDragHighlighted
             )

@@ -4,7 +4,7 @@ Zonogy is a zone-based window manager for macOS. (The name evokes "the origin or
 
 **[View Zonogy on GitHub →](https://github.com/david-soloveichik/Zonogy)**
 
-Zonogy divides each display into persistent tiling zones plus a floating zone. At any time, one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
+Zonogy divides each display into persistent tiling zones plus a floating zone. At any time, at most one zone is the destination for the next window. A keyboard-driven Launcher and hover-over DockMenus let you quickly find any window. Window arrangements can be snapshotted and restored to switch working contexts.
 
 > Philosophy: Windows should land where you expect.
 
@@ -55,19 +55,19 @@ Zonogy lives in the macOS menu bar. Click the Zonogy icon <picture><source media
 
 Each display has 1–4 **tiling zones** that form the main layout, plus a **floating zone** for floating a single window above the tiles. Empty tiling zones show a "placeholder" so you can see the structure of your layout and drag content into them. Zones can be resized by dragging the separator between them (which appears on mouse hover), and the windows adjust automatically. See [Resizing Zones vs. Windows](docs/resizing-zones-vs-windows.md) for more detail.
 
-Exactly one zone is the **destination** at any moment, indicated by a glowing indicator. New or unminimized windows are always placed into the destination zone.
+At most one zone is the **destination** at any moment, indicated by a glowing indicator. New or unminimized windows are placed into the destination zone. When no zone is the destination, they go into the floating zone of the display you are working on, that is, the display of the window you last used.
 
 <img src="docs/images/zone-layouts.svg" alt="Zones core concepts" width="800" />
 
-Filling the destination tiling zone advances to the next empty tiling zone, or the floating zone if no zone is empty. Emptying a tiling zone makes it the destination automatically. You can also make any tiling zone the destination with `Control-Cmd`-click.
+Filling the destination zone advances it to the next empty tiling zone; when none is left, no zone is the destination until you choose one. Emptying a tiling zone makes it the destination automatically. You can also make any tiling zone the destination with `Control-Cmd`-click, or a floating zone by clicking its Floating Zone Bar. A destination stays until a window lands in it or it is removed; changing focus never moves it.
 
 ## Features
 
-- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the destination zone where the window will appear — including automatically when a zone is emptied, so you can immediately place the next window there. Hold `Option` while selecting an app row to open a new window of that app instead of activating the existing one.
+- **Launcher** (`Control-Cmd-Space`) — a searchable overlay for switching windows, launching apps, and opening folders or documents. Fuzzy matching with smart ranking: it learns which items you pick for each query and prioritizes them next time. Supports optional short aliases for quick access. The Launcher appears directly in the destination zone where the window will appear — including automatically when a zone is emptied, so you can immediately place the next window there. With no destination, it appears at the floating zone of the display you are working on and makes that the destination. Hold `Option` while selecting an app row to open a new window of that app instead of activating the existing one.
 
 <img src="docs/images/launcher.png" alt="Launcher" width="499" /><img src="docs/images/launcher-preferences.png" alt="Launcher Preferences window" width="580" />
 
-- **CmdTab** (`Cmd-Tab`) — a fast window chooser replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. The chooser appears directly in the destination zone where the window will appear.
+- **CmdTab** (`Cmd-Tab`) — a fast window chooser replacing the macOS app switcher. Hold Cmd and tap Tab to cycle windows ordered by recency. The chooser appears directly in the destination zone where the window will appear, or, with no destination, at the floating zone of the display you are working on.
 
 <img src="docs/images/cmdtab.png" alt="CmdTab" width="425" />
 
@@ -118,7 +118,7 @@ Filling the destination tiling zone advances to the next empty tiling zone, or t
 | `Control-Cmd-A/S/D/F/G` (hold) | Zone navigation: jump the circle straight to the top-left/top-right/bottom-left/bottom-right zone (adding it if it doesn't exist), or to the floating zone with `G` |
 | `Control-Cmd-J/K/L` (hold) | Zone navigation: jump the circle to the 1st/2nd/3rd display, onto its last-used window |
 | `Control-Cmd-Return` | Move focused window to destination (swapping if occupied) |
-| `Control-Cmd-\` | Toggle destination with focused window |
+| `Control-Cmd-\` | Toggle destination with the focused window's tiling zone |
 | `Control-Cmd-Space` | Open Launcher in destination zone |
 | `Control-Cmd-Escape` | Clear zones on active display (optionally automatically saving snapshot). Pressing twice (or holding once) resets to single-zone layout. |
 

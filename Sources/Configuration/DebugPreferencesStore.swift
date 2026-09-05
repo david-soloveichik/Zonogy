@@ -8,6 +8,7 @@ enum DebugPreferencesStore {
     private static let defaultShowPlaceholderPassThroughHoles = false
     private static let defaultDisablePrePositionBeforeUnminimize = false
     private static let defaultDisableNativeTabHandling = false
+    private static let defaultHighlightImplicitFloatingTarget = false
 
     static func loadLogToFileEnabled() -> Bool {
         loadBool(
@@ -73,6 +74,17 @@ enum DebugPreferencesStore {
 
     static func saveDisableNativeTabHandling(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.disableNativeTabHandling)
+    }
+
+    static func loadHighlightImplicitFloatingTarget() -> Bool {
+        loadBool(
+            forKey: UserDefaultsKeys.highlightImplicitFloatingTarget,
+            defaultValue: defaultHighlightImplicitFloatingTarget
+        )
+    }
+
+    static func saveHighlightImplicitFloatingTarget(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.highlightImplicitFloatingTarget)
     }
 
     private static func loadBool(forKey key: String, defaultValue: Bool) -> Bool {

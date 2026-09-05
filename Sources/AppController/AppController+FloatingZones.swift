@@ -11,10 +11,6 @@ extension AppController {
         floatingZoneCoordinator.isWindowInFloatingZone(windowId)
     }
 
-    func isFloatingZoneOccupied(on screenId: CGDirectDisplayID) -> Bool {
-        floatingZoneOccupant(on: screenId) != nil
-    }
-
     /// An eviction can strike a window mid floating drag — a new arrival filling the targeted
     /// floating zone, occlusion or focus minimization, recapture, or Clear Zones. Terminate
     /// the window's whole gesture so a later mouse-up or abort cannot restore stale state over

@@ -229,7 +229,7 @@ extension AppController {
             // Same explicit-selection session commit as the tiling branch above.
             launcherRetargetSession = nil
             performTargetChangeKeepingLauncherVisible {
-                targetedZoneManager.setFloatingTarget(on: screenId, reason: "zone-navigation-commit")
+                targetedZoneManager.setFloatingTarget(on: screenId, reason: "zone-navigation-commit", explicit: true)
             }
             if wasAlreadyTargeted {
                 pulseFloatingTargetFeedback(for: screenId)
