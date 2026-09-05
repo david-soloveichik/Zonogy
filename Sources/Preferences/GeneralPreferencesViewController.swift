@@ -130,17 +130,29 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(updateCheckHintLabel)
         self.updateCheckHintLabel = updateCheckHintLabel
 
+        // DockMenus is a feature of its own, unlike the app-level settings above.
+        let dockMenusSeparator = NSBox()
+        dockMenusSeparator.boxType = .separator
+        dockMenusSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(dockMenusSeparator)
+
         let dockMenusCheckbox = NSButton(checkboxWithTitle: "Enable DockMenus", target: self, action: #selector(dockMenusToggled(_:)))
         dockMenusCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(dockMenusCheckbox)
         self.dockMenusCheckbox = dockMenusCheckbox
 
-        let dockMenusHintLabel = NSTextField(wrappingLabelWithString: "Hovering over a Dock app shows a window list. Clicking a Dock app uses Zonogy's window selection instead of the default Dock behavior. Shift-click to bypass.")
+        let dockMenusHintLabel = NSTextField(wrappingLabelWithString: "Hovering over a Dock app shows a window list. Clicking uses Zonogy's window selection instead of the default Dock behavior; shift-click to bypass.")
         dockMenusHintLabel.font = NSFont.systemFont(ofSize: 12)
         dockMenusHintLabel.textColor = .secondaryLabelColor
         dockMenusHintLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(dockMenusHintLabel)
         self.dockMenusHintLabel = dockMenusHintLabel
+
+        let dockMenusDragHintLabel = NSTextField(wrappingLabelWithString: "Dragging an app or window from the Dock places it directly into the zone where you drop it.")
+        dockMenusDragHintLabel.font = NSFont.systemFont(ofSize: 12)
+        dockMenusDragHintLabel.textColor = .secondaryLabelColor
+        dockMenusDragHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(dockMenusDragHintLabel)
 
         // Version info
         let versionLabel = NSTextField(labelWithString: AppVersion.preferencesDisplayString)
@@ -177,19 +189,27 @@ final class GeneralPreferencesViewController: NSViewController {
             updateCheckHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             updateCheckHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            dockMenusCheckbox.topAnchor.constraint(equalTo: updateCheckHintLabel.bottomAnchor, constant: 18),
+            dockMenusSeparator.topAnchor.constraint(equalTo: updateCheckHintLabel.bottomAnchor, constant: 20),
+            dockMenusSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            dockMenusSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            dockMenusCheckbox.topAnchor.constraint(equalTo: dockMenusSeparator.bottomAnchor, constant: 14),
             dockMenusCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             dockMenusHintLabel.topAnchor.constraint(equalTo: dockMenusCheckbox.bottomAnchor, constant: 6),
             dockMenusHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
+            dockMenusDragHintLabel.topAnchor.constraint(equalTo: dockMenusHintLabel.bottomAnchor, constant: 8),
+            dockMenusDragHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
+            dockMenusDragHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
             versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 420)
+        self.preferredContentSize = NSSize(width: 580, height: 480)
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()

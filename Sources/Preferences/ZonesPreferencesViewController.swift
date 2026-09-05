@@ -122,20 +122,20 @@ final class ZonesPreferencesViewController: NSViewController {
         containerView.addSubview(destinationTitleLabel)
 
         let destinationDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "Windows open into the current destination zone, marked with the glowing indicator. When no zone is the destination, new windows go into the floating zone of the display you are working on. Emptying a zone (for example, by minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
+            wrappingLabelWithString: "Windows open into the destination zone, marked with the glowing indicator. Emptying a zone (minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
         )
         destinationDescriptionLabel.font = NSFont.systemFont(ofSize: 12)
         destinationDescriptionLabel.textColor = .secondaryLabelColor
         destinationDescriptionLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(destinationDescriptionLabel)
 
-        let destinationDraggingLabel = NSTextField(
-            wrappingLabelWithString: "Dragging an app or window from the Dock (with DockMenus enabled) always places it directly into the zone you want."
+        let noDestinationLabel = NSTextField(
+            wrappingLabelWithString: "When no zone is the destination, new windows open in the floating zone of the display you are working on."
         )
-        destinationDraggingLabel.font = NSFont.systemFont(ofSize: 12)
-        destinationDraggingLabel.textColor = .secondaryLabelColor
-        destinationDraggingLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(destinationDraggingLabel)
+        noDestinationLabel.font = NSFont.systemFont(ofSize: 12)
+        noDestinationLabel.textColor = .secondaryLabelColor
+        noDestinationLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(noDestinationLabel)
 
         let targetingButton = NSButton(
             title: "Replacing Focused Window…", target: self, action: #selector(editTargeting))
@@ -183,16 +183,16 @@ final class ZonesPreferencesViewController: NSViewController {
             destinationDescriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             destinationDescriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            destinationDraggingLabel.topAnchor.constraint(equalTo: destinationDescriptionLabel.bottomAnchor, constant: 8),
-            destinationDraggingLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            destinationDraggingLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            noDestinationLabel.topAnchor.constraint(equalTo: destinationDescriptionLabel.bottomAnchor, constant: 8),
+            noDestinationLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            noDestinationLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            targetingButton.topAnchor.constraint(equalTo: destinationDraggingLabel.bottomAnchor, constant: 16),
+            targetingButton.topAnchor.constraint(equalTo: noDestinationLabel.bottomAnchor, constant: 16),
             targetingButton.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 600)
+        self.preferredContentSize = NSSize(width: 580, height: 585)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()
