@@ -2,7 +2,6 @@
 import AppKit
 
 final class DebugPreferencesViewController: NSViewController {
-    private var saveLogCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
     private var showPassThroughHolesCheckbox: NSButton?
@@ -19,12 +18,6 @@ final class DebugPreferencesViewController: NSViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
-        let saveLog = makeToggle(
-            title: "Save debug log to file",
-            hint: "When enabled, Zonogy writes /tmp/zonogy-debug.log. Turning this on clears that file.",
-            action: #selector(saveLogToggled(_:))
-        )
-        saveLogCheckbox = saveLog.checkbox
         let dockOverlay = makeToggle(
             title: "Show Dock debug rectangle",
             hint: "Shows a blue rectangle around the Dock frame used by DockMenus.",
@@ -62,10 +55,10 @@ final class DebugPreferencesViewController: NSViewController {
         )
         highlightImplicitFloatingTargetCheckbox = highlightImplicitFloatingTarget.checkbox
 
-        // The toggles scroll between the fixed title above and the fixed file locations below.
+        // The toggles scroll between the fixed title above and the fixed log section below.
         let toggleDocument = FlippedView()
         toggleDocument.translatesAutoresizingMaskIntoConstraints = false
-        let toggles = [saveLog, dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
+        let toggles = [dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
         var previousBottom = toggleDocument.topAnchor
         for (index, toggle) in toggles.enumerated() {
             toggleDocument.addSubview(toggle.view)
@@ -89,32 +82,27 @@ final class DebugPreferencesViewController: NSViewController {
         scrollView.documentView = toggleDocument
         containerView.addSubview(scrollView)
 
-        let filesHeaderLabel = NSTextField(labelWithString: "Debug File Locations")
-        filesHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        filesHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(filesHeaderLabel)
+        let logHeaderLabel = NSTextField(labelWithString: "Debug Log")
+        logHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        logHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(logHeaderLabel)
 
-        let debugLogPathLabel = NSTextField(
-            wrappingLabelWithString: "Debug log: \(Logger.logPath)"
+        let logExplanationLabel = makeHintLabel(
+            "Zonogy logs through the macOS unified log: routine entries stay in memory, and notable events are kept by macOS for days. To follow the log live or read recent history, run in Terminal:"
         )
-        debugLogPathLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        debugLogPathLabel.textColor = .secondaryLabelColor
-        debugLogPathLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(debugLogPathLabel)
+        containerView.addSubview(logExplanationLabel)
 
-        let timeTravelLogPathLabel = NSTextField(
-            wrappingLabelWithString: "Time-travel log: \(Logger.timeTravelLogPath)"
-        )
-        timeTravelLogPathLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        timeTravelLogPathLabel.textColor = .secondaryLabelColor
-        timeTravelLogPathLabel.translatesAutoresizingMaskIntoConstraints = false
+        let subsystemPredicate = "--predicate 'subsystem == \"\(Logger.subsystem)\"'"
+        let liveCommandLabel = makeMonospacedLabel("log stream --level info \(subsystemPredicate)")
+        containerView.addSubview(liveCommandLabel)
+        let historyCommandLabel = makeMonospacedLabel("log show --last 10m --info \(subsystemPredicate)")
+        containerView.addSubview(historyCommandLabel)
+
+        let timeTravelLogPathLabel = makeMonospacedLabel("Time-travel log: \(TimeTravelLogCapture.outputPath)")
         containerView.addSubview(timeTravelLogPathLabel)
 
         // Names the capture shortcut, so it is filled in by syncControls whenever the tab appears.
-        let timeTravelHintLabel = NSTextField(wrappingLabelWithString: "")
-        timeTravelHintLabel.font = NSFont.systemFont(ofSize: 12)
-        timeTravelHintLabel.textColor = .secondaryLabelColor
-        timeTravelHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        let timeTravelHintLabel = makeHintLabel("")
         containerView.addSubview(timeTravelHintLabel)
         self.timeTravelHintLabel = timeTravelHintLabel
 
@@ -127,20 +115,28 @@ final class DebugPreferencesViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             // Sized so the list's cut lands mid-line through a hint rather than in a gap, which
             // is what shows that it continues; tuned to the current toggles.
-            scrollView.bottomAnchor.constraint(equalTo: filesHeaderLabel.topAnchor, constant: -30),
+            scrollView.bottomAnchor.constraint(equalTo: logHeaderLabel.topAnchor, constant: -30),
             toggleDocument.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
-            filesHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            logHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            debugLogPathLabel.topAnchor.constraint(equalTo: filesHeaderLabel.bottomAnchor, constant: 8),
-            debugLogPathLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            debugLogPathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            logExplanationLabel.topAnchor.constraint(equalTo: logHeaderLabel.bottomAnchor, constant: 8),
+            logExplanationLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            logExplanationLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            timeTravelLogPathLabel.topAnchor.constraint(equalTo: debugLogPathLabel.bottomAnchor, constant: 4),
+            liveCommandLabel.topAnchor.constraint(equalTo: logExplanationLabel.bottomAnchor, constant: 6),
+            liveCommandLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            liveCommandLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            historyCommandLabel.topAnchor.constraint(equalTo: liveCommandLabel.bottomAnchor, constant: 4),
+            historyCommandLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            historyCommandLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+
+            timeTravelLogPathLabel.topAnchor.constraint(equalTo: historyCommandLabel.bottomAnchor, constant: 12),
             timeTravelLogPathLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             timeTravelLogPathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            timeTravelHintLabel.topAnchor.constraint(equalTo: timeTravelLogPathLabel.bottomAnchor, constant: 10),
+            timeTravelHintLabel.topAnchor.constraint(equalTo: timeTravelLogPathLabel.bottomAnchor, constant: 6),
             timeTravelHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             timeTravelHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             timeTravelHintLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
@@ -155,10 +151,7 @@ final class DebugPreferencesViewController: NSViewController {
     private func makeToggle(title: String, hint: String, action: Selector) -> (view: NSView, checkbox: NSButton) {
         let checkbox = NSButton(checkboxWithTitle: title, target: self, action: action)
         checkbox.translatesAutoresizingMaskIntoConstraints = false
-        let hintLabel = NSTextField(wrappingLabelWithString: hint)
-        hintLabel.font = NSFont.systemFont(ofSize: 12)
-        hintLabel.textColor = .secondaryLabelColor
-        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        let hintLabel = makeHintLabel(hint)
 
         let view = NSView()
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -175,15 +168,27 @@ final class DebugPreferencesViewController: NSViewController {
         return (view, checkbox)
     }
 
+    private func makeHintLabel(_ text: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = NSFont.systemFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    /// A monospaced, selectable line (a path or a Terminal command) so it can be copied.
+    private func makeMonospacedLabel(_ text: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        label.textColor = .secondaryLabelColor
+        label.isSelectable = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
     /// Shortcuts may have been rebound since the tab was last shown.
     override func viewWillAppear() {
         super.viewWillAppear()
-        syncControls()
-    }
-
-    @objc private func saveLogToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        AppController.shared.setDebugLogToFileEnabledFromSettings(enabled)
         syncControls()
     }
 
@@ -224,7 +229,6 @@ final class DebugPreferencesViewController: NSViewController {
     }
 
     private func syncControls() {
-        saveLogCheckbox?.state = AppController.shared.isDebugLogToFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
         showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off
@@ -232,6 +236,7 @@ final class DebugPreferencesViewController: NSViewController {
         disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off
         highlightImplicitFloatingTargetCheckbox?.state = AppController.shared.isHighlightImplicitFloatingTargetInSettings ? .on : .off
         timeTravelHintLabel?.stringValue =
-            "Time-travel log capture uses \(KeyboardShortcutPreferences.shared.keyPhrase(for: .captureTimeTravelLogs)) (settable in Shortcuts) and does not depend on these toggles."
+            "Time-travel log capture uses \(KeyboardShortcutPreferences.shared.keyPhrase(for: .captureTimeTravelLogs)) (settable in Shortcuts). " +
+            "It saves the last \(Int(TimeTravelLogCapture.window)) seconds of the log, or the log since the previous capture."
     }
 }

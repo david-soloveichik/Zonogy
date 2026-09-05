@@ -74,6 +74,11 @@ extension AppController {
     }
 
     private func enterSleepWakeProtection(reason: String) {
+        if !sleepWakeProtectionActive {
+            // A fresh episode starts the ignored-event count; re-entry (loginwindow, then display
+            // sleep) keeps counting the same episode.
+            sleepWakeIgnoredEventCount = 0
+        }
         sleepWakeProtectionActive = true
         wakeLauncherFocusRequested = false
         menuBarManager.setDimmed(true)
@@ -212,6 +217,9 @@ extension AppController {
     private func executeSleepWakePipeline() {
         Logger.debug("SleepWake: wake readiness satisfied; scheduling screen-topology refresh and recapture")
 
+        if sleepWakeIgnoredEventCount > 0 {
+            Logger.debug("SleepWake: ignored \(sleepWakeIgnoredEventCount) event(s) while protection was active")
+        }
         // Mark screens as awake so external events are processed again.
         sleepWakeProtectionActive = false
         loginWindowIsActive = false
@@ -294,11 +302,16 @@ extension AppController {
 
     /// Returns true when events should be ignored due to screens being asleep.
     /// Call this at the top of delegate handlers that respond to external notifications.
-    internal func shouldIgnoreDueToSleepWake(event: String) -> Bool {
+    /// `event` is only built for the first ignored event of a protection episode; the rest are
+    /// counted and reported as a total when protection ends.
+    internal func shouldIgnoreDueToSleepWake(event: @autoclosure () -> String) -> Bool {
         guard sleepWakeProtectionActive else {
             return false
         }
-        Logger.debug("SleepWake: ignoring \(event) because sleep/wake protection is active")
+        sleepWakeIgnoredEventCount += 1
+        if sleepWakeIgnoredEventCount == 1 {
+            Logger.debug("SleepWake: ignoring \(event()) because sleep/wake protection is active; further ignored events are counted")
+        }
         return true
     }
 }

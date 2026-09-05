@@ -231,7 +231,7 @@ class DragDropCoordinator {
         dragOverlayManager.tearDown()
 
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
-            Logger.debug("Cursor-driven drag aborted: unable to resolve cursor position")
+            Logger.error("Cursor-driven drag aborted: unable to resolve cursor position")
             dragSession = nil
             cursorPointOverrideAX = nil
             delegate?.updateAddZoneIndicatorHighlight(pill: nil)
@@ -327,7 +327,7 @@ class DragDropCoordinator {
         var displacedDisposition: DisplacedWindowDisposition = .reassign
         var didResolveDrop = false
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
-            Logger.debug("Drag drop aborted: unable to resolve cursor position")
+            Logger.error("Drag drop aborted: unable to resolve cursor position")
             handleDropCancellation(session: session)
             dragSession = nil
             delegate.updateAddZoneIndicatorHighlight(pill: nil)
@@ -543,7 +543,7 @@ class DragDropCoordinator {
                 preferredFloatingScreenId: preferredFloatingScreenId
             )
             if !promoted {
-                Logger.debug("gesture-modifier drag promotion failed for window \(windowId)")
+                Logger.error("gesture-modifier drag promotion failed for window \(windowId)")
             }
             return
         }
@@ -702,7 +702,7 @@ class DragDropCoordinator {
             to: targetKey,
             retargetAfterFill: false
         ) else {
-            Logger.debug("Drag drop failed: unable to assign window \(windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
+            Logger.error("Drag drop failed: unable to assign window \(windowId) to zone \(targetKey.index) on screen \(targetContext.descriptor.localizedName)")
             return nil
         }
 

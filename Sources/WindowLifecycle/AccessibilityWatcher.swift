@@ -55,7 +55,7 @@ final class AccessibilityWatcher {
             var createdObserver: AXObserver?
             let status = AXCall.createObserver(pid, AccessibilityWatcherObserverCallback, &createdObserver)
             guard status == .success, let createdObserver else {
-                Logger.debug("Unable to create AXObserver for pid \(pid): \(status.rawValue)")
+                Logger.error("Unable to create AXObserver for pid \(pid): \(status.rawValue)")
                 return nil
             }
             observer = createdObserver

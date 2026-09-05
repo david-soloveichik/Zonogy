@@ -170,7 +170,7 @@ extension AppController {
     @discardableResult
     internal func minimizeWindowOrRemoveZoneAtCursor() -> ShortcutHoldPolicy.PressOutcome {
         guard let cursorPoint = currentCursorAccessibilityPoint() else {
-            Logger.debug("Cursor shortcut: unable to resolve cursor position; ignoring")
+            Logger.error("Cursor shortcut: unable to resolve cursor position; ignoring")
             return .noAction
         }
 

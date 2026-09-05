@@ -221,18 +221,25 @@ extension WindowController {
         }
 
         var captured: [ManagedWindow] = []
-        for element in windowElements(from: windowsObject) {
+        let elements = windowElements(from: windowsObject)
+        let tally = CaptureTally()
+        for element in elements {
             if let managed = captureWindowIfNeeded(
                 element: element,
                 pid: pid,
                 appElement: appElement,
                 allowReturningExisting: allowExisting,
                 notifyDelegate: notifyDelegate,
-                needsRetry: &needsRetry
+                needsRetry: &needsRetry,
+                tally: tally
             ) {
                 captured.append(managed)
             }
         }
+        Logger.debug(
+            "captureWindows: pid \(pid) (\(bundleIdentifier ?? "unknown-bundle-identifier")): \(elements.count) window element(s), " +
+                "\(tally.alreadyTracked) already tracked, \(captured.count) returned (allowExisting: \(allowExisting))"
+        )
 
         return CaptureResult(windows: captured, needsRetry: needsRetry)
     }
@@ -243,7 +250,8 @@ extension WindowController {
         appElement: AXUIElement,
         allowReturningExisting: Bool,
         notifyDelegate: Bool,
-        needsRetry: UnsafeMutablePointer<Bool>? = nil
+        needsRetry: UnsafeMutablePointer<Bool>? = nil,
+        tally: CaptureTally? = nil
     ) -> ManagedWindow? {
         let cgResult = cgWindowIdWithStatus(for: element, pid: pid, context: "captureWindowIfNeeded")
         guard let cgWindowId = cgResult.id else {
@@ -261,8 +269,6 @@ extension WindowController {
 
         let windowNumStr = String(cgWindowId)
 
-        Logger.debug("captureWindowIfNeeded: Attempting to capture window (CGWindowID: \(windowNumStr)) for pid \(pid)")
-
         // Check minimized state first - minimized windows skip the subrole check
         // (some apps like PDF Expert report AXDialog subrole for their document windows)
         let isMinimized = isWindowMinimized(element)
@@ -274,6 +280,9 @@ extension WindowController {
 
         let identifier = ExternalWindowIdentifier(pid: pid, cgWindowId: Int(cgWindowId))
         let existing = managedWindow(matching: element)
+        if existing != nil {
+            tally?.alreadyTracked += 1
+        }
 
         if let existing,
            existing.externalIdentifier == identifier,
@@ -299,9 +308,12 @@ extension WindowController {
         }
 
         if let existing, !shouldEvaluateNativeTabReplacement {
-            Logger.debug(
-                "captureWindowIfNeeded: Window already exists for pid \(pid) as managed \(existing.windowId) (CGWindowID: \(windowNumStr)), allowReturningExisting=\(allowReturningExisting)"
-            )
+            // Within an enumeration pass the tally's summary line stands in for this one.
+            if tally == nil {
+                Logger.debug(
+                    "captureWindowIfNeeded: Window already exists for pid \(pid) as managed \(existing.windowId) (CGWindowID: \(windowNumStr)), allowReturningExisting=\(allowReturningExisting)"
+                )
+            }
             return allowReturningExisting ? existing : nil
         }
 
@@ -726,13 +738,17 @@ extension WindowController {
     /// Refresh `managed.cachedFrame` from the live accessibility frame. Invoked on the
     /// AXMoved/AXResized notifications we already observe, so the cache tracks the window's
     /// real on-screen frame (including ActiveFit reveal and manual resizes).
-    internal func recordCachedFrame(for managed: ManagedWindow) {
-        guard let frame = actualFrameInAccessibilityCoordinates(for: managed),
-              frame.width > 0, frame.height > 0 else {
+    @discardableResult
+    internal func recordCachedFrame(for managed: ManagedWindow) -> CGRect? {
+        // Returns the frame just read (nil when unreadable) so callers can reuse it instead of
+        // reading it again; only a usable frame replaces the cached one.
+        let frame = actualFrameInAccessibilityCoordinates(for: managed)
+        guard let frame, frame.width > 0, frame.height > 0 else {
             Logger.debug("recordCachedFrame: no usable accessibility frame for window \(managed.windowId) (pid \(managed.backing.pid), CGWindowID \(managed.backing.cgWindowId)); keeping previous cached frame")
-            return
+            return frame
         }
         managed.cachedFrame = frame
+        return frame
     }
 
     /// When a placed managed window is being pruned — its backing tab is gone or no longer resolves
@@ -874,4 +890,10 @@ extension WindowController {
 
         return encounteredUnresolvedElement ? .unavailable : .absent
     }
+}
+
+/// Outcome counts for one enumeration pass over an application's windows, so `captureWindows`
+/// logs a single summary line instead of one "already tracked" line per window.
+final class CaptureTally {
+    var alreadyTracked = 0
 }

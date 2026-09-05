@@ -74,21 +74,23 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 
 - `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.
 - When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
-- We add a simple logging utility (e.g., `Logger.debug(_:)`) used by controllers so we can trace zone transitions and window lifecycle without attaching Xcode.
-- Debug toggles (file logging + debug rectangles) live in Preferences → Debug, default off, and apply immediately; time-travel capture remains shortcut-driven and independent of those toggles.
+- All code logs through `Logger.debug(_:)`, which writes to the macOS unified log at info level (memory only) under the subsystem `com.dsemeas.zonogy`. The category is the name of the source file containing the call: for most types that is the type name, and each `AppController` extension file (for example `AppController+SleepWake`) is a category of its own. Every value is logged as public (unified logging would otherwise redact interpolated values).
+- `Logger.error(_:)` and `Logger.keep(_:category:)` mark the lines macOS persists for days: unexpected failures, and countable events under an explicit category of their own (such as `SlowAX`).
+- Per-event chatter that repeats within one episode is coalesced into a first occurrence plus a count: events ignored during sleep/wake protection, and already-tracked windows within one capture pass.
+- Debug toggles live in Preferences → Debug, default off, and apply immediately; time-travel capture remains shortcut-driven and independent of those toggles.
 **Log monitoring tip:** To watch the live log output, run:
-`swift run 2>&1 | grep --line-buffered "keyword"`.
+`log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"' | grep --line-buffered "keyword"`.
 - **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
 (`grep --line-buffered` streams matching lines without delay.)
 
 ## Slow AX Call Logging
 
-Every synchronous AX API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single `[SLOW-AX]` line with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
+Every synchronous AX API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single persisted `[SLOW-AX]` line (`Logger.keep` in the `SlowAX` log category) with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
 
-To inspect slow calls in `/tmp/zonogy-debug.log`:
+To inspect slow calls (macOS keeps them for days):
 
-- All slow calls: `grep '\[SLOW-AX\]' /tmp/zonogy-debug.log`
-- Only calls of 1 second or longer: `grep -E '\[SLOW-AX\].*took [0-9]{4,}ms' /tmp/zonogy-debug.log` (the `{4,}` matches 4+ digit millisecond counts, i.e. ≥ 1000ms)
+- All slow calls: `log show --last 7d --predicate 'subsystem == "com.dsemeas.zonogy" AND category == "SlowAX"'`
+- Only calls of 1 second or longer: pipe the above through `grep -E 'took [0-9]{4,}ms'` (the `{4,}` matches 4+ digit millisecond counts, i.e. ≥ 1000ms)
 
 ## Reducing Accessibility API Cost
 

@@ -1,107 +1,65 @@
+/// Logging façade over the macOS unified log. Every line is recorded under Zonogy's subsystem with
+/// the source file as its category. `debug` lines are kept in memory only (info level); `keep` and
+/// `error` lines are the ones macOS also persists for days: countable events and unexpected failures.
 import Foundation
+import os
 
-/// Simple logging utility for debugging
 enum Logger {
-    static var logToFile = false
-    static let logPath = "/tmp/zonogy-debug.log"
-    static let timeTravelLogPath = "/tmp/zonogy-debug-time-travel.log"
-    private static let bufferRetentionWindow: TimeInterval = 10
-    private static let bufferQueue = DispatchQueue(label: "com.zonogy.logger.buffer", qos: .utility)
-    private static var recentEntries: [LogEntry] = []
+    /// The unified-log subsystem for every Zonogy log line and signpost (also the bundle identifier).
+    static let subsystem = "com.dsemeas.zonogy"
 
-    static func clearLogFile() {
-        try? FileManager.default.removeItem(atPath: logPath)
+    /// The everything log. Info level: macOS keeps it in memory and purges it as its buffers fill.
+    /// Read it while it lasts with the time-travel capture, `log stream`, or `log show --info`.
+    static func debug(_ message: String, file: String = #fileID) {
+        logger(forFile: file).info("\(message, privacy: .public)")
     }
 
-    static func debug(_ message: String) {
-        let timestamp = Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
-        let formattedTimestamp = formatter.string(from: timestamp)
-        let logLine = "[\(formattedTimestamp)] \(message)"
-        let logMessage = "\(logLine)\n"
+    /// A notable event worth counting over time, such as a slow accessibility call. Notice level,
+    /// which macOS persists for days. An explicit `category` lets the events be counted with one
+    /// predicate; otherwise the category is the source file, like every other line.
+    static func keep(_ message: String, category: String? = nil, file: String = #fileID) {
+        let logger = category.map { Self.logger(category: $0) } ?? Self.logger(forFile: file)
+        logger.notice("\(message, privacy: .public)")
+    }
 
-        recordForTimeTravel(line: logLine, timestamp: timestamp)
+    /// An unexpected failure or inconsistency. Error level, which macOS persists for days, so it can
+    /// be found later even when nobody was watching. The message must stand alone: by then the
+    /// surrounding trace is gone.
+    static func error(_ message: String, file: String = #fileID) {
+        logger(forFile: file).error("\(message, privacy: .public)")
+    }
 
-        // Always print to stdout
-        print(logLine)
+    // MARK: - Logger cache
 
-        // Also write to file if enabled
-        if logToFile {
-            if let data = logMessage.data(using: .utf8),
-               let handle = FileHandle(forWritingAtPath: logPath) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.closeFile()
-            } else {
-                // Create file if it doesn't exist
-                try? logMessage.write(toFile: logPath, atomically: true, encoding: .utf8)
+    /// One `os.Logger` per category, keyed by the `#fileID` or explicit category it was requested
+    /// with, so the hot path is a single dictionary lookup.
+    private static let loggersByKey = OSAllocatedUnfairLock<[String: os.Logger]>(initialState: [:])
+
+    private static func logger(forFile fileID: String) -> os.Logger {
+        logger(key: fileID, category: Self.category(forFile: fileID))
+    }
+
+    private static func logger(category: String) -> os.Logger {
+        logger(key: category, category: category)
+    }
+
+    private static func logger(key: String, category: @autoclosure () -> String) -> os.Logger {
+        if let existing = loggersByKey.withLock({ $0[key] }) {
+            return existing
+        }
+        let created = os.Logger(subsystem: subsystem, category: category())
+        return loggersByKey.withLock { table in
+            if let raced = table[key] {
+                return raced
             }
+            table[key] = created
+            return created
         }
     }
 
-    @discardableResult
-    static func dumpRecentLogs(
-        destinationURL: URL? = nil,
-        captureTimestamp: Date = Date()
-    ) -> Bool {
-        let window = bufferRetentionWindow
-        let cutoff = captureTimestamp.addingTimeInterval(-window)
-        let entries = bufferQueue.sync {
-            recentEntries.filter { entry in
-                entry.timestamp >= cutoff && entry.timestamp <= captureTimestamp
-            }
-        }
-
-        var lines: [String] = []
-        lines.append(AppVersion.preferencesDisplayString)
-        if entries.isEmpty {
-            let windowDescription = String(format: "%.1f", window)
-            lines.append("<<No log entries captured in the last \(windowDescription) seconds>>")
-        } else {
-            lines.append(contentsOf: entries.map(\.line))
-        }
-
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        lines.append("Capture timestamp: \(isoFormatter.string(from: captureTimestamp))")
-
-        let output = lines.joined(separator: "\n") + "\n"
-        let targetURL: URL
-        if let destinationURL {
-            targetURL = destinationURL
-        } else {
-            targetURL = URL(fileURLWithPath: timeTravelLogPath, isDirectory: false)
-        }
-
-        do {
-            try output.write(to: targetURL, atomically: true, encoding: .utf8)
-            clearEntries(through: captureTimestamp)
-            return true
-        } catch {
-            fputs("Logger dump failed: \(error.localizedDescription)\n", stderr)
-            return false
-        }
-    }
-
-    private static func recordForTimeTravel(line: String, timestamp: Date) {
-        bufferQueue.sync {
-            recentEntries.append(LogEntry(timestamp: timestamp, line: line))
-            let retentionCutoff = timestamp.addingTimeInterval(-bufferRetentionWindow)
-            while let first = recentEntries.first, first.timestamp < retentionCutoff {
-                recentEntries.removeFirst()
-            }
-        }
-    }
-
-    private static func clearEntries(through timestamp: Date) {
-        bufferQueue.sync {
-            recentEntries.removeAll { $0.timestamp <= timestamp }
-        }
-    }
-
-    private struct LogEntry {
-        let timestamp: Date
-        let line: String
+    /// "Zonogy/DockClickInterceptor.swift" becomes "DockClickInterceptor".
+    private static func category(forFile fileID: String) -> String {
+        let fileName = fileID.split(separator: "/").last.map(String.init) ?? fileID
+        return fileName.hasSuffix(".swift") ? String(fileName.dropLast(".swift".count)) : fileName
     }
 }

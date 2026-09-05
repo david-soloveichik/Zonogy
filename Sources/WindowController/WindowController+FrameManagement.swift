@@ -358,7 +358,7 @@ extension WindowController {
         let delays = WindowController.frameRetryDelays
 
         guard state.attempt < delays.count else {
-            Logger.debug(
+            Logger.keep(
                 "Frame retry exhausted for window \(windowId) after \(delays.count) attempt(s) " +
                 "(trigger: \(trigger.logLabel))"
             )

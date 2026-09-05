@@ -19,15 +19,20 @@ private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMut
 /// as a freeze, on a background queue (e.g. live-resize AX writes) it shows up as
 /// stalled UI updates. We log both — the `thread=` tag distinguishes them.
 ///
-/// Output is grep-able under the literal tag `[SLOW-AX]` and includes the call
-/// name, attribute/action, duration, AX status, target pid, bundle ID, and the
-/// thread the call ran on.
+/// Each slow call is a `Logger.keep` line in the `SlowAX` category (tagged `[SLOW-AX]`),
+/// which macOS persists for days so the calls can be counted over time. It includes the
+/// call name, attribute/action, duration, AX status, target pid, bundle ID, and the thread
+/// the call ran on. The detail strings are built only for slow calls or active signposts,
+/// keeping the per-call overhead of the wrappers to two clock readings.
 ///
 /// `AXCall` also hosts small shared AX value-decoding helpers (e.g. element arrays), so
 /// call sites pair the instrumented calls with one canonical way to interpret results.
 enum AXCall {
     /// Calls slower than this are logged. Anything below is silent.
     static var thresholdSeconds: TimeInterval = 0.1
+
+    /// The persisted log category holding one line per slow call.
+    static let slowCallCategory = "SlowAX"
 
     /// Decode an attribute value expected to hold an array of AX elements (e.g. kAXWindows,
     /// kAXChildren). Bridged NSArray and raw CFArray representations are toll-free bridged, so
@@ -71,11 +76,19 @@ enum AXCall {
         _ values: UnsafeMutablePointer<CFArray?>
     ) -> AXError {
         let start = DispatchTime.now()
-        let detail = ((attributes as? [String]) ?? []).joined(separator: ",")
-        let interval = beginAXInterval("AXCopyMultipleAttributes", detail: detail)
+        let interval = beginAXInterval(
+            "AXCopyMultipleAttributes",
+            detail: ((attributes as? [String]) ?? []).joined(separator: ",")
+        )
         let status = AXUIElementCopyMultipleAttributeValues(element, attributes, options, values)
         endAXInterval("AXCopyMultipleAttributes", interval, status: status)
-        report(start: start, function: "AXUIElementCopyMultipleAttributeValues", detail: detail, element: element, status: status)
+        report(
+            start: start,
+            function: "AXUIElementCopyMultipleAttributeValues",
+            detail: ((attributes as? [String]) ?? []).joined(separator: ","),
+            element: element,
+            status: status
+        )
         return status
     }
 
@@ -114,15 +127,14 @@ enum AXCall {
         _ element: UnsafeMutablePointer<AXUIElement?>
     ) -> AXError {
         let start = DispatchTime.now()
-        let detail = "(\(x), \(y))"
-        let interval = beginAXInterval("AXElementAtPosition", detail: detail)
+        let interval = beginAXInterval("AXElementAtPosition", detail: "(\(x), \(y))")
         let status = AXUIElementCopyElementAtPosition(application, x, y, element)
         endAXInterval("AXElementAtPosition", interval, status: status)
         // Hit-tests are commonly issued against the system-wide element, which has no
         // useful pid of its own. When the call returned an element, prefer that — it
         // identifies the actual app whose AX server we just waited on.
         let reportingElement = element.pointee ?? application
-        report(start: start, function: "AXUIElementCopyElementAtPosition", detail: detail, element: reportingElement, status: status)
+        report(start: start, function: "AXUIElementCopyElementAtPosition", detail: "(\(x), \(y))", element: reportingElement, status: status)
         return status
     }
 
@@ -196,10 +208,11 @@ enum AXCall {
         return status
     }
 
-    private static func beginAXInterval(_ name: StaticString, detail: String?) -> OSSignpostIntervalState? {
+    private static func beginAXInterval(_ name: StaticString, detail: @autoclosure () -> String?) -> OSSignpostIntervalState? {
         let signposter = ZonogySignposts.pointsOfInterest
         guard signposter.isEnabled else { return nil }
-        return signposter.beginInterval(name, "detail=\(detail ?? "none", privacy: .public)")
+        let detailText = detail() ?? "none"
+        return signposter.beginInterval(name, "detail=\(detailText, privacy: .public)")
     }
 
     private static func endAXInterval(_ name: StaticString, _ state: OSSignpostIntervalState?, status: AXError) {
@@ -214,7 +227,7 @@ enum AXCall {
     private static func report(
         start: DispatchTime,
         function: String,
-        detail: String?,
+        detail: @autoclosure () -> String?,
         element: AXUIElement,
         status: AXError
     ) {
@@ -224,23 +237,23 @@ enum AXCall {
 
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
-            logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, pid: pid, status: status)
+            logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
         } else {
-            logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, appComponent: "pid=unknown bundle=unknown", status: status)
+            logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, appComponent: "pid=unknown bundle=unknown", status: status)
         }
     }
 
     private static func report(
         start: DispatchTime,
         function: String,
-        detail: String?,
+        detail: @autoclosure () -> String?,
         pid: pid_t,
         status: AXError
     ) {
         let elapsedNs = DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds
         let durationSeconds = Double(elapsedNs) / 1_000_000_000
         guard durationSeconds >= thresholdSeconds else { return }
-        logSlowCall(function: function, detail: detail, durationSeconds: durationSeconds, pid: pid, status: status)
+        logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
     }
 
     private static func logSlowCall(
@@ -271,8 +284,9 @@ enum AXCall {
         let detailSuffix = detail.map { " \($0)" } ?? ""
         let threadTag = Thread.isMainThread ? "main" : "bg"
 
-        Logger.debug(
-            "[SLOW-AX] \(function)\(detailSuffix) took \(ms)ms (status: \(status.logDescription)) \(appComponent) thread=\(threadTag)"
+        Logger.keep(
+            "[SLOW-AX] \(function)\(detailSuffix) took \(ms)ms (status: \(status.logDescription)) \(appComponent) thread=\(threadTag)",
+            category: slowCallCategory
         )
     }
 }

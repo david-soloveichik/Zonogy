@@ -96,7 +96,7 @@ final class WindowCapturePipeline {
 
         guard state.attempt < retryConfiguration.delays.count else {
             let description = state.bundleId ?? hintBundleId ?? "unknown-bundle-identifier"
-            Logger.debug("CapturePipeline: retry exhausted for pid \(pid) (bundle \(description))")
+            Logger.keep("CapturePipeline: retry exhausted for pid \(pid) (bundle \(description))")
             state.cancel()
             retryStates.removeValue(forKey: pid)
             return

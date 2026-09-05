@@ -22,7 +22,7 @@ enum AppLinks {
     /// Nothing can be done about a refusal beyond noting it.
     static func open(_ url: URL) {
         if !NSWorkspace.shared.open(url) {
-            Logger.debug("Failed to open \(url.absoluteString)")
+            Logger.error("Failed to open \(url.absoluteString)")
         }
     }
 }

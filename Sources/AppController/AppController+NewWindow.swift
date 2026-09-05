@@ -38,7 +38,7 @@ extension AppController {
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
             if let error = error {
-                Logger.debug("NewWindow: Failed to launch app at \(appURL.path): \(error.localizedDescription)")
+                Logger.error("NewWindow: Failed to launch app at \(appURL.path): \(error.localizedDescription)")
             } else if let app = app {
                 Logger.debug("NewWindow: Launched \(app.localizedName ?? appURL.lastPathComponent)")
             }
@@ -86,7 +86,7 @@ extension AppController {
     func postCmdN(toPid pid: pid_t) {
         guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.virtualKeyN, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.virtualKeyN, keyDown: false) else {
-            Logger.debug("NewWindow: Failed to construct Cmd-N CGEvents for pid \(pid)")
+            Logger.error("NewWindow: Failed to construct Cmd-N CGEvents for pid \(pid)")
             return
         }
         keyDown.flags = .maskCommand

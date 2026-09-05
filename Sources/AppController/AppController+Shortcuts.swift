@@ -77,16 +77,13 @@ extension AppController {
     }
 
     private func captureTimeTravelLogs(triggerReason: String) {
-        let captureTime = Date()
-        let destinationURL = URL(fileURLWithPath: Logger.timeTravelLogPath, isDirectory: false)
-        let success = Logger.dumpRecentLogs(
-            destinationURL: destinationURL,
-            captureTimestamp: captureTime
-        )
-        if success {
-            Logger.debug("Time-travel logs captured at \(Logger.timeTravelLogPath) (reason: \(triggerReason))")
-        } else {
-            Logger.debug("Time-travel log capture failed (reason: \(triggerReason))")
+        Logger.debug("Time-travel log capture requested (reason: \(triggerReason))")
+        TimeTravelLogCapture.capture { success in
+            if success {
+                Logger.debug("Time-travel logs captured at \(TimeTravelLogCapture.outputPath) (reason: \(triggerReason))")
+            } else {
+                Logger.error("Time-travel log capture failed (reason: \(triggerReason))")
+            }
         }
     }
 

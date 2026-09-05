@@ -102,7 +102,7 @@ enum WinShotThumbnailComposer {
             .map { "\($0.cgWindowId == floating?.cgWindowId ? "floating" : "tiled") cgWindowId \($0.cgWindowId)" }
             .joined(separator: ", ")
         if gaveUp {
-            Logger.debug("WinShot thumbnail: capture failed for [\(list)] after \(attempt) attempt(s); rendering placeholder tile(s)")
+            Logger.keep("WinShot thumbnail: capture failed for [\(list)] after \(attempt) attempt(s); rendering placeholder tile(s)")
         } else {
             Logger.debug("WinShot thumbnail: no capture for [\(list)] (attempt \(attempt)/\(maxCaptureAttempts)); retrying in \(captureRetryDelay)s")
         }

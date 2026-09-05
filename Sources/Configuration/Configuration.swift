@@ -75,7 +75,7 @@ struct Configuration {
         }
         guard let data = try? Data(contentsOf: userConfigURL),
               let decoded = try? JSONDecoder().decode(FileContents.self, from: data) else {
-            Logger.debug("Failed to decode config.json at \(userConfigURL.path)")
+            Logger.error("Failed to decode config.json at \(userConfigURL.path)")
             return nil
         }
         Logger.debug("Loaded config from \(userConfigURL.path)")

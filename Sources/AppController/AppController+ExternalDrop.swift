@@ -235,19 +235,19 @@ extension AppController {
 
     private func openFileURL(_ url: URL) {
         if !NSWorkspace.shared.open(url) {
-            Logger.debug("Failed to open dropped file \(url.path)")
+            Logger.error("Failed to open dropped file \(url.path)")
         }
     }
 
     private func openWebLink(_ url: URL) {
         if !browserLaunchController.openNewWindow(with: url) {
-            Logger.debug("Failed to open dropped web link \(url.absoluteString) in default browser window")
+            Logger.error("Failed to open dropped web link \(url.absoluteString) in default browser window")
         }
     }
 
     private func openGeneralURL(_ url: URL) {
         if !NSWorkspace.shared.open(url) {
-            Logger.debug("Failed to open dropped URL \(url.absoluteString)")
+            Logger.error("Failed to open dropped URL \(url.absoluteString)")
         }
     }
 }

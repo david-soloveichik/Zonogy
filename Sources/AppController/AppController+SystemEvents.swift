@@ -392,7 +392,7 @@ extension AppController {
         }
 
         guard retry.attempt < unmanagedFocusRetryDelays.count else {
-            Logger.debug("Unmanaged focus retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(reason))")
+            Logger.keep("Unmanaged focus retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(reason))")
             unmanagedFocusRetryState = nil
             return
         }

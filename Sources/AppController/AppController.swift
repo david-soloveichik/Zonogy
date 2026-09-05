@@ -272,6 +272,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// True from physical screen sleep or loginwindow activation until completion of the wake
     /// pipeline. When true, external events are ignored because AX is temporarily unreliable.
     internal var sleepWakeProtectionActive: Bool = false
+    /// Events ignored so far in the current sleep/wake protection episode. Only the first is logged
+    /// individually; the total is logged when protection ends.
+    internal var sleepWakeIgnoredEventCount = 0
     /// Tracks the login-screen portion of sleep/wake protection so the first regular-app
     /// activation can start recovery even when macOS emitted no physical screen-wake event.
     internal var loginWindowIsActive: Bool = false

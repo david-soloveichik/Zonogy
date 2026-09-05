@@ -279,7 +279,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             try data.write(to: preferencesURL)
             Logger.debug("Saved keyboard shortcuts to \(preferencesURL.path)")
         } catch {
-            Logger.debug("Failed to save keyboard shortcuts: \(error)")
+            Logger.error("Failed to save keyboard shortcuts: \(error)")
         }
     }
 }

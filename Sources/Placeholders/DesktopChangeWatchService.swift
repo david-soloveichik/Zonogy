@@ -91,12 +91,12 @@ final class DesktopChangeWatchService {
             streamLatencySeconds,
             flags
         ) else {
-            Logger.debug("DesktopChangeWatchService: Failed to create FSEvents stream; icon holes will rely on the other pass-through triggers")
+            Logger.error("DesktopChangeWatchService: Failed to create FSEvents stream; icon holes will rely on the other pass-through triggers")
             return
         }
         FSEventStreamSetDispatchQueue(stream, .main)
         guard FSEventStreamStart(stream) else {
-            Logger.debug("DesktopChangeWatchService: Failed to start FSEvents stream; icon holes will rely on the other pass-through triggers")
+            Logger.error("DesktopChangeWatchService: Failed to start FSEvents stream; icon holes will rely on the other pass-through triggers")
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
             return

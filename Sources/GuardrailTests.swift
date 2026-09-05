@@ -174,6 +174,9 @@ enum GuardrailTests {
         if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }
+        if !TimeTravelLogCaptureTests.run() {
+            allPassed = false
+        }
         if !UpdateCheckPreferencesStoreTests.run() {
             allPassed = false
         }

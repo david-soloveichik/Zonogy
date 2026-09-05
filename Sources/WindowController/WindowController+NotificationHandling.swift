@@ -501,17 +501,15 @@ extension WindowController {
     }
 
     private func handleWindowMovedNotification(managed: ManagedWindow) {
-        recordCachedFrame(for: managed)
-        let isProgrammatic = programmaticUpdateWindowIds.contains(managed.windowId)
-        let targetDescription = delegate?.debugTargetedZoneDescription() ?? "unknown"
-        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed)
+        // One frame read serves the cache, the log line, and the drag pipeline.
+        let accessibilityFrame = recordCachedFrame(for: managed)
         let loggedFrame = accessibilityFrame ?? .zero
-        if isProgrammatic {
-            Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (ignored programmatic update; cursorTargetedZone: \(targetDescription))")
+        if programmaticUpdateWindowIds.contains(managed.windowId) {
+            Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (ignored programmatic update)")
             return
         }
 
-        Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (cursorTargetedZone: \(targetDescription))")
+        Logger.debug("External window \(managed.windowId) moved to \(loggedFrame)")
         if ensureManualDragBegan(for: managed, frame: loggedFrame) {
             delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: loggedFrame)
         } else {
@@ -533,7 +531,8 @@ extension WindowController {
     }
 
     private func handleWindowResizedNotification(managed: ManagedWindow) {
-        recordCachedFrame(for: managed)
+        // One frame read serves the cache and every consumer below.
+        let accessibilityFrame = recordCachedFrame(for: managed)
         // Always check full-screen state on resize (even for programmatic updates)
         // since entering/exiting full-screen fires resize notifications
         delegate?.windowDidResize(windowId: managed.windowId)
@@ -551,7 +550,6 @@ extension WindowController {
             return
         }
 
-        let accessibilityFrame = actualFrameInAccessibilityCoordinates(for: managed)
         // Finder reports some last-tab merges as a resize of the source window rather than
         // a move. Collapse that native-tab source before manual-resize bookkeeping can mark
         // it detached in its old zone and later snap it back there.
@@ -564,11 +562,13 @@ extension WindowController {
         }
 
         Logger.debug("External window \(managed.windowId) resized (non-programmatic)")
-        if let screenFrame = actualFrameInScreenCoordinates(for: managed) {
-            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
-        } else {
-            delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: .zero)
+        var screenFrame: CGRect = .zero
+        if let accessibilityFrame,
+           let screenId = managed.screenDisplayId,
+           let descriptor = delegate?.screenDescriptor(for: screenId) {
+            screenFrame = descriptor.accessibilityToScreen(accessibilityFrame)
         }
+        delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
     }
 
     private func collapseNativeTabSourceForAppGeometryChangeIfNeeded(

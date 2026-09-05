@@ -12,7 +12,7 @@ extension AppController {
             try LaunchAtLoginPreferencesStore.setEnabled(enabled)
             Logger.debug("LaunchAtLogin: settings updated enabled=\(enabled)")
         } catch {
-            Logger.debug("LaunchAtLogin: failed to update enabled=\(enabled) error=\(error)")
+            Logger.error("LaunchAtLogin: failed to update enabled=\(enabled) error=\(error)")
         }
     }
 }

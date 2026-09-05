@@ -139,7 +139,7 @@ final class LauncherInstallWatchService {
             streamLatencySeconds,
             streamFlags
         ) else {
-            Logger.debug("LauncherInstallWatchService: Failed to create FSEvents stream")
+            Logger.error("LauncherInstallWatchService: Failed to create FSEvents stream")
             return
         }
 
@@ -147,7 +147,7 @@ final class LauncherInstallWatchService {
         FSEventStreamSetDispatchQueue(stream, streamQueue)
 
         guard FSEventStreamStart(stream) else {
-            Logger.debug("LauncherInstallWatchService: Failed to start FSEvents stream")
+            Logger.error("LauncherInstallWatchService: Failed to start FSEvents stream")
             tearDownStream()
             return
         }

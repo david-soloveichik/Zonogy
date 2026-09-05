@@ -131,7 +131,7 @@ final class DockAXNotificationMonitor {
         var observer: AXObserver?
         let status = AXCall.createObserver(pid, Self.axObserverCallback, &observer)
         guard status == .success, let observer else {
-            Logger.debug("DockAXNotificationMonitor: AXObserverCreate failed (status=\(status.rawValue))")
+            Logger.error("DockAXNotificationMonitor: AXObserverCreate failed (status=\(status.rawValue))")
             return nil
         }
 
@@ -267,7 +267,7 @@ final class DockAXNotificationMonitor {
 
         establishAttemptsRemaining -= 1
         guard establishAttemptsRemaining > 0 else {
-            Logger.debug("DockAXNotificationMonitor: establish failed — Dock not observable, retries exhausted (reason: \(reason))")
+            Logger.error("DockAXNotificationMonitor: establish failed — Dock not observable, retries exhausted (reason: \(reason))")
             return
         }
         Logger.debug("DockAXNotificationMonitor: establish deferred — Dock not observable, will retry (reason: \(reason), attempts left: \(establishAttemptsRemaining))")

@@ -71,7 +71,7 @@ extension WindowController {
     func minimizeWindow(_ managedWindow: ManagedWindow) {
         let error = AXCall.setAttribute(managedWindow.backing.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
         if error != .success {
-            Logger.debug("WARNING: Minimize AX call failed for window \(managedWindow.windowId) (error \(error.rawValue))")
+            Logger.error("WARNING: Minimize AX call failed for window \(managedWindow.windowId) (error \(error.rawValue))")
         } else {
             Logger.debug("Minimized window \(managedWindow.windowId)")
         }
@@ -87,7 +87,7 @@ extension WindowController {
         let perform = {
             let error = AXCall.setAttribute(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
             if error != .success {
-                Logger.debug("WARNING: Unminimize AX call failed for window \(windowId) (error \(error.rawValue))")
+                Logger.error("WARNING: Unminimize AX call failed for window \(windowId) (error \(error.rawValue))")
             } else {
                 Logger.debug("Unminimized window \(windowId)")
             }

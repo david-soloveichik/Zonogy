@@ -90,7 +90,7 @@ final class BrowserLaunchController {
             try process.run()
             return true
         } catch {
-            Logger.debug("Failed to launch Firefox binary: \(error.localizedDescription)")
+            Logger.error("Failed to launch Firefox binary: \(error.localizedDescription)")
             return workspace.open(url)
         }
     }
@@ -108,14 +108,14 @@ final class BrowserLaunchController {
 
     private func runAppleScript(source: String) -> Bool {
         guard let script = NSAppleScript(source: source) else {
-            Logger.debug("Failed to compile AppleScript for browser automation")
+            Logger.error("Failed to compile AppleScript for browser automation")
             return false
         }
 
         var errorDict: NSDictionary?
         script.executeAndReturnError(&errorDict)
         if let errorDict {
-            Logger.debug("AppleScript execution failed: \(errorDict)")
+            Logger.error("AppleScript execution failed: \(errorDict)")
             return false
         }
         return true

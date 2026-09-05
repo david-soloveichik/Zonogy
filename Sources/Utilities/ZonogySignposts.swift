@@ -3,11 +3,9 @@
 import OSLog
 
 enum ZonogySignposts {
-    static let subsystem = "com.dsemeas.zonogy"
-
     /// Use the system Points of Interest category so standard Instruments templates capture these signposts.
     static let pointsOfInterest = OSSignposter(
-        subsystem: subsystem,
+        subsystem: Logger.subsystem,
         category: .pointsOfInterest
     )
 }

@@ -32,7 +32,7 @@ class MenuBarManager: NSObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         guard let statusItem = statusItem else {
-            Logger.debug("Failed to create status item")
+            Logger.error("Failed to create status item")
             return
         }
 
@@ -128,7 +128,7 @@ class MenuBarManager: NSObject {
             }
         }
 
-        Logger.debug("Failed to load SVG icon from any search path")
+        Logger.error("Failed to load SVG icon from any search path")
         return nil
     }
 

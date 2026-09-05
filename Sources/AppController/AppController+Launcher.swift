@@ -638,7 +638,7 @@ extension AppController: LauncherControllerDelegate {
 
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
             if let error = error {
-                Logger.debug("Launcher: Failed to launch app at \(url.path): \(error.localizedDescription)")
+                Logger.error("Launcher: Failed to launch app at \(url.path): \(error.localizedDescription)")
             } else if let app = app {
                 Logger.debug("Launcher: Launched \(app.localizedName ?? url.lastPathComponent)")
             }

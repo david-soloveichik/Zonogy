@@ -220,7 +220,7 @@ final class HotkeyService {
                        now.timeIntervalSince(previousPressedAt) < Self.staleHeldMarkInterval {
                         return noErr
                     }
-                    Logger.debug("Hotkey \(action): pressed with a stale held mark (no release seen); treating as a fresh press")
+                    Logger.keep("Hotkey \(action): pressed with a stale held mark (no release seen); treating as a fresh press")
                 }
             }
             delegate?.hotkeyService(self, didTrigger: action)
@@ -288,7 +288,7 @@ final class HotkeyService {
         )
 
         if status != noErr {
-            Logger.debug("Failed to install hotkey handler with status \(status)")
+            Logger.error("Failed to install hotkey handler with status \(status)")
         }
     }
 
@@ -331,7 +331,7 @@ final class HotkeyService {
             hotKeyRefs.append(hotKeyRef)
             Logger.debug("Registered hotkey action \(action) shortcut \(shortcut.displayString)")
         } else if status != noErr {
-            Logger.debug("Failed to register hotkey \(action) with status \(status)")
+            Logger.error("Failed to register hotkey \(action) with status \(status)")
         }
     }
 

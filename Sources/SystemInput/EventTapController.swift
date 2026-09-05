@@ -61,7 +61,7 @@ final class EventTapController {
             callback: EventTapController.eventCallback,
             userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         ) else {
-            Logger.debug("Failed to install \(name) event tap (missing Input Monitoring permission?)")
+            Logger.error("Failed to install \(name) event tap (missing Input Monitoring permission?)")
             return false
         }
 

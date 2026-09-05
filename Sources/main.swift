@@ -13,15 +13,7 @@ if arguments.contains("--self-test") {
     exit(allPassed ? 0 : 1)
 }
 
-// Apply persisted debug log setting.
-let saveDebugLogToFile = DebugPreferencesStore.loadLogToFileEnabled()
-Logger.logToFile = saveDebugLogToFile
-if saveDebugLogToFile {
-    Logger.clearLogFile()
-    Logger.debug("\(AppVersion.preferencesDisplayString) starting - logging to \(Logger.logPath)")
-} else {
-    Logger.debug("\(AppVersion.preferencesDisplayString) starting - file logging disabled")
-}
+Logger.debug("\(AppVersion.preferencesDisplayString) starting")
 
 // Create the NSApplication
 let app = NSApplication.shared
