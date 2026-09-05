@@ -459,20 +459,25 @@ The "Show the floating zone used when no zone is the destination" toggle tints t
 
 The "Disable native macOS tab handling" toggle turns off the native-tab behaviors — the tab-switch frame wait and replacement, the tab-close rebind to a surviving sibling, and the last-tab merge collapse — so native-tab candidates are treated like ordinary separate windows (and closing a tab empties its zone even when other tabs of that window remain).
 
-### Debug Log
+### Debug Logging
 
-Zonogy writes its debug log through the macOS unified logging system and writes no log files of its own (except the time travel log, described below). In the unified logging system, routine entries stay in memory only. The `log` command in Terminal reads it, filtered to Zonogy's subsystem, `com.dsemeas.zonogy`:
+Zonogy logs through the macOS unified logging system (subsystem `com.dsemeas.zonogy`) and writes no log files of its own (except the time travel log, described below). Each line is logged at one of three levels, which macOS retains differently:
 
-- Follow it live: `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"'`
-- Read recent history: `log show --last 10m --info --predicate 'subsystem == "com.dsemeas.zonogy"'`
+- The normal trace is at level Info, which macOS holds in memory only and purges as its buffers fill (minutes).
+- Events worth finding later are at the Default and Error levels, which macOS keeps on disk until its store is full (days-weeks): unexpected failures (a minimize the application rejected, a shortcut that could not be registered) and countable events such as accessibility calls that took too long (category `SlowAX`).
 
-Notable events are additionally kept on disk by macOS for days, so they can be reviewed later even when nobody was watching: unexpected failures (for example a minimize the application rejected, or a shortcut that could not be registered) and countable events (for example accessibility calls that took too long, kept in their own `SlowAX` category). Leaving out `--info` lists only these: `log show --last 7d --predicate 'subsystem == "com.dsemeas.zonogy"'`.
+Read it with the `log` command in Terminal. It shows Default and above unless the info option is given, so drop `--info` to see only the persisted levels:
 
-The Debug tab shows these commands and the time-travel log's location.
+- Live trace: `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"'`
+- Recent trace: `log show --last 10m --info --predicate 'subsystem == "com.dsemeas.zonogy"'`
+
+(Zonogy logs nothing at the Debug level, so `--debug` adds nothing.)
+
+The Debug tab shows this information and the time-travel log's location.
 
 ### Time-travel Debug Logging
 
-When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 60 seconds of the log prior to the invocation of the shortcut* to `/tmp/zonogy-debug-time-travel.log` to help us debug the problem. A capture never reaches back past the previous capture, so pressing "Control-Command-z" twice within a short time window saves only the log *between* the two presses.
+When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 60 seconds of the log prior to the invocation of the shortcut*, at all levels, to `/tmp/zonogy-debug-time-travel.log` to help us debug the problem. A capture never reaches back past the previous capture, so pressing "Control-Command-z" twice within a short time window saves only the log *between* the two presses.
 
 Time-travel log capture via the keyboard shortcut should always be available and does not depend on any Debug tab toggle.
 

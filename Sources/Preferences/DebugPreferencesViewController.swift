@@ -9,6 +9,7 @@ final class DebugPreferencesViewController: NSViewController {
     private var disableNativeTabsCheckbox: NSButton?
     private var highlightImplicitFloatingTargetCheckbox: NSButton?
     private var timeTravelHintLabel: NSTextField?
+    private var loggingInfoPopover: NSPopover?
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 525))
@@ -82,29 +83,39 @@ final class DebugPreferencesViewController: NSViewController {
         scrollView.documentView = toggleDocument
         containerView.addSubview(scrollView)
 
-        let logHeaderLabel = NSTextField(labelWithString: "Debug Log")
+        let logHeaderLabel = NSTextField(labelWithString: "Debug Logging")
         logHeaderLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
         logHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(logHeaderLabel)
 
-        let logExplanationLabel = makeHintLabel(
-            "Zonogy logs through the macOS unified log: routine entries stay in memory, and notable events are kept by macOS for days. To follow the log live or read recent history, run in Terminal:"
+        let logIntroLabel = makeHintLabel(
+            "Zonogy logs through the macOS unified logging system (subsystem \(Logger.subsystem))."
         )
-        containerView.addSubview(logExplanationLabel)
-
-        let subsystemPredicate = "--predicate 'subsystem == \"\(Logger.subsystem)\"'"
-        let liveCommandLabel = makeMonospacedLabel("log stream --level info \(subsystemPredicate)")
-        containerView.addSubview(liveCommandLabel)
-        let historyCommandLabel = makeMonospacedLabel("log show --last 10m --info \(subsystemPredicate)")
-        containerView.addSubview(historyCommandLabel)
-
-        let timeTravelLogPathLabel = makeMonospacedLabel("Time-travel log: \(TimeTravelLogCapture.outputPath)")
-        containerView.addSubview(timeTravelLogPathLabel)
-
+        // The levels and the Terminal commands live in a popover, keeping the tab short.
+        let moreInfoButton = NSButton(title: "More Info…", target: self, action: #selector(showLoggingInfo(_:)))
+        moreInfoButton.controlSize = .small
+        moreInfoButton.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        moreInfoButton.translatesAutoresizingMaskIntoConstraints = false
+        moreInfoButton.setContentHuggingPriority(.required, for: .horizontal)
         // Names the capture shortcut, so it is filled in by syncControls whenever the tab appears.
         let timeTravelHintLabel = makeHintLabel("")
-        containerView.addSubview(timeTravelHintLabel)
         self.timeTravelHintLabel = timeTravelHintLabel
+        let timeTravelLogPathLabel = makeMonospacedLabel("Time-travel log: \(TimeTravelLogCapture.outputPath)")
+
+        // The log section is a fixed column under the header, pinned to the container's sides.
+        let logSection: [(view: NSView, spacingAbove: CGFloat)] = [
+            (logIntroLabel, 8), (moreInfoButton, 6), (timeTravelHintLabel, 14), (timeTravelLogPathLabel, 6),
+        ]
+        var previousLogView: NSView = logHeaderLabel
+        for entry in logSection {
+            containerView.addSubview(entry.view)
+            NSLayoutConstraint.activate([
+                entry.view.topAnchor.constraint(equalTo: previousLogView.bottomAnchor, constant: entry.spacingAbove),
+                entry.view.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+                entry.view.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -20),
+            ])
+            previousLogView = entry.view
+        }
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
@@ -119,33 +130,78 @@ final class DebugPreferencesViewController: NSViewController {
             toggleDocument.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
             logHeaderLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-
-            logExplanationLabel.topAnchor.constraint(equalTo: logHeaderLabel.bottomAnchor, constant: 8),
-            logExplanationLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            logExplanationLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            liveCommandLabel.topAnchor.constraint(equalTo: logExplanationLabel.bottomAnchor, constant: 6),
-            liveCommandLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            liveCommandLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            historyCommandLabel.topAnchor.constraint(equalTo: liveCommandLabel.bottomAnchor, constant: 4),
-            historyCommandLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            historyCommandLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            timeTravelLogPathLabel.topAnchor.constraint(equalTo: historyCommandLabel.bottomAnchor, constant: 12),
-            timeTravelLogPathLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            timeTravelLogPathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            timeTravelHintLabel.topAnchor.constraint(equalTo: timeTravelLogPathLabel.bottomAnchor, constant: 6),
-            timeTravelHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            // Wrapping labels need both edges pinned to know their width.
+            logIntroLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             timeTravelHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-            timeTravelHintLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
+            timeTravelLogPathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            previousLogView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
         ])
 
         self.view = containerView
         self.preferredContentSize = NSSize(width: 580, height: 525)
         syncControls()
     }
+
+    // MARK: - Logging info popover
+
+    @objc private func showLoggingInfo(_ sender: NSButton) {
+        if let popover = loggingInfoPopover, popover.isShown {
+            popover.close()
+            return
+        }
+        let content = makeLoggingInfoView()
+        content.layoutSubtreeIfNeeded()
+        let controller = NSViewController()
+        controller.view = content
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = controller
+        popover.contentSize = content.fittingSize
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        loggingInfoPopover = popover
+    }
+
+    /// The log levels and how to read them: the detail behind the tab's one-line summary.
+    private func makeLoggingInfoView() -> NSView {
+        let width: CGFloat = 480
+        let inset: CGFloat = 14
+        let levelsLabel = makeBulletListLabel([
+            "The normal trace is at level Info, which macOS holds in memory only and purges as its buffers fill (minutes).",
+            "Events worth finding later are at the Default and Error levels, which macOS keeps on disk until its store is full (days-weeks).",
+        ])
+        let readLabel = makeHintLabel(
+            "Read it with the log command in Terminal; drop the info option to see only the persisted levels:"
+        )
+        let subsystemPredicate = "--predicate 'subsystem == \"\(Logger.subsystem)\"'"
+        let liveCommandLabel = makeMonospacedLabel("log stream --level info \(subsystemPredicate)")
+        let historyCommandLabel = makeMonospacedLabel("log show --last 10m --info \(subsystemPredicate)")
+
+        let labels = [levelsLabel, readLabel, liveCommandLabel, historyCommandLabel]
+        for label in labels {
+            label.textColor = .labelColor
+            label.preferredMaxLayoutWidth = width - 2 * inset
+        }
+        let stack = NSStackView(views: labels)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.setCustomSpacing(4, after: liveCommandLabel)
+        stack.edgeInsets = NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: width),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+        return container
+    }
+
+    // MARK: - Controls
 
     /// A checkbox with its explanatory hint beneath, indented like the rest of the pane.
     private func makeToggle(title: String, hint: String, action: Selector) -> (view: NSView, checkbox: NSButton) {
@@ -173,6 +229,25 @@ final class DebugPreferencesViewController: NSViewController {
         label.font = NSFont.systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
         label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    /// A hint-styled bulleted list, one item per line, with wrapped lines indented under the text.
+    private func makeBulletListLabel(_ items: [String]) -> NSTextField {
+        let indent: CGFloat = 12
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.tabStops = [NSTextTab(textAlignment: .left, location: indent)]
+        paragraph.headIndent = indent
+        paragraph.paragraphSpacing = 4
+        let label = makeHintLabel("")
+        label.attributedStringValue = NSAttributedString(
+            string: items.map { "•\t\($0)" }.joined(separator: "\n"),
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 12),
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph,
+            ]
+        )
         return label
     }
 
@@ -237,6 +312,6 @@ final class DebugPreferencesViewController: NSViewController {
         highlightImplicitFloatingTargetCheckbox?.state = AppController.shared.isHighlightImplicitFloatingTargetInSettings ? .on : .off
         timeTravelHintLabel?.stringValue =
             "Time-travel log capture uses \(KeyboardShortcutPreferences.shared.keyPhrase(for: .captureTimeTravelLogs)) (settable in Shortcuts). " +
-            "It saves the last \(Int(TimeTravelLogCapture.window)) seconds of the log, or the log since the previous capture."
+            "It saves the full log (all levels) for the last \(Int(TimeTravelLogCapture.window)) seconds, or since the previous capture."
     }
 }
