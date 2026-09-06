@@ -3,7 +3,7 @@ import AppKit
 
 extension AppController: CmdTabControllerDelegate {
     func cmdTabController(_ controller: CmdTabController, didDismiss outcome: CmdTabController.DismissalOutcome) {
-        cmdTabKeyInterceptor.resetEngagement()
+        endCmdTabEngagement()
         cmdTabCurrentAppPid = nil
 
         switch outcome {
@@ -48,11 +48,19 @@ extension AppController: CmdTabControllerDelegate {
         guard beginCursorDrivenWindowDrag(for: window) else {
             return false
         }
-        // The CmdTab UI is being torn down; clear the key interceptor's engaged state so a later
-        // modifier release does not try to activate a window in a destroyed session.
-        cmdTabKeyInterceptor.resetEngagement()
+        // The CmdTab UI is being torn down; end the key interceptor's session so a later modifier
+        // release does not try to activate a window in a destroyed session.
+        endCmdTabEngagement()
         Logger.debug("CmdTab: drag began for window \(window.title)")
         return true
+    }
+
+    /// Ends the interceptor session whose chooser this was. Scoped to that session: one engaged
+    /// since (the tap thread runs ahead of the main queue) is untouched.
+    private func endCmdTabEngagement() {
+        guard let engagement = cmdTabEngagement else { return }
+        cmdTabKeyInterceptor.endEngagement(engagement)
+        cmdTabEngagement = nil
     }
 
     func cmdTabControllerDidUpdateDrag(_ controller: CmdTabController, cursorPointAX: CGPoint?) {
@@ -112,11 +120,11 @@ extension AppController: CmdTabControllerDelegate {
 }
 
 extension AppController: CmdTabKeyInterceptorDelegate {
-    func cmdTabKeyInterceptorIsCmdTabVisible(_ interceptor: CmdTabKeyInterceptor) -> Bool {
-        cmdTabController.isActive
-    }
+    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, engagement: CmdTabKeyInterceptor.Engagement, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) {
+        // Modifier release, Escape, and N end the session on the tap side; `didDismiss` ends it
+        // when the chooser closes some other way (a row click, a drag, an interruption).
+        cmdTabEngagement = engagement
 
-    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool {
         // Resolve temporary retargeting before hiding Launcher. While Launcher is visible, it is
         // already anchored to the current target, so that target should remain authoritative.
         beginCmdTabRetargetSessionIfNeeded(mode: mode, reason: "cmdtab-open")
@@ -180,10 +188,10 @@ extension AppController: CmdTabKeyInterceptorDelegate {
         if !shown {
             restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-open-failed")
         }
-        return shown
     }
 
     func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode) {
+        guard cmdTabController.isActive else { return }
         Logger.debug("CmdTab: Switching to \(mode == .allWindows ? "all windows" : "current app") mode")
         let skipWindowIds = cmdTabJustMinimizedSkipWindowIds()
         let frontmostWindowId = currentFrontmostManagedWindowId
@@ -238,6 +246,7 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     }
 
     func cmdTabKeyInterceptorForwardNewWindow(_ interceptor: CmdTabKeyInterceptor) {
+        guard cmdTabController.isActive else { return }
         // Target this session's captured current app — the same app whose windows app-specific
         // mode shows. The CmdTab panel is non-activating, so that app is still frontmost and can
         // receive the synthesized Cmd-N. Re-validate that it is still alive (and not Zonogy): if it
@@ -251,10 +260,6 @@ extension AppController: CmdTabKeyInterceptorDelegate {
         Logger.debug("CmdTab: Forwarding Cmd-N to current app pid=\(pid)")
         cmdTabController.dismissForNewWindow()
         postCmdN(toPid: pid)
-    }
-
-    func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool {
-        !hotkeyService.isSuspended
     }
 }
 

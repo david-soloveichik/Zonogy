@@ -90,7 +90,8 @@ final class ModifierCombinationPreferences {
 
     private let defaultsKey: String
     private let label: String
-    private(set) var modifiers: ModifierCombination
+    /// Read by the zone-navigation event tap off the main thread, hence thread-safe.
+    @ThreadSafe private(set) var modifiers: ModifierCombination
 
     private init(defaultsKey: String, label: String) {
         self.defaultsKey = defaultsKey

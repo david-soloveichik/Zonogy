@@ -112,6 +112,7 @@ final class HotkeyService {
         hotKeyRefs.removeAll()
         resetHoldInputState()
         Logger.debug("Hotkeys suspended")
+        delegate?.hotkeyServiceDidChangeSuspension(self)
     }
 
     /// Resumes hotkeys after suspension
@@ -121,6 +122,7 @@ final class HotkeyService {
 
         registerHotKeys()
         Logger.debug("Hotkeys resumed")
+        delegate?.hotkeyServiceDidChangeSuspension(self)
     }
 
     func handleLocalShortcut(event: NSEvent) -> Bool {
@@ -348,6 +350,8 @@ protocol HotkeyServiceDelegate: AnyObject {
     /// anything; the hold-follow-up fire path additionally re-verifies the physical chord, so a
     /// missed release stays harmless.
     func hotkeyService(_ service: HotkeyService, didRelease action: HotkeyService.Action)
+    /// `isSuspended` changed (`suspend` / `resume`).
+    func hotkeyServiceDidChangeSuspension(_ service: HotkeyService)
 }
 
 private func HotkeyServiceEventHandler(

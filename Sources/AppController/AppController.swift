@@ -205,6 +205,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
         controller.delegate = self
+        controller.onActiveChanged = { [weak self] in self?.syncKeyboardTapGates() }
         return controller
     }()
     /// Highlights the display a dragged WinShot thumbnail would open its arrangement on.
@@ -217,6 +218,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var cmdTabController: CmdTabController = {
         let controller = CmdTabController()
         controller.delegate = self
+        controller.onActiveChanged = { [weak self] in self?.syncKeyboardTapGates() }
         return controller
     }()
     internal var fullScreenTracker: FullScreenTracker!
@@ -271,7 +273,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var wakeAXWindowPollingTimer: DispatchSourceTimer?
     /// True from physical screen sleep or loginwindow activation until completion of the wake
     /// pipeline. When true, external events are ignored because AX is temporarily unreliable.
-    internal var sleepWakeProtectionActive: Bool = false
+    internal var sleepWakeProtectionActive: Bool = false {
+        didSet { syncKeyboardTapGates() }
+    }
     /// Events ignored so far in the current sleep/wake protection episode. Only the first is logged
     /// individually; the total is logged when protection ends.
     internal var sleepWakeIgnoredEventCount = 0
@@ -322,6 +326,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// single "current app": it both filters app-specific mode and receives the in-CmdTab
     /// "new window" (Cmd-N) keystroke, so the two can never disagree. Nil while CmdTab is closed.
     internal var cmdTabCurrentAppPid: pid_t?
+    /// The key-interceptor session whose chooser is showing (or was last asked to show); ended when
+    /// that chooser dismisses.
+    internal var cmdTabEngagement: CmdTabKeyInterceptor.Engagement?
     /// Delay before evaluating reveal mode after a restore flow (WinShot, sleep/wake).
     internal let activeFitRestoreDelay: TimeInterval = 1.0
     struct SuppressionEntry {
@@ -493,6 +500,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         externalZoneDropInterceptor.start()
         cmdTabKeyInterceptor.start(delegate: self)
         zoneNavigationInterceptor.start(delegate: self)
+        syncKeyboardTapGates()
         startDockMenusIfConfigured()
         startUpdateChecker()
 

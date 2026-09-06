@@ -1,4 +1,12 @@
-/// Intercepts the configured CmdTab keyboard chord via a global CGEventTap (Input Monitoring)
+/// Intercepts the configured CmdTab keyboard chord via a global CGEventTap (Input Monitoring).
+///
+/// The tap is serviced by `EventTapThread`, so its callback answers while the main thread is busy
+/// and never holds up keystrokes bound for other apps. The callback decides only what a keystroke
+/// means for the engaged session and hands every action to the main queue, in keystroke order; the
+/// delegate acts on the chooser there, ignoring an action that arrives after the chooser is gone.
+/// A session ends on the tap thread at the keys that end it (modifier release, Escape, N), so a
+/// fresh press of the chord starts the next session at once, and from the main thread when the
+/// chooser is dismissed some other way (`endEngagement`), so the session state is guarded by a lock.
 
 import ApplicationServices
 import Carbon
@@ -10,20 +18,19 @@ enum CmdTabMode {
     case currentAppOnly
 }
 
+/// Every call arrives on the main queue in keystroke order, after the show that opened its session.
+/// A call for a chooser that is not showing (never shown, or dismissed since) is ignored there.
 protocol CmdTabKeyInterceptorDelegate: AnyObject {
-    /// Return true when CmdTab UI is currently visible.
-    func cmdTabKeyInterceptorIsCmdTabVisible(_ interceptor: CmdTabKeyInterceptor) -> Bool
+    /// Show CmdTab for a newly engaged session. `engagement` names the session to `endEngagement`.
+    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, engagement: CmdTabKeyInterceptor.Engagement, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode)
 
-    /// Request that CmdTab be shown. Return true if it was shown.
-    func cmdTabKeyInterceptorShowCmdTab(_ interceptor: CmdTabKeyInterceptor, initialDirection: CmdTabKeyInterceptor.Direction, mode: CmdTabMode) -> Bool
-
-    /// Cycle CmdTab selection in the given direction (only called while CmdTab is visible).
+    /// Cycle CmdTab selection in the given direction.
     func cmdTabKeyInterceptor(_ interceptor: CmdTabKeyInterceptor, cycle direction: CmdTabKeyInterceptor.Direction)
 
-    /// Activate the currently selected CmdTab window (called on modifier release).
+    /// Activate the currently selected CmdTab window (the chord's modifiers were released).
     func cmdTabKeyInterceptorActivateSelection(_ interceptor: CmdTabKeyInterceptor)
 
-    /// Switch CmdTab to a different mode while it is already visible (e.g., all-windows ↔ current-app).
+    /// Switch CmdTab to a different mode (e.g., all-windows ↔ current-app).
     func cmdTabKeyInterceptorSwitchMode(_ interceptor: CmdTabKeyInterceptor, mode: CmdTabMode)
 
     /// Cancel CmdTab without activation.
@@ -31,15 +38,18 @@ protocol CmdTabKeyInterceptorDelegate: AnyObject {
 
     /// Forward a "new window" request (Cmd-N) to the current app, then dismiss CmdTab.
     func cmdTabKeyInterceptorForwardNewWindow(_ interceptor: CmdTabKeyInterceptor)
-
-    /// Return false to temporarily disable CmdTab interception (e.g., while recording shortcuts).
-    func cmdTabKeyInterceptorShouldHandleEvents(_ interceptor: CmdTabKeyInterceptor) -> Bool
 }
 
 final class CmdTabKeyInterceptor {
     enum Direction {
         case next
         case previous
+    }
+
+    /// Names one engaged session, so an ending decided on the main thread (the chooser shown for
+    /// the session was dismissed) applies to that session and not to one engaged since.
+    struct Engagement: Equatable {
+        fileprivate let id: UInt64
     }
 
     private enum Constants {
@@ -52,8 +62,21 @@ final class CmdTabKeyInterceptor {
 
     private var eventTap: EventTapController?
 
-    private var isEngaged = false
+    /// Guards the session state below: the tap callback works on the tap thread; `isSuspended`,
+    /// `endEngagement`, and `stop` run on the main thread. Entry points take the lock; the private
+    /// handlers assume it is held.
+    private let lock = NSLock()
+    /// The binding the current session engaged on; nil while no session is engaged.
     private var engagedShortcut: EngagedShortcut?
+    /// The current session, or the most recent one once it has ended.
+    private var engagement = Engagement(id: 0)
+    private var suspended = false
+
+    /// While true (hotkeys suspended, e.g. while recording a shortcut) every keystroke passes.
+    var isSuspended: Bool {
+        get { lock.withLock { suspended } }
+        set { lock.withLock { suspended = newValue } }
+    }
 
     /// The binding a session engaged on, and the chooser mode it opened.
     struct EngagedShortcut {
@@ -115,6 +138,7 @@ final class CmdTabKeyInterceptor {
         let tap = EventTapController(
             name: "CmdTab keyboard interceptor",
             events: [.keyDown, .flagsChanged],
+            runLoop: EventTapThread.runLoop,
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
             }
@@ -127,63 +151,64 @@ final class CmdTabKeyInterceptor {
     func stop() {
         eventTap?.stop()
         eventTap = nil
-        isEngaged = false
-        engagedShortcut = nil
+        lock.withLock { engagedShortcut = nil }
     }
 
-    func resetEngagement() {
-        isEngaged = false
-        engagedShortcut = nil
+    /// Ends `engagement` if it is still the current session. The delegate calls this once the
+    /// chooser shown for the session is gone, however it went; a session engaged since is untouched.
+    func endEngagement(_ engagement: Engagement) {
+        lock.withLock {
+            if self.engagement == engagement {
+                engagedShortcut = nil
+            }
+        }
+    }
+
+    /// Hands an action to the delegate on the main queue.
+    private func dispatchToMain(_ action: @escaping (CmdTabKeyInterceptor, CmdTabKeyInterceptorDelegate) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let delegate = self.delegate else { return }
+            action(self, delegate)
+        }
     }
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
-        switch type {
-        case .keyDown, .flagsChanged:
-            break
-        default:
-            return .pass
+        lock.withLock {
+            guard !suspended else {
+                return .pass
+            }
+            let relevantFlags = event.flags.intersection(Constants.relevantModifierFlags)
+            switch type {
+            case .flagsChanged:
+                return handleFlagsChanged(relevantFlags: relevantFlags)
+            case .keyDown:
+                return handleKeyDown(event: event, relevantFlags: relevantFlags)
+            default:
+                return .pass
+            }
         }
-
-        guard let delegate, delegate.cmdTabKeyInterceptorShouldHandleEvents(self) else {
-            return .pass
-        }
-
-        let relevantFlags = event.flags.intersection(Constants.relevantModifierFlags)
-
-        if type == .flagsChanged {
-            return handleFlagsChanged(event: event, relevantFlags: relevantFlags)
-        }
-
-        return handleKeyDown(event: event, relevantFlags: relevantFlags)
     }
 
-    private func handleFlagsChanged(event: CGEvent, relevantFlags: CGEventFlags) -> EventTapDecision {
-        guard isEngaged, let engagedShortcut else {
+    private func handleFlagsChanged(relevantFlags: CGEventFlags) -> EventTapDecision {
+        guard let engagedShortcut else {
             return .pass
         }
 
-        // Session ends when any required modifier is released.
-        guard relevantFlags.contains(engagedShortcut.requiredModifiers) else {
-            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.delegate?.cmdTabKeyInterceptorActivateSelection(self)
-                }
-            }
-
-            isEngaged = false
+        // The session ends when any required modifier is released, activating the selection.
+        if !relevantFlags.contains(engagedShortcut.requiredModifiers) {
             self.engagedShortcut = nil
-            return .pass
+            dispatchToMain { interceptor, delegate in
+                delegate.cmdTabKeyInterceptorActivateSelection(interceptor)
+            }
         }
-
         return .pass
     }
 
     private func handleKeyDown(event: CGEvent, relevantFlags: CGEventFlags) -> EventTapDecision {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
 
-        if isEngaged {
-            return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, event: event)
+        if let engagedShortcut {
+            return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, engagedShortcut: engagedShortcut)
         }
 
         // Ordinary typing exits here: a CmdTab binding always carries a modifier (the recorder and
@@ -193,99 +218,68 @@ final class CmdTabKeyInterceptor {
             return .pass
         }
 
-        // Begin session immediately so repeated key presses are swallowed even if UI work is async.
-        isEngaged = true
+        // Engage at once, so repeated presses are swallowed while the show is still queued.
         engagedShortcut = shortcut
-
-        let direction = initialDirection(for: relevantFlags, engagedShortcut: shortcut)
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            _ = self.delegate?.cmdTabKeyInterceptorShowCmdTab(self, initialDirection: direction, mode: shortcut.mode)
+        engagement = Engagement(id: engagement.id + 1)
+        let engagement = self.engagement
+        let direction = Self.direction(for: relevantFlags, engagedShortcut: shortcut)
+        dispatchToMain { interceptor, delegate in
+            delegate.cmdTabKeyInterceptorShowCmdTab(interceptor, engagement: engagement, initialDirection: direction, mode: shortcut.mode)
         }
 
         // Swallow to override the system app switcher.
         return .swallow
     }
 
-    private func handleKeyDownWhileEngaged(keyCode: CGKeyCode, relevantFlags: CGEventFlags, event: CGEvent) -> EventTapDecision {
-        guard let engagedShortcut else {
-            // Shouldn't happen, but don't get stuck in an engaged state.
-            isEngaged = false
-            return .pass
-        }
-
-        // Cancel (even while modifiers are held).
-        if keyCode == Constants.escapeKeyCode, delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.delegate?.cmdTabKeyInterceptorCancel(self)
-            }
-            isEngaged = false
+    private func handleKeyDownWhileEngaged(keyCode: CGKeyCode, relevantFlags: CGEventFlags, engagedShortcut: EngagedShortcut) -> EventTapDecision {
+        // Cancel (even while modifiers are held). The session ends here, so a fresh press of the
+        // chord opens the next chooser even while this cancel is still queued.
+        if keyCode == Constants.escapeKeyCode {
             self.engagedShortcut = nil
+            dispatchToMain { interceptor, delegate in
+                delegate.cmdTabKeyInterceptorCancel(interceptor)
+            }
             return .swallow
         }
 
         // Forward a "new window" request (Cmd-N) to the current app, then dismiss. The chord's
-        // modifier (Command, by default) is still held, so pressing N alone is already Cmd-N.
-        // Like the cycle key below, swallow N for the whole engaged session — even in the brief
-        // gap before the async show makes the UI visible — so the keystroke can't leak to the app
-        // and double-fire. Engagement is reset only once we actually forward (when visible).
+        // modifier (Command, by default) is still held, so pressing N alone is already Cmd-N. N is
+        // swallowed so the keystroke can't leak to the app and double-fire, and like Escape it ends
+        // the session here.
         if keyCode == Constants.nKeyCode, keyCode != engagedShortcut.keyCode {
-            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.delegate?.cmdTabKeyInterceptorForwardNewWindow(self)
-                }
-                isEngaged = false
-                self.engagedShortcut = nil
+            self.engagedShortcut = nil
+            dispatchToMain { interceptor, delegate in
+                delegate.cmdTabKeyInterceptorForwardNewWindow(interceptor)
             }
             return .swallow
         }
 
         // Cycle on repeated presses of the configured key while the required modifiers are held.
         if keyCode == engagedShortcut.keyCode, relevantFlags.contains(engagedShortcut.requiredModifiers) {
-            if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-                let direction = cyclingDirection(for: relevantFlags, engagedShortcut: engagedShortcut)
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.delegate?.cmdTabKeyInterceptor(self, cycle: direction)
-                }
+            let direction = Self.direction(for: relevantFlags, engagedShortcut: engagedShortcut)
+            dispatchToMain { interceptor, delegate in
+                delegate.cmdTabKeyInterceptor(interceptor, cycle: direction)
             }
             return .swallow
         }
 
         // Switch mode when the other CmdTab shortcut key is pressed while engaged.
-        if delegate?.cmdTabKeyInterceptorIsCmdTabVisible(self) == true {
-            for (mode, shortcut) in Self.configuredShortcuts() where mode != engagedShortcut.mode {
-                if keyCode == CGKeyCode(shortcut.keyCode), relevantFlags.contains(shortcut.cgEventFlags) {
-                    self.engagedShortcut = EngagedShortcut(shortcut: shortcut, mode: mode)
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.delegate?.cmdTabKeyInterceptorSwitchMode(self, mode: mode)
-                    }
-                    return .swallow
+        for (mode, shortcut) in Self.configuredShortcuts() where mode != engagedShortcut.mode {
+            if keyCode == CGKeyCode(shortcut.keyCode), relevantFlags.contains(shortcut.cgEventFlags) {
+                self.engagedShortcut = EngagedShortcut(shortcut: shortcut, mode: mode)
+                dispatchToMain { interceptor, delegate in
+                    delegate.cmdTabKeyInterceptorSwitchMode(interceptor, mode: mode)
                 }
+                return .swallow
             }
         }
 
         return .pass
     }
 
-    private func initialDirection(for relevantFlags: CGEventFlags, engagedShortcut: EngagedShortcut) -> Direction {
-        let shiftPressed = relevantFlags.contains(.maskShift)
-        if shiftPressed && !engagedShortcut.shiftIsRequired {
-            return .previous
-        }
-        return .next
-    }
-
-    private func cyclingDirection(for relevantFlags: CGEventFlags, engagedShortcut: EngagedShortcut) -> Direction {
-        let shiftPressed = relevantFlags.contains(.maskShift)
-        if shiftPressed && !engagedShortcut.shiftIsRequired {
-            return .previous
-        }
-        return .next
+    /// Shift added to a binding that doesn't require it cycles backward.
+    private static func direction(for relevantFlags: CGEventFlags, engagedShortcut: EngagedShortcut) -> Direction {
+        relevantFlags.contains(.maskShift) && !engagedShortcut.shiftIsRequired ? .previous : .next
     }
 
     deinit {

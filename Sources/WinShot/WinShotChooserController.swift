@@ -66,7 +66,12 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         }
     )
 
-    private(set) var isActive = false
+    /// Called on every `isActive` change, so the app can mirror chooser state where the keyboard
+    /// event taps read it.
+    var onActiveChanged: (() -> Void)?
+    private(set) var isActive = false {
+        didSet { onActiveChanged?() }
+    }
     private(set) var currentScreenId: CGDirectDisplayID?
 
     /// The "Show WinShot Switcher" shortcut captured when the chooser opened, so cycling and

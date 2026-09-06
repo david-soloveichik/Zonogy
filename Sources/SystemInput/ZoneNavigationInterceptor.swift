@@ -10,39 +10,40 @@
 /// from shortcuts: while engaged, the Move Focused Window to Destination shortcut's key (Return by
 /// default) asks the delegate to move the focused window into the selected zone, and the Show
 /// Launcher shortcut's key (Space by default) asks it to target the selected zone and open the
-/// Launcher there — each ending the gesture when the delegate performs it. The Add Zone and Remove
+/// Launcher there — each ending the gesture. The Add Zone and Remove
 /// Zone shortcuts' keys (= and - by default) ask the delegate to add a zone for the selected zone
 /// or remove the selected zone, and the Minimize Focused Window shortcut's key (M by default) asks
 /// it to minimize the selected zone's window (or remove an empty tiling zone); those keep the
 /// gesture engaged so it continues around the result.
+///
+/// The tap is serviced by `EventTapThread`, so its callback answers while the main thread is busy
+/// and never holds up keystrokes bound for other apps. The callback decides only what a keystroke
+/// means for the gesture and hands every action to the main queue, in keystroke order. The
+/// main-thread facts it consults are pushed in (`isSuspended`, `canBegin`), and because the
+/// delegate also ends or drops gestures from the main thread (`endEngagement`,
+/// `resetEngagement`), the gesture state is guarded by a lock.
 
 import ApplicationServices
 import Carbon
 import Foundation
 
+/// Every call arrives on the main queue in keystroke order; a call for a gesture that is already
+/// gone is a no-op there.
 protocol ZoneNavigationInterceptorDelegate: AnyObject {
-    /// Return false to ignore events entirely (e.g., while recording a shortcut or sleep/wake protection is active).
-    func zoneNavigationShouldHandleEvents(_ interceptor: ZoneNavigationInterceptor) -> Bool
-
-    /// Return false to decline starting a gesture (e.g., a chooser is open); the chord then passes through.
-    func zoneNavigationShouldBegin(_ interceptor: ZoneNavigationInterceptor) -> Bool
-
-    /// Begin a gesture from the given selection key (resolve the initial selection, show the circle).
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey)
+    /// Begin a gesture from the given selection key (resolve the initial selection, show the
+    /// circle). `engagement` names the gesture to `endEngagement`.
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey, engagement: ZoneNavigationInterceptor.Engagement)
 
     /// A further selection key while engaged: step or jump the selection.
     func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didPress key: ZoneNavigationKey)
 
-    /// Move key pressed while engaged. The delegate moves the focused window into the selected zone
-    /// and returns true — ending the gesture — or returns false to leave it engaged (nothing to
-    /// move). Runs synchronously in the event-tap callback, so the decision must stay cheap.
-    func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor) -> Bool
+    /// Move key pressed while engaged; the gesture has ended. The delegate moves the focused window
+    /// into the selected zone when there is one to move.
+    func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor)
 
-    /// Show Launcher key pressed while engaged. The delegate targets the selected zone and opens the
-    /// Launcher there, returning true — ending the gesture — or returns false to leave it engaged
-    /// (nothing selected). Runs synchronously in the event-tap callback, so the decision must stay
-    /// cheap.
-    func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) -> Bool
+    /// Show Launcher key pressed while engaged; the gesture has ended. The delegate targets the
+    /// selected zone and opens the Launcher there.
+    func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor)
 
     /// Add Zone key pressed while engaged. The delegate adds a zone for the selected zone and
     /// rebuilds the gesture around the new topology; the gesture stays engaged either way.
@@ -66,6 +67,13 @@ protocol ZoneNavigationInterceptorDelegate: AnyObject {
 }
 
 final class ZoneNavigationInterceptor {
+    /// Names one engaged gesture, so an ending decided on the main thread (its begin was refused or
+    /// resolved nothing, its own topology change left nothing to select) applies to that gesture
+    /// and not to one engaged since.
+    struct Engagement: Equatable {
+        fileprivate let id: UInt64
+    }
+
     /// The chords the gesture claims under a given modifier combination and keys (the enabled
     /// selection keys under those modifiers; nothing when no group is enabled, since the gesture
     /// then never engages). A table shortcut on one of these is shown as a conflict in Preferences
@@ -100,7 +108,16 @@ final class ZoneNavigationInterceptor {
     weak var delegate: ZoneNavigationInterceptorDelegate?
 
     private var eventTap: EventTapController?
+
+    /// Guards the gesture state below: the tap callback works on the tap thread; the gates, the
+    /// resets, `endEngagement`, and `stop` run on the main thread. Entry points take the lock; the
+    /// private handlers assume it is held.
+    private let lock = NSLock()
+    private var suspended = false
+    private var canBeginGesture = false
     private var isEngaged = false
+    /// The current gesture, or the most recent one once it has ended.
+    private var engagement = Engagement(id: 0)
     /// Bumped by external `resetEngagement` (topology cancels, `stop`) so the queued begin
     /// callback of an invalidated engagement recognizes itself as stale: such a cancel can land
     /// on the main queue between the tap thread engaging and the queued begin running, and an
@@ -122,6 +139,27 @@ final class ZoneNavigationInterceptor {
     /// The keys whose press the tap swallowed and that are still held down (see `HeldKeys`).
     private var heldKeys = HeldKeys()
 
+    /// While true (hotkeys suspended, or sleep/wake protection active) every keystroke passes, and
+    /// an in-flight gesture is dropped: its releases may never be seen.
+    var isSuspended: Bool {
+        get { lock.withLock { suspended } }
+        set {
+            lock.withLock {
+                suspended = newValue
+                if newValue {
+                    cancelEngagement()
+                }
+            }
+        }
+    }
+
+    /// Whether a chord may start a gesture: false while a chooser that owns the arrow keys is open,
+    /// or no screen is navigable. The chord then passes through.
+    var canBegin: Bool {
+        get { lock.withLock { canBeginGesture } }
+        set { lock.withLock { canBeginGesture = newValue } }
+    }
+
     func start(delegate: ZoneNavigationInterceptorDelegate) {
         self.delegate = delegate
 
@@ -133,7 +171,11 @@ final class ZoneNavigationInterceptor {
         let tap = EventTapController(
             name: "Zone navigation interceptor",
             events: [.keyDown, .keyUp, .flagsChanged],
-            onDisabled: { [weak self] _ in self?.cancelEngagement() },
+            runLoop: EventTapThread.runLoop,
+            onDisabled: { [weak self] _ in
+                guard let self else { return }
+                self.lock.withLock { self.cancelEngagement() }
+            },
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
             }
@@ -153,21 +195,38 @@ final class ZoneNavigationInterceptor {
     /// gesture it would start belongs to a snapshot that no longer exists. The keys are still
     /// held, so what the tap has taken of them it keeps until their release.
     func resetEngagement() {
-        engagementGeneration &+= 1
-        endEngagement()
+        lock.withLock {
+            engagementGeneration &+= 1
+            disengage()
+        }
     }
 
     /// Everything the tap remembers about held keys is dropped — the engagement, any queued begin,
     /// and the held-key marks — for when the releases may never arrive (sleep or lock, `stop`).
     func resetInputState() {
-        resetEngagement()
-        heldKeys.removeAll()
+        lock.withLock {
+            engagementGeneration &+= 1
+            disengage()
+            heldKeys.removeAll()
+        }
     }
 
-    /// Gesture endings on the tap thread (modifier release, Escape, action keys, tap disable):
-    /// disengage without invalidating a queued begin, so its state is created and the queued
-    /// commit or cancel that follows finds it.
-    private func endEngagement() {
+    /// Ends `engagement` if it is still the current gesture: the delegate's ending for a gesture it
+    /// was handed (the begin was refused or resolved nothing, the gesture's own topology change left
+    /// nothing to select). A gesture engaged since is untouched, and a queued begin is not
+    /// invalidated — it can only belong to that newer gesture.
+    func endEngagement(_ engagement: Engagement) {
+        lock.withLock {
+            if self.engagement == engagement {
+                disengage()
+            }
+        }
+    }
+
+    /// Gesture endings that leave any queued begin valid (modifier release, Escape, `endEngagement`,
+    /// tap disable): the begin's state is still created, and the queued commit or cancel that
+    /// follows finds it.
+    private func disengage() {
         isEngaged = false
         requiredModifiers = []
         engagedSelectionKeys = [:]
@@ -184,7 +243,7 @@ final class ZoneNavigationInterceptor {
     private func cancelEngagement() {
         heldKeys.removeAll()
         guard isEngaged else { return }
-        endEngagement()
+        disengage()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.delegate?.zoneNavigationDidCancel(self)
@@ -192,25 +251,24 @@ final class ZoneNavigationInterceptor {
     }
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
-        let relevantFlags = event.flags.intersection(Self.relevantModifierFlags)
-
-        guard let delegate, delegate.zoneNavigationShouldHandleEvents(self) else {
-            cancelEngagement()
-            return .pass
-        }
-
-        switch type {
-        case .flagsChanged:
-            return handleFlagsChanged(relevantFlags: relevantFlags)
-        case .keyDown:
-            return handleKeyDown(event: event, relevantFlags: relevantFlags)
-        case .keyUp:
-            // The release of a held key is swallowed like the presses before it: the app saw
-            // none of them.
-            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-            return heldKeys.released(keyCode) ? .swallow : .pass
-        default:
-            return .pass
+        lock.withLock {
+            guard !suspended else {
+                return .pass
+            }
+            let relevantFlags = event.flags.intersection(Self.relevantModifierFlags)
+            switch type {
+            case .flagsChanged:
+                return handleFlagsChanged(relevantFlags: relevantFlags)
+            case .keyDown:
+                return handleKeyDown(event: event, relevantFlags: relevantFlags)
+            case .keyUp:
+                // The release of a held key is swallowed like the presses before it: the app saw
+                // none of them.
+                let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+                return heldKeys.released(keyCode) ? .swallow : .pass
+            default:
+                return .pass
+            }
         }
     }
 
@@ -221,7 +279,7 @@ final class ZoneNavigationInterceptor {
 
         // The gesture ends — and the selected zone is committed — when any required modifier is released.
         if !relevantFlags.contains(requiredModifiers) {
-            endEngagement()
+            disengage()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.delegate?.zoneNavigationDidCommit(self)
@@ -264,7 +322,7 @@ final class ZoneNavigationInterceptor {
     ) -> EventTapDecision {
         // Cancel without committing.
         if keyCode == Self.escapeKeyCode {
-            endEngagement()
+            disengage()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.delegate?.zoneNavigationDidCancel(self)
@@ -301,22 +359,20 @@ final class ZoneNavigationInterceptor {
         }
         guard !isRepeat else { return .swallow }
 
-        // Move the focused window into the selected zone. The delegate decides synchronously
-        // whether there is a move to perform; if so, the gesture is over.
-        if keyCode == engagedMoveKey {
-            if delegate?.zoneNavigationDidPressMoveKey(self) == true {
-                endEngagement()
+        // Move the focused window into the selected zone, or target it and open the Launcher there.
+        // Either key ends the gesture here, whether or not the delegate then finds something to
+        // move, so a fresh selection key starts the next gesture at once.
+        let isMove = keyCode == engagedMoveKey
+        disengage()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if isMove {
+                self.delegate?.zoneNavigationDidPressMoveKey(self)
+            } else {
+                self.delegate?.zoneNavigationDidPressShowLauncherKey(self)
             }
-            return .swallow
         }
-
-        // Target the selected zone and open the Launcher there.
-        if keyCode == engagedLauncherKey {
-            if delegate?.zoneNavigationDidPressShowLauncherKey(self) == true {
-                endEngagement()
-            }
-            return .swallow
-        }
+        return .swallow
 
         // Add or remove a zone for the selected zone, or minimize its window; the gesture stays
         // engaged and continues around the result. Resolved here on the tap thread: the engaged
@@ -346,10 +402,8 @@ final class ZoneNavigationInterceptor {
             return .pass
         }
 
-        let keyPreferences = ZoneNavigationKeyPreferences.shared
-        let selectionKeys = keyPreferences.selectionKeys
-        guard let key = selectionKeys[keyCode],
-              delegate?.zoneNavigationShouldBegin(self) == true else {
+        let selectionKeys = ZoneNavigationKeyPreferences.shared.selectionKeys
+        guard let key = selectionKeys[keyCode], canBeginGesture else {
             return .pass
         }
 
@@ -357,6 +411,7 @@ final class ZoneNavigationInterceptor {
         // The Move, Launcher, Add Zone, Remove Zone, and Minimize keys are borrowed from those
         // shortcuts — only their key codes matter, since the gesture's modifiers are already held.
         isEngaged = true
+        engagement = Engagement(id: engagement.id + 1)
         requiredModifiers = relevantFlags
         engagedSelectionKeys = selectionKeys
         let shortcutPreferences = KeyboardShortcutPreferences.shared
@@ -372,9 +427,10 @@ final class ZoneNavigationInterceptor {
             .map { CGKeyCode($0.keyCode) }
 
         let generation = engagementGeneration
+        let engagement = self.engagement
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.engagementGeneration == generation else { return }
-            self.delegate?.zoneNavigation(self, didBegin: key)
+            guard let self, self.lock.withLock({ self.engagementGeneration == generation }) else { return }
+            self.delegate?.zoneNavigation(self, didBegin: key, engagement: engagement)
         }
         return .swallow
     }

@@ -163,6 +163,9 @@ final class KeyboardShortcutPreferences: ObservableObject {
 
     @Published private(set) var shortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     @Published private(set) var clearedActions: Set<ShortcutAction> = []
+    /// Every action's resolved binding, rebuilt on each change so `shortcut(for:)` is safe from any
+    /// thread: the keyboard event taps consult it off the main thread.
+    @ThreadSafe private var resolvedShortcuts: [ShortcutAction: KeyboardShortcut] = [:]
     private let preferencesURL: URL
 
     var onShortcutsChanged: (() -> Void)?
@@ -177,27 +180,32 @@ final class KeyboardShortcutPreferences: ObservableObject {
     }
 
     func shortcut(for action: ShortcutAction) -> KeyboardShortcut? {
-        if clearedActions.contains(action) {
-            return nil
-        }
-        if let customShortcut = shortcuts[action] {
-            return customShortcut
-        }
-        return action.defaultShortcut
+        resolvedShortcuts[action]
+    }
+
+    private func resolveShortcuts() {
+        resolvedShortcuts = Dictionary(uniqueKeysWithValues: ShortcutAction.allCases.compactMap { action in
+            let shortcut = clearedActions.contains(action) ? nil : shortcuts[action] ?? action.defaultShortcut
+            return shortcut.map { (action, $0) }
+        })
+    }
+
+    private func commitChange() {
+        resolveShortcuts()
+        saveShortcuts()
+        onShortcutsChanged?()
     }
 
     func setShortcut(_ shortcut: KeyboardShortcut, for action: ShortcutAction) {
         clearedActions.remove(action)
         shortcuts[action] = shortcut
-        saveShortcuts()
-        onShortcutsChanged?()
+        commitChange()
     }
 
     func clearShortcut(for action: ShortcutAction) {
         shortcuts.removeValue(forKey: action)
         clearedActions.insert(action)
-        saveShortcuts()
-        onShortcutsChanged?()
+        commitChange()
     }
 
     func resetToDefault(action: ShortcutAction) {
@@ -208,15 +216,13 @@ final class KeyboardShortcutPreferences: ObservableObject {
         } else {
             clearedActions.remove(action)
         }
-        saveShortcuts()
-        onShortcutsChanged?()
+        commitChange()
     }
 
     func resetAllToDefaults() {
         shortcuts.removeAll()
         clearedActions = Self.defaultClearedActions
-        saveShortcuts()
-        onShortcutsChanged?()
+        commitChange()
     }
 
     /// Names an action's key combination in Preferences prose: its current binding ("⌃⌘/"), or,
@@ -241,6 +247,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             Logger.debug("No valid stored keyboard shortcuts found, resetting to defaults")
             shortcuts.removeAll()
             clearedActions = Self.defaultClearedActions
+            resolveShortcuts()
             saveShortcuts()
             return
         }
@@ -262,6 +269,7 @@ final class KeyboardShortcutPreferences: ObservableObject {
             }
         }
 
+        resolveShortcuts()
         Logger.debug("Loaded \(shortcuts.count) custom shortcuts, \(clearedActions.count) cleared")
     }
 

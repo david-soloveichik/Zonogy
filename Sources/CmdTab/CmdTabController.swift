@@ -72,7 +72,12 @@ final class CmdTabController {
         }
     )
 
-    private(set) var isActive = false
+    /// Called on every `isActive` change, so the app can mirror chooser state where the keyboard
+    /// event taps read it.
+    var onActiveChanged: (() -> Void)?
+    private(set) var isActive = false {
+        didSet { onActiveChanged?() }
+    }
 
     enum InitialSelection {
         case mostRecent

@@ -1,6 +1,8 @@
 /// Owns the common lifecycle for a swallowing CGEventTap, including switching it off while its
 /// owner has no use for it: a disabled tap costs nothing per event, whereas an enabled active tap
-/// makes the system wait on this process for every matching event.
+/// makes the system wait on this process for every matching event. The tap is serviced by the run
+/// loop it is given: the main run loop by default, or `EventTapThread.runLoop` for a tap whose
+/// callback must answer while the main thread is busy.
 
 import ApplicationServices
 import Foundation
@@ -11,7 +13,7 @@ enum EventTapDecision {
 }
 
 final class EventTapController {
-    /// Runs synchronously on the main run loop inside the CGEventTap callback.
+    /// Runs synchronously inside the CGEventTap callback, on the thread of the tap's run loop.
     /// Keep work small; defer expensive follow-up with `DispatchQueue.main.async`.
     typealias Handler = (CGEventType, CGEvent) -> EventTapDecision
 
@@ -20,6 +22,7 @@ final class EventTapController {
     private let tapLocation: CGEventTapLocation
     private let tapPlacement: CGEventTapPlacement
     private let tapOptions: CGEventTapOptions
+    private let runLoop: CFRunLoop
     /// Called with the report type when the system reports the tap disabled, before the tap is
     /// re-enabled. A timeout means events flowed past the tap while this process stalled. A
     /// user-input report also follows this controller's own switch-off (possibly late, after the
@@ -27,19 +30,12 @@ final class EventTapController {
     private let onDisabled: ((CGEventType) -> Void)?
     private let handler: Handler
 
+    /// The tap and the state its owner wants. Owners start, stop, and toggle from the main thread
+    /// while the callback may be running on the tap's thread, so both sides go through this lock.
+    private let lock = NSLock()
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-
-    /// Whether the tap receives events. May be set before or after `start()`. Switching the tap off
-    /// takes effect before the next event; the system also echoes the switch-off as a
-    /// `tapDisabledByUserInput` report (see `onDisabled`).
-    var isEnabled = true {
-        didSet {
-            guard isEnabled != oldValue, let tap = eventTap else { return }
-            CGEvent.tapEnable(tap: tap, enable: isEnabled)
-            Logger.debug("\(name) event tap \(isEnabled ? "enabled" : "disabled")")
-        }
-    }
+    private var wantsEnabled = true
 
     init(
         name: String,
@@ -47,6 +43,7 @@ final class EventTapController {
         tapLocation: CGEventTapLocation = .cghidEventTap,
         tapPlacement: CGEventTapPlacement = .headInsertEventTap,
         tapOptions: CGEventTapOptions = .defaultTap,
+        runLoop: CFRunLoop = CFRunLoopGetMain(),
         onDisabled: ((CGEventType) -> Void)? = nil,
         handler: @escaping Handler
     ) {
@@ -55,17 +52,35 @@ final class EventTapController {
         self.tapLocation = tapLocation
         self.tapPlacement = tapPlacement
         self.tapOptions = tapOptions
+        self.runLoop = runLoop
         self.onDisabled = onDisabled
         self.handler = handler
     }
 
     var isRunning: Bool {
-        eventTap != nil
+        lock.withLock { eventTap != nil }
+    }
+
+    /// Whether the tap receives events. May be set before or after `start()`. Switching the tap off
+    /// takes effect before the next event; the system also echoes the switch-off as a
+    /// `tapDisabledByUserInput` report (see `onDisabled`).
+    var isEnabled: Bool {
+        get { lock.withLock { wantsEnabled } }
+        set {
+            let tap: CFMachPort? = lock.withLock {
+                guard wantsEnabled != newValue else { return nil }
+                wantsEnabled = newValue
+                return eventTap
+            }
+            guard let tap else { return }
+            CGEvent.tapEnable(tap: tap, enable: newValue)
+            Logger.debug("\(name) event tap \(newValue ? "enabled" : "disabled")")
+        }
     }
 
     @discardableResult
     func start() -> Bool {
-        guard eventTap == nil else {
+        guard !isRunning else {
             Logger.debug("\(name) already running")
             return true
         }
@@ -82,27 +97,36 @@ final class EventTapController {
             return false
         }
 
-        eventTap = tap
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        if let source = runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        let enabled: Bool = lock.withLock {
+            eventTap = tap
+            runLoopSource = source
+            return wantsEnabled
         }
-        CGEvent.tapEnable(tap: tap, enable: isEnabled)
-        Logger.debug("\(name) event tap started (enabled: \(isEnabled))")
+        if let source {
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CFRunLoopWakeUp(runLoop)
+        }
+        CGEvent.tapEnable(tap: tap, enable: enabled)
+        Logger.debug("\(name) event tap started (enabled: \(enabled))")
         return true
     }
 
     func stop() {
-        if let tap = eventTap {
+        var tap: CFMachPort?
+        var source: CFRunLoopSource?
+        lock.withLock {
+            tap = eventTap
+            source = runLoopSource
+            eventTap = nil
+            runLoopSource = nil
+        }
+        if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        if let source {
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
         }
-
-        runLoopSource = nil
-        eventTap = nil
     }
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
@@ -113,7 +137,8 @@ final class EventTapController {
             if type == .tapDisabledByTimeout {
                 Logger.keep("\(name) event tap timed out; \(isEnabled ? "re-enabling it" : "leaving it off")")
             }
-            if isEnabled, let tap = eventTap {
+            let tap: CFMachPort? = lock.withLock { wantsEnabled ? eventTap : nil }
+            if let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
             return Unmanaged.passUnretained(event)

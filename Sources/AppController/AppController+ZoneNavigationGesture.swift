@@ -20,37 +20,26 @@ extension AppController {
         let candidates: [ZoneNavigation.Candidate]
         let screens: [ZoneNavigation.Screen]
         var selection: ZoneNavigation.Selection
+        /// The interceptor gesture this state belongs to, ended when the state is cleared.
+        let engagement: ZoneNavigationInterceptor.Engagement
     }
 }
 
 extension AppController: ZoneNavigationInterceptorDelegate {
-    func zoneNavigationShouldHandleEvents(_ interceptor: ZoneNavigationInterceptor) -> Bool {
-        !hotkeyService.isSuspended && !sleepWakeProtectionActive
-    }
-
-    func zoneNavigationShouldBegin(_ interceptor: ZoneNavigationInterceptor) -> Bool {
-        // Choosers that own the arrow keys block the gesture. The Launcher deliberately does not:
-        // it keeps its plain arrows, and this gesture is how the target moves by keyboard while it
-        // is open. This runs synchronously in the event-tap callback, so the check stays cheap.
-        !cmdTabController.isActive
-            && !winShotChooserController.isActive
-            && hasNavigableZone()
-    }
-
-    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey) {
-        beginZoneNavigation(key: key)
+    func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didBegin key: ZoneNavigationKey, engagement: ZoneNavigationInterceptor.Engagement) {
+        beginZoneNavigation(key: key, engagement: engagement)
     }
 
     func zoneNavigation(_ interceptor: ZoneNavigationInterceptor, didPress key: ZoneNavigationKey) {
         pressZoneNavigation(key: key)
     }
 
-    func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor) -> Bool {
-        requestZoneNavigationMove()
+    func zoneNavigationDidPressMoveKey(_ interceptor: ZoneNavigationInterceptor) {
+        performZoneNavigationMove()
     }
 
-    func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) -> Bool {
-        requestZoneNavigationLauncherShow()
+    func zoneNavigationDidPressShowLauncherKey(_ interceptor: ZoneNavigationInterceptor) {
+        performZoneNavigationLauncherShow()
     }
 
     func zoneNavigationDidPressAddZoneKey(_ interceptor: ZoneNavigationInterceptor) {
@@ -75,7 +64,15 @@ extension AppController: ZoneNavigationInterceptorDelegate {
 }
 
 extension AppController {
-    private func beginZoneNavigation(key: ZoneNavigationKey) {
+    private func beginZoneNavigation(key: ZoneNavigationKey, engagement: ZoneNavigationInterceptor.Engagement) {
+        // Admission is re-checked here: the interceptor's `canBegin` gate lags a chooser that opened
+        // while this begin was queued behind it.
+        guard !cmdTabController.isActive, !winShotChooserController.isActive else {
+            Logger.debug("Zone navigation (\(key)): a chooser opened first; ignoring")
+            zoneNavigationInterceptor.endEngagement(engagement)
+            return
+        }
+
         let snapshot = zoneNavigationSnapshot()
         let start = zoneNavigationStart(candidates: snapshot.candidates)
         let selection: ZoneNavigation.Selection?
@@ -101,12 +98,12 @@ extension AppController {
             ).map { .init(id: $0.id, trail: []) }
         }
         guard let selection else {
-            // Only an empty snapshot resolves nothing. `shouldBegin` already gates on
+            // Only an empty snapshot resolves nothing. The interceptor's `canBegin` already gates on
             // `hasNavigableZone()`, so this only happens if the screens changed between engaging
-            // and now. Drop the interceptor's engaged state too so it stops swallowing keys for a
-            // dead session.
+            // and now. End the interceptor's gesture too so it stops swallowing keys for a dead
+            // session.
             Logger.debug("Zone navigation (\(key)): no navigable zones; ignoring")
-            zoneNavigationInterceptor.resetEngagement()
+            zoneNavigationInterceptor.endEngagement(engagement)
             clearZoneNavigation()
             return
         }
@@ -114,7 +111,8 @@ extension AppController {
         zoneNavigationState = ZoneNavigationState(
             candidates: snapshot.candidates,
             screens: snapshot.screens,
-            selection: selection
+            selection: selection,
+            engagement: engagement
         )
         updateZoneNavigationDot(selection: selection.id)
         Logger.debug("Zone navigation begun (\(key)); selection: \(selection.id)")
@@ -254,6 +252,8 @@ extension AppController {
     /// zone), which rebuilds the gesture around the new topology instead (see
     /// `continueZoneNavigation`).
     internal func cancelZoneNavigationForTopologyChange(reason: String) {
+        // Which screens are navigable may have changed with the topology.
+        syncKeyboardTapGates()
         // A topology change reindexes zones, so a pending hold follow-up's captured zone index
         // may now denote a different zone; drop it regardless of who drove the change. (A
         // follow-up's own zone operation runs after the pending record is cleared, so this
@@ -269,15 +269,21 @@ extension AppController {
         cancelZoneNavigation(reason: reason)
     }
 
+    /// Drops the gesture state and ends the interceptor gesture it belonged to. The ending is scoped
+    /// to that gesture: after a release or Escape the interceptor has already ended it, and a
+    /// gesture engaged since is untouched.
     private func clearZoneNavigation() {
+        if let engagement = zoneNavigationState?.engagement {
+            zoneNavigationInterceptor.endEngagement(engagement)
+        }
         zoneNavigationState = nil
         zoneNavigationDotOverlay.hide()
     }
 
-    /// Cheap "is there anything to navigate?" check used to gate engagement synchronously in the
-    /// event-tap callback. Zones always exist, so this rules out exactly the all-screens-paused
-    /// case: the gesture engages only where Zonogy UI may appear.
-    private func hasNavigableZone() -> Bool {
+    /// Cheap "is there anything to navigate?" check, mirrored into the interceptor's `canBegin`
+    /// gate. Zones always exist, so this rules out exactly the all-screens-paused case: the gesture
+    /// engages only where Zonogy UI may appear.
+    internal func hasNavigableZone() -> Bool {
         screenOrder.contains { isScreenNavigable($0) }
     }
 
@@ -389,46 +395,35 @@ extension AppController {
 
     // MARK: - Move key (move the focused window into the selected zone)
 
-    /// Synchronous decision for the interceptor's move key: with a focused managed window and a
-    /// selected zone other than its own, clear the gesture and hand the actual move
-    /// (`moveFocusedWindow`, shared with the Move Focused Window to Destination shortcut) to the
-    /// main queue, returning true so the interceptor ends the gesture. Returning false leaves the
-    /// gesture engaged (nothing to move).
-    private func requestZoneNavigationMove() -> Bool {
-        guard let state = zoneNavigationState,
-              let focusedId = currentFrontmostManagedWindowId,
-              let managed = windowController.window(withId: focusedId) else {
-            return false
-        }
+    /// The interceptor's Move key, which has ended the gesture: drop the gesture state and, given a
+    /// focused managed window not already in the selected zone, perform the move
+    /// (`moveFocusedWindow`, shared with the Move Focused Window to Destination shortcut).
+    private func performZoneNavigationMove() {
+        guard let state = zoneNavigationState else { return }
+        clearZoneNavigation()
 
         let destination = zoneDestination(for: state.selection.id)
-        if let origin = targetedDestination(for: managed), origin == destination {
-            return false
+        guard let focusedId = currentFrontmostManagedWindowId,
+              let managed = windowController.window(withId: focusedId),
+              targetedDestination(for: managed) != destination else {
+            Logger.debug("Zone navigation move: nothing to move into \(state.selection.id)")
+            return
         }
-
-        clearZoneNavigation()
-        DispatchQueue.main.async { [weak self] in
-            self?.moveFocusedWindow(focusedId, to: destination, reason: "zone-navigation-move")
-        }
-        return true
+        moveFocusedWindow(focusedId, to: destination, reason: "zone-navigation-move")
     }
 
     // MARK: - Show Launcher key (target the selected zone and open the Launcher)
 
-    /// Synchronous decision for the interceptor's Show Launcher key: clear the gesture and hand
-    /// the retarget + Launcher show to the main queue, returning true so the interceptor ends the
-    /// gesture. Returning false leaves it engaged (no gesture state).
-    private func requestZoneNavigationLauncherShow() -> Bool {
+    /// The interceptor's Show Launcher key, which has ended the gesture: drop the gesture state, then
+    /// retarget and show the Launcher at the selected zone.
+    private func performZoneNavigationLauncherShow() {
         guard let state = zoneNavigationState else {
-            return false
+            return
         }
 
         let destination = zoneDestination(for: state.selection.id)
         clearZoneNavigation()
-        DispatchQueue.main.async { [weak self] in
-            self?.performZoneNavigationLauncherShow(at: destination)
-        }
-        return true
+        performZoneNavigationLauncherShow(at: destination)
     }
 
     /// Target the selected zone — occupied or not — and open the Launcher anchored there, via the
@@ -563,19 +558,19 @@ extension AppController {
         reason: String,
         chooseSelection: ([ZoneNavigation.Candidate]) -> NavigableZoneIdentifier?
     ) {
-        guard zoneNavigationState != nil else { return }
+        guard let state = zoneNavigationState else { return }
         let snapshot = zoneNavigationSnapshot()
         guard let selectionId = chooseSelection(snapshot.candidates),
               snapshot.candidates.contains(where: { $0.id == selectionId }) else {
             Logger.debug("Zone navigation \(reason): no selection resolves after the topology change; ending gesture")
-            zoneNavigationInterceptor.resetEngagement()
             clearZoneNavigation()
             return
         }
         zoneNavigationState = ZoneNavigationState(
             candidates: snapshot.candidates,
             screens: snapshot.screens,
-            selection: .init(id: selectionId, trail: [])
+            selection: .init(id: selectionId, trail: []),
+            engagement: state.engagement
         )
         updateZoneNavigationDot(selection: selectionId)
         Logger.debug("Zone navigation \(reason): continuing with selection \(selectionId)")

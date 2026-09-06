@@ -101,13 +101,13 @@ struct ZoneNavigationKeys: Equatable {
 }
 
 /// Loads, caches, and persists the user's chosen keys, with the selection keys they contribute
-/// precomputed for the keyboard event-tap callback. Read live when a chord arrives, so changes
-/// apply immediately with no re-registration.
+/// precomputed for the keyboard event-tap callback, which reads them live (and off the main
+/// thread) when a chord arrives, so changes apply immediately with no re-registration.
 final class ZoneNavigationKeyPreferences {
     static let shared = ZoneNavigationKeyPreferences()
 
     private(set) var keys: ZoneNavigationKeys
-    private(set) var selectionKeys: [CGKeyCode: ZoneNavigationKey]
+    @ThreadSafe private(set) var selectionKeys: [CGKeyCode: ZoneNavigationKey]
 
     private init() {
         keys = Self.load()
