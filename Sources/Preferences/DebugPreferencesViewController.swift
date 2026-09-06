@@ -174,7 +174,7 @@ final class DebugPreferencesViewController: NSViewController {
         )
         let subsystemPredicate = "--predicate 'subsystem == \"\(Logger.subsystem)\"'"
         let liveCommandLabel = makeMonospacedLabel("log stream --level info \(subsystemPredicate)")
-        let historyCommandLabel = makeMonospacedLabel("log show --last 10m --info \(subsystemPredicate)")
+        let historyCommandLabel = makeMonospacedLabel("log show --last 5m --info \(subsystemPredicate)")
 
         let labels = [levelsLabel, readLabel, liveCommandLabel, historyCommandLabel]
         for label in labels {

@@ -469,7 +469,7 @@ Zonogy logs through the macOS unified logging system (subsystem `com.dsemeas.zon
 Read it with the `log` command in Terminal. It shows Default and above unless the info option is given, so drop `--info` to see only the persisted levels:
 
 - Live trace: `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"'`
-- Recent trace: `log show --last 10m --info --predicate 'subsystem == "com.dsemeas.zonogy"'`
+- Recent trace: `log show --last 5m --info --predicate 'subsystem == "com.dsemeas.zonogy"'`
 
 (Zonogy logs nothing at the Debug level, so `--debug` adds nothing.)
 
