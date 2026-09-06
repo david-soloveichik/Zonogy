@@ -47,7 +47,7 @@ final class ZoneClickInterceptor {
         let tap = EventTapController(
             name: "zone click interceptor",
             events: [.leftMouseDown],
-            runLoop: EventTapThread.zoneClick.runLoop,
+            runLoop: EventTapThread.mouse.runLoop,
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
             }

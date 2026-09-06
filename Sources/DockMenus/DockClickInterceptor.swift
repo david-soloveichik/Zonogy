@@ -34,9 +34,12 @@ protocol DockClickInterceptorDelegate: AnyObject {
 /// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy.
 ///
 /// Performance-critical: two event taps keep the system-wide cost down. The press tap sees left
-/// mouse-downs only while the Dock is showing, and exits as fast as possible when the click is
-/// outside the frame. The gesture tap sees drags and the release only between an intercepted press
-/// and its release, so ordinary drags anywhere else never wake Zonogy.
+/// mouse-downs only while the Dock is showing, and answers on the mouse tap thread: a click outside
+/// the Dock frame passes at once, without involving the main thread, and only a click inside it waits
+/// for the main thread to decide (an Accessibility hit-test on the Dock, then the delegate). The
+/// gesture tap sees drags and the release only between an intercepted press and its release, so
+/// ordinary drags anywhere else never wake Zonogy; it stays on the main run loop, where all of the
+/// gesture state lives.
 final class DockClickInterceptor {
     private enum Constants {
         static let dockBundleIdentifier = "com.apple.dock"
@@ -54,15 +57,12 @@ final class DockClickInterceptor {
     /// accessibility check is transiently unavailable.
     var isPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)?
 
-    /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary screen).
-    private var interceptFrame: CGRect? {
-        didSet { syncPressTapEnabled() }
-    }
+    /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary
+    /// screen). Mirrored for the press tap's thread, which reads it on every left mouse-down.
+    @ThreadSafe private var interceptFrame: CGRect? = nil
 
-    /// Whether the Dock is currently considered visible.
-    private var isDockVisible = false {
-        didSet { syncPressTapEnabled() }
-    }
+    /// Whether the Dock is currently considered visible. Mirrored likewise.
+    @ThreadSafe private var isDockVisible = false
 
     /// Cached Dock PID for accessibility queries.
     private var dockPid: pid_t?
@@ -103,6 +103,7 @@ final class DockClickInterceptor {
 
     func updateFrame(_ frame: CGRect?) {
         interceptFrame = frame
+        syncPressTapEnabled()
     }
 
     /// Mark the in-flight intercepted drag as cancelled (e.g., user pressed Esc). Further
@@ -119,6 +120,7 @@ final class DockClickInterceptor {
 
     func updateVisibility(_ visible: Bool) {
         isDockVisible = visible
+        syncPressTapEnabled()
     }
 
     /// Updates the Dock PID used for accessibility queries.
@@ -134,8 +136,16 @@ final class DockClickInterceptor {
 
         pendingClick = nil
 
-        let press = makeTap(name: "DockClickInterceptor press", events: [.leftMouseDown])
-        let gesture = makeTap(name: "DockClickInterceptor gesture", events: [.leftMouseUp, .leftMouseDragged])
+        let press = makeTap(
+            name: "DockClickInterceptor press", events: [.leftMouseDown], runLoop: EventTapThread.mouse.runLoop
+        ) { [weak self] _, event in
+            self?.processPress(event) ?? .pass
+        }
+        let gesture = makeTap(
+            name: "DockClickInterceptor gesture", events: [.leftMouseUp, .leftMouseDragged], runLoop: CFRunLoopGetMain()
+        ) { [weak self] type, event in
+            self?.processGesture(event, type: type) ?? .pass
+        }
         gesture.isEnabled = false
         guard press.start(), gesture.start() else {
             press.stop()
@@ -156,20 +166,30 @@ final class DockClickInterceptor {
         Logger.debug("DockClickInterceptor: stopped")
     }
 
-    private func makeTap(name: String, events: [CGEventType]) -> EventTapController {
+    private func makeTap(
+        name: String,
+        events: [CGEventType],
+        runLoop: CFRunLoop,
+        handler: @escaping EventTapController.Handler
+    ) -> EventTapController {
         EventTapController(
             name: name,
             events: events,
+            runLoop: runLoop,
             onDisabled: { [weak self] type in
                 // A user-input report is indistinguishable from the (possibly late) echo of switching
                 // a tap off, so only a timeout is taken to mean the pending click cannot be trusted.
-                if type == .tapDisabledByTimeout {
+                // The pending click is main-thread state: the gesture tap reports on main and clears
+                // it at once (a clearing queued behind a newer press would erase that press), while
+                // the press tap reports on the mouse thread and hands the clearing to main.
+                guard type == .tapDisabledByTimeout else { return }
+                if Thread.isMainThread {
                     self?.pendingClick = nil
+                } else {
+                    MainRunLoop.perform { self?.pendingClick = nil }
                 }
             },
-            handler: { [weak self] type, event in
-                self?.processEvent(event, type: type) ?? .pass
-            }
+            handler: handler
         )
     }
 
@@ -179,7 +199,8 @@ final class DockClickInterceptor {
         pressTap?.isEnabled = isDockVisible && interceptFrame != nil
     }
 
-    private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
+    /// The gesture tap's callback, on the main run loop: the drags and the release of a pending click.
+    private func processGesture(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
         // Track drag movement to distinguish clicks from drags
         if type == .leftMouseDragged {
             if var pending = pendingClick {
@@ -254,17 +275,14 @@ final class DockClickInterceptor {
             return .swallow
         }
 
-        guard type == .leftMouseDown else {
-            return .pass
-        }
+        return .pass
+    }
 
-        // Fast exit: Dock is hidden (autohide)
-        guard isDockVisible else {
-            return .pass
-        }
-
-        // Fast exit: no frame to intercept
-        guard let frame = interceptFrame else {
+    /// The press tap's callback, on the mouse tap thread. The fast exits need only the mirrored Dock
+    /// state; a click inside the Dock frame is decided on the main thread while the system waits.
+    private func processPress(_ event: CGEvent) -> EventTapDecision {
+        // Fast exit: Dock is hidden (autohide), or its frame is not known
+        guard isDockVisible, let frame = interceptFrame else {
             return .pass
         }
 
@@ -278,6 +296,19 @@ final class DockClickInterceptor {
         // Control bypasses interception (spec: preserve Dock context menus)
         let flags = event.flags
         if flags.contains(.maskShift) || flags.contains(.maskControl) {
+            return .pass
+        }
+
+        return MainRunLoop.performAndWait {
+            self.interceptPress(inDockFrameAt: location)
+        }
+    }
+
+    /// Decides a press inside the Dock frame: whether a Dock app item is the topmost UI at the point,
+    /// and if so records the pending click and consumes the press.
+    private func interceptPress(inDockFrameAt location: CGPoint) -> EventTapDecision {
+        // The interceptor may have been stopped while this decision waited its turn.
+        guard pressTap != nil else {
             return .pass
         }
 

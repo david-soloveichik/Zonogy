@@ -10,9 +10,10 @@ final class EventTapThread {
     /// Services the keyboard taps, whose callbacks never wait on anything.
     static let keyboard = EventTapThread(name: "Zonogy keyboard taps")
 
-    /// Services the zone click tap, whose callback waits on the main thread for the rare click that
-    /// may be Zonogy's. That wait must never hold up keystrokes, hence a thread of its own.
-    static let zoneClick = EventTapThread(name: "Zonogy zone click tap")
+    /// Services the mouse taps (the zone click tap, the Dock press tap), whose callbacks wait on the
+    /// main thread for the rare click that may be Zonogy's. That wait must never hold up keystrokes,
+    /// hence a thread of their own.
+    static let mouse = EventTapThread(name: "Zonogy mouse taps")
 
     /// The thread's run loop; the thread lives for the rest of the process.
     let runLoop: CFRunLoop
