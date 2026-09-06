@@ -51,9 +51,9 @@ extension AppController {
     }
 
     func hotkeyService(_ service: HotkeyService, didRelease action: HotkeyService.Action) {
-        // Dispatch like triggerShortcut does so a quick tap's release is handled after the
-        // press block that armed the hold follow-up (main-queue FIFO), never before it.
-        DispatchQueue.main.async { [weak self] in
+        // Deferred through the same channel as triggerShortcut, so a quick tap's release is handled
+        // after the press block that armed the hold follow-up, never before it.
+        MainRunLoop.perform { [weak self] in
             self?.handleShortcutHoldRelease(action)
         }
     }

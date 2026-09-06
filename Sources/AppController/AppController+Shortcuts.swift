@@ -4,7 +4,9 @@ import AppKit
 /// Dispatches global hotkey actions (add/remove zone, targeting, minimize, Launcher, etc.).
 extension AppController {
     internal func triggerShortcut(_ action: HotkeyService.Action) {
-        DispatchQueue.main.async { [weak self] in
+        // Deferred out of the Carbon hotkey handler through the same channel as the event taps'
+        // actions, so a hotkey and a chooser chord pressed in quick succession act in that order.
+        MainRunLoop.perform { [weak self] in
             guard let self = self else { return }
             // Any global shortcut firing mid zone-navigation (zone add/remove/clear, retargeting,
             // etc.) can invalidate the snapshot the circle is navigating; drop the gesture rather

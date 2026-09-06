@@ -51,6 +51,9 @@ enum GuardrailTests {
         if !ExternalDragSessionTrackerTests.run() {
             allPassed = false
         }
+        if !ZoneNavigationBorrowedActionTests.run() {
+            allPassed = false
+        }
         if !EdgeIndicatorHoverExitPolicyTests.run() {
             allPassed = false
         }

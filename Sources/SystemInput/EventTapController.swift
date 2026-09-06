@@ -112,6 +112,9 @@ final class EventTapController {
         return true
     }
 
+    /// Stops receiving events. For a tap on another run loop the source is removed from the calling
+    /// thread, so a callback already entered there may still be running; owners of such taps live
+    /// for the process, which is what keeps that callback's controller alive.
     func stop() {
         var tap: CFMachPort?
         var source: CFRunLoopSource?

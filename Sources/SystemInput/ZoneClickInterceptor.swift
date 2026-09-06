@@ -11,7 +11,6 @@
 
 import Foundation
 import ApplicationServices
-import os
 
 protocol ZoneClickInterceptorDelegate: AnyObject {
     /// Called on the main thread while the system waits for the click's fate.
@@ -77,26 +76,9 @@ final class ZoneClickInterceptor {
 
         let location = event.location
         let clickCount = Int(event.getIntegerValueField(.mouseEventClickState))
-        let consume = Self.onMainRunLoop {
+        let consume = MainRunLoop.performAndWait {
             self.delegate?.zoneClickInterceptor(self, shouldConsumeClickAt: location, modifiers: modifiers, clickCount: clickCount) ?? false
         }
         return consume ? .swallow : .pass
-    }
-
-    /// Runs `body` on the main thread and waits for its result. The block is scheduled on the main
-    /// run loop in the common modes, not on the main dispatch queue: a nested run loop entered from a
-    /// dispatch block (a modal alert, say) does not drain that queue, but it does run these blocks,
-    /// just as it serviced the tap when the tap lived on the main run loop.
-    private static func onMainRunLoop<T>(_ body: @escaping () -> T) -> T {
-        let done = DispatchSemaphore(value: 0)
-        let result = OSAllocatedUnfairLock<T?>(uncheckedState: nil)
-        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
-            let value = body()
-            result.withLockUnchecked { $0 = value }
-            done.signal()
-        }
-        CFRunLoopWakeUp(CFRunLoopGetMain())
-        done.wait()
-        return result.withLockUnchecked { $0! }
     }
 }

@@ -2,7 +2,7 @@
 ///
 /// The tap is serviced by `EventTapThread`, so its callback answers while the main thread is busy
 /// and never holds up keystrokes bound for other apps. The callback decides only what a keystroke
-/// means for the engaged session and hands every action to the main queue, in keystroke order; the
+/// means for the engaged session and hands every action to the main thread, in keystroke order; the
 /// delegate acts on the chooser there, ignoring an action that arrives after the chooser is gone.
 /// A session ends on the tap thread at the keys that end it (modifier release, Escape, N), so a
 /// fresh press of the chord starts the next session at once, and from the main thread when the
@@ -18,7 +18,7 @@ enum CmdTabMode {
     case currentAppOnly
 }
 
-/// Every call arrives on the main queue in keystroke order, after the show that opened its session.
+/// Every call arrives on the main thread in keystroke order, after the show that opened its session.
 /// A call for a chooser that is not showing (never shown, or dismissed since) is ignored there.
 protocol CmdTabKeyInterceptorDelegate: AnyObject {
     /// Show CmdTab for a newly engaged session. `engagement` names the session to `endEngagement`.
@@ -164,9 +164,9 @@ final class CmdTabKeyInterceptor {
         }
     }
 
-    /// Hands an action to the delegate on the main queue.
+    /// Hands an action to the delegate on the main thread, in order with every other tap action.
     private func dispatchToMain(_ action: @escaping (CmdTabKeyInterceptor, CmdTabKeyInterceptorDelegate) -> Void) {
-        DispatchQueue.main.async { [weak self] in
+        MainRunLoop.perform { [weak self] in
             guard let self, let delegate = self.delegate else { return }
             action(self, delegate)
         }
