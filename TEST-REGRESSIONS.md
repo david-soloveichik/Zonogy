@@ -10,6 +10,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Normal Zonogy behavior can steal active status from windows.
   - Think about: Ordinary UI repositioning, retargeting, and recovery paths should not activate Zonogy or change focus unless that behavior is explicitly intended.
 
+- Bug report: Returning to a full-screen video after relocating an externally opened window can generate focus/main-window notifications for the video's regular browser window, causing Zonogy to relocate that window too.
+  - Think about: Returning to full screen must not relocate sibling windows in response to its own focus notifications.
+
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
   - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.
 

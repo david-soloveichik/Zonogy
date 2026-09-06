@@ -227,6 +227,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var fullScreenCheckWorkItemsByWindowId: [Int: DispatchWorkItem] = [:]
     internal var fullScreenCheckWorkItemsByElement: [AccessibilityElementKey: DispatchWorkItem] = [:]
     internal var pendingFullScreenSpaceChangeWorkItem: DispatchWorkItem?
+    internal var pendingFullScreenRestores: Set<CGDirectDisplayID> = []
     /// True when the Launcher should auto-show for empty zones: tiling zones as they empty or are
     /// added, and the floating zone when a zone-navigation commit targets it empty.
     internal var autoShowLauncherForEmptyZonesEnabled: Bool
@@ -298,8 +299,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let floatingZoneProtectionDuration: TimeInterval = 0.5
     /// Work items scheduled to reactivate floating zone windows when protection expires.
     internal var floatingZoneProtectionExpirationWorkItems: [Int: DispatchWorkItem] = [:]
-    /// Deadline until which notification-driven window activity recording is suppressed
-    /// to prevent "twitchy" recordings during floating zone/WinShot operations.
+    /// Suppresses notification-driven recency recording and parked-window rescue during
+    /// floating zone placement, WinShot restore, and native full-screen Space restoration.
     internal var activityRecordingSuppressedUntil: Date?
     /// Minimum time a window must remain focused before it is recorded for CmdTab/Launcher recency ordering.
     internal let windowActivityRecordingStabilityDelay: TimeInterval = 0.25

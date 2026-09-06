@@ -1,4 +1,4 @@
-/// Full-screen mode tracking integration.
+/// Full-screen tracking, parked-window placement, and Space restoration.
 import AppKit
 import ApplicationServices
 
@@ -128,12 +128,12 @@ extension AppController {
     /// (another launcher, a notification, the app itself) pulls its display out of full screen.
     /// Applies the effectively-minimized rule after the fact: place the window into the targeted
     /// zone — the move brings it to the visible display — and re-raise the origin's full-screen
-    /// window so the display returns to its full-screen Space, then hand focus to the placed
-    /// window. Zonogy's own selection paths never arrive here: they move the window to a visible
-    /// display before focusing it. When no visible destination exists (everything is full
-    /// screen) the rescue stands down and the parked-Space invariant enforcer bounces the display
-    /// back. External raises during Zonogy's brief bulk operations (activity suppression) are
-    /// likewise left to the enforcer, which restores the invariant without placing.
+    /// window so the display returns to its full-screen Space. Zonogy's own selection paths
+    /// never arrive here: they move the window to a visible display before focusing it. When
+    /// no visible destination exists (everything is full screen) the rescue stands down and
+    /// the parked-Space invariant enforcer bounces the display back. External raises during
+    /// Zonogy's brief bulk operations (activity suppression) are likewise left to the enforcer,
+    /// which restores the invariant without placing.
     internal func rescueWindowRaisedFromBehindFullScreen(_ managed: ManagedWindow) {
         guard selectionPlacesWindowParkedBehindFullScreen(managed) else {
             return
@@ -146,35 +146,16 @@ extension AppController {
             "Window \(managed.windowId) was raised from behind a full-screen Space; " +
                 "placing it into the targeted zone and returning its display to full screen"
         )
-        // Focus must end on the placed window, so the origin's return to full screen is always
-        // queued before the final raise of the placed window. A floating destination activates
-        // the window through its own asynchronous chain, so there the re-raise is queued first
-        // and that chain's activation lands last; a tiled destination sequences both explicitly.
-        let afterPlacementAction: (() -> Void)?
-        switch destination {
-        case .floating:
-            if let originScreenId {
-                restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
-            }
-            afterPlacementAction = nil
-        case .tiled:
-            afterPlacementAction = { [weak self] in
-                guard let self else { return }
-                if let originScreenId {
-                    self.restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
-                }
-                self.recordActiveWindowForHistory(windowId: managed.windowId, reason: "behind-full-screen-raise")
-                self.raiseWindow(managed)
-            }
-        }
         windowPlacementManager.placeWindow(
             managed,
             into: destination,
             centerFloatingWindow: true,
             reason: "behind-full-screen-raise",
-            forceRetargetAfterFill: false,
-            afterPlacementAction: afterPlacementAction
+            forceRetargetAfterFill: false
         )
+        if let originScreenId {
+            restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: originScreenId)
+        }
     }
 
     /// True when the targeted destination's display is confirmed to be showing a regular Space
@@ -199,6 +180,7 @@ extension AppController {
     internal func enforceHiddenParkedSpaces(reason: String) {
         for (screenId, info) in fullScreenTracker.fullScreenWindows {
             guard info.isNativeFullScreen,
+                  !pendingFullScreenRestores.contains(screenId),
                   SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId),
                   SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == false,
                   pendingWinShotOpensAfterFullScreenExit[screenId] == nil else {
@@ -212,12 +194,15 @@ extension AppController {
         }
     }
 
-    /// Partial-pause follow-up: re-raises `originScreenId`'s full-screen window so macOS
-    /// switches that display back to its full-screen Space. Invoked only after a
-    /// `placeNewWindow` whose decision was `.placeAndRestoreNativeFullScreenSpace`. The
-    /// `isNativeFullScreen` + CGS Space re-check is defensive — it guards against a race
-    /// where the screen exited full-screen between the decision and this call.
+    /// Returns a display to its full-screen Space, coalescing repeated requests for a queued
+    /// activation. Reuses activity suppression to guard against rescuing sibling windows in
+    /// response to the restoration's own focus events.
     internal func restoreNativeFullScreenSpaceAfterPartialPause(originScreenId: CGDirectDisplayID) {
+        let reason = "native-full-screen-space-restore"
+        guard pendingFullScreenRestores.insert(originScreenId).inserted else {
+            Logger.debug("Partial-pause restore: sharing queued restore on screen \(screenContextStore.loggingIndex(for: originScreenId))")
+            return
+        }
         guard let info = fullScreenTracker.fullScreenWindowInfo(for: originScreenId),
               info.isNativeFullScreen,
               SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId) else {
@@ -226,6 +211,7 @@ extension AppController {
                 "Partial-pause restore: skipped on screen \(screenIndex) " +
                     "(no longer in native full-screen mode)"
             )
+            pendingFullScreenRestores.remove(originScreenId)
             return
         }
         let screenIndex = screenContextStore.loggingIndex(for: originScreenId)
@@ -234,11 +220,19 @@ extension AppController {
             "Partial-pause restore: re-raising full-screen window (CGWindowID \(info.cgWindowId), bundle: \(bundleDesc)) " +
                 "to switch screen \(screenIndex) back to its full-screen Space"
         )
+        scheduleActivityRecordingSuppression(reason: reason)
         scheduleWindowRaise(
             pid: info.pid,
             element: info.element,
             logPrefix: "Partial-pause restore",
-            reason: "native-full-screen-space-restore"
+            reason: reason,
+            afterRaise: { [weak self] in
+                guard let self else { return }
+                // Queueing and AX calls can consume the initial protection period. Refresh the
+                // existing deadline after activation to cover its delayed focus notifications.
+                self.scheduleActivityRecordingSuppression(reason: reason)
+                self.pendingFullScreenRestores.remove(originScreenId)
+            }
         )
     }
 
