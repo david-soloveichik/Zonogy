@@ -607,12 +607,13 @@ extension WindowController {
         order: AccessibilityUpdateOrder
     ) {
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-        let cgFrame = actualCGWindowFrame(for: windowId)
-        if let cgFrame {
-            Logger.debug("Frame mismatch (\(context)) for window \(windowId) on screen \(screenIndex); target: \(target), AX actual: \(actual), CG actual: \(cgFrame), order: \(order.logLabel)")
-        } else {
-            Logger.debug("Frame mismatch (\(context)) for window \(windowId) on screen \(screenIndex); target: \(target), AX actual: \(actual), CG actual: unavailable, order: \(order.logLabel)")
-        }
+        let cgFrameDescription = actualCGWindowFrame(for: windowId).map {
+            String(describing: screen.accessibilityToScreen($0))
+        } ?? "unavailable"
+        Logger.debug(
+            "Frame mismatch (\(context)) for window \(windowId) on screen \(screenIndex) (screen-local coordinates); " +
+            "target: \(target), AX actual: \(actual), CG actual: \(cgFrameDescription), order: \(order.logLabel)"
+        )
     }
 
     internal func actualCGWindowFrame(for windowId: Int) -> CGRect? {
