@@ -28,11 +28,15 @@ protocol DockClickInterceptorDelegate: AnyObject {
 }
 
 /// Intercepts global left-clicks within the Dock's revealed frame.
-/// Performance-critical: exits as fast as possible when the click is outside the frame.
 ///
 /// Intercepts clicks on application Dock items (AXApplicationDockItem), both running and non-running.
 /// Clicks on folders, files, Launchpad, Trash pass through.
 /// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy.
+///
+/// Performance-critical: two event taps keep the system-wide cost down. The press tap sees left
+/// mouse-downs only while the Dock is showing, and exits as fast as possible when the click is
+/// outside the frame. The gesture tap sees drags and the release only between an intercepted press
+/// and its release, so ordinary drags anywhere else never wake Zonogy.
 final class DockClickInterceptor {
     private enum Constants {
         static let dockBundleIdentifier = "com.apple.dock"
@@ -51,18 +55,28 @@ final class DockClickInterceptor {
     var isPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)?
 
     /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary screen).
-    private var interceptFrame: CGRect?
+    private var interceptFrame: CGRect? {
+        didSet { syncPressTapEnabled() }
+    }
 
     /// Whether the Dock is currently considered visible.
-    private var isDockVisible = false
+    private var isDockVisible = false {
+        didSet { syncPressTapEnabled() }
+    }
 
     /// Cached Dock PID for accessibility queries.
     private var dockPid: pid_t?
 
-    private var eventTap: EventTapController?
+    /// Sees left mouse-downs; enabled only while the Dock is showing and located.
+    private var pressTap: EventTapController?
+
+    /// Sees drags and the release; enabled only while a click is pending.
+    private var gestureTap: EventTapController?
 
     /// Tracks a pending click that may be intercepted on mouse-up.
-    private var pendingClick: PendingClick?
+    private var pendingClick: PendingClick? {
+        didSet { gestureTap?.isEnabled = pendingClick != nil }
+    }
 
     private enum DragState {
         case none
@@ -113,33 +127,56 @@ final class DockClickInterceptor {
     }
 
     func start() {
-        guard eventTap == nil else {
+        guard pressTap == nil else {
             Logger.debug("DockClickInterceptor: already running")
             return
         }
 
         pendingClick = nil
 
-        let tap = EventTapController(
-            name: "DockClickInterceptor",
-            events: [.leftMouseDown, .leftMouseUp, .leftMouseDragged],
-            onDisabled: { [weak self] _ in
-                self?.pendingClick = nil
+        let press = makeTap(name: "DockClickInterceptor press", events: [.leftMouseDown])
+        let gesture = makeTap(name: "DockClickInterceptor gesture", events: [.leftMouseUp, .leftMouseDragged])
+        gesture.isEnabled = false
+        guard press.start(), gesture.start() else {
+            press.stop()
+            gesture.stop()
+            return
+        }
+        pressTap = press
+        gestureTap = gesture
+        syncPressTapEnabled()
+    }
+
+    func stop() {
+        pendingClick = nil
+        pressTap?.stop()
+        pressTap = nil
+        gestureTap?.stop()
+        gestureTap = nil
+        Logger.debug("DockClickInterceptor: stopped")
+    }
+
+    private func makeTap(name: String, events: [CGEventType]) -> EventTapController {
+        EventTapController(
+            name: name,
+            events: events,
+            onDisabled: { [weak self] type in
+                // A user-input report is indistinguishable from the (possibly late) echo of switching
+                // a tap off, so only a timeout is taken to mean the pending click cannot be trusted.
+                if type == .tapDisabledByTimeout {
+                    self?.pendingClick = nil
+                }
             },
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
             }
         )
-        if tap.start() {
-            eventTap = tap
-        }
     }
 
-    func stop() {
-        pendingClick = nil
-        eventTap?.stop()
-        eventTap = nil
-        Logger.debug("DockClickInterceptor: stopped")
+    /// Clicks while the Dock is hidden or not yet located can never be intercepted, so the press
+    /// tap is switched off in those states rather than passing every click through Zonogy.
+    private func syncPressTapEnabled() {
+        pressTap?.isEnabled = isDockVisible && interceptFrame != nil
     }
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> EventTapDecision {

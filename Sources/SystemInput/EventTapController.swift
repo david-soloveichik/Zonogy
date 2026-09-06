@@ -1,4 +1,6 @@
-/// Owns the common lifecycle for a swallowing CGEventTap.
+/// Owns the common lifecycle for a swallowing CGEventTap, including switching it off while its
+/// owner has no use for it: a disabled tap costs nothing per event, whereas an enabled active tap
+/// makes the system wait on this process for every matching event.
 
 import ApplicationServices
 import Foundation
@@ -18,11 +20,26 @@ final class EventTapController {
     private let tapLocation: CGEventTapLocation
     private let tapPlacement: CGEventTapPlacement
     private let tapOptions: CGEventTapOptions
+    /// Called with the report type when the system reports the tap disabled, before the tap is
+    /// re-enabled. A timeout means events flowed past the tap while this process stalled. A
+    /// user-input report also follows this controller's own switch-off (possibly late, after the
+    /// tap is wanted again), so owners that toggle `isEnabled` should ignore that type.
     private let onDisabled: ((CGEventType) -> Void)?
     private let handler: Handler
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+
+    /// Whether the tap receives events. May be set before or after `start()`. Switching the tap off
+    /// takes effect before the next event; the system also echoes the switch-off as a
+    /// `tapDisabledByUserInput` report (see `onDisabled`).
+    var isEnabled = true {
+        didSet {
+            guard isEnabled != oldValue, let tap = eventTap else { return }
+            CGEvent.tapEnable(tap: tap, enable: isEnabled)
+            Logger.debug("\(name) event tap \(isEnabled ? "enabled" : "disabled")")
+        }
+    }
 
     init(
         name: String,
@@ -70,8 +87,8 @@ final class EventTapController {
         if let source = runLoopSource {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        Logger.debug("\(name) event tap started")
+        CGEvent.tapEnable(tap: tap, enable: isEnabled)
+        Logger.debug("\(name) event tap started (enabled: \(isEnabled))")
         return true
     }
 
@@ -90,11 +107,14 @@ final class EventTapController {
 
     private func processEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
-            // Let owners clear gesture state before the tap resumes receiving events.
+            // Let the owner settle its gesture state before the tap resumes receiving events. The
+            // owner may switch the tap off in response, in which case it stays off.
             onDisabled?(type)
-            if let tap = eventTap {
+            if type == .tapDisabledByTimeout {
+                Logger.keep("\(name) event tap timed out; \(isEnabled ? "re-enabling it" : "leaving it off")")
+            }
+            if isEnabled, let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
-                Logger.debug("Re-enabled \(name) event tap after timeout")
             }
             return Unmanaged.passUnretained(event)
         }
