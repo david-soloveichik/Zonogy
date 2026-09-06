@@ -253,7 +253,7 @@ extension AppController {
     /// `continueZoneNavigation`).
     internal func cancelZoneNavigationForTopologyChange(reason: String) {
         // Which screens are navigable may have changed with the topology.
-        syncKeyboardTapGates()
+        syncEventTapGates()
         // A topology change reindexes zones, so a pending hold follow-up's captured zone index
         // may now denote a different zone; drop it regardless of who drove the change. (A
         // follow-up's own zone operation runs after the pending record is cleared, so this

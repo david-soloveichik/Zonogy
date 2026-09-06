@@ -581,7 +581,7 @@ extension AppController {
         enforceHiddenParkedSpaces(reason: "display-change-recapture")
         // The rebuilt screen model and re-scanned full-screen state decide which screens are
         // navigable; the cancel at the top published the pre-rebuild answer.
-        syncKeyboardTapGates()
+        syncEventTapGates()
 
         // Recapture after displays settle when meaningful changes occurred.
         // Always recapture after wake to catch windows that were deminiaturized or

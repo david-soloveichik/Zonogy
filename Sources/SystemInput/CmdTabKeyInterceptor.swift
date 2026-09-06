@@ -138,7 +138,7 @@ final class CmdTabKeyInterceptor {
         let tap = EventTapController(
             name: "CmdTab keyboard interceptor",
             events: [.keyDown, .flagsChanged],
-            runLoop: EventTapThread.runLoop,
+            runLoop: EventTapThread.keyboard.runLoop,
             handler: { [weak self] type, event in
                 self?.processEvent(event, type: type) ?? .pass
             }

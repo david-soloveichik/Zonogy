@@ -205,7 +205,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
         controller.delegate = self
-        controller.onActiveChanged = { [weak self] in self?.syncKeyboardTapGates() }
+        controller.onActiveChanged = { [weak self] in self?.syncEventTapGates() }
         return controller
     }()
     /// Highlights the display a dragged WinShot thumbnail would open its arrangement on.
@@ -218,7 +218,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal lazy var cmdTabController: CmdTabController = {
         let controller = CmdTabController()
         controller.delegate = self
-        controller.onActiveChanged = { [weak self] in self?.syncKeyboardTapGates() }
+        controller.onActiveChanged = { [weak self] in self?.syncEventTapGates() }
         return controller
     }()
     internal var fullScreenTracker: FullScreenTracker!
@@ -274,7 +274,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// True from physical screen sleep or loginwindow activation until completion of the wake
     /// pipeline. When true, external events are ignored because AX is temporarily unreliable.
     internal var sleepWakeProtectionActive: Bool = false {
-        didSet { syncKeyboardTapGates() }
+        didSet { syncEventTapGates() }
     }
     /// Events ignored so far in the current sleep/wake protection episode. Only the first is logged
     /// individually; the total is logged when protection ends.
@@ -500,7 +500,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         externalZoneDropInterceptor.start()
         cmdTabKeyInterceptor.start(delegate: self)
         zoneNavigationInterceptor.start(delegate: self)
-        syncKeyboardTapGates()
+        syncEventTapGates()
         startDockMenusIfConfigured()
         startUpdateChecker()
 

@@ -1,14 +1,23 @@
-/// The thread whose run loop services the keyboard event taps. The system waits on an active tap's
-/// callback before an event moves on, so a tap serviced by the main run loop couples every app's
-/// keyboard latency to Zonogy's main thread and its Accessibility stalls. This thread runs nothing
-/// but tap callbacks, which decide what a keystroke means and hand any real work to the main queue.
+/// Threads whose run loops service event taps off the main thread. The system waits on an active
+/// tap's callback before an event moves on, so a tap serviced by the main run loop couples every
+/// app's input latency to Zonogy's main thread and its Accessibility stalls. A tap thread runs
+/// nothing but tap callbacks; one exists per kind of waiting a callback may do.
 
 import Foundation
 import os
 
-enum EventTapThread {
-    /// Started on first use; the thread and its run loop live for the rest of the process.
-    static let runLoop: CFRunLoop = {
+final class EventTapThread {
+    /// Services the keyboard taps, whose callbacks never wait on anything.
+    static let keyboard = EventTapThread(name: "Zonogy keyboard taps")
+
+    /// Services the zone click tap, whose callback waits on the main thread for the rare click that
+    /// may be Zonogy's. That wait must never hold up keystrokes, hence a thread of its own.
+    static let zoneClick = EventTapThread(name: "Zonogy zone click tap")
+
+    /// The thread's run loop; the thread lives for the rest of the process.
+    let runLoop: CFRunLoop
+
+    private init(name: String) {
         let ready = DispatchSemaphore(value: 0)
         let runLoopBox = OSAllocatedUnfairLock<CFRunLoop?>(uncheckedState: nil)
         let thread = Thread {
@@ -21,10 +30,10 @@ enum EventTapThread {
             ready.signal()
             CFRunLoopRun()
         }
-        thread.name = "Zonogy event taps"
+        thread.name = name
         thread.qualityOfService = .userInteractive
         thread.start()
         ready.wait()
-        return runLoopBox.withLockUnchecked { $0! }
-    }()
+        runLoop = runLoopBox.withLockUnchecked { $0! }
+    }
 }

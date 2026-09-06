@@ -171,7 +171,7 @@ final class ZoneNavigationInterceptor {
         let tap = EventTapController(
             name: "Zone navigation interceptor",
             events: [.keyDown, .keyUp, .flagsChanged],
-            runLoop: EventTapThread.runLoop,
+            runLoop: EventTapThread.keyboard.runLoop,
             onDisabled: { [weak self] _ in
                 guard let self else { return }
                 self.lock.withLock { self.cancelEngagement() }

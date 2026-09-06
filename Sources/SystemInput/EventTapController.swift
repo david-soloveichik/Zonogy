@@ -1,7 +1,7 @@
 /// Owns the common lifecycle for a swallowing CGEventTap, including switching it off while its
 /// owner has no use for it: a disabled tap costs nothing per event, whereas an enabled active tap
 /// makes the system wait on this process for every matching event. The tap is serviced by the run
-/// loop it is given: the main run loop by default, or `EventTapThread.runLoop` for a tap whose
+/// loop it is given: the main run loop by default, or an `EventTapThread` run loop for a tap whose
 /// callback must answer while the main thread is busy.
 
 import ApplicationServices
