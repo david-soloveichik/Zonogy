@@ -75,15 +75,33 @@ final class CmdTabKeyInterceptor {
         return [shortcut, KeyboardShortcut(keyCode: shortcut.keyCode, modifiers: shortcut.modifiers | UInt32(shiftKey))]
     }
 
-    /// The configured CmdTab bindings with the mode each opens: all windows, then current app only.
+    /// The CmdTab actions and the chooser mode each opens: all windows, then current app only.
+    private static let bindings: [(mode: CmdTabMode, action: KeyboardShortcutPreferences.ShortcutAction)] = [
+        (.allWindows, .showCmdTab), (.currentAppOnly, .showCmdTabCurrentApp),
+    ]
+
+    /// The configured CmdTab bindings with the mode each opens.
     private static func configuredShortcuts() -> [(mode: CmdTabMode, shortcut: KeyboardShortcut)] {
         let preferences = KeyboardShortcutPreferences.shared
-        let bindings: [(mode: CmdTabMode, action: KeyboardShortcutPreferences.ShortcutAction)] = [
-            (.allWindows, .showCmdTab), (.currentAppOnly, .showCmdTabCurrentApp),
-        ]
         return bindings.compactMap { binding in
             preferences.shortcut(for: binding.action).map { (mode: binding.mode, shortcut: $0) }
         }
+    }
+
+    /// The binding a disengaged key-down engages on, if any: its own chord, or the chord with Shift
+    /// added when the binding leaves Shift free for reverse cycling (`claimedShortcuts`). Runs for
+    /// every modified key-down in every app, so nothing is built until the key code matches.
+    private static func engagingShortcut(keyCode: CGKeyCode, relevantFlags: CGEventFlags) -> EngagedShortcut? {
+        let preferences = KeyboardShortcutPreferences.shared
+        for binding in bindings {
+            guard let shortcut = preferences.shortcut(for: binding.action),
+                  keyCode == CGKeyCode(shortcut.keyCode),
+                  claimedShortcuts(for: shortcut).contains(where: { $0.cgEventFlags == relevantFlags }) else {
+                continue
+            }
+            return EngagedShortcut(shortcut: shortcut, mode: binding.mode)
+        }
+        return nil
     }
 
     func start(delegate: CmdTabKeyInterceptorDelegate) {
@@ -168,18 +186,10 @@ final class CmdTabKeyInterceptor {
             return handleKeyDownWhileEngaged(keyCode: keyCode, relevantFlags: relevantFlags, event: event)
         }
 
-        // Engage on either CmdTab binding — or its Shift variant, when the binding leaves Shift free
-        // for reverse cycling (`claimedShortcuts`).
-        var matchedShortcut: EngagedShortcut?
-        for (mode, shortcut) in Self.configuredShortcuts() {
-            if keyCode == CGKeyCode(shortcut.keyCode),
-               Self.claimedShortcuts(for: shortcut).contains(where: { $0.cgEventFlags == relevantFlags }) {
-                matchedShortcut = EngagedShortcut(shortcut: shortcut, mode: mode)
-                break
-            }
-        }
-
-        guard let shortcut = matchedShortcut else {
+        // Ordinary typing exits here: a CmdTab binding always carries a modifier (the recorder and
+        // the load path both reject one without), so an unmodified key-down can't engage.
+        guard !relevantFlags.isEmpty,
+              let shortcut = Self.engagingShortcut(keyCode: keyCode, relevantFlags: relevantFlags) else {
             return .pass
         }
 
