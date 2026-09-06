@@ -28,6 +28,7 @@ Zonogy divides each display into persistent tiling zones plus a floating zone. A
 - [Limitations](#limitations)
 - [Per-App Exceptions](#per-app-exceptions)
 - [Additional Suggestions](#additional-suggestions)
+- [Performance](#performance)
 - [Development](#development)
 - [History](#history)
 
@@ -156,9 +157,20 @@ Apps don't expose enough information for Zonogy to always make the right choices
 
 - Most default Zonogy shortcuts use `Control-Cmd` as the modifier. Using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap `Caps Lock` to `Control-Cmd` is very convenient. The [config I use](docs/karabiner-elements.md) sets this up, with the bonus that tapping `Caps Lock` on its own opens the Launcher.
 
+## Performance
+
+Zonogy is designed to add negligible CPU cost and not to delay other apps:
+
+- **Mouse and keyboard input does not wait on Zonogy.** Zonogy's event taps, which macOS consults before delivering each keystroke or click, answer on dedicated threads, so a busy Zonogy main thread never delays input to other apps.
+- **Sparing use of the Accessibility API.** Every window query is unavoidably a round trip to the target app, waking it. To minimize impact, Zonogy caches what it has recently learned, and skips queries whose answer cannot matter.
+- **High-frequency events are throttled.** Mouse drags, zone resizing, and bursts of display and window notifications are batched rather than handled event by event, so Zonogy's work stays bounded no matter how fast the events arrive.
+- **Cheap logging.** Zonogy logs through the macOS efficient unified logging system.
+
+See `SPECIFICATION-IMPLEMENTATION.md` for the details.
+
 ## Development
 
-Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the repo serve as the single source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
+Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the repo serve as the user-facing source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
 
 ## History
 
