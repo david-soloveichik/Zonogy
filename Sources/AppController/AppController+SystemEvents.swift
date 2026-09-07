@@ -567,6 +567,9 @@ extension AppController {
 
         for displayId in rebuildResult.addedDisplayIds {
             handleWinShotSnapshotsForAddedScreen(displayId)
+            withTargetChangeFlashSuppressed {
+                targetedZoneManager.targetAfterCreatingZone(on: displayId, reason: "screen-added")
+            }
         }
 
         targetedZoneManager.ensureTargetedZone(reason: "screens-changed")

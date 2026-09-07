@@ -191,7 +191,7 @@ README and Preferences present a simpler user mental model: an implicitly target
 - Clicking a tiling zone placeholder window: target that tiling zone. Double-clicking also opens the Launcher. (Within a placeholder's click-through region, clicks go to the window or desktop icon beneath instead; see **Placeholders**.)
 - Control-Command + left-click any point within a tiling zone's bounds targets that tiling zone (showing the target change flash described above); the gesture is consumed before it reaches the underlying window. Control-Command + left-double-click also opens the Launcher. Exception: if the topmost window under the click belongs to an app with `disableMouseGestures`, Zonogy does not intercept the click; Zonogy-owned UI (placeholders and indicators) still behaves normally.
 - Whenever a tiling zone becomes empty because its window disappears (minimize, close, crash, etc), target that zone. When the window was instead moved into another zone, the move rule below decides targeting; the emptying itself never retargets to the source zone.
-- When a new tiling zone is created on a display: always target the lowest-index empty tiling zone on that display.
+- When a new tiling zone is created on a display (including when the display connects or reconnects): always target the lowest-index empty tiling zone on that display.
 - Whenever a window is placed into the targeted zone (tiling or floating): retarget using this priority:
   1. Lowest-index empty tiling zone on the same display
   2. Lowest-index empty tiling zone on a different display (tie-break by screen index; lower is preferred)
