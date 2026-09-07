@@ -19,7 +19,7 @@ private let kAXFullscreenAttribute = "AXFullScreen" as CFString
 ///
 /// `isNativeFullScreen` is `true` when AX `AXFullScreen` reports the window as full-screen
 /// (the green-button, Space-creating mode), `false` for the AXUnknown full-width heuristic.
-/// Only the native variety triggers partial-pause placement.
+/// Only the native variety needs its Space restored after relocating an arriving window.
 ///
 /// `element` is retained so the partial-pause restore can re-raise the full-screen window
 /// to switch its display back to the full-screen Space.
@@ -112,7 +112,7 @@ final class FullScreenTracker {
     ///   - `true` when the window is on-screen
     ///   - `false` when the window is known to be off-screen/minimized or no longer exists
     ///   - `nil` when it cannot be determined (API failure or missing keys)
-    private static func isWindowOnScreen(cgWindowId: CGWindowID) -> Bool? {
+    static func isWindowOnScreen(cgWindowId: CGWindowID) -> Bool? {
         guard let windowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack() else {
             return nil
         }

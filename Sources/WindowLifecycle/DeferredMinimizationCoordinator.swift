@@ -39,6 +39,10 @@ final class DeferredMinimizationCoordinator {
         self.debounceInterval = debounceInterval
     }
 
+    func isPending(windowId: Int) -> Bool {
+        pending.contains { $0.windowId == windowId }
+    }
+
     func queue(windowId: Int, reason: String) {
         // Deduplicate: if already queued, update the reason
         if let existingIndex = pending.firstIndex(where: { $0.windowId == windowId }) {

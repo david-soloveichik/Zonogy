@@ -102,9 +102,9 @@ extension AppController {
     /// Returns the number of windows placed.
     ///
     /// Candidates on full-screen-paused screens are not pre-filtered here: `placeNewWindow`
-    /// arbitrates per-window via `decideNewWindowPlacement`, which handles the native FS
-    /// partial-pause path (place into the targeted zone on a non-paused screen, then
-    /// re-raise the FS Space) and the deferral path uniformly.
+    /// arbitrates per-window via `decideNewWindowPlacement`: route either full-screen kind
+    /// to an available target, restoring the origin's Space only for native full screen,
+    /// or defer when no destination is available.
     @discardableResult
     internal func placeTrackedButUnzonedWindows(
         reason: String,
@@ -113,10 +113,7 @@ extension AppController {
         withTrackedButUnzonedWindows(
             reason: reason,
             candidateKind: "recapture",
-            restrictedToScreenId: nil,
-            allowedWindowIds: allowedWindowIds,
-            skipFullScreenPausedScreens: false,
-            logSkipFullScreenPaused: false
+            allowedWindowIds: allowedWindowIds
         ) { window in
             Logger.debug("\(reason.capitalized): placing tracked but unzoned window \(window.windowId)")
             windowPlacementManager.placeNewWindow(window, requestSync: false)

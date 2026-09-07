@@ -15,6 +15,10 @@ let package = Package(
         .executable(
             name: "unrulywin",
             targets: ["unrulywin"]
+        ),
+        .executable(
+            name: "FullScreenLab",
+            targets: ["FullScreenLab"]
         )
     ],
     targets: [
@@ -25,6 +29,11 @@ let package = Package(
         .executableTarget(
             name: "unrulywin",
             path: "TestTools/UnrulyWin"
+        ),
+        .executableTarget(
+            name: "FullScreenLab",
+            path: "TestTools/FullScreenLab",
+            exclude: ["README.md", "Info.plist", "build.zsh"]
         )
     ]
 )

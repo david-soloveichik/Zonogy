@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 
-/// Lightweight runtime assertions for the partial-pause placement decision rules.
+/// Guardrails for routing arrivals, all-full-screen deferral, and native Space restoration.
 enum FullScreenPlacementPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -41,7 +41,7 @@ enum FullScreenPlacementPolicyTests {
             "missing origin screen should proceed normally"
         )
 
-        // Origin paused but heuristic-only (not native) → defer (today's behavior preserved).
+        // A non-native presentation leaves the other display available for arrivals.
         assert(
             FullScreenPlacementPolicy.decide(
                 originScreenId: screenA,
@@ -49,8 +49,8 @@ enum FullScreenPlacementPolicyTests {
                 originIsNativeFullScreen: false,
                 targetedScreenId: screenB,
                 targetIsPausedForFullScreen: false
-            ) == .defer,
-            "heuristic full-screen pause should still defer"
+            ) == .proceedNormally,
+            "non-native full-screen should route to an available display without a Space restore"
         )
 
         // Origin paused, native, target nil → defer.
@@ -100,6 +100,54 @@ enum FullScreenPlacementPolicyTests {
             ) == .placeAndRestoreNativeFullScreenSpace(originScreenId: screenA),
             "native FS pause with non-paused target should place + restore"
         )
+
+        // The unavailable target rule is independent of full-screen kind and display order.
+        // A non-native target still has a regular Space, but remains paused for placement.
+        for (origin, target) in [(screenA, screenB), (screenB, screenA)] {
+            for native in [false, true] {
+                assert(
+                    FullScreenPlacementPolicy.decide(
+                        originScreenId: origin,
+                        originIsPausedForFullScreen: true,
+                        originIsNativeFullScreen: native,
+                        targetedScreenId: target,
+                        targetIsPausedForFullScreen: true
+                    ) == .defer,
+                    "all-full-screen arrivals must defer for either origin kind and display order"
+                )
+
+                // Retrying the same arrival after either destination becomes available works
+                // without requiring the originating display to leave full screen.
+                let expected: FullScreenPlacementOutcome = native
+                    ? .placeAndRestoreNativeFullScreenSpace(originScreenId: origin)
+                    : .proceedNormally
+                assert(
+                    FullScreenPlacementPolicy.decide(
+                        originScreenId: origin,
+                        originIsPausedForFullScreen: true,
+                        originIsNativeFullScreen: native,
+                        targetedScreenId: target,
+                        targetIsPausedForFullScreen: false
+                    ) == expected,
+                    "deferred arrivals should resume on an available destination"
+                )
+            }
+        }
+
+        // Native exit can clear the tracker before its Space switch ends. Destination
+        // unavailability must win even when the origin appears regular or is unknown.
+        for origin: CGDirectDisplayID? in [screenA, nil] {
+            assert(
+                FullScreenPlacementPolicy.decide(
+                    originScreenId: origin,
+                    originIsPausedForFullScreen: false,
+                    originIsNativeFullScreen: false,
+                    targetedScreenId: screenA,
+                    targetIsPausedForFullScreen: true
+                ) == .defer,
+                "an unavailable destination must defer even without a paused origin"
+            )
+        }
 
         if allPassed {
             print("FullScreenPlacementPolicyTests: all tests passed")

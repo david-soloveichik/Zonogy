@@ -13,6 +13,15 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Returning to a full-screen video after relocating an externally opened window can generate focus/main-window notifications for the video's regular browser window, causing Zonogy to relocate that window too.
   - Think about: Returning to full screen must not relocate sibling windows in response to its own focus notifications.
 
+- Bug report: Opening an ordinary window over a non-native presentation clears the display's full-screen pause even though the presentation still exists.
+  - Think about: Focus alone does not prove full-screen exit. A non-native presentation uses a regular Space, which does not make its display available for placement; when all displays are full-screen, arrivals must wait until either display is available.
+
+- Bug report: A native full-screen window's full-width toolbar can match the non-native presentation rule and replace the real full-screen window in the display's tracking state.
+  - Think about: Native window chrome must not be tracked as a separate non-native presentation.
+
+- Bug report: Repeated full-screen recovery passes can re-place a displaced window before its queued minimization runs, evicting the window just recovered.
+  - Think about: An unassigned window awaiting minimization is not a deferred arrival.
+
 - Bug report: If a managed tiled window is manually resized larger, zone resize bars can remain drawn over the active window.
   - Think about: Refresh resize-handle descriptors on non-programmatic resize notifications, and keep overlap clipping/hiding rules in one pure policy helper that covers all tiling zones.
 

@@ -494,7 +494,9 @@ extension AppController {
         let originScreenId = detectScreenId(for: managed)
         let originPaused = originScreenId.map { isScreenPausedForFullScreen($0) } ?? false
         let originNative = (originScreenId.map { isNativeFullScreenPause(screenId: $0) }) ?? false
-        let targetPaused = targetedScreenId.map { isScreenPausedForFullScreen($0) } ?? false
+        let targetPaused = targetedScreenId.map {
+            isScreenPausedForFullScreen($0) || SpaceQueries.isDisplayShowingFullScreenSpace(displayId: $0) == true
+        } ?? false
 
         let fullScreenOutcome = FullScreenPlacementPolicy.decide(
             originScreenId: originScreenId,

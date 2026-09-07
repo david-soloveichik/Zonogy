@@ -61,7 +61,7 @@ Overlapping shortcuts are shown, not prevented (as System Settings does). A shar
 
 When a placement displaces an existing zone occupant, Zonogy picks one of two ways to minimize the displaced window:
 
-- **Synchronous** (`DisplacementStrategy.synchronous`): minimize before the incoming window is positioned/raised. Setting `kAXMinimized = true` on a non-frontmost window can produce a brief visual flash of that window before its minimize animation; the exact mechanism isn't certain, but a "brief flash to key window" is a useful mental model. Running the minimize first means the flash happens while the incoming window is still hidden, so the user never sees it. Used by Zonogy-initiated single-window swaps where the source window already exists and no app launch is in flight (Launcher, drag-drop, moves between zones, full-screen exit deferred placements, etc.).
+- **Synchronous** (`DisplacementStrategy.synchronous`): minimize before the incoming window is positioned/raised. Setting `kAXMinimized = true` on a non-frontmost window can produce a brief visual flash of that window before its minimize animation; the exact mechanism isn't certain, but a "brief flash to key window" is a useful mental model. Running the minimize first means the flash happens while the incoming window is still hidden, so the user never sees it. Used by Zonogy-initiated single-window swaps where the source window already exists and no app launch is in flight (Launcher, drag-drop, moves between zones, etc.).
 - **Deferred** (`DisplacementStrategy.deferred`): queue the minimize through `DeferredMinimizationCoordinator` (150ms debounce). Used by `placeNewWindow`, the entry point for any "a window arrived" placement (external unminimize/capture, plus internal callers: manual capture, recapture, startup, drag tear-out reassignment). When a launching app is processing its own queue of windows to unminimize, a synchronous minimize would land at the back of that queue and be re-unminimized — an infinite ping-pong. The debounce keeps resetting as arrivals come in, so displaced windows minimize only after the burst settles, by which point they're no longer in the app's queue. Trade-off: the flash artifact can appear over the new occupant, but external-arrival visuals are already imperfect (Zonogy doesn't control the unminimize timing); internal callers accept the same brief glitch to share one loop-safe entry point.
 
 `DeferredMinimizationCoordinator` is also used by occlusion- and focus-driven floating-zone minimization. Queued minimizations are cancelled if the window is reassigned to any zone before the timer fires.
@@ -202,7 +202,9 @@ Two measures compensate:
 
 Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullScreen` AX attribute for native-full screen mode (ie green-button kind), and with additional detection for non-native-full screen. The big picture intent is to "pause" Zonogy (no UI, no targeting) on a display in full-screen mode, and target another display instead.
 
-Some full-screen exits emit no resize event, which would leave a display stuck in pause after its full-screen window is gone. Focus acts as the repair: when the user focuses a (non-full-screen) window on a paused display, the display is clearly no longer showing full-screen content, so the pause is lifted. The exception is a full-screen window whose Space is merely inactive behind the current one: the user never exited full-screen, and the display goes through "Returning to the full-screen Space" (below), which lifting the pause would derail.
+Some full-screen exits emit no resize event, which would leave a display stuck in pause after its full-screen window is gone. Focusing an ordinary window on a paused display prompts a check of the recorded full-screen window. Keep the pause while its native full-screen Space still exists, or while its non-native presentation still matches the full-screen rule and remains on the active Space. (Another window covering a presentation is not a full-screen exit.)
+
+Both full-screen kinds use the same arrival rules (see **Full-screen pause** in [SPECIFICATION.md](SPECIFICATION.md)). Deferred windows stay tracked but unassigned. For these windows, we retry normal placement on full-screen exits and during the existing Space-change rescan, once the destination display is unpaused and showing a regular Space. (macOS can report an exit before the Space switch finishes.) Note that there is no "deferred list". Instead these retries find deferred windows by scanning all tracked, unminimized windows without a zone. Full-screen windows, records with no live window, and displaced windows awaiting minimization are excluded because they are not waiting for placement.
 
 #### Native full-screen
 
@@ -214,7 +216,7 @@ At startup (after window capture) and after display reconfiguration, we also ite
 
 #### Non-native (heuristic) full screen
 
-For managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their AX frame width matches the display width exactly.
+For managed apps with exception `treatAXUnknownFullWidthAsFullScreen`: for windows whose AX subrole is `AXUnknown` (some presentation-style windows like Keynote full-screen), we treat them as full-screen if their AX frame width matches the display width exactly. Windows in native full-screen Spaces are excluded: AppKit's full-width toolbar can otherwise be mistaken for a separate presentation.
 
 ### CGS Spaces queries (native full-screen only)
 

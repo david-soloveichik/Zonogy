@@ -114,7 +114,7 @@ extension AppController {
     /// invariant to bounce it back. The one decision shared by the activation gates, CmdTab's
     /// target-restoration classification, and DockMenus' retarget, so they always agree.
     internal func selectionPlacesWindowParkedBehindFullScreen(_ managed: ManagedWindow) -> Bool {
-        isWindowBehindFullScreenSpace(managed) && isTargetedDisplayShowingRegularSpace()
+        isWindowBehindFullScreenSpace(managed) && isTargetedDisplayAvailableForPlacement()
     }
 
     /// Whether `managed` is placed in a zone the user can currently see. A window parked behind
@@ -158,11 +158,12 @@ extension AppController {
         }
     }
 
-    /// True when the targeted destination's display is confirmed to be showing a regular Space
-    /// (no destination, or an unreadable state, counts as not confirmed).
-    private func isTargetedDisplayShowingRegularSpace() -> Bool {
-        targetedZoneManager.ensureTargetedZone(reason: "behind-full-screen-selection")
-        guard let destination = targetedZoneManager.targetedDestination else {
+    /// A destination must be unpaused and showing a regular Space. Non-native presentations
+    /// use regular Spaces, and native exits can clear their pause before the Space switch ends.
+    private func isTargetedDisplayAvailableForPlacement() -> Bool {
+        targetedZoneManager.ensureTargetedZone(reason: "full-screen-placement")
+        guard let destination = targetedZoneManager.targetedDestination,
+              !isScreenPausedForFullScreen(destination.screenId) else {
             return false
         }
         return SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false
@@ -236,14 +237,8 @@ extension AppController {
         )
     }
 
-    /// Clears the full-screen pause on `screenId` when:
-    /// - the focused window on that display does not itself claim full-screen, AND
-    /// - the recorded FS window's status cannot be confirmed by CGS Spaces as a native FS Space.
-    ///
-    /// CGS Space membership is the stop sign for native FS: while a recorded native FS window
-    /// still belongs to a `kCGSSpaceFullscreen` Space, the pause is real — its FS Space is
-    /// just inactive because another Space is showing. The pause is only cleared when there
-    /// is no surviving FS Space membership to anchor it.
+    /// Focus can reveal a missed full-screen exit, but cannot establish one on its own.
+    /// Keep the pause while the recorded native Space or non-native presentation still exists.
     internal func repairFullScreenPauseStateFromFocusedWindowIfNeeded(
         focusedWindow: AXUIElement,
         pid: pid_t,
@@ -276,10 +271,21 @@ extension AppController {
             return
         }
 
+        if let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
+           !info.isNativeFullScreen,
+           shouldTreatAXUnknownWindowAsFullScreen(
+               element: info.element,
+               bundleIdentifier: info.bundleIdentifier,
+               screenDisplayId: screenId
+           ),
+           FullScreenTracker.isWindowOnScreen(cgWindowId: info.cgWindowId) != false {
+            return
+        }
+
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
         Logger.debug(
             "FullScreenTracker: clearing stale full-screen pause on screen \(screenIndex) " +
-                "because focused window is not full-screen (reason: \(reason))"
+                "because its recorded full-screen window is no longer present (reason: \(reason))"
         )
         fullScreenTracker.clearFullScreenState(displayId: screenId, reason: "focused-window-not-full-screen-\(reason)")
     }
@@ -352,6 +358,9 @@ extension AppController {
             self.scanAllWindowsForFullScreenState()
             self.updateUnmanagedFocusState()
             self.enforceHiddenParkedSpaces(reason: "space-change")
+            if self.placeTrackedButUnzonedWindowsAfterFullScreenExit() > 0 {
+                self.syncWindowsToZones()
+            }
         }
 
         pendingFullScreenSpaceChangeWorkItem?.cancel()
@@ -541,6 +550,12 @@ extension AppController {
         let screenWidth = context.descriptor.cocoaBounds.width
 
         if screenFrame.width == screenWidth {
+            // AppKit's native full-screen toolbar can also be a full-width AXUnknown
+            // window. It is part of the native Space, not a separate presentation.
+            if let cgWindowId = resolveCgWindowId(for: element),
+               SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: cgWindowId) {
+                return false
+            }
             let screenIndex = screenContextStore.loggingIndex(for: screenDisplayId)
             Logger.debug(
                 "FullScreenTracker: treating AXUnknown window as full-screen on screen \(screenIndex) " +
@@ -607,50 +622,43 @@ extension AppController {
                 Logger.debug("CmdTab: Hidden because target screen entered full-screen")
             }
         } else {
-            _ = placeTrackedButUnzonedWindowsAfterFullScreenExit(on: displayId)
+            _ = placeTrackedButUnzonedWindowsAfterFullScreenExit()
             // Re-sync to restore placeholders and indicators on the screen that exited full-screen.
             syncWindowsToZones()
             attemptPendingWinShotOpenAfterFullScreenExit(on: displayId, reason: "full-screen-exited")
         }
     }
 
-    /// Full-screen pause: when a screen exits full-screen mode, place any managed windows that
-    /// were deferred on that screen. Spec: prefer lowest-index empty tiling zone on that screen;
-    /// if none exists, place into that screen's floating zone.
+    /// Retry deferred ordinary windows from any display once a destination becomes available.
+    /// The Space-change rescan also calls this: a native pause can clear before its Space exits.
     @discardableResult
-    private func placeTrackedButUnzonedWindowsAfterFullScreenExit(on screenId: CGDirectDisplayID) -> Int {
-        guard !isScreenPausedForFullScreen(screenId) else {
+    private func placeTrackedButUnzonedWindowsAfterFullScreenExit() -> Int {
+        guard isTargetedDisplayAvailableForPlacement() else {
             return 0
         }
 
         let baseReason = "full-screen-exited"
         let placedCount = withTrackedButUnzonedWindows(
             reason: baseReason,
-            candidateKind: "full-screen-exit",
-            restrictedToScreenId: screenId,
-            skipFullScreenPausedScreens: false,
-            logSkipFullScreenPaused: false
+            candidateKind: "full-screen-exit"
         ) { window in
-            let destination: TargetedZoneManager.TargetedDestination = {
-                guard let controller = zoneController(for: screenId),
-                      let emptyZone = controller.findEmptyZone() else {
-                    return .floating(screenId: screenId)
-                }
-                return .tiled(ZoneKey(screenId: screenId, index: emptyZone.index))
-            }()
+            // Displaced windows awaiting minimization are not deferred arrivals. A later
+            // exit/Space notification must not place them back over the incoming window.
+            guard !deferredMinimizationCoordinator.isPending(windowId: window.windowId),
+                  fullScreenTracker.displayId(
+                      forCgWindowId: CGWindowID(window.backing.cgWindowId), pid: window.backing.pid
+                  ) == nil,
+                  !FullScreenTracker.isWindowFullScreen(element: window.backing.element),
+                  // Reuse recapture's live-window check to exclude stale parked tab identities.
+                  WindowServerWindowList.frame(
+                      for: window.backing.cgWindowId, ownerPid: window.backing.pid
+                  ) != nil else { return }
 
-            windowPlacementManager.placeWindow(
-                window,
-                into: destination,
-                centerFloatingWindow: true,
-                reason: "\(baseReason)-deferred-placement",
-                forceRetargetAfterFill: false,
-                logIfUnassignedOnRemoval: false
-            )
+            windowPlacementManager.placeNewWindow(window, requestSync: false)
         }
 
         if placedCount > 0 {
-            Logger.debug("Full-screen exit placed \(placedCount) deferred window(s) on screen \(screenContextStore.loggingIndex(for: screenId))")
+            Logger.debug("Full-screen exit placed \(placedCount) deferred window(s) into available zones")
         }
 
         return placedCount

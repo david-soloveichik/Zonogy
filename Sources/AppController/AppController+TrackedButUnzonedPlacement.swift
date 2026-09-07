@@ -12,10 +12,7 @@ extension AppController {
     internal func withTrackedButUnzonedWindows(
         reason: String,
         candidateKind: String,
-        restrictedToScreenId: CGDirectDisplayID? = nil,
         allowedWindowIds: Set<Int>? = nil,
-        skipFullScreenPausedScreens: Bool,
-        logSkipFullScreenPaused: Bool,
         _ handler: (ManagedWindow) -> Void
     ) -> Int {
         var placedCount = 0
@@ -28,18 +25,6 @@ extension AppController {
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(window.windowId) else {
-                return nil
-            }
-
-            if let restrictedToScreenId {
-                guard detectScreenId(for: window) == restrictedToScreenId else {
-                    return nil
-                }
-            }
-
-            if skipFullScreenPausedScreens,
-               let screenId = detectScreenId(for: window),
-               isScreenPausedForFullScreen(screenId) {
                 return nil
             }
 
@@ -57,23 +42,6 @@ extension AppController {
             guard !window.isMinimizedPerAccessibility,
                   zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(windowId) else {
-                continue
-            }
-
-            if let restrictedToScreenId,
-               detectScreenId(for: window) != restrictedToScreenId {
-                continue
-            }
-
-            if skipFullScreenPausedScreens,
-               let screenId = detectScreenId(for: window),
-               isScreenPausedForFullScreen(screenId) {
-                if logSkipFullScreenPaused {
-                    Logger.debug(
-                        "\(reason.capitalized): skipping \(candidateKind) candidate \(windowId) " +
-                            "on full-screen screen \(screenContextStore.loggingIndex(for: screenId))"
-                    )
-                }
                 continue
             }
 
