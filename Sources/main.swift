@@ -1,3 +1,4 @@
+/// Application entry point: runs guardrail tests or starts Zonogy's menu bar app.
 import Foundation
 import AppKit
 import ApplicationServices

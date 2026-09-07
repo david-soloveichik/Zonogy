@@ -83,6 +83,10 @@ extension AppController {
         TimeTravelLogCapture.capture { success in
             if success {
                 Logger.debug("Time-travel logs captured at \(TimeTravelLogCapture.outputPath) (reason: \(triggerReason))")
+                TransientMessageOverlay.shared.show(
+                    title: "Time travel log saved",
+                    body: TimeTravelLogCapture.outputPath
+                )
             } else {
                 Logger.error("Time-travel log capture failed (reason: \(triggerReason))")
             }

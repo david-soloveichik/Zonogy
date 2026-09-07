@@ -479,7 +479,7 @@ The Debug tab shows this information and the time-travel log's location.
 
 ### Time-travel Debug Logging
 
-When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 60 seconds of the log prior to the invocation of the shortcut*, at all levels, to `/tmp/zonogy-debug-time-travel.log` to help us debug the problem. A capture never reaches back past the previous capture, so pressing "Control-Command-z" twice within a short time window saves only the log *between* the two presses.
+When I am running Zonogy and notice incorrect behavior, I should be able to press "Control-Command-z". This keystroke should be intercepted by Zonogy and not passed to other apps. When the shortcut is invoked, we save the *last 60 seconds of the log prior to the invocation of the shortcut*, at all levels, to `/tmp/zonogy-debug-time-travel.log` to help us debug the problem. A capture never reaches back past the previous capture, so pressing "Control-Command-z" twice within a short time window saves only the log *between* the two presses. After a successful save, Zonogy briefly shows "Time travel log saved" notification.
 
 Time-travel log capture via the keyboard shortcut should always be available and does not depend on any Debug tab toggle.
 

@@ -62,6 +62,7 @@ These provide smooth user experience during interactions.
 
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
+| **Brief message dismissal** | 4.0s | `Timer` + `RunLoop.main` | `TransientMessageOverlay.swift` | Dismisses the time-travel log save confirmation. A new message cancels the previous timer and restarts the display period. Runs in `.common` mode so dismissal also works during menu or mouse tracking. |
 | **Zone resize drag throttle** | 0.025s (40 Hz) | `Timer` + `RunLoop.main` | `ZoneResizeHandleManager.swift` | Mouse drag events can arrive faster than layout can update. Batches drag deltas and dispatches resize at ~40 Hz to keep the main thread responsive. Runs in `.common` RunLoop mode so it fires during mouse tracking. |
 | **DockMenu show delay** | 0.12s | `asyncAfter` | `DockHoverTracker.swift` | Prevents DockMenu from flickering during fast Dock scrubbing. Only shows if cursor remains on the same Dock icon for 120ms. |
 | **DockMenu dismissal polling** | 0.05s repeating with 0.025s tolerance, 0.2s grace | `Timer` + `RunLoop.main` | `DockMenuDismissalPoller.swift` | No reliable event for "cursor left both the Dock icon and DockMenu panel". Polls cursor position at 50ms with timer tolerance so macOS can coalesce wakeups; dismisses after cursor stays outside the safe region for 200ms. |
