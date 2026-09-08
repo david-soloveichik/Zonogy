@@ -1,6 +1,6 @@
 # Zonogy
 
-Zonogy is a zone-based window manager for macOS. (The name evokes "the origin or formation of zones.") Zonogy is free and open source (MIT license).
+Zonogy is an open source (MIT license), opinionated, zone-based window manager for macOS that also rethinks app launching, virtual desktops, and more. The name draws on Greek roots to suggest "the formation of zones."
 
 **[View Zonogy on GitHub →](https://github.com/david-soloveichik/Zonogy)**
 
@@ -165,8 +165,6 @@ Zonogy is designed to add negligible CPU cost and not to delay other apps:
 - **Sparing use of the Accessibility API.** Every window query is unavoidably a round trip to the target app, waking it. To minimize impact, Zonogy caches what it has recently learned, and skips queries whose answer cannot matter.
 - **High-frequency events are throttled.** Mouse drags, zone resizing, and bursts of display and window notifications are batched rather than handled event by event, so Zonogy's work stays bounded no matter how fast the events arrive.
 - **Cheap logging.** Zonogy logs through the macOS efficient unified logging system.
-
-See `SPECIFICATION-IMPLEMENTATION.md` for the details.
 
 ## Development
 
