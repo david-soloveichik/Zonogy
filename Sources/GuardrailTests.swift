@@ -189,6 +189,9 @@ enum GuardrailTests {
         if !UpdateVersionComparisonTests.run() {
             allPassed = false
         }
+        if !UpdateCheckStateTests.run() {
+            allPassed = false
+        }
         if !ModifierCombinationPreferencesTests.run() {
             allPassed = false
         }

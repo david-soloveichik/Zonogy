@@ -432,7 +432,7 @@ The Help submenu holds the repository link and two ways to send feedback, one pu
 Zonogy can check GitHub Releases for a newer version. (The check requests only the latest release's metadata; nothing about the user or system is sent.) The process for publishing a release is documented in [SPECIFICATION-RELEASE.md](SPECIFICATION-RELEASE.md).
 
 - **Manual checks:** Choosing "Check for Updates..." checks immediately and reports the result.
-- **Automatic checks:** When "Automatically check for updates" is enabled in Preferences → General (default on), Zonogy checks shortly after launch and once a day. The first time a run discovers a given newer version, it shows the new-version alert (at most once per version per run, so relaunching can re-alert).
+- **Automatic checks:** When "Automatically check for updates" is enabled in Preferences → General (default on), Zonogy checks shortly after launch and once a day. It shows the new-version alert only if that version has not already been shown this run, including by a manual check.
 - **New-version alert:** Offers "View Release" (opens the release page in the browser), "Later", and "Skip This Version".
 - While a newer, non-skipped version is known, the "Check for Updates..." item instead reads "Update Available (version)..." and choosing it opens the release page directly.
 - **Skipping:** "Skip This Version" suppresses the automatic alert and the menu hint for that version only; a later release triggers normally. A manual check still reports a skipped version.

@@ -198,7 +198,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let floatingIndicatorTracker = EdgeIndicatorTracker<CGDirectDisplayID>()
     internal let menuBarManager = MenuBarManager()
     internal let updateChecker = UpdateChecker()
-    internal var isPresentingUpdateCheckAlert = false
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
     internal let winShotOccupancyAutoSaveScheduler = WinShotOccupancyAutoSaveScheduler()

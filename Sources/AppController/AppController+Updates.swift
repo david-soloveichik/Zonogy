@@ -8,8 +8,8 @@ extension AppController {
         updateChecker.onAvailableUpdateChange = { [weak self] update in
             self?.menuBarManager.setAvailableUpdateVersion(update?.version)
         }
-        updateChecker.onAutomaticUpdateFound = { [weak self] update in
-            self?.presentUpdateAvailableAlert(for: update) ?? false
+        updateChecker.onCheckCompleted = { [weak self] outcome in
+            self?.presentCheckOutcome(outcome)
         }
         updateChecker.start()
     }
@@ -22,14 +22,12 @@ extension AppController {
             AppLinks.open(update.pageURL)
             return
         }
-        updateChecker.checkManually { [weak self] outcome in
-            self?.presentManualCheckOutcome(outcome)
-        }
+        updateChecker.checkManually()
     }
 
     // MARK: - Alerts
 
-    private func presentManualCheckOutcome(_ outcome: UpdateCheckOutcome) {
+    private func presentCheckOutcome(_ outcome: UpdateCheckOutcome) {
         switch outcome {
         case .updateAvailable(let update):
             presentUpdateAvailableAlert(for: update)
@@ -43,18 +41,14 @@ extension AppController {
         }
     }
 
-    /// Returns whether the alert was actually presented (false when another
-    /// update-check alert is already on screen).
-    @discardableResult
-    private func presentUpdateAvailableAlert(for update: UpdateInfo) -> Bool {
+    private func presentUpdateAvailableAlert(for update: UpdateInfo) {
         let alert = NSAlert()
         alert.messageText = "Zonogy \(update.version) is available"
         alert.informativeText = "You have Zonogy \(AppVersion.marketingVersion)."
         alert.addButton(withTitle: "View Release")
         alert.addButton(withTitle: "Later")
         alert.addButton(withTitle: "Skip This Version")
-        guard let response = runUpdateCheckAlert(alert) else { return false }
-        switch response {
+        switch runUpdateCheckAlert(alert) {
         case .alertFirstButtonReturn:
             AppLinks.open(update.pageURL)
         case .alertThirdButtonReturn:
@@ -62,14 +56,13 @@ extension AppController {
         default:
             break
         }
-        return true
     }
 
     private func presentInformationalAlert(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text
-        runUpdateCheckAlert(alert)
+        _ = runUpdateCheckAlert(alert)
     }
 
     /// Update-themed icon for the update-check alerts. NSAlert would otherwise show the app
@@ -82,16 +75,8 @@ extension AppController {
             .withSymbolConfiguration(configuration)
     }()
 
-    /// Runs an update-check alert modally, returning nil without presenting when one is
-    /// already on screen — a manual check can complete while an automatic check's alert
-    /// is still up (or vice versa); never stack a second modal alert on the first.
-    /// Dismisses an open Launcher first (as opening Preferences does) so its floating
-    /// panel does not cover the alert.
-    @discardableResult
-    private func runUpdateCheckAlert(_ alert: NSAlert) -> NSApplication.ModalResponse? {
-        guard !isPresentingUpdateCheckAlert else { return nil }
-        isPresentingUpdateCheckAlert = true
-        defer { isPresentingUpdateCheckAlert = false }
+    /// Runs the alert modally, dismissing an open Launcher so it does not cover the alert.
+    private func runUpdateCheckAlert(_ alert: NSAlert) -> NSApplication.ModalResponse {
         if let icon = Self.updateCheckAlertIcon {
             alert.icon = icon
         }

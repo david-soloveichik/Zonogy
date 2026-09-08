@@ -27,13 +27,11 @@ final class UpdateChecker {
 
     /// Called on the main queue whenever `availableUpdate` changes (including to nil).
     var onAvailableUpdateChange: ((UpdateInfo?) -> Void)?
-    /// Called on the main queue when an automatic check finds a version not yet alerted this run.
-    /// Returns whether the alert was actually presented; only then is the version marked alerted,
-    /// so a presentation dropped behind an already-visible alert can retry on a later check.
-    var onAutomaticUpdateFound: ((UpdateInfo) -> Bool)?
+    /// Called on the main queue when a manual or automatic check's result should be shown.
+    var onCheckCompleted: ((UpdateCheckOutcome) -> Void)?
 
     private var latestKnown: UpdateInfo?
-    private var alertedVersion: String?
+    private var checkState = UpdateCheckState()
     private var timer: Timer?
 
     /// Schedules the post-launch check and the daily repeating check. Both consult the
@@ -49,10 +47,9 @@ final class UpdateChecker {
         self.timer = timer
     }
 
-    /// Fetches the latest release now and reports the outcome. Reports a skipped version too,
-    /// so an explicit check always tells the truth.
-    func checkManually(completion: @escaping (UpdateCheckOutcome) -> Void) {
-        performCheck(completion: completion)
+    /// Checks now or joins an existing request. Manual results include skipped versions.
+    func checkManually() {
+        performCheck(manually: true)
     }
 
     /// Silences the automatic alert and the menu hint for this version; a newer release triggers normally.
@@ -64,17 +61,11 @@ final class UpdateChecker {
 
     private func performAutomaticCheck() {
         guard UpdateCheckPreferencesStore.loadAutomaticCheckEnabled() else { return }
-        performCheck { [weak self] outcome in
-            guard let self, case .updateAvailable(let update) = outcome else { return }
-            let skipped = UpdateCheckPreferencesStore.loadSkippedVersion()
-            if update.version != skipped, update.version != self.alertedVersion,
-               self.onAutomaticUpdateFound?(update) == true {
-                self.alertedVersion = update.version
-            }
-        }
+        performCheck(manually: false)
     }
 
-    private func performCheck(completion: @escaping (UpdateCheckOutcome) -> Void) {
+    private func performCheck(manually: Bool) {
+        guard checkState.begin(manually: manually) else { return }
         var request = URLRequest(url: AppLinks.latestReleaseAPI)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         // GitHub's API requires a User-Agent identifying the calling app.
@@ -83,7 +74,15 @@ final class UpdateChecker {
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
                 guard let self else { return }
-                completion(self.outcome(data: data, response: response, error: error))
+                defer { self.checkState.finish() }
+                let outcome = self.outcome(data: data, response: response, error: error)
+                if let present = self.onCheckCompleted,
+                   self.checkState.beginAlert(
+                       for: outcome,
+                       skippedVersion: UpdateCheckPreferencesStore.loadSkippedVersion()
+                   ) {
+                    present(outcome)
+                }
             }
         }.resume()
     }
