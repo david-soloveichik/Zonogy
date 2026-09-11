@@ -2,12 +2,21 @@
 import Foundation
 
 enum DebugPreferencesStore {
+    private static let defaultLogFileEnabled = false
     private static let defaultDockMenusOverlayEnabled = false
     private static let defaultFullScreenOverlayEnabled = false
     private static let defaultShowPlaceholderPassThroughHoles = false
     private static let defaultDisablePrePositionBeforeUnminimize = false
     private static let defaultDisableNativeTabHandling = false
     private static let defaultHighlightImplicitFloatingTarget = false
+
+    static func loadLogFileEnabled() -> Bool {
+        loadBool(forKey: UserDefaultsKeys.logFileEnabled, defaultValue: defaultLogFileEnabled)
+    }
+
+    static func saveLogFileEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.logFileEnabled)
+    }
 
     static func loadDockMenusOverlayEnabled() -> Bool {
         loadBool(

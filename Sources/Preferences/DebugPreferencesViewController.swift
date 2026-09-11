@@ -2,6 +2,7 @@
 import AppKit
 
 final class DebugPreferencesViewController: NSViewController {
+    private var logFileCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
     private var showPassThroughHolesCheckbox: NSButton?
@@ -12,13 +13,20 @@ final class DebugPreferencesViewController: NSViewController {
     private var loggingInfoPopover: NSPopover?
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 525))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 540))
 
         let titleLabel = NSTextField(labelWithString: "Debug Settings")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
+        let logFile = makeToggle(
+            title: "Save the log to a file",
+            hint: "Appends every log line to the log file listed below, in the same format as the time-travel log. "
+                + "It and the previous day's file together hold the last one to two days.",
+            action: #selector(logFileToggled(_:))
+        )
+        logFileCheckbox = logFile.checkbox
         let dockOverlay = makeToggle(
             title: "Show Dock debug rectangle",
             hint: "Shows a blue rectangle around the Dock frame used by DockMenus.",
@@ -59,7 +67,7 @@ final class DebugPreferencesViewController: NSViewController {
         // The toggles scroll between the fixed title above and the fixed log section below.
         let toggleDocument = FlippedView()
         toggleDocument.translatesAutoresizingMaskIntoConstraints = false
-        let toggles = [dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
+        let toggles = [logFile, dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
         var previousBottom = toggleDocument.topAnchor
         for (index, toggle) in toggles.enumerated() {
             toggleDocument.addSubview(toggle.view)
@@ -101,10 +109,13 @@ final class DebugPreferencesViewController: NSViewController {
         let timeTravelHintLabel = makeHintLabel("")
         self.timeTravelHintLabel = timeTravelHintLabel
         let timeTravelLogPathLabel = makeMonospacedLabel("Time-travel log: \(TimeTravelLogCapture.outputPath)")
+        let logFilePathLabel = makeMonospacedLabel("Log file: \(LogFile.path)")
+        let previousLogFilePathLabel = makeMonospacedLabel("Previous day: \(LogFile.previousPath)")
 
         // The log section is a fixed column under the header, pinned to the container's sides.
         let logSection: [(view: NSView, spacingAbove: CGFloat)] = [
             (logIntroLabel, 8), (moreInfoButton, 6), (timeTravelHintLabel, 14), (timeTravelLogPathLabel, 6),
+            (logFilePathLabel, 6), (previousLogFilePathLabel, 6),
         ]
         var previousLogView: NSView = logHeaderLabel
         for entry in logSection {
@@ -134,11 +145,13 @@ final class DebugPreferencesViewController: NSViewController {
             logIntroLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             timeTravelHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             timeTravelLogPathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            logFilePathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            previousLogFilePathLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             previousLogView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 525)
+        self.preferredContentSize = NSSize(width: 580, height: 540)
         syncControls()
     }
 
@@ -267,6 +280,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func logFileToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setLogFileEnabledFromSettings(enabled)
+        syncControls()
+    }
+
     @objc private func dockOverlayToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setDockMenusDebugOverlayEnabledFromSettings(enabled)
@@ -304,6 +323,7 @@ final class DebugPreferencesViewController: NSViewController {
     }
 
     private func syncControls() {
+        logFileCheckbox?.state = AppController.shared.isLogFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
         showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off

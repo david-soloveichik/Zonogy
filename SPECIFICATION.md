@@ -463,7 +463,7 @@ The "Disable native macOS tab handling" toggle turns off the native-tab behavior
 
 ### Debug Logging
 
-Zonogy logs through the macOS unified logging system (subsystem `com.dsemeas.zonogy`) and writes no log files of its own (except the time travel log, described below). Each line is logged at one of three levels, which macOS retains differently:
+Zonogy logs through the macOS unified logging system (subsystem `com.dsemeas.zonogy`) and writes log files only on request: the log file and the time-travel capture described below. Each line is logged at one of three levels, which macOS retains differently:
 
 - The normal trace is at level Info, which macOS holds in memory only and purges as its buffers fill (minutes).
 - Events worth finding later are at the Default and Error levels, which macOS keeps on disk until its store is full (days-weeks): unexpected failures (a minimize the application rejected, a shortcut that could not be registered) and countable events such as accessibility calls that took too long (category `SlowAX`).
@@ -475,7 +475,11 @@ Read it with the `log` command in Terminal. It shows Default and above unless th
 
 (Zonogy logs nothing at the Debug level, so `--debug` adds nothing.)
 
-The Debug tab shows this information and the time-travel log's location.
+The Debug tab shows this information and the log files' locations.
+
+### Log File
+
+The Debug tab's "Save the log to a file" toggle (off by default) appends every line, at all levels, to `/tmp/zonogy-debug.log` as it is logged, in the same format as the time-travel log. A day after the file was started, it becomes `/tmp/zonogy-debug-previous.log` (replacing the previous one) and a new file begins, so the two together always hold the last one to two days. (Retiring a whole file, rather than trimming old lines one by one, keeps this cheap.) Relaunching Zonogy or turning the toggle off and on keeps filling the current file. A line naming the Zonogy version marks each point where writing began, and another marks where the toggle was turned off.
 
 ### Time-travel Debug Logging
 

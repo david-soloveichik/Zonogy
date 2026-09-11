@@ -121,6 +121,14 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 ---
 
+## Debug Logging
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Log file rotation** | 24h from the file's creation | deadline-based (checked as each line is written) | `LogFile.swift` | While "Save the log to a file" is on, a line written a day or more after the current log file was created first retires the file to the previous-day file and begins a new one, so the pair holds the last one to two days. No timer runs: a file that has turned a day old is retired by the next line, including the first line after launch or after the toggle is turned on. |
+
+---
+
 ## Preferences UI
 
 | Timer | Duration | Mechanism | File | Purpose |

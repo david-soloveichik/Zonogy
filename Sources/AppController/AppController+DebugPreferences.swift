@@ -2,6 +2,10 @@
 import Foundation
 
 extension AppController {
+    internal var isLogFileEnabledInSettings: Bool {
+        DebugPreferencesStore.loadLogFileEnabled()
+    }
+
     internal var isShowPlaceholderPassThroughHolesInSettings: Bool {
         DebugPreferencesStore.loadShowPlaceholderPassThroughHoles()
     }
@@ -16,6 +20,13 @@ extension AppController {
 
     internal var isHighlightImplicitFloatingTargetInSettings: Bool {
         DebugPreferencesStore.loadHighlightImplicitFloatingTarget()
+    }
+
+    /// Enables the file before logging the change, so the file's first line records what turned it on.
+    internal func setLogFileEnabledFromSettings(_ enabled: Bool) {
+        DebugPreferencesStore.saveLogFileEnabled(enabled)
+        LogFile.setEnabled(enabled)
+        Logger.debug("Debug: save the log to a file=\(enabled)")
     }
 
     internal func setShowPlaceholderPassThroughHolesFromSettings(_ enabled: Bool) {

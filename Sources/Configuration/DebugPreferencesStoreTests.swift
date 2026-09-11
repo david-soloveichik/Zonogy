@@ -15,6 +15,12 @@ enum DebugPreferencesStoreTests {
 
         let boolPreferences: [(name: String, key: String, load: () -> Bool, save: (Bool) -> Void)] = [
             (
+                "save the log to a file",
+                UserDefaultsKeys.logFileEnabled,
+                DebugPreferencesStore.loadLogFileEnabled,
+                DebugPreferencesStore.saveLogFileEnabled
+            ),
+            (
                 "disable native tab handling",
                 UserDefaultsKeys.disableNativeTabHandling,
                 DebugPreferencesStore.loadDisableNativeTabHandling,

@@ -460,6 +460,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
+        // Quitting exits moments after its last lines are logged; let the log file write them first.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationWillTerminate),
+            name: NSApplication.willTerminateNotification,
+            object: nil
+        )
+
         self.capturePipeline.delegate = self
         self.placeholderCoordinator.delegate = self
         self.placeholderManager.delegate = self
@@ -549,6 +557,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         DispatchQueue.main.async { [weak self] in
             self?.updateUnmanagedFocusState()
         }
+    }
+
+    @objc private func handleApplicationWillTerminate() {
+        LogFile.drain()
     }
 
     @objc private func handleExceptionsConfigurationDidChange() {
