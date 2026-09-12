@@ -1521,7 +1521,7 @@ extension AppController {
         }
     }
 
-    private func snapManuallyResizedWindowBackToZoneIfNeeded(windowId: Int, reason: String) {
+    internal func snapManuallyResizedWindowBackToZoneIfNeeded(windowId: Int, reason: String) {
         guard manualResizeDetachedWindowIds.contains(windowId) else {
             return
         }

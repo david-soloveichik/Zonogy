@@ -211,7 +211,21 @@ extension AppController {
         )
 
         guard plan.finalZones.count < zones.count else {
-            Logger.debug("Shortcut collapse to one zone stopped early on screen \(screenIndex): no removable zone")
+            // Already collapsed as far as policy allows (typically a single zone). The press still
+            // reads as "reset this display's tiling", so perform the part of a collapse that remains
+            // meaningful: return this display's manually resized windows to their zone frames,
+            // forgetting any sizes Sticky Resize remembered — just as dropping a window back into
+            // its own zone does. Snap before clearing: clearing also drops the detached flag the
+            // snap keys off. Windows on other displays are left alone.
+            Logger.debug(
+                "Shortcut collapse to one zone on screen \(screenIndex): no removable zone; " +
+                "snapping manually resized windows back to their zone frames"
+            )
+            for windowId in zones.compactMap(\.occupantWindowId) {
+                snapManuallyResizedWindowBackToZoneIfNeeded(windowId: windowId, reason: "collapse-to-one-zone")
+            }
+            clearRememberedManualResizeSizes(on: screenId, reason: "collapse-to-one-zone")
+            refreshResizeHandles()
             return
         }
 
