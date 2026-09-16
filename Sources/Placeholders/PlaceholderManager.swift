@@ -130,12 +130,15 @@ protocol PlaceholderManagerDelegate: AnyObject {
     func placeholderButtonMode(screenId: CGDirectDisplayID, zoneIndex: Int) -> PlaceholderButtonMode
 }
 
-/// Whether we're running on macOS Tahoe (26+) which uses larger window corners.
-let isTahoe = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
-
 /// Window corner radius matching the current macOS version.
-/// macOS Tahoe (26+) uses 24pt; earlier versions use 12pt.
-let windowCornerRadius: CGFloat = isTahoe ? 24 : 12
+/// macOS 27 unified window corners at 16pt; Tahoe (26) is approximated at 24pt; earlier versions use 12pt.
+let windowCornerRadius: CGFloat = {
+    switch ProcessInfo.processInfo.operatingSystemVersion.majorVersion {
+    case 27...: return 16
+    case 26: return 24
+    default: return 12
+    }
+}()
 
 /// Creates and manages the UI for placeholder windows.
 /// Placeholders are visual representations of empty tiling zones.
