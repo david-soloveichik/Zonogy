@@ -131,8 +131,9 @@ extension AppController {
         } else {
             launcherController.show()
         }
-        // The Launcher shown at a floating zone targets it explicitly; a bar that just became
-        // explicit flashes to confirm, as for any gesture that selects a floating zone.
+        // The Launcher shown at a floating zone targets it explicitly until it is cancelled (see
+        // `launcherControllerDidCancel`); a bar that just became explicit flashes to confirm, as
+        // for any gesture that selects a floating zone.
         if targetedZoneManager.markFloatingTargetExplicit(reason: "launcher-shown"),
            let screenId = targetedFloatingScreenId {
             pulseFloatingTargetFeedback(for: screenId)
@@ -304,15 +305,12 @@ extension AppController {
         optimisticallyShowLauncher(targetingZone: ZoneKey(screenId: screenId, index: zoneIndex), reason: reason)
     }
 
-    /// Dismiss the Launcher unless it's in its auto-show grace period.
-    /// Use for focus-based dismissals to avoid immediate hide due to macOS auto-focus after close/minimize.
-    @discardableResult
-    internal func dismissLauncherIfActiveRespectingAutoShowGrace() -> Bool {
-        guard launcherController.isActive, !launcherController.isInAutoShowGracePeriod else {
-            return false
-        }
-        launcherController.hide()
-        return true
+    /// Focus moved to a window in a zone while the Launcher was open: the user has left it, which
+    /// cancels it like Escape does (see `launcherControllerDidCancel`). An auto-shown Launcher
+    /// ignores focus shifts during its grace period (macOS auto-focus after a close or minimize).
+    internal func cancelLauncherForFocusShift() {
+        guard launcherController.isActive, !launcherController.isInAutoShowGracePeriod else { return }
+        launcherController.cancel()
     }
 
     internal func toggleOpenLauncherShortcutTargetIfNeeded(reason: String) {
@@ -725,6 +723,14 @@ extension AppController: LauncherControllerDelegate {
     func launcherControllerDidCancel(_ controller: LauncherController) {
         Logger.debug("Launcher: Cancelled")
         restoreLauncherOriginalTargetIfNeeded(reason: "launcher-cancelled")
+        // Implicit again. Cancelling need not come with a focus change, so re-resolve the frontmost
+        // window to let an implicit floating target follow its display; deferred because a
+        // cancelled row drag arrives here inside an event-tap callback, which must stay cheap.
+        targetedZoneManager.markFloatingTargetImplicit(reason: "launcher-cancelled")
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.implicitlyTargetedFloatingScreenId != nil else { return }
+            self.updateUnmanagedFocusState()
+        }
     }
 
     func launcherControllerDidHideForDrag(_ controller: LauncherController) {

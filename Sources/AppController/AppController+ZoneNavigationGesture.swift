@@ -189,10 +189,10 @@ extension AppController {
             // An explicit window selection: the user has moved past whatever they just
             // minimized, so stop skipping those windows in CmdTab's initial selection.
             recentUserMinimizeTracker.clearAllMarks()
-            // Focusing hands the user to that window: dismiss the Launcher now rather than
-            // waiting on the focus-shift notification — targeting is unchanged by a focus
-            // commit, so no follow-target refresh would hide it.
-            dismissLauncherIfActive()
+            // Focusing hands the user to that window: cancel the Launcher now rather than
+            // waiting on the focus-shift notification — a focus commit retargets nothing by
+            // itself, so no target change would hide it.
+            launcherController.cancel()
             if case .floating = destination {
                 activateFloatingZoneWindow(occupant, reason: "zone-navigation-commit")
             } else {

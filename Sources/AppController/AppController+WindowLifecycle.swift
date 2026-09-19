@@ -230,11 +230,11 @@ extension AppController {
             cancelPendingWindowActivityRecord()
         }
 
-        // Dismiss Launcher if focus shifts to a managed window in a zone (tiled or floating).
+        // Cancel the Launcher if focus shifts to a managed window in a zone (tiled or floating).
         if let windowId = focusedWindowId,
            let managed = windowController.window(withId: windowId),
            (managed.zoneIndex != nil || isWindowInFloatingZone(windowId)) {
-            dismissLauncherIfActiveRespectingAutoShowGrace()
+            cancelLauncherForFocusShift()
             exitPinnedResizeBarMode(reason: "managed-window-focus")
 
             // Something outside Zonogy may have raised a window parked behind a full-screen

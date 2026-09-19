@@ -169,9 +169,9 @@ When a window is opened or unminimized on a full-screen display, or an existing 
 
 Focus changes do not retarget zones, with the exception of an implicitly targeted floating zone (see **Implicit and explicit floating targets** below). Targeting is otherwise controlled by the rules and shortcuts below, plus a small number of feature-specific options described in the Launcher, DockMenus, and CmdTab specifications.
 
-**Implicit and explicit floating targets:** A floating zone can be targeted either explicitly or implicitly. Explicit targeting represents direct user interaction: for example, clicking its bar or targeting it through keyboard zone navigation. Opening the Launcher at a floating zone also makes it explicitly targeted. Other retargets that land on a floating zone target it implicitly.
+**Implicit and explicit floating targets:** A targeted floating zone is explicitly targeted while the Launcher is shown, or when the user chose it directly (for example, clicking its bar or targeting it through keyboard zone navigation) and nothing has retargeted since; otherwise it is implicitly targeted. (Cancelling the Launcher also ends explicit targeting.)
 
-An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) An explicit target holds until the next retarget of any kind, whose result is implicit unless it is itself an explicit targeting. Only an explicit floating target colors its bar and flashes.
+An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) Only an explicit floating target colors its bar and flashes.
 
 README and Preferences present a simpler user mental model: an implicitly targeted floating zone is described as there being no destination zone at all, with new windows going into the floating zone of the display the user is working on.
 
@@ -219,7 +219,7 @@ README and Preferences present a simpler user mental model: an implicitly target
 
 Holding Control-Command and pressing a navigation key is a fast, keyboard-only way to act on any zone (excluding displays paused for full-screen): focus its window, target it, move the focused window into it, minimize its window, or add and remove zones. A large translucent blue circle (the same size for every zone) marks the selected zone; a floating zone is represented by the circle's upper half at the floating zone bar. The arrow keys move the circle to the next zone in that direction, and the jump keys jump it straight to a zone or a display (see **Navigation keys** below). How the gesture ends decides what happens:
 
-- **Releasing Control-Command** commits the selected zone. A filled zone's window is focused (targeting is unchanged). An empty zone is targeted, and the Launcher auto-shows per its preference.
+- **Releasing Control-Command** commits the selected zone. A filled zone's window is focused. An empty zone is targeted, and the Launcher auto-shows per its preference.
 - **Pressing the Move Focused Window to Target Zone key (Return) while still holding** moves the currently focused managed window into the selected zone (swap if occupied) and ends the gesture. The key is that shortcut's key.
 - **Pressing the Show Launcher key (Space) while still holding** targets the selected zone and opens the Launcher there, ending the gesture. The key is the Show Launcher shortcut's key.
 - **Escape** cancels.

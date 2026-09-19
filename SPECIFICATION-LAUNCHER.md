@@ -27,7 +27,7 @@ The Launcher opens via:
   - Zone navigation is released over an empty zone, tiling or floating (targeting it).
 - **Covered unmanaged windows:** The Launcher does not auto-show where it would cover an unmanaged window in an empty tiling zone: there the placeholder's pass-through holes (see **Click-through over covered windows** in the main specification) let the user interact with the window. Explicit opens are honored regardless.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.
-- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. Showing it at a floating zone targets that zone explicitly (see **Targeting** in [SPECIFICATION.md](SPECIFICATION.md)).
+- **Targeting invariant:** If the Launcher is visible, it is always anchored to the *current* targeted destination. On target changes it re-centers to the new target when it is an empty tiling zone or the floating target; otherwise it dismisses. A floating zone it is shown at is always explicitly targeted (see **Implicit and explicit floating targets** in [SPECIFICATION.md](SPECIFICATION.md)).
   Exceptions to dismissal on occupied-target: the Launcher shortcut's toggle retarget (above), and gestures that explicitly open the Launcher on a zone of the user's choosing even when it is occupied (Control-Command-double-click, zone navigation's Show Launcher key).
 
 ## Dismissal
@@ -37,7 +37,7 @@ The launcher dismisses when user:
 - Presses Escape
 - Activates an item (Enter on selection or double-click)
 - Completes a row drag-and-drop
-- **Target restoration:** A retarget made while the Launcher is open — pressing the Launcher shortcut again, or the "Toggle Target Zone with Focused Window" shortcut — is tentative. It commits if you activate an item, complete a row drag, or move the target yourself (e.g. releasing zone navigation over an empty zone, or Control-Command-clicking a zone); otherwise, cancelling (Escape, outside click, or a cancelled row drag) restores the target the Launcher started with.
+- **Target restoration:** A retarget made while the Launcher is open — pressing the Launcher shortcut again, or the "Toggle Target Zone with Focused Window" shortcut — is tentative. It commits if you activate an item, complete a row drag, or move the target yourself (e.g. releasing zone navigation over an empty zone, or Control-Command-clicking a zone); otherwise, cancelling (Escape, an outside click, a cancelled row drag, or switching to another window) restores the target the Launcher started with; a floating zone comes back implicit, following the frontmost window's display.
 
 Further, we don't want to steal focus from the user's intended key/active window (recall Launcher is floating frontmost and grabs keyboard input).
 So the launcher automatically dismisses when:

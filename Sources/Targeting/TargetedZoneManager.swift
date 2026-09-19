@@ -7,6 +7,8 @@ protocol TargetedZoneManagerDelegate: AnyObject {
     var screenOrder: [CGDirectDisplayID] { get }
     var primaryScreenId: CGDirectDisplayID { get }
     var fullScreenDisplayIds: Set<CGDirectDisplayID> { get }
+    /// Whether the Launcher is shown; a floating target under it is always explicit.
+    var isLauncherVisible: Bool { get }
 
     func zoneController(for screenId: CGDirectDisplayID) -> ZoneController?
     func refreshIndicators()
@@ -40,9 +42,12 @@ class TargetedZoneManager {
     private(set) var targetedDestination: TargetedDestination?
     /// How a floating target was chosen. Explicit: the user pointed at the floating zone (bar
     /// click, zone navigation, the Launcher shown at it); it holds until the next retarget of any
-    /// kind and is the only floating target that colors its bar. Implicit: any other rule landed
-    /// the target on a floating zone; it follows the frontmost window's display silently (see
-    /// `moveImplicitFloatingTarget(toDisplay:reason:)`). Always `false` for a tiling target.
+    /// kind, or until the Launcher is cancelled, and is the only floating target that colors its
+    /// bar. Implicit: any other rule landed the target on a floating zone; it follows the
+    /// frontmost window's display silently (see
+    /// `moveImplicitFloatingTarget(toDisplay:reason:)`). Always `false` for a tiling target, and
+    /// always `true` for a floating target while the Launcher is shown (`setFloatingTarget` sees
+    /// to it, so the Launcher's anchor is explicit however it got there).
     private(set) var isFloatingTargetExplicit = false
 
     var targetedZoneKey: ZoneKey? {
@@ -151,6 +156,8 @@ class TargetedZoneManager {
             return
         }
 
+        // A floating zone the Launcher is shown at is explicit, including one it re-anchors to.
+        let explicit = explicit || (delegate?.isLauncherVisible ?? false)
         let screenIndex = delegate?.screenOrder.firstIndex(of: screenId) ?? Int(screenId)
         let kind = explicit ? "explicitly" : "implicitly"
         let newDestination = TargetedDestination.floating(screenId: screenId)
@@ -178,6 +185,14 @@ class TargetedZoneManager {
         guard case .floating(let screenId) = targetedDestination, !isFloatingTargetExplicit else { return false }
         setFloatingTarget(on: screenId, reason: reason, explicit: true)
         return true
+    }
+
+    /// Undoes `markFloatingTargetExplicit(reason:)`: an explicitly targeted floating zone is
+    /// implicit again. Tiling and implicit targets are left alone, as is a floating target while
+    /// the Launcher is shown (see `isFloatingTargetExplicit`).
+    func markFloatingTargetImplicit(reason: String) {
+        guard case .floating(let screenId) = targetedDestination, isFloatingTargetExplicit else { return }
+        setFloatingTarget(on: screenId, reason: reason)
     }
 
     /// An implicit floating target follows the frontmost window's display; call with that display

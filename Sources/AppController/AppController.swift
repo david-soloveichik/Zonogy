@@ -383,6 +383,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         screenContextStore.contexts
     }
 
+    internal var isLauncherVisible: Bool {
+        launcherController.isActive
+    }
+
     internal var screenOrder: [CGDirectDisplayID] {
         screenContextStore.order
     }

@@ -499,9 +499,26 @@ enum TargetedZoneManagerTests {
             manager.markFloatingTargetExplicit(reason: "launcher-shown")
             assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit && delegate.refreshCount == refreshCountBefore + 1, "marking the targeted floating zone explicit should keep the destination and refresh the indicators once (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit), refreshes: \(delegate.refreshCount - refreshCountBefore))")
 
-            // A tiling target is neither explicit nor moved by the frontmost window.
+            // Marking it implicit again undoes that alone, so it follows the frontmost window once more.
+            manager.markFloatingTargetImplicit(reason: "launcher-cancelled")
+            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            assert(manager.targetedFloatingScreenId == screen2 && !manager.isFloatingTargetExplicit, "marking the targeted floating zone implicit should let it follow the frontmost window again (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+
+            // While the Launcher is shown, a floating target it re-anchors to is explicit even when the
+            // rule setting it would make it implicit, including a same-zone retarget (which fires no
+            // change callback).
+            delegate.isLauncherVisible = true
+            manager.setFloatingTarget(on: screen1, reason: "shortcut-retarget-open-launcher")
+            assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit, "a floating target set under a shown Launcher should be explicit (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+            manager.retargetAfterFillingFloatingZone(on: screen1, reason: "filled")
+            assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit, "a same-zone retarget under a shown Launcher should keep the floating target explicit (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+            delegate.isLauncherVisible = false
+
+            // A tiling target is neither explicit nor moved by the frontmost window, and marking it
+            // implicit is a no-op.
             let tiled = ZoneKey(screenId: screen1, index: 1)
             manager.setTargetedZone(tiled, reason: "test")
+            manager.markFloatingTargetImplicit(reason: "test")
             manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
             assert(manager.targetedZoneKey == tiled && !manager.isFloatingTargetExplicit, "a tiling target should never be explicit or follow the frontmost window (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
         }
@@ -544,6 +561,7 @@ enum TargetedZoneManagerTests {
         var screenOrder: [CGDirectDisplayID]
         var primaryScreenId: CGDirectDisplayID
         var fullScreenDisplayIds: Set<CGDirectDisplayID>
+        var isLauncherVisible = false
         var refreshCount = 0
 
         init(
