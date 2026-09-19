@@ -830,9 +830,9 @@ extension WindowController {
         let writes = pendingLiveResizeWrites
         pendingLiveResizeWrites = []
         isLiveResizeAXBatchInFlight = true
-        liveResizeAXQueue.async {
+        liveResizeAXQueue.async { [weak self] in
             for write in writes { write() }
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async {
                 self?.isLiveResizeAXBatchInFlight = false
             }
         }
