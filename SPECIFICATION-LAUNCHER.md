@@ -65,6 +65,7 @@ The launcher window should be a floating panel that stays above all other window
 
 - **Background:** Vibrancy/blur effect (NSVisualEffectView) for a modern translucent look
 - **Shape:** Rounded rectangle with appropriate corner radius
+- **Edge:** A faint glass rim, brightest along the top
 - **Size:** Approximately 500-600px wide, height adjusts based on content (max ~400px with scrolling)
 - **No title bar** - borderless window style
 

@@ -3,72 +3,18 @@
 import AppKit
 
 /// A non-activating floating panel for displaying the DockMenu.
-final class DockMenuPanel: NSPanel {
+final class DockMenuPanel: FrostedPanel {
     init() {
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 300),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        isReleasedWhenClosed = false
-        isFloatingPanel = true
-        becomesKeyOnlyIfNeeded = true
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = false  // Custom shadow via container view
-        level = .popUpMenu  // Above zone overlays and Dock
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 320, height: 300), cornerRadius: 12)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        isMovable = false
-        isMovableByWindowBackground = false
-
-        // Create container view for shadow (doesn't clip)
-        let containerView = NSView()
-        containerView.wantsLayer = true
-        containerView.layer?.masksToBounds = false
-        containerView.layer?.cornerRadius = 12
-
-        // Add shadow to the container
-        containerView.layer?.shadowColor = NSColor.black.cgColor
-        containerView.layer?.shadowOpacity = 0.25
-        containerView.layer?.shadowRadius = 10
-        containerView.layer?.shadowOffset = CGSize(width: 0, height: -3)
-
-        // Create rounded visual effect view
-        let visualEffectView = NSVisualEffectView()
-        visualEffectView.material = .hudWindow
-        visualEffectView.blendingMode = .behindWindow
-        visualEffectView.state = .active
-        visualEffectView.wantsLayer = true
-        visualEffectView.layer?.cornerRadius = 12
-        visualEffectView.layer?.masksToBounds = true
-
-        // Add visual effect view to container
-        containerView.addSubview(visualEffectView)
-        visualEffectView.translatesAutoresizingMaskIntoConstraints = false
-        ForceClickSuppression.apply(to: containerView)
+        if let contentView {
+            ForceClickSuppression.apply(to: contentView)
+        }
         ForceClickSuppression.apply(to: visualEffectView)
-        NSLayoutConstraint.activate([
-            visualEffectView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            visualEffectView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            visualEffectView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            visualEffectView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-        ])
-
-        contentView = containerView
-    }
-
-    var visualEffectView: NSVisualEffectView? {
-        contentView?.subviews.first as? NSVisualEffectView
     }
 
     override var canBecomeKey: Bool {
         false  // Never become key - don't steal focus
-    }
-
-    override var canBecomeMain: Bool {
-        false
     }
 
     /// Position the panel adjacent to the Dock item. All frames are in Cocoa coordinates.

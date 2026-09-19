@@ -87,19 +87,17 @@ final class DockMenuPanelController: NSObject {
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         ForceClickSuppression.apply(to: hostingView)
 
-        // Add to panel's visual effect view
-        if let visualEffectView = panel.visualEffectView {
-            // Remove old hosting view
-            self.hostingView?.removeFromSuperview()
-            visualEffectView.addSubview(hostingView)
-            NSLayoutConstraint.activate([
-                hostingView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
-                hostingView.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
-                hostingView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
-                hostingView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
-            ])
-            self.hostingView = hostingView
-        }
+        // Replace the previous hosting view inside the panel's visual effect view
+        let visualEffectView = panel.visualEffectView
+        self.hostingView?.removeFromSuperview()
+        visualEffectView.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
+        ])
+        self.hostingView = hostingView
 
         // Calculate panel size based on content
         let contentHeight = calculateContentHeight(windowCount: windows.count)

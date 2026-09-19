@@ -116,10 +116,8 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
         window?.setContentSize(windowSize)
         chooserView.frame = NSRect(origin: .zero, size: windowSize)
 
-        // Add chooserView as subview of the visual effect view (for proper rounded corner clipping)
-        // The window structure is: contentView (container) -> visualEffectView -> chooserView
-        if let contentView = window?.contentView,
-           let visualEffectView = contentView.subviews.first as? NSVisualEffectView {
+        // Add chooserView inside the visual effect view so the rounded corners clip it
+        if let visualEffectView = window?.visualEffectView {
             // Remove any existing chooser subviews (from previous show calls)
             visualEffectView.subviews.forEach { $0.removeFromSuperview() }
             visualEffectView.addSubview(chooserView)
@@ -379,15 +377,7 @@ final class WinShotChooserController: WinShotModifierMonitorDelegate, WinShotCho
     }
 
     private func visibleFrameWidth(for screenId: CGDirectDisplayID) -> CGFloat {
-        guard let screen = NSScreen.screens.first(where: { screen in
-            guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-                return false
-            }
-            return CGDirectDisplayID(screenNumber.uint32Value) == screenId
-        }) else {
-            return NSScreen.main?.visibleFrame.width ?? 0
-        }
-
-        return screen.visibleFrame.width
+        let screen = NSScreen.screens.first { ScreenContextStore.displayId(for: $0) == screenId } ?? NSScreen.main
+        return screen?.visibleFrame.width ?? 0
     }
 }
