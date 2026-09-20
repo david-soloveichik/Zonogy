@@ -131,14 +131,14 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 
 ## Requirements
 
-- **macOS** — tested on Sequoia 15.7.3+ and Tahoe 26.3+
+- **macOS** — tested on Sequoia 15.7.3+, Tahoe 26.3+, and Golden Gate 27.0
 - **Accessibility Permissions** — required for window management (moving, resizing, and reading window properties via the Accessibility API) and for global keyboard/mouse event monitoring (CmdTab's Cmd-Tab override, shortcuts, and clicking a zone to set the destination)
 - **Screen Recording Permissions** — only needed for the WinShot snapshot feature, which captures screenshot thumbnails for the snapshot chooser.
 - **Automation Permissions** — needed to open web links in a new browser window when URLs are dropped onto zones. macOS will prompt you to grant Automation access for each browser individually. This applies to Safari, Chrome, and Edge (which use AppleScript). Firefox uses direct process launching instead and does not require this permission.
 
 ## Limitations
 
-- **Not compatible with native MacOS Spaces or Stage Manager.** Zonogy is meant to replace these native features.
+- **Not compatible with native macOS Spaces or Stage Manager.** Zonogy is meant to replace these native features.
 
 ## Per-App Exceptions
 
@@ -168,7 +168,7 @@ Zonogy is designed to add negligible CPU cost and not to delay other apps:
 
 ## Development
 
-Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the repo serve as the user-facing source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
+Zonogy is developed with [Claude Code](https://claude.ai/claude-code) and [Codex](https://openai.com/index/codex/), following a specification-driven approach. The `SPECIFICATION*.md` files in the [`specs`](specs/) directory serve as the user-facing source of truth for behavior and double as detailed documentation — see them for a much more extensive description of Zonogy's functionality than this README covers.
 
 ## History
 

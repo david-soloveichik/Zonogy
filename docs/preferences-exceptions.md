@@ -40,4 +40,4 @@ Double-clicking a row opens the editor sheet for that app:
 
 ## Editing config.json directly
 
-The UI covers the common cases; the underlying `config.json` is the source of truth and supports a few fields the UI doesn't expose (such as `deriveBundleIdFromPathForProcesses` for Java apps). See the *Configuration* section of [SPECIFICATION.md](../SPECIFICATION.md). When figuring out *why* a particular window isn't being managed, Zonogy logs which eligibility checks each candidate passed or failed.
+The UI covers the common cases; the underlying `config.json` is the source of truth and supports a few fields the UI doesn't expose (such as `deriveBundleIdFromPathForProcesses` for Java apps). See the *Configuration* section of [SPECIFICATION.md](../specs/SPECIFICATION.md). When figuring out *why* a particular window isn't being managed, Zonogy logs which eligibility checks each candidate passed or failed.
