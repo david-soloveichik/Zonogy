@@ -40,10 +40,9 @@ extension AppController {
         reason: String,
         displacement: DisplacementStrategy = .synchronous
     ) {
-        // Invariant: when a floating-zone window is active, no tiled window
-        // should remain in ActiveFit reveal mode. Exit reveal mode for any
-        // existing ActiveFit window before assigning to the floating zone.
-        exitRevealMode(reason: "floating-zone-assignment")
+        // Invariant: when a floating-zone window is active, no tiled window on its display should
+        // remain in ActiveFit reveal mode. Exit reveal mode there before assigning to the floating zone.
+        exitRevealMode(on: screenId, reason: "floating-zone-assignment")
 
         floatingZoneCoordinator.assign(
             managed,

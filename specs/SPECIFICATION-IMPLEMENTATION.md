@@ -160,13 +160,13 @@ Zonogy handles this with two complementary mechanisms:
 - **Gesture heuristics for non-programmatic AX events:**
   - **Moves / drags:** An AXMoved burst is treated as a user drag only if the left mouse button is down and the pointer moves beyond a small activation threshold. Drag end is detected via mouse-up monitoring. This avoids treating incidental or app-driven moves as a drag-and-drop gesture.
   - **Untracked windows from managed apps:** For an untracked window from a managed app, Zonogy tracks only add-zone and floating-zone edge targets. The edge indicator windows pass mouse events through during the gesture; on mouse-up, Zonogy sets the normal placement target that any later capture will use.
-  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until focus loss or the next layout sync. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window). Full-screen transitions (native, or the configured non-native heuristic) also arrive as non-programmatic resizes but their sizes are macOS's, not the user's, so they are excluded.
+  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until another managed window on its display becomes active or that display's tiling geometry changes. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window). Full-screen transitions (native, or the configured non-native heuristic) also arrive as non-programmatic resizes but their sizes are macOS's, not the user's, so they are excluded.
 
 This attribution work is used by:
 
 - the drag-and-drop pipeline for moving windows between zones (showing overlays, choosing drop targets, finalizing on mouse-up),
 - deferring placement during tab tear-out flows while the user is mid-drag,
-- manual resize detachment + snapback on focus loss/layout sync, and
+- manual resize detachment and snapback, and
 - app-specific self-resize snap-to-zone behavior (e.g., Zoom panels) without fighting deliberate user resizes.
 
 ### Sheets reported as the focused window

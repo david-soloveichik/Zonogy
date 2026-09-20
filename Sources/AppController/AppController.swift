@@ -115,6 +115,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Used to temporarily suppress ActiveFit and AX frame retries during the gesture.
     internal var zoneResizeDragScreenId: CGDirectDisplayID?
     internal var zoneResizeDragInProgress: Bool { zoneResizeDragScreenId != nil }
+    /// The window a zone-resize drag returned from reveal to rest mode on its display; the drag end
+    /// re-evaluates it with the final zone geometry.
+    internal var zoneResizeDragRevealedWindowId: Int?
     /// Per-window target frames from the previous live-resize tick.
     /// Used to detect which frame components changed so we can skip unchanged AX writes.
     /// Cleared when the drag ends.
@@ -288,8 +291,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     // MARK: - ActiveFit State (reveal mode vs rest mode)
     /// Tolerance in pixels for determining if a window overflows in rest mode and needs reveal mode.
     internal let activeFitOverflowTolerance: CGFloat = 1.0
-    /// Tracks which window is currently in reveal mode (shifted to fit on screen). Only one window at a time.
-    internal var activeFitState: ActiveFitState?
+    /// Windows currently in reveal mode (shifted to fit on screen), keyed by window id. Displays are
+    /// independent: at most one window per display is revealed.
+    internal var activeFitStates: [Int: ActiveFitState] = [:]
     /// Windows temporarily excluded from reveal mode evaluation (e.g., during drag or restore flows).
     internal var activeFitSuppressedWindowIds: Set<Int> = []
     /// Windows for which we've already logged zone-resize suppression (prevents log spam).

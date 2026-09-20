@@ -40,8 +40,10 @@ extension AppController {
         zoneResizeDragScreenId = screenId
         liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
-        // Return any window in reveal mode to rest mode before live resizing.
-        exitRevealMode(reason: "zone-resize-begin")
+        // Return this display's revealed window to rest mode before live resizing, remembering it so
+        // the drag end can re-evaluate it: the system-wide active window may be on another display.
+        zoneResizeDragRevealedWindowId = revealedActiveFitStates(on: screenId).first?.windowId
+        exitRevealMode(on: screenId, reason: "zone-resize-begin")
     }
 
     internal func endZoneResizeDrag(screenId: CGDirectDisplayID, separatorId: ZoneLayout.SeparatorIdentity) {
@@ -49,10 +51,6 @@ extension AppController {
         zoneResizeDragScreenId = nil
         liveResizePreviousFrames.removeAll()
         activeFitZoneResizeLoggedWindowIds.removeAll()
-
-        // When resizing stops, if the active window qualifies, re-evaluate ActiveFit.
-        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        handleActiveFitActivationCandidate(pid: pid)
 
         // Refresh resize handles after the drag so overlap rules (ActiveFit and
         // frontmost-zone-1 suppression) take effect for the settled state.
@@ -100,6 +98,13 @@ extension AppController {
         // background writes cannot overwrite the corrected final frames.
         windowController.drainLiveResizeQueue()
         syncWindowsToZones()
+        // With the final geometry applied, re-evaluate the window that was revealed on this display,
+        // then the active window in case it now qualifies.
+        if let windowId = zoneResizeDragRevealedWindowId {
+            zoneResizeDragRevealedWindowId = nil
+            activeFitReevaluateRestedWindow(windowId: windowId, reason: "zone-resize-end")
+        }
+        handleActiveFitActivationCandidate(pid: NSWorkspace.shared.frontmostApplication?.processIdentifier)
         // Tiling windows may now occlude the floating-zone window after the resize.
         queueOcclusionBasedFloatingZoneMinimizationIfNeeded(on: screenId, reason: "zone-resize-end")
     }

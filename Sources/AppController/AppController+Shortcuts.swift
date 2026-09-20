@@ -293,7 +293,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
-        activeFitRefreshAfterZoneTopologyChange(reason: "collapse-to-one-zone")
+        activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "collapse-to-one-zone")
         applyShortcutCollapseTargetOutcome(
             on: screenId,
             initialTargetedIndex: initialTargetedIndex,
@@ -418,7 +418,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
-        activeFitRefreshAfterZoneTopologyChange(reason: reason)
+        activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: reason)
 
         enforceLauncherVisibilityAfterZoneTopologyChange(
             effectiveDestination: targetedZoneManager.targetedDestination,

@@ -270,6 +270,14 @@ extension AppController {
                         assignedWindowIds.insert(windowId)
                         continue
                     }
+                    // A manually resized (detached) window keeps its custom frame: it snaps back
+                    // only when another managed window on its display becomes active or when that
+                    // display's tiling geometry changes, and both clear the detached flag first.
+                    if manualResizeDetachedWindowIds.contains(windowId) {
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
                     // Normal case: compute the zone's content frame (respecting
                     // the 8px/4px margins), or the remembered Sticky Resize frame
                     // for the currently active window, and move the window there.
@@ -295,10 +303,6 @@ extension AppController {
                     }
                     if frameResolution.usesRememberedSize {
                         manualResizeDetachedWindowIds.insert(windowId)
-                    } else {
-                        // If the user had manually resized this window, once we
-                        // snap it back to the zone we can clear the detached flag.
-                        manualResizeDetachedWindowIds.remove(windowId)
                     }
                     setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
                     assignedWindowIds.insert(windowId)

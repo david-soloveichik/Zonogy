@@ -22,8 +22,8 @@ extension AppController {
             rememberedManualResizeSizesByWindowId.removeAll()
         }
 
-        exitRevealMode(reason: "sticky-resize-setting-changed")
         syncWindowsToZones()
+        activeFitRefreshAfterZoneTopologyChange(reason: "sticky-resize-setting-changed")
         handleActiveFitActivationCandidate(pid: NSWorkspace.shared.frontmostApplication?.processIdentifier)
     }
 
@@ -124,7 +124,7 @@ extension AppController {
         // remembered sticky size as its reveal candidate). Restoring the rest frame here only undoes
         // the reveal, and ActiveFit — which runs right after on every focus change — shifts it back;
         // a burst of focus/main-window notifications turns that round-trip into visible thrashing.
-        if activeFitState?.windowId == managed.windowId {
+        if activeFitStates[managed.windowId] != nil {
             Logger.debug("StickyResize: skipping restore for window \(managed.windowId); ActiveFit owns reveal frame")
             return false
         }

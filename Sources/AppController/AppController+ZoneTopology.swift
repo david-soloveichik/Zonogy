@@ -57,7 +57,7 @@ extension AppController {
                 promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
             }
             syncWindowsToZones()
-            activeFitRefreshAfterZoneTopologyChange(reason: "zone-added")
+            activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "zone-added")
         }
         if announce {
             Logger.debug("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
@@ -174,7 +174,7 @@ extension AppController {
         }
 
         syncWindowsToZones()
-        activeFitRefreshAfterZoneTopologyChange(reason: "zone-removed")
+        activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "zone-removed")
 
         if pendingDestination == nil {
             targetedZoneManager.ensureTargetedZone(reason: "zone-removed")

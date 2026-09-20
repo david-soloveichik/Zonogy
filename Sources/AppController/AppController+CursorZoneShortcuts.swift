@@ -76,7 +76,7 @@ extension AppController {
             placeholderCoordinator.clearPlaceholdersForScreen(screenId)
 
             syncWindowsToZones()
-            activeFitRefreshAfterZoneTopologyChange(reason: "reset-to-one-zone")
+            activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "reset-to-one-zone")
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
 

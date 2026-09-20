@@ -404,7 +404,6 @@ extension AppController {
     internal func refreshResizeHandles(frontmostWindowIdOverride: Int?) {
         prunePinnedResizeBarScreens(reason: "refresh")
         var descriptors: [ZoneSeparatorDescriptor] = []
-        let activeState = activeFitState
         let frontmostResolution = resolveFrontmostManagedWindow(windowIdOverride: frontmostWindowIdOverride)
         let frontmostManagedWindow: FrontmostManagedWindowContext? = {
             if case let .resolved(context) = frontmostResolution { return context }
@@ -453,9 +452,9 @@ extension AppController {
             }()
 
             let frontmostManagedWindowOnScreen = frontmostManagedWindow?.zoneKey.screenId == screenId ? frontmostManagedWindow : nil
+            let revealedState = revealedActiveFitStates(on: screenId).first
             let activeFitContext: ZoneResizeHandleAvoidanceContext? = {
-                guard let state = activeState,
-                      state.zoneKey.screenId == screenId else {
+                guard let state = revealedState else {
                     return nil
                 }
                 let avoidFrame = ZoneResizeHandleGeometry.insetAvoidanceFrame(
@@ -468,8 +467,8 @@ extension AppController {
             let managedContexts: [ZoneResizeHandleAvoidanceContext] = {
                 if pinnedModeActive {
                     var excludedWindowIds: Set<Int> = []
-                    if let activeState, activeState.zoneKey.screenId == screenId {
-                        excludedWindowIds.insert(activeState.windowId)
+                    if let revealedState {
+                        excludedWindowIds.insert(revealedState.windowId)
                     }
                     return tiledManagedWindowContexts(
                         context: context,
