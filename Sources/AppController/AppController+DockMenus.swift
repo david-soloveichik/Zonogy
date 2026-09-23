@@ -92,12 +92,16 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, preferredDragWindowForDockAppWithURL appURL: URL) -> LauncherWindowItem? {
-        preferredDragWindowItem(forAppURL: appURL)
+        // Same window as a Dock click, which keeps a placed main window (it activates in place).
+        preferredDragWindowItem(forAppURL: appURL, placedMainWindowYields: false)
     }
 
-    internal func preferredDragWindowItem(forAppURL appURL: URL) -> LauncherWindowItem? {
+    internal func preferredDragWindowItem(forAppURL appURL: URL, placedMainWindowYields: Bool) -> LauncherWindowItem? {
         guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
-              let preferredManaged = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+              let preferredManaged = preferredManagedWindowForRunningApp(
+                  bundleIdentifier: bundleId,
+                  placedMainWindowYields: placedMainWindowYields
+              ) else {
             return nil
         }
 
@@ -228,7 +232,10 @@ extension AppController: DockMenusCoordinatorDelegate {
         }
 
         guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: appURL),
-              let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+              let preferredWindow = preferredManagedWindowForRunningApp(
+                  bundleIdentifier: bundleId,
+                  placedMainWindowYields: false
+              ) else {
             return true
         }
 

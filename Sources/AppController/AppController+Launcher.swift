@@ -397,7 +397,7 @@ extension AppController: LauncherControllerDelegate {
             Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
             return payload
         case .application(let item):
-            if let preferredWindow = preferredDragWindowItem(forAppURL: item.url) {
+            if let preferredWindow = preferredDragWindowItem(forAppURL: item.url, placedMainWindowYields: true) {
                 if beginCursorDrivenWindowDrag(for: preferredWindow) {
                     Logger.debug("Launcher: drag began for payload \(preferredWindow.title)")
                     // Resolve to a managedWindow drag, but carry the originating app URL so
@@ -586,14 +586,18 @@ extension AppController: LauncherControllerDelegate {
     /// - Parameters:
     ///   - activateInPlace: If true, windows already in a zone (not minimized) are activated
     ///     without being moved to the targeted zone. Used by DockMenus which doesn't support "moving"
-    ///     windows between zones like the Launcher does.
+    ///     windows between zones like the Launcher does. A `hasMainWindow` app's main window then
+    ///     stays preferred while it is in a zone, since selecting it no longer moves it.
     ///   - dockItemElement: Optional Dock item accessibility element. When provided and the app has
     ///     no managed windows, we simulate a press on the Dock item instead of using NSWorkspace,
     ///     which triggers the app's native "clicked in Dock" behavior (typically creating a new window).
     internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false, dockItemElement: AXUIElement? = nil) {
         // Check if app is already running - select the preferred window
         if let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: url),
-           let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) {
+           let preferredWindow = preferredManagedWindowForRunningApp(
+               bundleIdentifier: bundleId,
+               placedMainWindowYields: !activateInPlace
+           ) {
 
             // Same single-observation disposition as handleWindowSelection.
             let behindFullScreen = isWindowBehindFullScreenSpace(preferredWindow)
@@ -654,11 +658,16 @@ extension AppController: LauncherControllerDelegate {
     }
 
     /// Returns the preferred window for a running app based on configuration:
-    /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID
+    /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID, unless
+    ///   `placedMainWindowYields` and that window is already placed in a zone (the Launcher's rule:
+    ///   with the main window open, selecting the app most likely asks for another window)
     /// - Otherwise: returns the same window as selecting the app, drilling into window list, and opening
     ///   the first window row (not-in-zone first, then recency)
     /// - Returns nil if the app is not running or has no listed windows (see `isListedAppWindow`)
-    internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
+    internal func preferredManagedWindowForRunningApp(
+        bundleIdentifier: String,
+        placedMainWindowYields: Bool
+    ) -> ManagedWindow? {
         guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return nil
         }
@@ -687,15 +696,19 @@ extension AppController: LauncherControllerDelegate {
             )
         }
 
-        guard let selected = PreferredWindowSelection.selectPreferredWindow(from: candidates, prefersMainWindow: prefersMainWindow) else {
+        guard let selected = PreferredWindowSelection.selectPreferredWindow(
+            from: candidates,
+            prefersMainWindow: prefersMainWindow,
+            placedMainWindowYields: placedMainWindowYields
+        ) else {
             return nil
         }
 
-        if prefersMainWindow {
-            Logger.debug("Launcher: App \(bundleIdentifier) has hasMainWindow=true, selecting window \(selected.windowId) (lowest CGWindowID \(selected.cgWindowId))")
-        } else {
-            Logger.debug("Launcher: App \(bundleIdentifier) selecting first drill-down window \(selected.windowId) (not-in-zone first, then recency)")
-        }
+        Logger.debug(
+            "Launcher: App \(bundleIdentifier) selecting window \(selected.windowId) " +
+                "(CGWindowID \(selected.cgWindowId), placed=\(selected.isPlacedInZone), " +
+                "hasMainWindow=\(prefersMainWindow), placedMainWindowYields=\(placedMainWindowYields))"
+        )
 
         let windowsById = Dictionary(uniqueKeysWithValues: eligibleWindows.map { ($0.windowId, $0) })
         return windowsById[selected.windowId]
@@ -977,7 +990,10 @@ extension AppController: LauncherWindowProvider {
     }
 
     func isDefaultWindowInZone(forBundleIdentifier bundleId: String) -> Bool {
-        guard let preferredWindow = preferredManagedWindowForRunningApp(bundleIdentifier: bundleId) else {
+        guard let preferredWindow = preferredManagedWindowForRunningApp(
+            bundleIdentifier: bundleId,
+            placedMainWindowYields: true
+        ) else {
             return false
         }
         return isWindowVisiblyPlaced(preferredWindow)

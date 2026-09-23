@@ -557,7 +557,7 @@ Fields:
   - `ignoreHeightRequirement` – when `true`, Zonogy does not require the app's windows to be at least 250px tall.
   - `manageNonStandardWindows` – when `true`, Zonogy manages this app's windows even when they report a non-standard accessibility role (e.g., `AXUnknown`) or subrole (e.g., `AXDialog`) instead of the usual `AXWindow` / `AXStandardWindow`. The remaining criteria (movable, zoom button, height) still apply. Useful for some Adobe apps.
   - `disallowEmptyTitleWindows` – when `true`, Zonogy ignores windows with empty titles from this app. By default, empty-title windows are managed.
-  - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` selects the lowest `CGWindowID`.
+  - `hasMainWindow` – preferred-window rule for Launcher and DockMenus when a running app has managed windows: `true` prefers the app's main window, the one with the lowest `CGWindowID` (see **Window Placement** in [SPECIFICATION-LAUNCHER.md](SPECIFICATION-LAUNCHER.md)).
   - `snapToZoneOnSelfResize` – when `true`, if the app resizes one of its tiled windows internally (e.g., a panel opening/closing), Zonogy immediately snaps the window back to the zone frame. (User edge-drag resizes still follow the manual-resize behavior described above.)
   - `doNotResizeWidth` – when `true`, Zonogy preserves the window's current width during zone-aligned moves/resizes instead of attempting to apply the zone width. Height and position still update normally.
   - `disableMouseGestures` – when `true`, Zonogy does not consume that app's gesture-modifier (default Control-Command) click targeting or external-drag promotion/interception; the app receives those gestures normally instead.
