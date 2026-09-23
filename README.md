@@ -147,6 +147,8 @@ Apps don't expose enough information for Zonogy to always make the right choices
 ## Additional Suggestions
 
 - **Highly recommended.** Since Zonogy uses window minimization extensively, I suggest *System Settings* > *Desktop & Dock* > *Minimize windows using*: "Scale Effect" (appears faster than the default Genie), and *System Settings* > *Desktop & Dock* > *Minimize windows into application icon*: on (so minimized windows don't fill up the Dock).
+- **Highly recommended.** Since macOS's own edge tiling interferes with dragging windows onto Zonogy's New Zone Bar, I suggest *System Settings* > *Desktop & Dock* > *Drag windows to left or right edge of screen to tile*: off.
+- Since Zonogy treats each display independently, I suggest *System Settings* > *Desktop & Dock* > *Displays have separate Spaces*: on (the default).
 - Remove the Zoom button floating menu; we won't use the Zoom button for anything other than making the window full-screen.
 
   ```sh
