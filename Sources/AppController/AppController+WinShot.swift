@@ -133,10 +133,7 @@ extension AppController {
             guard let floatingOccupant, screenContexts[screenId] != nil else { return nil }
             // A floating occupant currently in full screen is at macOS's frame, not its floating
             // one; with no frame recorded, restoring falls back to its remembered floating size.
-            guard fullScreenTracker.displayId(
-                forCgWindowId: CGWindowID(floatingOccupant.backing.cgWindowId),
-                pid: floatingOccupant.backing.pid
-            ) == nil else { return nil }
+            guard !isTrackedFullScreenWindow(floatingOccupant) else { return nil }
             let frame = windowController.actualFrameInScreenCoordinates(for: floatingOccupant, on: context.descriptor)
             // actualFrameInScreenCoordinates returns .zero on AX read failure; treat as no frame.
             return frame == .zero ? nil : frame
@@ -358,7 +355,12 @@ extension AppController {
 
         restoreStickyResizeRememberedSizes(from: snapshot, zoneWorkItems: zoneWorkItems)
 
-        let restoredActiveWindowId = snapshot.activeWindowId
+        // A full-screen active window stays where it is (see `restorableWindow(matching:)`), so it is
+        // neither raised during the restore nor activated after it.
+        let activeWindowIsFullScreen = snapshot.activeWindowId
+            .flatMap { windowController.window(withId: $0) }
+            .map(isTrackedFullScreenWindow) ?? false
+        let restoredActiveWindowId = activeWindowIsFullScreen ? nil : snapshot.activeWindowId
         let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
         // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize ALL windows (tiled + floating)
@@ -487,7 +489,7 @@ extension AppController {
         // Step 12: Activate the previously active window
         // Use the floating zone activation workaround if the active window is in the floating zone.
         snapshot.logDebugDetails(context: "restoring")
-        if let activeWindowId = snapshot.activeWindowId,
+        if let activeWindowId = restoredActiveWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
             if floatingWorkItem?.managed.windowId == activeWindowId {
                 activateFloatingZoneWindow(activeWindow, reason: "winshot-restore")
@@ -542,9 +544,8 @@ extension AppController {
         context: ScreenContext,
         descriptor: ScreenDescriptor
     ) -> ZoneRestoreWorkItem? {
-        // Find the window matching this identity
-        guard let managed = findWindowMatching(identity: identity) else {
-            Logger.debug("WinShot: Cannot find window for identity \(identity.windowId) in zone \(zoneIndex)")
+        guard let managed = restorableWindow(matching: identity) else {
+            Logger.debug("WinShot: No window to restore for identity \(identity.windowId) in zone \(zoneIndex)")
             return nil
         }
 
@@ -584,8 +585,8 @@ extension AppController {
         on screenId: CGDirectDisplayID,
         descriptor: ScreenDescriptor
     ) -> FloatingRestoreWorkItem? {
-        guard let managed = findWindowMatching(identity: identity) else {
-            Logger.debug("WinShot: Cannot find window for floating zone identity \(identity.windowId)")
+        guard let managed = restorableWindow(matching: identity) else {
+            Logger.debug("WinShot: No window to restore for floating zone identity \(identity.windowId)")
             return nil
         }
 
@@ -781,6 +782,21 @@ extension AppController {
                 context.zoneController.resizeZone(at: zoneIndex, to: savedFrame, allowOccupied: true)
             }
         }
+    }
+
+    /// The window a snapshot identity restores: its live match, unless that window is full screen.
+    /// macOS controls a full-screen window's frame, so it stays where it is and its slot opens empty.
+    /// (Only a window on another display can be full screen here: a full-screen destination leaves
+    /// full screen before the restore opens.)
+    private func restorableWindow(matching identity: WindowIdentity) -> ManagedWindow? {
+        guard let managed = findWindowMatching(identity: identity) else {
+            return nil
+        }
+        guard !isTrackedFullScreenWindow(managed) else {
+            Logger.debug("WinShot: Leaving full-screen window \(managed.windowId) out of the restore")
+            return nil
+        }
+        return managed
     }
 
     private func findWindowMatching(identity: WindowIdentity) -> ManagedWindow? {

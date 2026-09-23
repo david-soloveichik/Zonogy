@@ -1,12 +1,17 @@
 import AppKit
 import Foundation
 
-/// Shared explicit-drop helpers for cursor-driven drags initiated by Launcher and DockMenus.
+/// Shared explicit-drop helpers for cursor-driven drags initiated by Launcher, DockMenus, and CmdTab.
 extension AppController {
     internal func beginCursorDrivenWindowDrag(for window: LauncherWindowItem) -> Bool {
         guard let managedWindowId = window.managedWindowId,
               let managed = windowController.window(withId: managedWindowId) else {
             Logger.debug("Cursor-driven drop: cannot begin window drag - window not managed")
+            return false
+        }
+        // macOS controls a full-screen window's frame, so no drop could move it.
+        guard !isTrackedFullScreenWindow(managed) else {
+            Logger.debug("Cursor-driven drop: cannot begin window drag - window \(managedWindowId) is full screen")
             return false
         }
 

@@ -31,7 +31,7 @@ DockMenus adds Dock integration to Zonogy, providing an ultra-fast “peek and s
 ### DockMenu Contents (Mini Launcher “Drilled Down”)
 
 - App header entry (icon + app name), with the same semantics as the Launcher’s app header entry.
-- A list of that app’s **managed windows** (as tracked by Zonogy), with the same row styling and title cleanup as the Launcher.
+- A list of that app’s **managed windows** (as tracked by Zonogy, leaving out a full-screen window as the Launcher does), with the same row styling and title cleanup as the Launcher.
 
 ## Actions
 

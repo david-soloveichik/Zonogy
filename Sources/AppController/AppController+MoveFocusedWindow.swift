@@ -25,7 +25,7 @@ extension AppController {
     /// (Without an origin to give it, the occupant is displaced through the normal placement path
     /// and minimizes.) Targeting follows the move rule, applied once after the swap settles: a
     /// move touching the target retargets as if the destination was just filled; an uninvolved
-    /// target stays put.
+    /// target stays put. A full-screen window is never moved: macOS controls its frame.
     ///
     /// The origin is derived here, on the main queue, rather than carried over from the caller's
     /// decision: everything below runs in one synchronous block against that live state, so an
@@ -37,6 +37,10 @@ extension AppController {
     ) {
         guard let managed = windowController.window(withId: windowId) else {
             Logger.debug("\(reason): window \(windowId) vanished; ignoring")
+            return
+        }
+        guard !isTrackedFullScreenWindow(managed) else {
+            Logger.debug("\(reason): window \(windowId) is full screen; ignoring")
             return
         }
         guard destinationExists(destination) else {

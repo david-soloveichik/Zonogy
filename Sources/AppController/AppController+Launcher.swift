@@ -476,7 +476,8 @@ extension AppController: LauncherControllerDelegate {
     /// - Parameters:
     ///   - window: The selected window item.
     ///   - activateInPlace: If true (DockMenus mode), windows already in a zone and not minimized
-    ///     are activated without being moved to the targeted zone.
+    ///     are activated without being moved to the targeted zone. A full-screen window is always
+    ///     activated in place, zoned or not.
     @discardableResult
     internal func handleWindowSelection(
         _ window: LauncherWindowItem,
@@ -489,6 +490,15 @@ extension AppController: LauncherControllerDelegate {
         // First, try to use the managed window if Zonogy already knows about it
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
+
+            // macOS controls a full-screen window's frame, so selecting it can only activate it.
+            // (The Launcher and DockMenus leave it out of their lists, but a list can predate the
+            // window's switch to full screen.)
+            if isTrackedFullScreenWindow(managed) {
+                Logger.debug("Launcher: window \(managedWindowId) is full screen, activating in place")
+                activateWindow(managed)
+                return .activatedInPlace
+            }
 
             // A window parked behind a full-screen Space is effectively minimized, and one
             // observation decides its disposition for every caller (including the Launcher's
@@ -647,7 +657,7 @@ extension AppController: LauncherControllerDelegate {
     /// - If app has `hasMainWindow: true`: returns window with lowest CGWindowID
     /// - Otherwise: returns the same window as selecting the app, drilling into window list, and opening
     ///   the first window row (not-in-zone first, then recency)
-    /// - Returns nil if the app is not running or has no managed windows
+    /// - Returns nil if the app is not running or has no listed windows (see `isListedAppWindow`)
     internal func preferredManagedWindowForRunningApp(bundleIdentifier: String) -> ManagedWindow? {
         guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return nil
@@ -655,10 +665,9 @@ extension AppController: LauncherControllerDelegate {
 
         let pid = runningApp.processIdentifier
 
-        // Every managed window for this app is eligible, including parked (minimized) and
-        // empty-title windows. Zonogy manages empty-title windows, so the Dock click action
-        // and the app-row in-zone indicator must resolve them too — matches `windowsForApp`.
-        let eligibleWindows = windowController.allWindows.filter { $0.backing.pid == pid }
+        // Exactly the windows `windowsForApp` lists, so the Dock click action, app-row drags, and
+        // the app-row in-zone indicator resolve one of the app's rows, never a full-screen window.
+        let eligibleWindows = windowController.allWindows.filter { isListedAppWindow($0, pid: pid) }
 
         guard !eligibleWindows.isEmpty else {
             return nil
@@ -905,6 +914,15 @@ extension AppController: LauncherControllerDelegate {
 // MARK: - LauncherWindowProvider
 
 extension AppController: LauncherWindowProvider {
+    /// Whether `window` is one of `pid`'s rows in the per-app window lists (the Launcher and
+    /// DockMenus): every managed window of the app, parked (minimized) and empty-title ones
+    /// included, except a full-screen window. macOS controls that window's frame, so the move
+    /// that selecting or dragging it implies cannot happen. The list, the window count, and the
+    /// app's preferred window all apply this one rule, so they always agree.
+    private func isListedAppWindow(_ window: ManagedWindow, pid: pid_t) -> Bool {
+        window.backing.pid == pid && !isTrackedFullScreenWindow(window)
+    }
+
     func windowsForApp(bundleIdentifier: String) -> [LauncherWindowItem] {
         guard let runningApp = ApplicationIdentity.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return []
@@ -915,7 +933,7 @@ extension AppController: LauncherWindowProvider {
 
         // Use Zonogy's tracked windows as the source of truth, already ordered by shared recency semantics.
         for window in windowController.allWindowsOrderedByRecency() {
-            guard window.backing.pid == pid else {
+            guard isListedAppWindow(window, pid: pid) else {
                 continue
             }
             let element = window.backing.element
@@ -950,11 +968,9 @@ extension AppController: LauncherWindowProvider {
 
         let pid = runningApp.processIdentifier
 
-        // Every managed window for the app counts, including parked (minimized) and
-        // empty-title windows — switcher UIs surface them all, so the count must match
-        // `windowsForApp`.
+        // Counts exactly the windows `windowsForApp` lists.
         return windowController.allWindows.reduce(into: 0) { count, window in
-            if window.backing.pid == pid {
+            if isListedAppWindow(window, pid: pid) {
                 count += 1
             }
         }

@@ -359,7 +359,7 @@ extension AppController {
         screenId: CGDirectDisplayID,
         zoneIndex: Int
     ) {
-        guard let occupant = floatingZoneOccupant(on: screenId),
+        guard let occupant = promotableFloatingZoneOccupant(on: screenId),
               let context = screenContexts[screenId],
               let zone = context.zoneController.zone(at: zoneIndex),
               isZoneEffectivelyEmpty(zone),
@@ -655,10 +655,7 @@ extension AppController {
         screenId: CGDirectDisplayID?,
         frame: CGRect
     ) -> Bool {
-        if fullScreenTracker.displayId(
-            forCgWindowId: CGWindowID(managed.backing.cgWindowId),
-            pid: managed.backing.pid
-        ) != nil {
+        if isTrackedFullScreenWindow(managed) {
             return true
         }
         let resolvedScreenId = screenId ?? managed.screenDisplayId ?? detectScreenId(for: managed)

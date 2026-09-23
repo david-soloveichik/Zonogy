@@ -68,7 +68,7 @@ extension AppController {
 
     private func promoteFloatingOccupantIfOverlapping(on screenId: CGDirectDisplayID, zone: Zone, context: ScreenContext) {
         guard zone.isEmpty,
-              let occupant = floatingZoneOccupant(on: screenId),
+              let occupant = promotableFloatingZoneOccupant(on: screenId),
               let occupantFrame = windowController.actualFrameInAccessibilityCoordinates(for: occupant) else {
             return
         }

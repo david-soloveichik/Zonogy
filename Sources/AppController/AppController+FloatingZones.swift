@@ -7,6 +7,16 @@ extension AppController {
         floatingZoneCoordinator.occupant(on: screenId)
     }
 
+    /// The floating-zone occupant of `screenId` that the promotion rules may move into a tiling
+    /// zone: any occupant but a full-screen one, whose frame macOS controls (and which overlaps
+    /// every zone).
+    func promotableFloatingZoneOccupant(on screenId: CGDirectDisplayID) -> ManagedWindow? {
+        guard let occupant = floatingZoneOccupant(on: screenId), !isTrackedFullScreenWindow(occupant) else {
+            return nil
+        }
+        return occupant
+    }
+
     func isWindowInFloatingZone(_ windowId: Int) -> Bool {
         floatingZoneCoordinator.isWindowInFloatingZone(windowId)
     }
@@ -68,7 +78,7 @@ extension AppController {
         reason: String
     ) {
         for screenId in screenOrder {
-            guard let occupant = floatingZoneOccupant(on: screenId) else {
+            guard let occupant = promotableFloatingZoneOccupant(on: screenId) else {
                 continue
             }
 

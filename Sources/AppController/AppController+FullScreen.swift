@@ -88,6 +88,15 @@ extension AppController {
         return SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId)
     }
 
+    /// True when `managed` is the window holding some display in full-screen pause. macOS
+    /// controls that window's frame, so Zonogy cannot place it into a zone.
+    internal func isTrackedFullScreenWindow(_ managed: ManagedWindow) -> Bool {
+        fullScreenTracker.displayId(
+            forCgWindowId: CGWindowID(managed.backing.cgWindowId),
+            pid: managed.backing.pid
+        ) != nil
+    }
+
     /// True when `managed` is parked behind a full-screen Space: placed on a display whose
     /// current Space is a full-screen one, without being the full-screen window itself. Such a
     /// window is visible nowhere — effectively minimized in the user's model — and raising it in
@@ -98,12 +107,7 @@ extension AppController {
               SpaceQueries.isDisplayShowingFullScreenSpace(displayId: screenId) == true else {
             return false
         }
-        if let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
-           info.cgWindowId == CGWindowID(managed.backing.cgWindowId),
-           info.pid == managed.backing.pid {
-            return false
-        }
-        return true
+        return !isTrackedFullScreenWindow(managed)
     }
 
     /// True when selecting `managed` places it into the targeted zone even though it is already
@@ -645,9 +649,7 @@ extension AppController {
             // Displaced windows awaiting minimization are not deferred arrivals. A later
             // exit/Space notification must not place them back over the incoming window.
             guard !deferredMinimizationCoordinator.isPending(windowId: window.windowId),
-                  fullScreenTracker.displayId(
-                      forCgWindowId: CGWindowID(window.backing.cgWindowId), pid: window.backing.pid
-                  ) == nil,
+                  !isTrackedFullScreenWindow(window),
                   !FullScreenTracker.isWindowFullScreen(element: window.backing.element),
                   // Reuse recapture's live-window check to exclude stale parked tab identities.
                   WindowServerWindowList.frame(
