@@ -17,8 +17,20 @@ struct LauncherView: View {
         VStack(spacing: 12) {
             // Search field
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                // Sized to the magnifying glass, so swapping in the back chevron doesn't shift the text
+                Group {
+                    switch model.mode {
+                    case .appList:
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                    case .windowList:
+                        BackChevronButton {
+                            model.exitWindowMode()
+                            isSearchFocused = true
+                        }
+                    }
+                }
+                .frame(width: 16, height: 16)
                 TextField(searchPlaceholder, text: $model.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 18, weight: .medium))
@@ -126,5 +138,21 @@ struct LauncherView: View {
     private func handleExpandApp(_ url: URL) {
         model.selectedItemURL = url
         model.enterWindowMode()
+    }
+}
+
+/// Window-list mode's way back to the app list. Owns its hover state so the highlight resets
+/// when the button goes away.
+private struct BackChevronButton: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+        }
+        .buttonStyle(ChevronButtonStyle(isHovered: isHovered))
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("Back")
     }
 }

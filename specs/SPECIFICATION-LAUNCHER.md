@@ -67,6 +67,7 @@ The launcher window should be a floating panel that stays above all other window
 - **Shape:** Rounded rectangle with appropriate corner radius
 - **Edge:** A faint glass rim, brightest along the top
 - **Size:** Approximately 500-600px wide, height adjusts based on content (max ~400px with scrolling)
+- **Scroll bar:** A slim bar that floats over the rows and hides when idle, whatever the system's "Show scroll bars" setting, so the rows keep their full width
 - **No title bar** - borderless window style
 
 ### Layout
@@ -180,6 +181,7 @@ While the Launcher is open in app-list mode and Option is held, each application
 - **Escape during a drag:** Cancels any in-flight row drag.
 - **Window-list `Menu Bar` row:** Click-only; never draggable.
 - **Drill-down chevron:** Hover brightens icon; click shows press animation before drilling into window list. Dragging begins only from the row surface outside the chevron.
+- **Back chevron:** Replaces the search field's magnifying glass in window list mode. Same hover and press feedback as the drill-down chevron; click returns to the main app list.
 
 ### Shortcut Forwarding
 

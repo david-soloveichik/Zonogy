@@ -3,23 +3,6 @@
 import Foundation
 import SwiftUI
 
-/// Button style that scales down when pressed for visual feedback
-private struct ChevronPressStyle: ButtonStyle {
-    var isHovered: Bool
-
-    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
-        configuration.label
-            .foregroundStyle(isHovered ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-            .background {
-                Circle()
-                    .fill(Color.primary.opacity(isHovered ? 0.12 : 0))
-            }
-            .scaleEffect(configuration.isPressed ? 0.8 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: isHovered)
-            .animation(.easeInOut(duration: 0.08), value: configuration.isPressed)
-    }
-}
-
 struct LaunchItemListView: View {
     let items: [LaunchItem]
     @Binding var selectedItemURL: URL?
@@ -100,11 +83,8 @@ struct LaunchItemListView: View {
                                         onExpandApp?(item.url)
                                     } label: {
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .medium))
-                                            .frame(width: 24, height: 24)
-                                            .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(ChevronPressStyle(isHovered: chevronHoveredURL == item.url))
+                                    .buttonStyle(ChevronButtonStyle(isHovered: chevronHoveredURL == item.url))
                                 }
                                 .padding(.trailing, 6)
                                 .onHover { hovering in
@@ -124,9 +104,9 @@ struct LaunchItemListView: View {
                     }
                 }
                 .padding(8)
+                .background(OverlayScrollBars())
             }
-            .scrollIndicators(.hidden)
-            .background(ScrollViewScrollerStyler())
+            .scrollIndicators(.never)  // OverlayScrollBars supplies the scroll bar
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)

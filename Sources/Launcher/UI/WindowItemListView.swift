@@ -73,9 +73,9 @@ struct WindowItemListView: View {
                     }
                 }
                 .padding(8)
+                .background(OverlayScrollBars())
             }
-            .scrollIndicators(.hidden)
-            .background(ScrollViewScrollerStyler())
+            .scrollIndicators(.never)  // OverlayScrollBars supplies the scroll bar
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)
