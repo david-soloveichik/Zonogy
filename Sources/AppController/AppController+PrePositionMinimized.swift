@@ -87,15 +87,19 @@ extension AppController {
         let element = managed.backing.element
         let accessibilityFrame = screen.screenToAccessibility(effectiveScreenFrame)
 
+        // Size, position, then size again. An application can drop the height change written
+        // after moving a minimized window to another display, so the size goes first; the final
+        // write keeps position-then-size as the tail for moves where that order works.
         let apply = {
-            var position = accessibilityFrame.origin
-            if let positionValue = AXValueCreate(.cgPoint, &position) {
-                _ = AXCall.setAttribute(element, kAXPositionAttribute as CFString, positionValue)
-            }
             var size = accessibilityFrame.size
-            if let sizeValue = AXValueCreate(.cgSize, &size) {
-                _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
+            var position = accessibilityFrame.origin
+            guard let sizeValue = AXValueCreate(.cgSize, &size),
+                  let positionValue = AXValueCreate(.cgPoint, &position) else {
+                return
             }
+            _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
+            _ = AXCall.setAttribute(element, kAXPositionAttribute as CFString, positionValue)
+            _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
         }
 
         if suppressAXNotifications {

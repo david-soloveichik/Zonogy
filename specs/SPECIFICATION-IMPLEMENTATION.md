@@ -177,9 +177,13 @@ While a sheet (such as a save dialog) is open, the Accessibility API reports the
 
 Some applications report the subrole for their minimized windows as AXDialogSubrole even if it later becomes kAXStandardWindowSubrole upon un-minimization. So for enumeration of windows to manage, we don't check subrole for minimized windows.
 
-### Async unminimize after pre-positioning ("pre-move" feature)
+### Pre-move feature
 
-When unminimizing a window that needs to appear at a specific position (e.g., restoring a WinShot snapshot or selecting a minimized window from Launcher), we first set the window's position and size while the window is still minimized. However, if we unminimize synchronously right after setting position/size, the window sometimes visually appears at its old location before snapping to the correct position. To address this, we default to async mode for unminimization.
+The pre-move feature pre-positions a minimized window: it sets the window's position and size while the window is still minimized, so the unminimize animation reveals the window already at its destination. The size is written both before and after the position (an application can ignore a height change written only after a minimized window moves to another display).
+
+#### Zonogy-initiated unminimize
+
+When Zonogy unminimizes a window that needs to appear at a specific position (e.g., selecting a minimized window from Launcher in a zone, WinShot restore, etc.), it pre-positions the window and then unminimizes it async. (Async because unminimizing synchronously right after setting position/size results in the window sometimes visually appearing at its old location before snapping to the correct position.)
 
 ### Focusing a specific window of another application
 

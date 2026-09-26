@@ -76,7 +76,10 @@ extension WindowController {
             preserveWidth = false
         }
 
-        let resolvedCurrentFrame = currentScreenFrame ?? accessibilityFrameForWindow(element: managedWindow.backing.element, on: screen)
+        // Only a width-preserving application needs its current width, so only then ask for it.
+        let resolvedCurrentFrame = preserveWidth
+            ? currentScreenFrame ?? accessibilityFrameForWindow(element: managedWindow.backing.element, on: screen)
+            : nil
         return WidthPreservingFramePolicy.resolvedFrame(
             requestedFrame: requestedFrame,
             currentFrame: resolvedCurrentFrame,
