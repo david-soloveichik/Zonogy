@@ -482,12 +482,16 @@ final class FloatingZoneCoordinator {
         if let remembered = rememberedSize(for: managed.windowId) {
             width = remembered.width
             height = remembered.height
-        } else if managed.actualFrame.width > 0, managed.actualFrame.height > 0 {
-            width = managed.actualFrame.width
-            height = managed.actualFrame.height
         } else {
-            width = (bounds.width * 0.55).rounded()
-            height = (bounds.height * 0.55).rounded()
+            // Read once: each `actualFrame` access asks the application.
+            let currentFrame = managed.actualFrame
+            if currentFrame.width > 0, currentFrame.height > 0 {
+                width = currentFrame.width
+                height = currentFrame.height
+            } else {
+                width = (bounds.width * 0.55).rounded()
+                height = (bounds.height * 0.55).rounded()
+            }
         }
 
         width = min(max(width, minWidth), maxWidth)
