@@ -85,9 +85,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: Placing a window into zone 2/3 can visibly flicker (rest-position move(s) before reveal).
   - Think about: Avoid immediate duplicate geometry writes for a just-placed window before ActiveFit reveal applies.
 
-- Bug report: WinShot restore can leave the active window behind other restored windows.
-  - Think about: Async unminimize animations complete after the active window's AXRaise; re-raise the active window when each suppressed deminiaturize notification arrives.
-
 - Bug report: When a launching app processes its own queue of windows to unminimize, synchronously minimizing the displaced occupant appends it to the back of that queue, where the app re-unminimizes it — infinite minimize/unminimize loop.
   - Think about: A programmatic minimize issued during an app's own unminimize burst can be picked up and undone by the app's pending queue. Sequence or defer such minimizes so they don't feed the burst, and have a fallback that detects the loop and breaks it.
 
@@ -126,3 +123,6 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 
 - Bug report: A floating-zone occupant can end up booked against one display while physically sitting on another (e.g. Zoom re-materializing its window on a different display during a deferred-prune restore), leaving it invisible to WinShot, resize-bar avoidance, and zone promotion on the display it actually occupies.
   - Think about: Floating-zone occupancy is bookkeeping keyed by display, and several paths update the booking without physically placing the window. Any such path (deferred-prune restore, app-driven moves) must reconcile the booked display against the window's live frame.
+
+- Bug report: When Zonogy unminimizes or places a window of an application that isn't frontmost, the window can appear, briefly vanish behind the frontmost application's windows, and reappear (seen in WinShot restore and Launcher placement). WinShot restore can also leave its active window behind other restored windows.
+  - Think about: An unminimized window appears in front of every window, so after several windows are restored, the last one restored is in front: re-focus the intended front window after each restore. Raising a window or making it main while its application isn't frontmost puts it behind the frontmost application's windows, even if it was in front of them. So don't raise a background application's window that is in front of the frontmost application's windows (raising one that sits behind them is fine), and focus other applications' windows as described in "Focusing a specific window of another application" in SPECIFICATION-IMPLEMENTATION.md.

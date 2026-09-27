@@ -226,6 +226,8 @@ extension AppController {
                 "to switch screen \(screenIndex) back to its full-screen Space"
         )
         scheduleActivityRecordingSuppression(reason: reason)
+        // No window ID: the switch back to the full-screen Space is known to follow the plain
+        // make-main, raise, activate sequence, not the window-server activation.
         scheduleWindowRaise(
             pid: info.pid,
             element: info.element,

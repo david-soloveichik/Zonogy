@@ -102,7 +102,7 @@ final class OccupiedZoneTargetOverlay {
         view.wantsLayer = true
         if let layer = view.layer {
             layer.cornerRadius = windowCornerRadius
-            if #available(macOS 10.15, *) { layer.cornerCurve = .continuous }
+            layer.cornerCurve = .continuous
             layer.borderWidth = Self.restingWidth
             layer.borderColor = Self.restingColor.cgColor
             layer.backgroundColor = CGColor.clear

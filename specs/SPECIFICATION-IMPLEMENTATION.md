@@ -187,11 +187,17 @@ When Zonogy unminimizes a window that needs to appear at a specific position (e.
 
 ### Focusing a specific window of another application
 
-To focus a specific window, we set the window's `kAXMainAttribute`, perform `kAXRaiseAction`, and only then call `app.activate()`. (The order matters. Requesting activation first seems to restore whichever window the application last had frontmost, overriding the raise.)
+Making a window main or raising it while its application isn't frontmost puts the window behind the frontmost application's windows, even if it was originally in front of them. An unminimized window appears in front of every window, so raising it before its application is frontmost would hide it until the application activates. (As far as I am concerned this is a macOS bug.)
+
+Because of this, with public calls alone, focusing a window of an application that isn't frontmost flickers whichever order is used: (1) Making the window main and raising it before activating the application hides a window that is in front, such as one just unminimized, until the activation lands (up to about 30 ms in testing). (2) Activating first instead brings forward the window the application last had frontmost, which covers the target until the raise lands; right after an unminimize, the application still treats that other window as its main window. (The accessibility attributes for choosing the main or focused window without raising it have no effect.)
+
+So to focus a managed window whose application isn't frontmost, Zonogy has the window server activate the application with that window as its key window, in one step, as the Dock does: the private `_SLPSSetFrontProcessWithOptions`, plus two event records that make the window key. This doesn't reorder any window. Zonogy then performs `kAXRaiseAction`, which, with the application now frontmost, fronts the window if it is covered. (yabai focuses windows with the same sequence.)
+
+When the application is already frontmost, Zonogy uses the public API: it sets the window's `kAXMainAttribute`, performs `kAXRaiseAction`, and only then calls `app.activate()`. The public sequence is also the fallback if the private calls are unavailable. Returning a display to its full-screen Space (see **Returning to the full-screen Space**) always uses it, since that Space switch is known to follow it.
 
 ### Floating zone activation workaround
 
-When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate(ignoringOtherApps: true)` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before the make-main / raise / `app.activate()` sequence described above.
+When placing a window into the floating zone, the window may fail to receive focus and appear behind tiled windows. Since the floating zone floats above tiled zones, this is the only placement where another window can obscure the placed window. The workaround (in `activateFloatingZoneWindow`) is to call `NSApp.activate()` to activate Zonogy first, then yield to the run loop via `DispatchQueue.main.async` before focusing the window as described above.
 
 ### Edge-pill drags at display boundaries
 

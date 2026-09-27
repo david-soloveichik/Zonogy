@@ -361,7 +361,6 @@ extension AppController {
             .flatMap { windowController.window(withId: $0) }
             .map(isTrackedFullScreenWindow) ?? false
         let restoredActiveWindowId = activeWindowIsFullScreen ? nil : snapshot.activeWindowId
-        let suppressRaiseDuringUnminimize = restoredActiveWindowId != nil
 
         // Step 6: UNMINIMIZE PHASE - Pre-position and unminimize ALL windows (tiled + floating)
         // in parallel. Unminimizing first makes the UI feel faster since users see new windows
@@ -375,41 +374,34 @@ extension AppController {
             suppressNextEvents(for: allMinimizedWindowIds, events: [.deminiaturized], reason: "winshot-restore")
         }
 
-        // Set up pending re-raise: when each non-active window's deminiaturize notification
-        // arrives (suppressed), re-raise the active window so it stays in front.
+        // Set up pending re-focus: when each non-active window's deminiaturize notification
+        // arrives (suppressed), re-focus the active window so it stays in front.
         let nonActiveMinimizedIds = allMinimizedWindowIds.filter { $0 != restoredActiveWindowId }
-        if !nonActiveMinimizedIds.isEmpty,
-           let activeId = restoredActiveWindowId,
-           let activeWindow = windowController.window(withId: activeId) {
+        if !nonActiveMinimizedIds.isEmpty, let activeId = restoredActiveWindowId {
             pendingRestoreRaise = PendingRestoreRaise(
-                element: activeWindow.backing.element,
-                pid: activeWindow.backing.pid,
+                activeWindowId: activeId,
                 pendingWindowIds: Set(nonActiveMinimizedIds)
             )
         }
 
         for workItem in zoneWorkItems where workItem.wasMinimized {
-            let shouldRaise = !suppressRaiseDuringUnminimize || workItem.managed.windowId == restoredActiveWindowId
             unminimizeWithPrePositioning(
                 workItem.managed,
                 targetFrame: workItem.targetFrame,
                 on: workItem.descriptor,
                 reason: "winshot-restore",
-                suppressAXNotifications: true,
-                raise: shouldRaise
+                suppressAXNotifications: true
             )
         }
 
         // Unminimize floating zone window in parallel with tiled windows
         if let floatingItem = floatingWorkItem, floatingItem.wasMinimized {
-            let shouldRaise = !suppressRaiseDuringUnminimize || floatingItem.managed.windowId == restoredActiveWindowId
             unminimizeWithPrePositioning(
                 floatingItem.managed,
                 targetFrame: floatingItem.targetFrame,
                 on: floatingItem.descriptor,
                 reason: "winshot-restore",
-                suppressAXNotifications: true,
-                raise: shouldRaise
+                suppressAXNotifications: true
             )
         }
 

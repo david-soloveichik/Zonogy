@@ -445,7 +445,11 @@ final class FloatingZoneCoordinator {
 
             if let descriptor = host.descriptor(for: originScreenId) {
                 let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
-                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor, raise: raiseDisplaced)
+                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor, raise: false)
+                if raiseDisplaced {
+                    // No activation follows, and the window may sit below this display's tiles.
+                    host.windowController.raiseWithoutActivating(displacedWindow)
+                }
             }
 
             Logger.debug(

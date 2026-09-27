@@ -479,12 +479,13 @@ extension AppController {
         if isEventSuppressed(windowId: windowId, event: .deminiaturized) {
             Logger.debug("Deminiaturize notification suppressed for window \(windowId)")
             pendingExplicitUnminimizeFocusWindowIds.remove(windowId)
-            // Re-raise the active window after each unminimize animation to keep it in front.
-            // Activate the app too in case the unminimize stole app activation.
+            // Each unminimize lands its window in front, so re-focus the restore's active window
+            // after each one to keep it on top.
             if var pending = pendingRestoreRaise, pending.pendingWindowIds.remove(windowId) != nil {
-                NSRunningApplication(processIdentifier: pending.pid)?.activate()
-                _ = AXCall.performAction(pending.element, kAXRaiseAction as CFString)
-                Logger.debug("Re-raised restore active window after unminimize of window \(windowId)")
+                if let active = windowController.window(withId: pending.activeWindowId) {
+                    raiseWindow(active)
+                    Logger.debug("Re-focused restore active window \(pending.activeWindowId) after unminimize of window \(windowId)")
+                }
                 pendingRestoreRaise = pending.pendingWindowIds.isEmpty ? nil : pending
             }
             return
@@ -1448,7 +1449,7 @@ extension AppController {
     internal func raiseWindow(_ managed: ManagedWindow) {
         let element = managed.backing.element
         let pid = managed.backing.pid
-        scheduleWindowRaise(pid: pid, element: element, reason: "raise-window")
+        scheduleWindowRaise(pid: pid, element: element, cgWindowId: managed.backing.cgWindowId, reason: "raise-window")
     }
 }
 

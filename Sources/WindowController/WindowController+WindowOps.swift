@@ -38,7 +38,10 @@ extension WindowController {
 
     /// Show a window at the specified frame (frame is in screen-local coordinates). Pass
     /// `raise: false` to position without raising (e.g. a zone-navigation swap partner that must
-    /// stay behind the moved, focused window).
+    /// stay behind the moved, focused window). The raise happens only while the window's app is
+    /// frontmost, since otherwise it would push a just-unminimized window behind the frontmost
+    /// app's windows (see "Focusing a specific window of another application" in
+    /// SPECIFICATION-IMPLEMENTATION.md); callers that want the window forward then activate it.
     func showWindow(_ managedWindow: ManagedWindow, at frame: CGRect, on screen: ScreenDescriptor, raise: Bool = true) {
         let effectiveTargetScreenFrame = resolvedTargetScreenFrame(
             for: managedWindow,
@@ -60,11 +63,19 @@ extension WindowController {
                 screen: screen
             )
         }
-        if raise {
+        let raised = raise && NSWorkspace.shared.frontmostApplication?.processIdentifier == managedWindow.backing.pid
+        if raised {
             _ = AXCall.performAction(element, kAXRaiseAction as CFString)
         }
         let screenIndex = ScreenContextStore.screenIndex(for: screen.displayId) ?? Int(screen.displayId)
-        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame) (raise: \(raise))")
+        Logger.debug("Showed window \(managedWindow.windowId) on screen \(screenIndex) at frame \(effectiveTargetScreenFrame) (raised: \(raised))")
+    }
+
+    /// Raises a window without activating its app. Unless the app is frontmost, this puts the
+    /// window just behind the frontmost app's windows: it lifts a window sitting lower (e.g. a
+    /// floating occupant moved to another display) but pushes back one already in front of them.
+    func raiseWithoutActivating(_ managedWindow: ManagedWindow) {
+        _ = AXCall.performAction(managedWindow.backing.element, kAXRaiseAction as CFString)
     }
 
     /// Minimize a window
@@ -77,11 +88,12 @@ extension WindowController {
         }
     }
 
-    /// Unminimize a window
+    /// Unminimize a window. No raise follows: macOS restores it above every window, and a raise
+    /// could only push it back (see `showWindow`).
     /// - Parameters:
     ///   - managedWindow: The window to unminimize
     ///   - synchronous: If false (default), adds a small delay to let any pre-positioning settle before the unminimize animation
-    func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false, raise: Bool = true) {
+    func unminimizeWindow(_ managedWindow: ManagedWindow, synchronous: Bool = false) {
         let element = managedWindow.backing.element
         let windowId = managedWindow.windowId
         let perform = {
@@ -90,9 +102,6 @@ extension WindowController {
                 Logger.error("WARNING: Unminimize AX call failed for window \(windowId) (error \(error.rawValue))")
             } else {
                 Logger.debug("Unminimized window \(windowId)")
-            }
-            if raise {
-                _ = AXCall.performAction(element, kAXRaiseAction as CFString)
             }
         }
 

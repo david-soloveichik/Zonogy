@@ -74,9 +74,7 @@ final class ZoneIndicatorManager {
             self.isTargeted = targeted
             super.init(frame: frameRect)
             wantsLayer = true
-            if #available(macOS 10.15, *) {
-                layer?.cornerCurve = .continuous
-            }
+            layer?.cornerCurve = .continuous
             applyStyle()
         }
 

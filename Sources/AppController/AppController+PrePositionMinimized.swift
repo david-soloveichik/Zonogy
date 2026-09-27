@@ -36,7 +36,6 @@ extension AppController {
     ///   - suppressAXNotifications: When true, the pre-position AX writes run inside
     ///     `performProgrammaticUpdate` so the resulting moved/resized notifications are
     ///     not misclassified as user drags/resizes. Required by WinShot restore.
-    ///   - raise: Forwarded to `WindowController.unminimizeWindow`.
     ///   - focusAfterPlacement: When true, the deminiaturize handling will focus the
     ///     window that becomes visible after placement or native-tab adoption settles.
     internal func unminimizeWithPrePositioning(
@@ -45,7 +44,6 @@ extension AppController {
         on screen: ScreenDescriptor? = nil,
         reason: String,
         suppressAXNotifications: Bool = false,
-        raise: Bool = true,
         focusAfterPlacement: Bool = false
     ) {
         if let targetFrame, let screen {
@@ -62,8 +60,7 @@ extension AppController {
         }
         windowController.unminimizeWindow(
             managed,
-            synchronous: isDisablePrePositionBeforeUnminimizeInSettings,
-            raise: raise
+            synchronous: isDisablePrePositionBeforeUnminimizeInSettings
         )
     }
 

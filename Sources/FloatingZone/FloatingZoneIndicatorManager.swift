@@ -107,9 +107,7 @@ final class FloatingZoneIndicatorManager {
             wantsLayer = true
             layer?.addSublayer(pillLayer)
             ForceClickSuppression.apply(to: self)
-            if #available(macOS 10.15, *) {
-                pillLayer.cornerCurve = .continuous
-            }
+            pillLayer.cornerCurve = .continuous
             registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
             applyStyle()
         }

@@ -227,6 +227,7 @@ extension AppController {
         scheduleWindowRaise(
             pid: pid,
             element: element,
+            cgWindowId: managed.backing.cgWindowId,
             logPrefix: logPrefix,
             reason: reason,
             afterRaise: { [weak self] in

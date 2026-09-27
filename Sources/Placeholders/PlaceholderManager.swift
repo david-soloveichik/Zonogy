@@ -284,9 +284,7 @@ final class PlaceholderManager {
         layer.borderWidth = 1.5
         layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
         layer.shadowOpacity = 0
-        if #available(macOS 10.15, *) {
-            layer.cornerCurve = .continuous
-        }
+        layer.cornerCurve = .continuous
     }
 
     private func applyCloseButtonGlassStyle(_ button: PlaceholderGlassButton, buttonSize: CGFloat) {
