@@ -639,13 +639,15 @@ extension AppController {
             // hand the display's WinShot snapshots to its neighbor, while the zone state is intact.
             handleWinShotSnapshotsForRemovedScreen(entry.context, framesBeforeRemoval: framesBeforeRemoval)
 
-            // Minimize every non-placeholder managed window that was on the removed display,
+            // Minimize every managed window that was on the removed display,
             // instead of reassigning it to another screen. We rely on the pre-snapshot
             // windowsOnDisplay so this is robust even if earlier syncs cleared
-            // screenDisplayId for those windows.
+            // screenDisplayId for those windows. The display's tiling zones left with its
+            // context, but its floating-zone booking did not; releasing it here keeps the
+            // system's relocation of the minimizing window from re-booking it on another display.
             for managed in windowsOnDisplay {
                 Logger.debug("Minimizing window \(managed.windowId) from removed \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] due to display-removal policy")
-                clearManagedWindowZone(managed)
+                removeWindowFromAllZones(windowId: managed.windowId, reason: "display-removal", retarget: false, logIfUnassigned: false)
                 minimizeWindowProgrammatically(managed, reason: "display-removal")
             }
         }
