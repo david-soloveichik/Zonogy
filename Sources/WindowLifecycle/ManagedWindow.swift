@@ -20,7 +20,7 @@ struct ManagedWindowBacking {
 }
 
 /// Represents an external window (from another application) managed by the window manager.
-/// Placeholder windows are not tracked here - they are managed separately by PlaceholderCoordinator.
+/// Placeholder windows are not tracked here - they are owned by PlaceholderCoordinator.
 class ManagedWindow {
     /// Unique identifier for this window within the manager.
     let windowId: Int

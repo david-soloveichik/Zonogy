@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 
 /// Represents a visual placeholder window for an empty tiling zone.
-/// Unlike ManagedWindow, placeholders have no windowId and are managed internally by Zonogy.
+/// Unlike ManagedWindow, placeholders are Zonogy's own windows: they have no windowId and are owned by PlaceholderCoordinator.
 final class PlaceholderWindow {
     /// The underlying AppKit panel (non-activating, frameless).
     private let panel: PlaceholderPanel

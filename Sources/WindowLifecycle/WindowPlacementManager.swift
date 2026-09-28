@@ -492,7 +492,7 @@ class WindowPlacementManager {
 
         delegate.willPlaceWindowIntoZone(on: screenId, zoneIndex: zone.index)
 
-        // Placeholder windows are now managed separately by PlaceholderCoordinator
+        // Placeholder windows are owned by PlaceholderCoordinator
         // and are not in the WindowController's allWindows list
 
         guard let controller = delegate.zoneController(for: screenId) else {

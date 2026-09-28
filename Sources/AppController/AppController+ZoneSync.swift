@@ -354,7 +354,7 @@ extension AppController {
             )
         }
 
-        // Placeholder windows are now managed separately by PlaceholderCoordinator
+        // Placeholder windows are owned by PlaceholderCoordinator
         let placeholderCount = placeholderCoordinator.activePlaceholderCount
 
         // Calculate zone occupancy for logging/diagnostics.

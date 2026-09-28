@@ -174,7 +174,7 @@ extension AppController {
             return .noAction
         }
 
-        // First priority: minimize a managed (non-placeholder) window under the cursor.
+        // First priority: minimize a managed window under the cursor.
         if let (managed, pid) = managedWindowAtAccessibilityPoint(cursorPoint) {
             // Get window title for logging (best-effort).
             var windowTitle = "untitled"
@@ -215,12 +215,12 @@ extension AppController {
         return .noAction
     }
 
-    /// Find the topmost tiled managed (non-placeholder) window at the given accessibility point.
+    /// Find the topmost tiled managed window at the given accessibility point.
     internal func tiledManagedWindowAtAccessibilityPoint(_ point: CGPoint) -> (ManagedWindow, pid_t)? {
         resolveManagedWindowAtAccessibilityPoint(point, includeFloating: false)
     }
 
-    /// Find the topmost managed (non-placeholder) window at the given accessibility point.
+    /// Find the topmost managed window at the given accessibility point.
     internal func managedWindowAtAccessibilityPoint(_ point: CGPoint) -> (ManagedWindow, pid_t)? {
         resolveManagedWindowAtAccessibilityPoint(point, includeFloating: true)
     }

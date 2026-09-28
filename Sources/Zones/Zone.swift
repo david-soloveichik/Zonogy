@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 
 /// Represents a zone in the window manager.
-/// A zone can have an external window occupant; placeholders are managed by PlaceholderCoordinator.
+/// A zone can have an external window occupant; placeholders are owned by PlaceholderCoordinator.
 /// - When empty: `occupantWindowId == nil`
 /// - When occupied: `occupantWindowId != nil`
 class Zone {

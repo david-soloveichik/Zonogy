@@ -3,7 +3,7 @@ import AppKit
 
 /// Manages the zones and their assignments.
 /// Zones can contain external window occupants (tracked by windowId).
-/// Placeholder windows are managed separately by PlaceholderCoordinator.
+/// Placeholder windows are owned by PlaceholderCoordinator.
 ///
 /// Each zone carries the screen side it tiles on. Single-bar layout styles force sides by zone
 /// index; the dual-bar style carries sides as state (which bar added each zone), repaired to

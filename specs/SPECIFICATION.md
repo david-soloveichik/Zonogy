@@ -334,7 +334,7 @@ Pressing Cmd-M minimizes the currently active/key window. This overrides any app
 
 Pressing Control-Cmd-M performs a cursor-targeted action:
 
-- If there is a managed (non-placeholder) window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
+- If there is a managed window under the mouse pointer, minimize that window using the same behavior as the Cmd-M override (including zone removal, placeholder creation, and exiting ActiveFit reveal mode if applicable).
 - Otherwise, if the mouse pointer is over an empty zone's placeholder, remove that zone.
 
 **Hold to minimize and remove the zone:** When either shortcut minimizes a tiled window, holding it for 0.5 seconds also removes that window's zone.
@@ -393,7 +393,7 @@ When UnderCovers is active, the first add-zone action on that display just exits
 
 **Display detection:** Matches Amethyst: calculate each window's frame overlap with every display via `CGRectIntersection` and choose the display with the largest intersection area (fall back to the origin-containing display if no overlap).
 
-**Display removal:** When a display is disconnected or otherwise disappears from `NSScreen.screens`, minimize every non-placeholder managed window that was on that display (instead of reassigning it to another display). Close any placeholders tied to the removed display. The display's WinShot snapshots move to the neighboring display until it returns (see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
+**Display removal:** When a display is disconnected or otherwise disappears from `NSScreen.screens`, minimize every managed window that was on that display (instead of reassigning it to another display). Close any placeholders tied to the removed display. The display's WinShot snapshots move to the neighboring display until it returns (see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
 
 **Recapture after display/wake events:** After display topology changes or wake-from-sleep (see `SPECIFICATION-WAKE.md`), Zonogy runs a recapture pass. This pass captures any previously unseen windows. It also places tracked windows that are unminimized and not currently in any zone (tiled or floating), but only if that same recapture pass revalidated the window as live; stale tracked records are not placed. The pass also handles floating-zone occupants whose live position no longer sits on the display their floating slot is booked against (which can happen when a display reattaches and the system relocates the window): such an occupant is minimized.
 
