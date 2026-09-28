@@ -176,6 +176,14 @@ extension AppController {
         return true
     }
 
+    /// Whether the next `event` for the window is still set to be suppressed, without consuming it.
+    internal func hasPendingSuppression(windowId: Int, event: AppController.SuppressedEvent) -> Bool {
+        guard let entry = eventSuppressions[windowId]?[event] else {
+            return false
+        }
+        return entry.remaining > 0 && entry.deadline >= Date()
+    }
+
     // MARK: - Programmatic actions
 
     internal func minimizeWindowProgrammatically(

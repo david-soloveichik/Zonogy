@@ -37,7 +37,8 @@ extension AppController {
     /// 1. Coalesce concurrent sync requests so at most one sync runs at a time.
     /// 2. Prune any external windows that the OS reports as destroyed and
     ///    remove them from any zones that still reference them.
-    /// 3. Reconcile zone occupancy so no zone references a missing managed window.
+    /// 3. Reconcile zone occupancy so no zone (tiled or floating) references a
+    ///    missing or minimized managed window.
     /// 4. For every screen/zone, position the real window (if any) into its
     ///    zone frame (respecting margins and ActiveFit reveal mode), except
     ///    windows marked by placement bookkeeping for a one-pass geometry
@@ -45,8 +46,8 @@ extension AppController {
     /// 5. Ask `PlaceholderCoordinator` to align placeholder windows with all
     ///    empty zones (except those that are suppressed or excluded), reusing
     ///    or creating placeholder windows as needed and hiding obsolete ones.
-    /// 6. Clear stale zone assignments for any non‑placeholder window that was
-    ///    not assigned this pass and is not in the floating zone.
+    /// 6. Clear stale zone assignments for any managed window that was not
+    ///    assigned this pass and is not in the floating zone.
     /// 7. Promote floating-zone occupants into newly emptied tiling zones
     ///    when policy conditions are met.
     /// 8. Refresh targeted zone state, floating-zone targeting, and visual
@@ -179,7 +180,8 @@ extension AppController {
 
         // Phase 2: clear stale zone occupancy. Even if a destroyed window was
         // pruned earlier, recapture/sync interleavings can leave a zone with a
-        // dead occupant ID. Reconcile occupancy against the live registry.
+        // dead occupant ID. Reconcile occupancy against the live registry, then
+        // vacate zones whose occupant is minimized.
         if !isLiveResizeSync {
             let liveWindowIds = Set(windowController.allWindows.map { $0.windowId })
             var zoneSnapshots: [ZoneOccupancyReconciler.ZoneOccupantSnapshot] = []
@@ -220,9 +222,11 @@ extension AppController {
                 targetedZoneManager.setTargetedZone(firstClearedZoneKey, reason: "sync-cleared-stale-occupant")
                 autoShowLauncherIfEmptyTargetedTiledZone()
             }
+
+            vacateZonesOfMinimizedOccupants()
         }
 
-        // Tracks all non‑placeholder windows that end up with a valid zone
+        // Tracks all managed windows that end up with a valid zone
         // assignment in this pass. Anything not in this set (and not in the
         // floating zone) will be detached from the tiling model at the end.
         var assignedWindowIds = Set<Int>()
@@ -463,6 +467,58 @@ extension AppController {
 
         // Occupancy is now settled for this pass: feed it to the WinShot auto-save settle timer.
         evaluateWinShotOccupancyAutoSave()
+    }
+
+    /// Vacates every zone, tiled or floating, whose occupant is minimized. The window's minimize
+    /// notification normally takes it out of its zone, but Zonogy ignores that notification for
+    /// its own minimizes (whose flows do the cleanup themselves) and drops it during sleep/wake
+    /// protection, so a missed cleanup would otherwise leave the zone looking occupied. Unlike the
+    /// notification, this does not retarget: the stale zone may belong to a window already on its
+    /// way elsewhere, such as one the Launcher is unminimizing into the targeted zone. Only
+    /// occupants that WindowServer lists as off screen for no reason Zonogy knows of get an AX
+    /// read, so a pass normally makes no AX calls here.
+    private func vacateZonesOfMinimizedOccupants() {
+        // AX is unreliable while protection is active; the syncs after wake catch up.
+        guard !sleepWakeProtectionActive else { return }
+
+        var candidates: [(window: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)] = []
+        // A display showing a full-screen Space takes its zone windows off screen.
+        for screenId in screenOrder where !isScreenPausedForFullScreen(screenId) {
+            guard let context = screenContexts[screenId] else {
+                continue
+            }
+            var occupants: [(windowId: Int, zoneIndex: Int?)] = context.zoneController.allZones.compactMap { zone in
+                zone.occupantWindowId.map { ($0, zone.index) }
+            }
+            if let floatingOccupantId = floatingZoneCoordinator.occupants[screenId] {
+                occupants.append((floatingOccupantId, nil))
+            }
+            for occupant in occupants {
+                // A window Zonogy unminimizes itself (WinShot restore, floating-drag revert) is
+                // booked before it reappears, with its unminimize notification suppressed.
+                guard !hasPendingSuppression(windowId: occupant.windowId, event: .deminiaturized),
+                      let window = windowController.window(withId: occupant.windowId) else {
+                    continue
+                }
+                candidates.append((window, screenId, occupant.zoneIndex))
+            }
+        }
+        guard !candidates.isEmpty,
+              let onScreenWindowNumbers = WindowServerWindowList.onScreenWindowNumbersFrontToBack().map(Set.init) else {
+            return
+        }
+
+        for (window, screenId, zoneIndex) in candidates
+        where !onScreenWindowNumbers.contains(window.backing.cgWindowId) && window.isMinimizedPerAccessibility {
+            let bundleId = NSRunningApplication(processIdentifier: window.backing.pid)?.bundleIdentifier ?? "unknown"
+            Logger.error(
+                "Sync found window \(window.windowId) (\(bundleId), pid \(window.backing.pid), CGWindowID \(window.backing.cgWindowId)) " +
+                "minimized in \(zoneIndex.map { "zone \($0)" } ?? "the floating zone") on screen \(screenContextStore.loggingIndex(for: screenId)) " +
+                "with its minimize unhandled; vacating the zone"
+            )
+            clearOnScreenTracking(ofMinimizedWindow: window.windowId)
+            removeWindowFromAllZones(windowId: window.windowId, reason: "sync-minimized-occupant", retarget: false)
+        }
     }
 
     func requestSync() {

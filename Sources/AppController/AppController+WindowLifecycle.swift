@@ -435,11 +435,7 @@ extension AppController {
             return
         }
         Logger.debug("Window \(windowId) did miniaturize")
-        if currentFrontmostManagedWindowId == windowId {
-            setCurrentFrontmostManagedWindowId(nil, reason: "window-miniaturize:\(windowId)")
-        }
-        manualResizeDetachedWindowIds.remove(windowId)
-        selfResizeSnapDebouncer.clear(windowId: windowId)
+        clearOnScreenTracking(ofMinimizedWindow: windowId)
         // This notification fires once the minimize animation completes and the window has
         // left the on-screen window list; a pass-through refresh that ran during the
         // animation punched a hole over the window that is now stale. Must precede the
@@ -467,6 +463,17 @@ extension AppController {
 
         clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "miniaturize")
         activeFitClearSuppressionForWindow(windowId)
+    }
+
+    /// Forgets what Zonogy tracks only for a window on screen: its frontmost-window record, a
+    /// pending snap back to its zone after a manual resize, and its self-resize debounce. Runs
+    /// for every minimize, including Zonogy's own and those a sync pass finds went unhandled.
+    internal func clearOnScreenTracking(ofMinimizedWindow windowId: Int) {
+        if currentFrontmostManagedWindowId == windowId {
+            setCurrentFrontmostManagedWindowId(nil, reason: "window-miniaturize:\(windowId)")
+        }
+        manualResizeDetachedWindowIds.remove(windowId)
+        selfResizeSnapDebouncer.clear(windowId: windowId)
     }
 
     func windowDidDeminiaturize(windowId: Int) {

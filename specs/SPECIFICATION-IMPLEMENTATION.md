@@ -1,5 +1,22 @@
 # Implementation Details
 
+## Zone Sync
+
+Conceptually, a sync resets every managed window, on every display, to its zone. A sync moves windows into their zone frames, shows placeholders in empty zones, and refreshes everything else that depends on the layout. Note that Zonogy doesn't poll, and receiving notifications about a window is mostly enough to manage it, but a sync also acts as a backup mechanism to fix any mismatch between what's on screen and our internal state.
+
+**When it runs.** Full syncs follow window placement, minimizing, hiding, and closing; adding, removing, resizing, and clearing zones; dragging, dropping, and moving windows between zones; WinShot restores; display changes and wake, and the recapture passes after them; full-screen pause starting or ending; layout preference changes; and startup.
+
+**Lighter pass.** While a zone resize bar is dragged, the drag's updates use a lighter pass limited to that display, which moves its windows and placeholders to the in-progress geometry, updates its indicators, and skips the other steps (see **Resizing Zones** in [SPECIFICATION.md](SPECIFICATION.md)).
+
+**What a full pass does,** across all displays, in order:
+
+1. **Prunes destroyed windows** (see [Destroyed Window Detection](#destroyed-window-detection)).
+2. **Reconciles occupancy.** Empties tiling zones whose recorded window is no longer tracked. Empties any tiled or floating zone whose window is minimized (without retargeting). Note: this is also a safety net for minimize notifications that Zonogy suppressed (see **Notification suppression** in [Additional Notes](#additional-notes)) or dropped during sleep/wake protection.
+3. **Moves each tiling zone's window into its zone frame.** A window in ActiveFit reveal mode, or one the user resized manually, keeps its frame, and the active window may get its remembered Sticky Resize size. Floating-zone windows are not touched (see **Tiling Layout and Spacing**, **ActiveFit**, and **Resizing Managed Windows** in SPECIFICATION.md).
+4. **Shows a placeholder in each empty tiling zone and closes those of occupied zones,** except on a display in full-screen pause or UnderCovers mode (see **Placeholders**, **Full-screen pause**, and **UnderCovers Mode** in SPECIFICATION.md).
+5. **Promotes each display's floating-zone window** into an overlapping tiling zone on the same display that emptied since the previous pass (see **Promotion to tiling zone** in SPECIFICATION.md).
+6. **Refreshes what depends on the layout:** ensures a destination is targeted (repairing the target if its zone or display is gone or in full-screen pause); redraws target highlights, indicators, and zone resize bars; recomputes where placeholders let clicks through; updates an open Launcher or CmdTab; and reports occupancy to WinShot auto-save (see **Targeting** and **Placeholders** in SPECIFICATION.md, and **Auto-save on zone occupancy change** in [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
+
 ## Destroyed Window Detection
 
 Beyond the self-evident path of app termination (which removes all windows for that PID immediately), Zonogy uses several mechanisms to detect individual window destruction.
@@ -10,7 +27,7 @@ On the other hand, some applications leave a closed window registered with Windo
 
 - **Per-PID validation with retry (`ValidationRetryManager`):** After window focus changes within an app, app switches (validates the previous app), app deactivation/hide, and placed native-tab candidates that full sync does not find in WindowServer, runs a PID-scoped check. If no destroyed windows are found but the PID still has managed windows (i.e., AX may be temporarily stale), retries with exponential backoff (≈0.2–3.2 s). This tries to catch window closed as soon as possible so that its zone is emptied and UI updates.
 
-- **Zone sync pruning:** A full `syncWindowsToZones()` pass (normal layout reconciliation pass, not the live-resize path) checks all managed windows for destruction. Full syncs run frequently — after zone add/remove, window placement, miniaturize/deminiaturize, drag-drop, display-topology changes, WinShot/Launcher operations, and other layout-affecting events.
+- **Zone sync pruning:** Every full zone sync (not the live-resize pass) checks all managed windows for destruction. Full syncs run after any layout-affecting event (see [Zone Sync](#zone-sync)).
 
 - **Native-tab close-rebind:** When validation confirms that a placed window no longer exists in WindowServer, Zonogy first attempts the native-tab close-rebind (see `SPECIFICATION.md`), keeping the window in its zone if a surviving sibling matches and pruning it only otherwise. The all-window `syncWindowsToZones()` sweep does not pick a sibling from the global `CGWindowListCopyWindowInfo` snapshot, because that snapshot can be transiently incomplete during wake or display changes. Instead, if full sync does not find a placed native-tab candidate in WindowServer, it leaves the window in place and asks for PID-scoped validation, which then runs the normal close-rebind/deferred-prune path.
 
@@ -81,9 +98,10 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 - `Logger.error(_:)` and `Logger.keep(_:category:)` mark the lines macOS persists for days: unexpected failures at error level, and countable events at notice level under an explicit category of their own (such as `SlowAX`). The `log` tool labels notice level `Default` (`Df` in compact output); the Debug tab and SPECIFICATION.md use the tool's names, since those are what a reader of the log sees.
 - Per-event chatter that repeats within one episode is coalesced into a first occurrence plus a count: events ignored during sleep/wake protection, and already-tracked windows within one capture pass.
 - Debug toggles live in Preferences → Debug, default off, and apply immediately; time-travel capture remains shortcut-driven and independent of those toggles.
+- **Notification suppression:** When Zonogy minimizes windows on its own initiative (e.g., bulk clear/reset, displacement, startup pruning, display removal), it suppresses the next `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s) to avoid feedback. Because the notification is suppressed, Zonogy must take each of these windows out of its zone itself (a zone sync catches any it misses; see step 2 in [Zone Sync](#zone-sync)). Note: minimize shortcuts (Cmd-M, Control-Cmd-M, etc) don't suppress it, so their windows leave their zones through the normal notification handling. When restoring WinShot snapshots, Zonogy also suppresses the next `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot.
+
 **Log monitoring tip:** To watch the live log output, run:
 `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"' | grep --line-buffered "keyword"`.
-- **Notification suppression:** When Zonogy programmatically minimizes specific windows (e.g., bulk clear/reset, displacement, startup pruning), it suppresses only the *next* `AXWindowMiniaturized` notification for those window IDs (one-shot) with a safety timeout (~3s). When restoring WinShot snapshots, it also suppresses only the *next* `AXWindowDeminiaturized` notification for the restored external windows that are being unminimized and pre-positioned as part of the snapshot. Other windows remain unaffected and user-triggered actions still get through.
 (`grep --line-buffered` streams matching lines without delay.)
 
 ## Slow AX Call Logging
@@ -101,7 +119,7 @@ Each synchronous AX API call is an inter-process request: the target application
 
 ### Liveness-check cache for prune
 
-The destroyed-window prune pass runs on every full sync. For each tracked window it first checks `CGWindowListCopyWindowInfo` (cheap, no per-app AX IPC). If WindowServer still lists a placed window and Zonogy has not recently confirmed that its AX element works, Zonogy checks the AX element currently associated with the window by requesting its role and position. If those queries fail, Zonogy applies the AX window-validation logic described under [AX destroy notifications for WindowServer-listed windows](#ax-destroy-notifications-for-windowserver-listed-windows) below.
+The destroyed-window prune pass runs on every full sync (see [Zone Sync](#zone-sync)). For each tracked window it first checks `CGWindowListCopyWindowInfo` (cheap, no per-app AX IPC). If WindowServer still lists a placed window and Zonogy has not recently confirmed that its AX element works, Zonogy checks the AX element currently associated with the window by requesting its role and position. If those queries fail, Zonogy applies the AX window-validation logic described under [AX destroy notifications for WindowServer-listed windows](#ax-destroy-notifications-for-windowserver-listed-windows) below.
 
 The safety-net is throttled by a per-window timestamp cache with a 5-second time-to-live. The cache is also refreshed at notification dispatch time: any incoming AX move, resize, miniaturize, deminiaturize, focus-change, or main-window-change notification for a tracked window is itself proof the element is alive, so the corresponding cache entry is refreshed without an additional read.
 
