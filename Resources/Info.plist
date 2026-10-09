@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Zonogy needs Automation permission to open web links in a new window of your browser.</string>
+	<key>NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac</key>
+	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
