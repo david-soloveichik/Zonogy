@@ -84,6 +84,7 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 - **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
 - **Keyboard Zone Navigation** — the geometric arrangement of zones makes navigation of zones and windows unambiguous via keyboard.
+- **Instant minimize (experimental)** — disable minimize and restore animations across all apps in Preferences > Experimental. Requires Apple Silicon, macOS 27, and partially disabled SIP.
 
 ## Mouse Controls
 

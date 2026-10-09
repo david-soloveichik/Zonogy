@@ -129,6 +129,18 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 ---
 
+## Instant Minimize (Experimental)
+
+| Timer | Duration | Mechanism | File | Purpose |
+|-------|----------|-----------|------|---------|
+| **Dock readiness** | 0.5s, at most 8 retries | Cancelable `asyncAfter` | `InstantMinimizeController.swift` | Waits briefly for Dock at startup or after it exits. Stops on disable, quit, or failure; no standing poll. |
+| **Injection deadline** | 20s normally; 120s with administrator approval | Cancelable `asyncAfter` | `InstantMinimizeProcess.swift` | Bounds a helper operation, including the time allowed for approval. A timeout cancels the attempt and restarts its target Dock because remote work may still be in progress. |
+| **Native injection verification** | 20ms, up to 10s | Bounded `usleep` loop | `Native/InstantMinimize/loader.m` | Waits for the remote worker's verified result, rather than treating thread creation as success. |
+| **Debugger expression deadline** | 10s per expression, 1s per-thread timeout | LLDB expression options | `Native/InstantMinimize/lldb_inject.py` | Bounds payload loading and verification when the native loader's boot argument is absent. |
+| **Immediate Dock exit guard** | 5s after activation | Elapsed-time check on process exit | `InstantMinimizeController.swift` | An exit during injection or within five seconds of activation stops further attempts, preventing repeated patch-induced crashes. Resuming a surviving patch after a Zonogy crash preserves the original activation time. |
+
+---
+
 ## Preferences UI
 
 | Timer | Duration | Mechanism | File | Purpose |

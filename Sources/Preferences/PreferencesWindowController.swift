@@ -84,6 +84,13 @@ final class PreferencesWindowController: NSWindowController {
         winShotItem.image = NSImage(systemSymbolName: "camera", accessibilityDescription: "Snapshots")
         tabVC.addTabViewItem(winShotItem)
 
+        // Experimental tab
+        let experimentalVC = ExperimentalPreferencesViewController()
+        let experimentalItem = NSTabViewItem(viewController: experimentalVC)
+        experimentalItem.label = "Experimental"
+        experimentalItem.image = NSImage(systemSymbolName: "flask", accessibilityDescription: "Experimental")
+        tabVC.addTabViewItem(experimentalItem)
+
         // Debug tab
         let debugVC = DebugPreferencesViewController()
         let debugItem = NSTabViewItem(viewController: debugVC)

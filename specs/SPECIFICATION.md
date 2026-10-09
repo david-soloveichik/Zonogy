@@ -438,6 +438,14 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 - **Skipping:** "Skip This Version" suppresses the automatic alert and the menu hint for that version only; a later release triggers normally. A manual check still reports a skipped version.
 - **Version comparison:** The release tag (with any leading "v" removed) is compared to the installed version numerically per dot-separated component, so 1.10 is newer than 1.9. Missing components count as zero. A version may carry a pre-release suffix after a hyphen (such as `1.0-beta.1`); such a version orders before the same version without the suffix (so `1.0-beta.2` is older than `1.0`), and two pre-releases of the same version order by their dot-separated identifiers (numeric identifiers compared as numbers, so `beta.10` is newer than `beta.2`). This lets successive betas supersede one another and the final release supersede them all.
 
+## Disabling Minimize / Restore Animation System-wide (Experimental feature)
+
+Zonogy can patch the Dock process to disable minimize and restore animations across all applications. This is controlled by the "Disable minimize and restore animations" toggle in "Experimental" Preferences tab. It requires a compatible Apple Silicon macOS 27 configuration with System Integrity Protection (SIP) partially disabled, using the same setup as yabai. The tab links to [yabai’s SIP instructions](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection). Administrator approval is required to enable the feature. The preference is remembered between launches.
+
+Turning the toggle off or quitting Zonogy restarts the current user's Dock to restore animations. Dock restarts during use reapply the feature. (If activation fails, Zonogy restarts Dock to prevent incomplete patching; automatic attempts stop after a failure to avoid a restart loop.) Toggle feature off and on to retry.
+
+Note that a Zonogy crash leaves the effect active until Dock next restarts. On relaunch, Zonogy recognizes a previous patch if the same Dock process is still running, restores the enabled checkbox and "Active" status.
+
 ## Developer Tools
 
 ### Debug Preferences

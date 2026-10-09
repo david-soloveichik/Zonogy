@@ -1,9 +1,9 @@
-/// Shared Zonogy links (repository, releases, feedback) and handing them to the system.
+/// Shared links for Zonogy support, releases, and feature setup, opened through the system.
 import Foundation
 import AppKit
 
 enum AppLinks {
-    /// Owner and repository name. Every GitHub link below is built from it, so moving the
+    /// Owner and repository name. Zonogy's GitHub links are built from it, so moving the
     /// repository is a one-line change.
     private static let repositorySlug = "david-soloveichik/Zonogy"
 
@@ -17,6 +17,9 @@ enum AppLinks {
     static let latestReleaseAPI = URL(string: "https://api.github.com/repos/\(repositorySlug)/releases/latest")!
     /// New message to the maintainer, for feedback the user would rather keep private.
     static let feedbackEmail = URL(string: "mailto:vulpine-minds-0d@icloud.com?subject=Zonogy%20Feedback")!
+
+    /// SIP setup shared by yabai's scripting addition and Zonogy's instant minimize feature.
+    static let yabaiSIPInstructions = URL(string: "https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection")!
 
     /// Hands a link to whichever app the user has chosen for it (browser, email client, ...).
     /// Nothing can be done about a refusal beyond noting it.

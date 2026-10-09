@@ -26,6 +26,10 @@ enum UserDefaultsKeys {
     static let updateAutomaticCheckEnabled = "Zonogy.update.automaticCheckEnabled"
     static let updateSkippedVersion = "Zonogy.update.skippedVersion"
 
+    // MARK: - Experimental
+    static let instantMinimizeEnabled = "Zonogy.experimental.instantMinimizeEnabled"
+    static let instantMinimizeActivation = "Zonogy.experimental.instantMinimizeActivation"
+
     // MARK: - Debug
     static let logFileEnabled = "Zonogy.debug.logFileEnabled"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"

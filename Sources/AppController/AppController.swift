@@ -4,6 +4,7 @@ import AppKit
 import ApplicationServices
 
 class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDelegate, ZoneResizeHandleManagerDelegate, FloatingZoneIndicatorManagerDelegate, AddZoneIndicatorManagerDelegate, ValidationRetryManagerDelegate, TargetedZoneManagerDelegate, WindowPlacementManagerDelegate, DragDropCoordinatorDelegate, HotkeyServiceDelegate, SystemEventMonitorDelegate, WindowCapturePipelineDelegate, PlaceholderCoordinatorDelegate, PlaceholderManagerDelegate, DisplayReconfigurationMonitorDelegate, ZoneClickInterceptorDelegate, MenuBarManagerDelegate, FloatingZoneCoordinatorHost, FloatingDragHandlerHost, DisplacedWindowCoordinatorHost, DeferredMinimizationCoordinatorHost, FullScreenTrackerDelegate, ExternalZoneDropInterceptorHost {
+    internal let instantMinimizeController = InstantMinimizeController()
     enum SuppressedEvent: String {
         case miniaturized
         case deminiaturized
@@ -533,6 +534,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         // Startup seeding and initial targeting are complete; allow target-change border flashes now.
         hasCompletedInitialStartup = true
 
+        startInstantMinimize()
+
         // Watch app install roots and refresh launcher cache when installations change.
         launcherInstallWatchService.start()
 
@@ -568,6 +571,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     @objc private func handleApplicationWillTerminate() {
+        instantMinimizeController.shutdown()
         LogFile.drain()
     }
 

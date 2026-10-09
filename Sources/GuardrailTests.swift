@@ -180,6 +180,9 @@ enum GuardrailTests {
         if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }
+        if !InstantMinimizeControllerTests.run() {
+            allPassed = false
+        }
         if !TimeTravelLogCaptureTests.run() {
             allPassed = false
         }

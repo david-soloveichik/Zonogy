@@ -54,6 +54,9 @@ echo "Stamped build: ${GIT_COUNT:-?} · ${GIT_SHA:-?}"
 cp "$PROJECT_DIR/Resources/defaults.json" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/Resources/icon_menubar.svg" "$APP_BUNDLE/Contents/Resources/"
 
+# Bundle the optional experimental feature's tools. No system-wide installation or login service.
+bash "$PROJECT_DIR/scripts/build-instant-minimize.sh" "$APP_BUNDLE/Contents/Helpers/InstantMinimize"
+
 # Create app icon from PNG
 echo "Creating app icon..."
 ICONSET_DIR="$PROJECT_DIR/.build/AppIcon.iconset"
