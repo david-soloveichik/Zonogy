@@ -21,6 +21,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 APP_NAME="Zonogy"
 APP_BUNDLE="$PROJECT_DIR/$APP_NAME.app"
 ENTITLEMENTS="$PROJECT_DIR/Resources/Zonogy.entitlements"
+HELPER_ENTITLEMENTS="$PROJECT_DIR/Resources/InstantMinimize.entitlements"
 INFO_PLIST="$PROJECT_DIR/Resources/Info.plist"
 
 SIGN_IDENTITY="${ZONOGY_SIGN_IDENTITY:-Developer ID Application: David Soloveichik (KPESSM9SZU)}"
@@ -117,8 +118,15 @@ step "Building app bundle (release)"
 "$SCRIPT_DIR/build.sh"
 
 step "Signing $APP_NAME.app with Developer ID + hardened runtime"
-# The bundle signature covers and seals the main executable. If nested code
-# (helpers, frameworks) is ever added to the bundle, sign it first, inside-out.
+# Nested code is signed first, inside-out, so the bundle signature seals the
+# final versions. Zonogy-helper and loader take Dock's task port, so they
+# carry the hardened runtime's debugging-tool entitlement.
+HELPERS_DIR="$APP_BUNDLE/Contents/Helpers/InstantMinimize"
+codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
+  --entitlements "$HELPER_ENTITLEMENTS" \
+  "$HELPERS_DIR/Zonogy-helper" "$HELPERS_DIR/loader"
+codesign --force --timestamp --sign "$SIGN_IDENTITY" \
+  "$HELPERS_DIR/payload.dylib" "$HELPERS_DIR/lldb_inject.py"
 codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" \
   --entitlements "$ENTITLEMENTS" \
