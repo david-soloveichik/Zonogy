@@ -26,7 +26,9 @@ final class ExperimentalPreferencesViewController: NSViewController {
         let sipRequirement = makeHint("System Integrity Protection (SIP) must be partially disabled.")
         sipRequirement.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         sipRequirement.textColor = .labelColor
-        let setup = makeHint("Use the same SIP setup as yabai. Administrator approval is required to enable this feature.")
+        let setup = makeHint(
+            "Use the same SIP setup as yabai. Administrator approval is required to enable this feature. Expect a “Developer Tools Access” prompt after restarting your Mac."
+        )
         let instructions = NSButton(title: "yabai SIP setup instructions", target: self, action: #selector(openSIPInstructions))
         instructions.isBordered = false
         instructions.alignment = .left
