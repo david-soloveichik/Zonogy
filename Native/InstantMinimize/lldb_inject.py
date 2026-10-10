@@ -45,7 +45,7 @@ def inject(debugger, command, exe_ctx, result, internal_dict):
             }
             status;
         })""" % (path_literal, VERIFY_SYMBOL)
-        print("ZONOGY_INJECTION_STARTED", flush=True)
+        print("ZONOGY_INJECTION_STARTED: LLDB pipeline", flush=True)
         value = target.EvaluateExpression(expression, options)
         if not value.IsValid() or value.GetError().Fail():
             raise RuntimeError("could not evaluate injection: %s" % value.GetError())

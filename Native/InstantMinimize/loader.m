@@ -180,7 +180,7 @@ static int inject_payload(task_t task, const char *payload_path) {
     }
     mach_port_deallocate(mach_task_self(), thread);
     thread = MACH_PORT_NULL;
-    fprintf(stderr, "ZONOGY_INJECTION_STARTED\n");
+    fprintf(stderr, "ZONOGY_INJECTION_STARTED: native arm64e pipeline (-arm64e_preview_abi)\n");
     kr = thread_create_running(task, ARM_THREAD_STATE64, (thread_state_t)&machine_state,
                                machine_count, &thread);
     if (kr != KERN_SUCCESS) {
