@@ -147,10 +147,8 @@ DMG_STAGE="$WORK_DIR/dmg"
 mkdir "$DMG_STAGE"
 cp -R "$APP_BUNDLE" "$DMG_STAGE/"
 ln -s /Applications "$DMG_STAGE/Applications"
-hdiutil create -volname "$APP_NAME $VERSION" \
-  -srcfolder "$DMG_STAGE" \
-  -ov -format UDZO \
-  "$DMG_PATH"
+diskutil image create from --format UDZO --volumeName "$APP_NAME $VERSION" \
+  "$DMG_STAGE" "$DMG_PATH"
 
 step "Signing DMG"
 codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_PATH"
