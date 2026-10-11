@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-// MARK: - Floating zone protection helpers (wake and WinShot restoration)
+// MARK: - Floating zone protection helpers
 
 extension AppController {
     internal func shouldProtectFloatingZoneOccupant(windowId: Int) -> Bool {

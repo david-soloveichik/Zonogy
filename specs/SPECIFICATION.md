@@ -454,6 +454,7 @@ Zonogy Preferences includes a **Debug** tab with several independent debug toggl
 
 - Show Dock debug rectangle
 - Show full-screen debug rectangles
+- Show notification debug rectangles
 - Show placeholder pass-through holes
 - Disable pre-position of minimized windows prior to unminimize
 - Disable native macOS tab handling
@@ -461,9 +462,11 @@ Zonogy Preferences includes a **Debug** tab with several independent debug toggl
 
 Changes apply immediately while Zonogy is running.
 
+The "Show notification debug rectangles" toggle outlines in green each notification that Zonogy detects, to help debug pre-positioning after a notification click (see **Unminimize after a notification click** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
+
 The "Show placeholder pass-through holes" toggle paints the placeholder's normally imperceptible click-catching interior at a visible opacity, so the pass-through holes over covered windows and desktop icons (see **Placeholders**) stand out as clear cut-outs.
 
-The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before unminimizing it. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
+The "Disable pre-position…" toggle suppresses the optimization that moves a minimized window to its destination zone frame before it is unminimized. When the toggle is on, the window is positioned only after it is unminimized, which can be useful for debugging pre-position-related issues.
 
 The "Show the floating zone used when no zone is the destination" toggle tints the implicitly targeted floating zone's indicator red (see **Implicit and explicit floating targets** under **Targeting**).
 

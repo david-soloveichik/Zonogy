@@ -34,6 +34,7 @@ enum UserDefaultsKeys {
     static let logFileEnabled = "Zonogy.debug.logFileEnabled"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"
     static let fullScreenDebugOverlay = "Zonogy.fullScreen.debugOverlay"
+    static let notificationDebugOverlay = "Zonogy.notifications.debugOverlay"
     static let showPlaceholderPassThroughHoles = "Zonogy.debug.showPlaceholderPassThroughHoles"
     static let disablePrePositionBeforeUnminimize = "Zonogy.debug.disablePrePositionBeforeUnminimize"
     static let disableNativeTabHandling = "Zonogy.debug.disableNativeTabHandling"

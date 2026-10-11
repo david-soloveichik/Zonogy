@@ -40,13 +40,13 @@ All window removal paths that confirm the window is gone **except app terminatio
 - **Recovery:** If the same `(pid, CGWindowID)` reappears during a subsequent capture pass, the window is restored with its original `windowId` and recency timestamp, and placed back into its original zone (if that zone is still empty) or through the normal placement pipeline otherwise. For a floating zone, if the window reappeared on a different display (or its display cannot be determined), it goes through the normal placement pipeline instead.
 - **Clearing:** Pending-prune entries for a PID are discarded when (1) the app terminates, or (2) a *new* managed window (different `CGWindowID`) is discovered for that PID after the pending entry has aged past a short grace window. Very recent entries are retained because another same-PID window does not prove that a just-pruned `(pid, CGWindowID)` cannot still reappear.
 
-## Floating Zone Protection Windows
+## Floating Zone and Restore Protection
 
-When a window is placed in the floating zone, it receives a 0.5-second protection window during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this window (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed. Exception: if the floating window is currently minimized (per the AX API), the protection-driven re-raise is skipped, so a user who quickly minimizes a just-placed floating window is not fought by a spurious unminimize.
+When a window is placed in the floating zone, it receives a 0.5-second protection period during which focus/front-most changes will not trigger occlusion-based floating-zone minimization. If a spurious focus event occurs during this period (e.g., macOS activating a sibling window after the displaced occupant is minimized), the floating-zone occupant is reactivated/raised so it remains visible and interactive. This prevents a newly placed window from being immediately dismissed. Exception: if the floating window is currently minimized (per the AX API), the protection-driven re-raise is skipped, so a user who quickly minimizes a just-placed floating window is not fought by a spurious unminimize.
 
-The same protection mechanism applies when restoring layouts from sleep/wake recovery or WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
+The same protection mechanism applies when restoring layouts from WinShot snapshots, so that internal restore operations do not fight normal layout behavior.
 
-For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then evaluate it once for the active window after the restore settles.
+For ActiveFit candidate zones during restore, we temporarily suppress ActiveFit during the restore layout pass and then, after the restore settles, evaluate it once for whichever restored window has focus (not necessarily the one the restore focused, which allows for user refocus during the suppression).
 
 ## Occlusion-Based Floating Zone Minimization
 
@@ -91,9 +91,6 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 
 - `window_id`s should be monotonically increasing so logs stay unique; do not recycle identifiers after a window closes.
 - When `NSWorkspace` reports that an application terminated, immediately drop every managed window for that pid and resync so placeholders reappear in vacated zones.
-- The CmdTab and Zone Navigation keyboard event taps must decide whether to consume each keystroke before the system delivers it to the frontmost application, so the system waits on the tap for every keystroke in every app. The taps are therefore serviced on a dedicated thread that answers at once, rather than the main run loop, where the wait would include Zonogy's Accessibility stalls. A keystroke that is Zonogy's is passed to the main thread, which processes it when available.
-- The zone click tap likewise answers off the main thread, on a mouse tap thread separate from the keyboard taps' because its answer can involve a wait. A click can only be Zonogy's while CmdTab is showing or the gesture modifiers are held; every other click, which is nearly all of them, passes at once without involving the main thread. A click that may be Zonogy's is decided on the main thread, and the tap thread waits for the answer, because it depends on where the click landed: zone frames, zone bar hit areas, and Zonogy's own window frames live there.
-- The Dock press tap answers on the mouse tap thread as well: a click outside the Dock frame passes at once, and only a click inside it waits for the main thread. The Dock taps are also enabled only while a click or drag could concern Zonogy; see the Click Interception and Dock Icon Drag Interception notes in `SPECIFICATION-DOCKMENUS.md`.
 - All code logs through `Logger.debug(_:)`, which writes to the macOS unified log at info level (memory only) under the subsystem `com.dsemeas.zonogy`. The category is the name of the source file containing the call: for most types that is the type name, and each `AppController` extension file (for example `AppController+SleepWake`) is a category of its own. Every value is logged as public (unified logging would otherwise redact interpolated values).
 - `Logger.error(_:)` and `Logger.keep(_:category:)` mark the lines macOS persists for days: unexpected failures at error level, and countable events at notice level under an explicit category of their own (such as `SlowAX`). The `log` tool labels notice level `Default` (`Df` in compact output); the Debug tab and SPECIFICATION.md use the tool's names, since those are what a reader of the log sees.
 - Per-event chatter that repeats within one episode is coalesced into a first occurrence plus a count: events ignored during sleep/wake protection, and already-tracked windows within one capture pass.
@@ -103,6 +100,14 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 **Log monitoring tip:** To watch the live log output, run:
 `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"' | grep --line-buffered "keyword"`.
 (`grep --line-buffered` streams matching lines without delay.)
+
+## Work Off the Main Thread
+
+Zonogy's state lives on the main thread, which also makes most of its Accessibility calls, so an application that is slow to answer can hold up Zonogy (see [Slow AX Call Logging](#slow-ax-call-logging)). Work moves off the main thread in two cases: (a) when macOS waits on Zonogy's answer, so that Zonogy doesn't slow down other apps, and (b) for a few jobs that would otherwise keep the main thread waiting often or long.
+
+**(a) Event taps.** macOS waits on each tap before delivering a keystroke or click, so the taps that watch input to other apps answer on their own threads. Keystrokes never wait for the main thread, and a click waits only if it may concern Zonogy, such as a press on the Dock or on a notification.
+
+**(b) Background work.** Watching Notification Center, moving windows during a live zone resize, and routine work such as writing the log, capturing windows, and checking for updates run in the background.
 
 ## Slow AX Call Logging
 
@@ -197,11 +202,17 @@ Some applications report the subrole for their minimized windows as AXDialogSubr
 
 ### Pre-move feature
 
-The pre-move feature pre-positions a minimized window: it sets the window's position and size while the window is still minimized, so the unminimize animation reveals the window already at its destination. The size is written both before and after the position (an application can ignore a height change written only after a minimized window moves to another display).
+The pre-move feature pre-positions a minimized window: it sets the window's position and size while the window is still minimized, so the unminimize animation reveals the window already at its destination. The size is written both before and after the position (an application can ignore a height change written only after a minimized window moves to another display). Zonogy computes the frame from its own records, without asking the application.
 
 #### Zonogy-initiated unminimize
 
-When Zonogy unminimizes a window that needs to appear at a specific position (e.g., selecting a minimized window from Launcher in a zone, WinShot restore, etc.), it pre-positions the window and then unminimizes it async. (Async because unminimizing synchronously right after setting position/size results in the window sometimes visually appearing at its old location before snapping to the correct position.)
+When Zonogy unminimizes a window that needs to appear at a specific position (e.g., selecting a minimized window from Launcher in a zone, WinShot restore, etc.), it pre-positions the window and then unminimizes it async. (Async because unminimizing synchronously right after setting position/size results in the window sometimes visually appearing at its old location before snapping to the correct position. For the same reason, the pre-position writes wait for the application's answers.)
+
+#### Unminimize after a notification click
+
+To pre-position a window restored due to a notification click, Zonogy watches Notification Center through Accessibility, which reports each notification's frame and application. An event tap, on only while a notification is showing, holds a press on a notification just long enough for Zonogy to pre-position that application's minimized windows (its managed windows in no zone, other than a full-screen window), then lets the press through unchanged. The application learns of the click only afterwards, so the window it restores usually animates straight into its zone.
+
+To keep the press short, the writes don't wait for the application's answers, so this pre-positioning is best effort.
 
 ### Focusing a specific window of another application
 
@@ -258,4 +269,4 @@ CGS Spaces (`CGSCopySpacesForWindows` + `CGSSpaceGetType == kCGSSpaceFullscreen`
 
 ## Timers
 
-For a complete inventory of all timers and delay mechanisms (AX retries, debounce, protection windows, etc.), see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md).
+For a complete inventory of all timers and delay mechanisms (AX retries, debounce, protection periods, etc.), see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md).

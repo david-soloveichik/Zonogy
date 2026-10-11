@@ -474,7 +474,13 @@ final class FloatingZoneCoordinator {
         return nil
     }
 
-    private func placementFrame(for managed: ManagedWindow, on descriptor: ScreenDescriptor) -> CGRect {
+    /// `queryingApplication: false` sizes a window without a remembered size from the frame Zonogy
+    /// last observed rather than asking its application (for pre-positioning).
+    private func placementFrame(
+        for managed: ManagedWindow,
+        on descriptor: ScreenDescriptor,
+        queryingApplication: Bool = true
+    ) -> CGRect {
         let bounds = descriptor.visibleScreenBounds.standardized
         let minWidth = bounds.width / 3
         let maxWidth = bounds.width * 0.8
@@ -488,7 +494,7 @@ final class FloatingZoneCoordinator {
             height = remembered.height
         } else {
             // Read once: each `actualFrame` access asks the application.
-            let currentFrame = managed.actualFrame
+            let currentFrame = queryingApplication ? managed.actualFrame : (managed.cachedFrame ?? .zero)
             if currentFrame.width > 0, currentFrame.height > 0 {
                 width = currentFrame.width
                 height = currentFrame.height
@@ -508,11 +514,11 @@ final class FloatingZoneCoordinator {
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
 
-    /// Compute the placement frame for a window in the floating zone without actually placing it.
-    /// Used for pre-positioning minimized windows before unminimizing.
+    /// Compute the placement frame for a window in the floating zone without actually placing it,
+    /// from Zonogy's records. Used for pre-positioning minimized windows before unminimizing.
     func computePlacementFrame(for managed: ManagedWindow, on screenId: CGDirectDisplayID) -> CGRect? {
         guard let descriptor = host?.descriptor(for: screenId) else { return nil }
-        return placementFrame(for: managed, on: descriptor)
+        return placementFrame(for: managed, on: descriptor, queryingApplication: false)
     }
 
     func hasAvailableTiledZone() -> Bool {

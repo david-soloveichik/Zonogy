@@ -500,8 +500,11 @@ extension AppController {
 
     /// Temporarily suppresses reveal mode evaluation while a restore flow (WinShot) repositions the
     /// given windows, dropping any reveal state they carry since the restore overwrites their frames.
-    /// After the delay, clears suppression and optionally evaluates reveal mode for the active window.
-    internal func scheduleActiveFitSuppression(windowIds: [Int], evaluateRevealModeFor activeWindowId: Int? = nil) {
+    /// After the delay, clears suppression (a window being dragged keeps it until the drag ends) and
+    /// evaluates reveal mode for whichever of them has focus then: focus changes during the
+    /// suppression were ignored, and the user may have focused another restored window than the one
+    /// the restore focused.
+    internal func scheduleActiveFitSuppression(windowIds: [Int]) {
         for windowId in windowIds {
             clearRevealModeForWindow(windowId: windowId, transitionToRest: false, reason: "restore")
             activeFitSuppressedWindowIds.insert(windowId)
@@ -511,7 +514,7 @@ extension AppController {
         DispatchQueue.main.asyncAfter(deadline: .now() + activeFitRestoreDelay) { [weak self] in
             guard let self else { return }
             for windowId in windowIds {
-                self.activeFitSuppressedWindowIds.remove(windowId)
+                self.activeFitClearSuppressionForWindow(windowId)
             }
             Logger.debug("ActiveFit: suppression cleared for windows \(windowIds)")
 
@@ -520,13 +523,13 @@ extension AppController {
                 return
             }
 
-            // Evaluate reveal mode for the active window after restore settles
-            if let activeWindowId,
-               let managed = self.windowController.window(withId: activeWindowId),
+            if let focusedWindowId = self.currentFrontmostManagedWindowId,
+               windowIds.contains(focusedWindowId),
+               let managed = self.windowController.window(withId: focusedWindowId),
                let screenId = managed.screenDisplayId,
                let zoneIndex = managed.zoneIndex,
                self.activeFitZoneCanReveal(screenId: screenId, zoneIndex: zoneIndex) {
-                Logger.debug("ActiveFit: evaluating reveal mode for window \(activeWindowId) after restore")
+                Logger.debug("ActiveFit: evaluating reveal mode for focused window \(focusedWindowId) after restore")
                 self.evaluateRevealModeIfNeeded(
                     for: managed,
                     screenId: screenId,

@@ -84,7 +84,8 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 - **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
 - **Keyboard Zone Navigation** — the geometric arrangement of zones makes navigation of zones and windows unambiguous via keyboard.
-- **Instant minimize (experimental)** — disable minimize and restore animations across all apps in Preferences > Experimental. Requires Apple Silicon, macOS 27, and partially disabled SIP.
+- **Restores straight into zones** — macOS has no API to place a window before it unminimizes, so with most window managers a restored window first appears in its old spot and then jumps into place. Zonogy instead moves the window into the destination zone before it appears whenever you reopen it through Zonogy (the Launcher, CmdTab, or a Dock click, which DockMenus intercepts) or from its app's notification banner or alert.
+- **Instant minimize (experimental)** — disable minimize and restore animations across all apps. Enable in Preferences > Experimental. Requires Apple Silicon, macOS 27, and partially disabled SIP.
 
 ## Mouse Controls
 
@@ -164,7 +165,7 @@ Apps don't expose enough information for Zonogy to always make the right choices
 
 Zonogy is designed to add negligible CPU cost and not to delay other apps:
 
-- **Mouse and keyboard input does not wait on Zonogy.** Zonogy's event taps, which macOS consults before delivering each keystroke or click, answer on dedicated threads, so a busy Zonogy main thread never delays input to other apps.
+- **Mouse and keyboard input does not wait on Zonogy.** Zonogy's event taps, which macOS consults before delivering each keystroke or click, answer on dedicated threads to avoid delaying input to other apps while Zonogy's main thread is busy.
 - **Sparing use of the Accessibility API.** Every window query is unavoidably a round trip to the target app, waking it. To minimize impact, Zonogy caches what it has recently learned, and skips queries whose answer cannot matter.
 - **High-frequency events are throttled.** Mouse drags, zone resizing, and bursts of display and window notifications are batched rather than handled event by event, so Zonogy's work stays bounded no matter how fast the events arrive.
 - **Cheap logging.** Zonogy logs through the macOS efficient unified logging system.

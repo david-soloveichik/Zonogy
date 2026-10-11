@@ -1,5 +1,5 @@
-/// Delivery of input work to the main thread: the event taps' actions and click decisions, and the
-/// global hotkeys' actions. Blocks are scheduled on the main run loop in the common modes rather than
+/// Delivery of input work to the main thread: the event taps' actions and click decisions, the
+/// global hotkeys' actions, and the shown notifications that decide which presses Zonogy handles. Blocks are scheduled on the main run loop in the common modes rather than
 /// on the main dispatch queue: they run in submission order wherever they were submitted from, so a
 /// hotkey, a chooser chord, and a click pressed in quick succession act in that order, and a nested
 /// run loop entered from a dispatch block (a modal alert, say) still services them, as it serviced

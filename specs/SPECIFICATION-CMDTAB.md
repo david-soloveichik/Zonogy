@@ -80,5 +80,6 @@ When invoked with the app-specific shortcut (default Cmd-`), CmdTab shows only w
   - Window activation logic
   - Panel positioning and visual style
 - The window order should be maintained by tracking window activation timestamps
-- To avoid contaminating recency with brief intermediate activations, only record a focus-based activation if the window remains focused for at least **250ms** (shorter focus changes are ignored)
+- To avoid contaminating recency with brief intermediate activations, only record a focus-based activation if the window remains focused for at least 250ms (shorter focus changes are ignored)
+- Similarly, for 500ms after Zonogy places a window in the floating zone or starts restoring a WinShot snapshot, no focus change is recorded. Instead, Zonogy records the window it placed, or the window the restore activates, as the most recently used
 - Keyboard interception should use a `CGEventTap` for `keyDown` + `flagsChanged` events and swallow matching events to override the system app switcher

@@ -2,7 +2,7 @@
 import AppKit
 
 /// A non-interactive overlay window that draws a colored border for debugging purposes.
-/// Used by DockDebugBorderOverlayController and FullScreenDebugOverlayController.
+/// Used by the Debug tab's rectangle overlays (Dock, full-screen, and notifications).
 final class DebugBorderOverlayWindow: NSPanel {
     private let borderView: BorderView
 

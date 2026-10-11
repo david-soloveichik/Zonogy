@@ -72,6 +72,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let systemEventMonitor = SystemEventMonitor()
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
+    internal let notificationCenterMonitor = NotificationCenterMonitor()
+    internal let notificationClickInterceptor = NotificationClickInterceptor()
     internal lazy var externalZoneDropInterceptor = ExternalZoneDropInterceptor(host: self)
     // Cached primary-display identity/bounds. Refreshed on every screen-topology change from the
     // screen-context store (the single source of truth) via refreshCachedPrimaryScreenBounds().
@@ -226,6 +228,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }()
     internal var fullScreenTracker: FullScreenTracker!
     internal var fullScreenDebugOverlay: FullScreenDebugOverlayController?
+    internal var notificationDebugOverlay: NotificationDebugOverlayController?
     internal var fullScreenElementCache: [AccessibilityElementKey: FullScreenElementInfo] = [:]
     internal var fullScreenCheckWorkItemsByWindowId: [Int: DispatchWorkItem] = [:]
     internal var fullScreenCheckWorkItemsByElement: [AccessibilityElementKey: DispatchWorkItem] = [:]
@@ -519,6 +522,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         zoneNavigationInterceptor.start(delegate: self)
         syncEventTapGates()
         startDockMenusIfConfigured()
+        startNotificationPressPrePositioning()
         startUpdateChecker()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")

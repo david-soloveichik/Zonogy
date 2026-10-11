@@ -522,7 +522,7 @@ extension AppController: LauncherControllerDelegate {
                 }
                 Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space; placing into the targeted zone")
             }
-            let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: managed, destination: $0) }
+            let targetInfo = destination.flatMap { prePositionFrame(for: managed, in: $0) }
 
             // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
             // Do not assign a minimized window to a zone; the deminiaturize notification will place it.
@@ -616,7 +616,7 @@ extension AppController: LauncherControllerDelegate {
                 }
                 Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space; placing into the targeted zone")
             }
-            let targetInfo = destination.flatMap { calculateTargetZoneFrame(for: preferredWindow, destination: $0) }
+            let targetInfo = destination.flatMap { prePositionFrame(for: preferredWindow, in: $0) }
 
             // Pre-position and unminimize if needed. Do not assign a minimized window to a zone;
             // the deminiaturize notification will place it.
@@ -892,29 +892,6 @@ extension AppController: LauncherControllerDelegate {
             activateWindow(managed)
         }
         syncWindowsToZones()
-    }
-
-    /// Calculate the placement frame for a window being placed via Launcher.
-    private func calculateTargetZoneFrame(
-        for managed: ManagedWindow,
-        destination: TargetedZoneManager.TargetedDestination
-    ) -> (frame: CGRect, descriptor: ScreenDescriptor)? {
-        switch destination {
-        case .floating(let screenId):
-            guard let descriptor = descriptor(for: screenId),
-                  let frame = floatingZoneCoordinator.computePlacementFrame(for: managed, on: screenId) else {
-                return nil
-            }
-            return (frame, descriptor)
-        case .tiled(let targetedKey):
-            guard let context = screenContexts[targetedKey.screenId],
-                  let descriptor = descriptor(for: targetedKey.screenId),
-                  let zone = context.zoneController.zone(at: targetedKey.index) else {
-                return nil
-            }
-            let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
-            return (displayFrame, descriptor)
-        }
     }
 
     private func activateWindow(_ managed: ManagedWindow) {

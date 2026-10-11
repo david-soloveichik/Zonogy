@@ -5,6 +5,7 @@ final class DebugPreferencesViewController: NSViewController {
     private var logFileCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
+    private var notificationOverlayCheckbox: NSButton?
     private var showPassThroughHolesCheckbox: NSButton?
     private var disablePrePositionCheckbox: NSButton?
     private var disableNativeTabsCheckbox: NSButton?
@@ -39,6 +40,12 @@ final class DebugPreferencesViewController: NSViewController {
             action: #selector(fullScreenOverlayToggled(_:))
         )
         fullScreenOverlayCheckbox = fullScreenOverlay.checkbox
+        let notificationOverlay = makeToggle(
+            title: "Show notification debug rectangles",
+            hint: "Shows green rectangles around the notifications that Zonogy detects.",
+            action: #selector(notificationOverlayToggled(_:))
+        )
+        notificationOverlayCheckbox = notificationOverlay.checkbox
         let showPassThroughHoles = makeToggle(
             title: "Show placeholder pass-through holes",
             hint: "Paints the placeholder click-catching background visibly, so pass-through holes over covered windows appear as clear cut-outs.",
@@ -47,7 +54,7 @@ final class DebugPreferencesViewController: NSViewController {
         showPassThroughHolesCheckbox = showPassThroughHoles.checkbox
         let disablePrePosition = makeToggle(
             title: "Disable pre-position of minimized windows prior to unminimize",
-            hint: "When on, Zonogy skips moving a minimized window to its destination frame before unminimizing; the window is positioned only after it is restored.",
+            hint: "When on, Zonogy skips moving a minimized window to its destination frame before it is unminimized; the window is positioned only after it is restored.",
             action: #selector(disablePrePositionToggled(_:))
         )
         disablePrePositionCheckbox = disablePrePosition.checkbox
@@ -67,7 +74,7 @@ final class DebugPreferencesViewController: NSViewController {
         // The toggles scroll between the fixed title above and the fixed log section below.
         let toggleDocument = FlippedView()
         toggleDocument.translatesAutoresizingMaskIntoConstraints = false
-        let toggles = [logFile, dockOverlay, fullScreenOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
+        let toggles = [logFile, dockOverlay, fullScreenOverlay, notificationOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
         var previousBottom = toggleDocument.topAnchor
         for (index, toggle) in toggles.enumerated() {
             toggleDocument.addSubview(toggle.view)
@@ -298,6 +305,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func notificationOverlayToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setNotificationDebugOverlayEnabledFromSettings(enabled)
+        syncControls()
+    }
+
     @objc private func showPassThroughHolesToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setShowPlaceholderPassThroughHolesFromSettings(enabled)
@@ -326,6 +339,7 @@ final class DebugPreferencesViewController: NSViewController {
         logFileCheckbox?.state = AppController.shared.isLogFileEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
+        notificationOverlayCheckbox?.state = AppController.shared.isNotificationDebugOverlayEnabledInSettings ? .on : .off
         showPassThroughHolesCheckbox?.state = AppController.shared.isShowPlaceholderPassThroughHolesInSettings ? .on : .off
         disablePrePositionCheckbox?.state = AppController.shared.isDisablePrePositionBeforeUnminimizeInSettings ? .on : .off
         disableNativeTabsCheckbox?.state = AppController.shared.isNativeTabHandlingDisabledInSettings ? .on : .off

@@ -164,7 +164,7 @@ extension AppController {
 
     /// A destination must be unpaused and showing a regular Space. Non-native presentations
     /// use regular Spaces, and native exits can clear their pause before the Space switch ends.
-    private func isTargetedDisplayAvailableForPlacement() -> Bool {
+    internal func isTargetedDisplayAvailableForPlacement() -> Bool {
         targetedZoneManager.ensureTargetedZone(reason: "full-screen-placement")
         guard let destination = targetedZoneManager.targetedDestination,
               !isScreenPausedForFullScreen(destination.screenId) else {

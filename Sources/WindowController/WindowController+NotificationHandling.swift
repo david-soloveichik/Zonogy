@@ -139,6 +139,9 @@ extension WindowController {
 
         case axDeminiaturizedNotification:
             Logger.debug("External window \(managed.windowId) deminiaturized")
+            // The moves and resizes of a pre-positioned window can all arrive while they are ignored
+            // (see isProgrammaticUpdateOfUnplacedWindow), so remember the restored frame now.
+            recordCachedFrame(for: managed)
             if let windowId = resolvedDeminiaturizedWindowIdForPlacement(managed: managed, element: element) {
                 delegate?.windowDidDeminiaturize(windowId: windowId)
             }
@@ -500,7 +503,19 @@ extension WindowController {
         }
     }
 
+    /// Zonogy's own write to a window in no zone (pre-positioning a minimized window) needs no
+    /// follow-up: the cached frame matters only once the window is placed, and a minimized window
+    /// cannot be entering full screen. Reading the frame back would also wait on an application that
+    /// may be busy restoring that very window.
+    private func isProgrammaticUpdateOfUnplacedWindow(_ managed: ManagedWindow) -> Bool {
+        programmaticUpdateWindowIds.contains(managed.windowId) && !managed.isPlacedInZone
+    }
+
     private func handleWindowMovedNotification(managed: ManagedWindow) {
+        guard !isProgrammaticUpdateOfUnplacedWindow(managed) else {
+            Logger.debug("External window \(managed.windowId) moved (ignored programmatic update of a window in no zone)")
+            return
+        }
         // One frame read serves the cache, the log line, and the drag pipeline.
         let accessibilityFrame = recordCachedFrame(for: managed)
         let loggedFrame = accessibilityFrame ?? .zero
@@ -531,9 +546,13 @@ extension WindowController {
     }
 
     private func handleWindowResizedNotification(managed: ManagedWindow) {
+        guard !isProgrammaticUpdateOfUnplacedWindow(managed) else {
+            Logger.debug("External window \(managed.windowId) resized (ignored programmatic update of a window in no zone)")
+            return
+        }
         // One frame read serves the cache and every consumer below.
         let accessibilityFrame = recordCachedFrame(for: managed)
-        // Always check full-screen state on resize (even for programmatic updates)
+        // Always check full-screen state on resize (even for programmatic updates of placed windows)
         // since entering/exiting full-screen fires resize notifications
         delegate?.windowDidResize(windowId: managed.windowId)
 

@@ -614,6 +614,7 @@ extension AppController {
         windowController.primaryScreenBounds = primaryScreenBounds
         dockMenusCoordinator?.updatePrimaryScreenBounds(primaryScreenBounds)
         fullScreenDebugOverlay?.updatePrimaryScreenBounds(primaryScreenBounds)
+        notificationDebugOverlay?.updatePrimaryScreenBounds(primaryScreenBounds)
     }
 
     private func handleRemovedScreens(

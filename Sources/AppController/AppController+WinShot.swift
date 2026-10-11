@@ -389,8 +389,7 @@ extension AppController {
                 workItem.managed,
                 targetFrame: workItem.targetFrame,
                 on: workItem.descriptor,
-                reason: "winshot-restore",
-                suppressAXNotifications: true
+                reason: "winshot-restore"
             )
         }
 
@@ -400,24 +399,16 @@ extension AppController {
                 floatingItem.managed,
                 targetFrame: floatingItem.targetFrame,
                 on: floatingItem.descriptor,
-                reason: "winshot-restore",
-                suppressAXNotifications: true
+                reason: "winshot-restore"
             )
         }
 
         // Step 6b: ActiveFit coordination.
         // Schedule ActiveFit suppression BEFORE assignment to prevent assignment from triggering ActiveFit.
-        // After the restore settles, ActiveFit will re-evaluate reveal/rest mode for the active zone window.
+        // After the restore settles, ActiveFit evaluates reveal mode for the focused zone window.
         let zoneWindowIds = zoneWorkItems.map { $0.managed.windowId }
-        let activeZoneWindowId: Int? = {
-            guard let activeId = snapshot.activeWindowId,
-                  zoneWindowIds.contains(activeId) else {
-                return nil
-            }
-            return activeId
-        }()
         if !zoneWindowIds.isEmpty {
-            scheduleActiveFitSuppression(windowIds: zoneWindowIds, evaluateRevealModeFor: activeZoneWindowId)
+            scheduleActiveFitSuppression(windowIds: zoneWindowIds)
         }
 
         // Step 7: ASSIGNMENT PHASE - Assign tiled windows to their zones
