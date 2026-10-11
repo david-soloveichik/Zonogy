@@ -22,9 +22,11 @@ extension AppController {
                 return nil
             }
 
-            guard !window.isMinimizedPerAccessibility,
-                  zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInFloatingZone(window.windowId) else {
+            // Zonogy's records first, so only windows in no zone cost a round trip to their
+            // application (this runs on every Space change).
+            guard zoneKey(forManagedWindow: window) == nil,
+                  !isWindowInFloatingZone(window.windowId),
+                  !window.isMinimizedPerAccessibility else {
                 return nil
             }
 
@@ -39,9 +41,9 @@ extension AppController {
                 continue
             }
 
-            guard !window.isMinimizedPerAccessibility,
-                  zoneKey(forManagedWindow: window) == nil,
-                  !isWindowInFloatingZone(windowId) else {
+            guard zoneKey(forManagedWindow: window) == nil,
+                  !isWindowInFloatingZone(windowId),
+                  !window.isMinimizedPerAccessibility else {
                 continue
             }
 

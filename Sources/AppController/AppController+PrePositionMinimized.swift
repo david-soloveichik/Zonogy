@@ -151,14 +151,16 @@ extension AppController {
     /// (whichever one is restored goes there), so a restored window animates straight into its zone.
     ///
     /// The press waits for this, and a napping application can take tens of milliseconds to answer,
-    /// so nothing here waits on the application: its minimized windows are the managed windows
-    /// placed in no zone (other than a full-screen one), and the writes go out without waiting for
-    /// answers. They are sent before Notification Center receives the press.
+    /// so nothing here waits on the application: its minimized windows come from Zonogy's records
+    /// (its managed windows in no zone, other than a full-screen one and a displaced one still
+    /// visible until its deferred minimize; see `ManagedWindow.isPlacedInZone`), and the writes go
+    /// out without waiting for answers. They are sent before Notification Center receives the press.
     internal func prePositionMinimizedWindows(ofApplication pid: pid_t, reason: String) {
         guard !sleepWakeProtectionActive else { return }
         // Most recent first: the window the application most likely restores gets its writes first.
         let minimized = windowController.allWindowsOrderedByRecency().filter {
             $0.backing.pid == pid && !$0.isPlacedInZone && !isTrackedFullScreenWindow($0)
+                && !deferredMinimizationCoordinator.isPending(windowId: $0.windowId)
         }
         Logger.debug("Pre-positioning \(minimized.count) minimized window(s) of pid \(pid) (\(reason))")
         guard !minimized.isEmpty else { return }

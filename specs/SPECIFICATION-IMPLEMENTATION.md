@@ -210,7 +210,7 @@ When Zonogy unminimizes a window that needs to appear at a specific position (e.
 
 #### Unminimize after a notification click
 
-To pre-position a window restored due to a notification click, Zonogy watches Notification Center through Accessibility, which reports each notification's frame and application. An event tap, on only while a notification is showing, holds a press on a notification just long enough for Zonogy to pre-position that application's minimized windows (its managed windows in no zone, other than a full-screen window), then lets the press through unchanged. The application learns of the click only afterwards, so the window it restores usually animates straight into its zone.
+To pre-position a window restored due to a notification click, Zonogy watches Notification Center through Accessibility, which reports each notification's frame and application. A click event tap, on only while a notification is showing, holds a press on a notification just long enough for Zonogy to pre-position all of that application's minimized windows (we don't know which one will be brought up), and only then lets the press through unchanged.
 
 To keep the press short, the writes don't wait for the application's answers, so this pre-positioning is best effort.
 

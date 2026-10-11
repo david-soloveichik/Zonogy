@@ -123,7 +123,7 @@ extension AppController {
             return .unresolved(pid: pid, focusedElement: focusedWindow, reason: "missing-cgwindowid")
         }
 
-        let isMinimized = windowController.isWindowMinimized(focusedWindow)
+        let isMinimized = ManagedWindow.isMinimizedPerAccessibility(focusedWindow)
         let passesNonWindowIdCriteria = windowController.isStandardWindow(
             focusedWindow,
             pid: pid,

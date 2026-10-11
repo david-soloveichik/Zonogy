@@ -4,22 +4,6 @@ import ApplicationServices
 
 /// Window eligibility checks and validation for management criteria.
 extension WindowController {
-    /// Check if a window is minimized.
-    internal func isWindowMinimized(_ element: AXUIElement) -> Bool {
-        var minimizedValue: CFTypeRef?
-        let status = AXCall.copyAttribute(element, kAXMinimizedAttribute as CFString, &minimizedValue)
-        guard status == .success, let minimizedValue else {
-            return false
-        }
-        if CFGetTypeID(minimizedValue) == CFBooleanGetTypeID() {
-            return CFBooleanGetValue(unsafeBitCast(minimizedValue, to: CFBoolean.self))
-        }
-        if let number = minimizedValue as? NSNumber {
-            return number.boolValue
-        }
-        return false
-    }
-
     /// Ensure accessibility permissions are granted.
     internal func ensureAccessibilityPermissions() -> Bool {
         if AXIsProcessTrusted() {

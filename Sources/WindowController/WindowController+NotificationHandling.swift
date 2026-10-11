@@ -361,7 +361,7 @@ extension WindowController {
         // the stored element reference current for future AX operations (minimize, etc).
         if let identifier = externalIdentifier(for: element),
            let existing = externalWindows[identifier] {
-            let isMinimized = isWindowMinimized(element)
+            let isMinimized = ManagedWindow.isMinimizedPerAccessibility(element)
             if NativeTabReplacementPolicy.shouldEvaluateIncomingWindow(
                 isPlacedInZone: existing.isPlacedInZone,
                 isMinimized: isMinimized,

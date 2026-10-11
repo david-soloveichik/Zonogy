@@ -271,7 +271,7 @@ extension WindowController {
 
         // Check minimized state first - minimized windows skip the subrole check
         // (some apps like PDF Expert report AXDialog subrole for their document windows)
-        let isMinimized = isWindowMinimized(element)
+        let isMinimized = ManagedWindow.isMinimizedPerAccessibility(element)
 
         guard isStandardWindow(element, pid: pid, cgWindowId: cgWindowId, skipSubroleCheck: isMinimized) else {
             Logger.debug("captureWindowIfNeeded: Window (CGWindowID: \(windowNumStr)) is not a standard window for pid \(pid)")

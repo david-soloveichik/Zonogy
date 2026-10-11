@@ -117,7 +117,7 @@ extension AppController {
                       let managed = windowController.window(withId: vacatedZone.windowId) else {
                     return false
                 }
-                return windowController.isWindowMinimized(managed.backing.element)
+                return managed.isMinimizedPerAccessibility
             }()
             guard ShortcutHoldPolicy.removeVacatedZoneAllowed(
                 zoneCountOnScreen: context.zoneController.allZones.count,

@@ -46,7 +46,13 @@ class ManagedWindow {
     var cachedFrame: CGRect?
 
     /// Whether this window is placed in any zone (tiled or floating).
-    /// A window not placed in any zone is considered minimized from Zonogy's perspective.
+    ///
+    /// A managed window in no zone is normally minimized. Exceptions include a window holding a
+    /// display in full screen, one not placed yet, one being dragged between zones, and a
+    /// displaced window waiting out its deferred minimize. Code that must not ask the application
+    /// relies on this; code that must tell the exceptions apart asks `isMinimizedPerAccessibility`.
+    /// (Conversely, a window parked behind a full-screen Space is placed but effectively
+    /// minimized; see `AppController.isWindowBehindFullScreenSpace`.)
     var isPlacedInZone: Bool {
         zoneIndex != nil || isInFloatingZone
     }
@@ -86,15 +92,19 @@ class ManagedWindow {
         ManagedWindow.frame(of: backing.element) ?? .zero
     }
 
-    /// Whether the window is currently minimized according to the Accessibility API.
-    /// Prefer `isPlacedInZone` for most checks - this is only needed for edge cases
-    /// like the recapture pipeline that must detect the actual OS state.
+    /// Whether the window is minimized according to the Accessibility API. This asks the window's
+    /// application, so prefer `isPlacedInZone` unless the exceptions listed there matter.
     var isMinimizedPerAccessibility: Bool {
+        ManagedWindow.isMinimizedPerAccessibility(backing.element)
+    }
+
+    /// Whether `element` is minimized according to the Accessibility API (false when the
+    /// attribute cannot be read).
+    static func isMinimizedPerAccessibility(_ element: AXUIElement) -> Bool {
         var value: CFTypeRef?
-        let error = AXCall.copyAttribute(backing.element, kAXMinimizedAttribute as CFString, &value)
-        if error == .success, let boolValue = value as? Bool {
-            return boolValue
+        guard AXCall.copyAttribute(element, kAXMinimizedAttribute as CFString, &value) == .success else {
+            return false
         }
-        return false
+        return (value as? NSNumber)?.boolValue ?? false
     }
 }
