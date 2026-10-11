@@ -54,7 +54,7 @@ So the launcher automatically dismisses when:
 
 The launcher window should appear:
 
-1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone. The launcher is not user-moveable; it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
+1. **Centered on the currently targeted zone** - The launcher is positioned at the center of the currently targeted zone's frame. If the zone is too small, the launcher window should extend beyond the zone, while keeping a gap from the display's side and bottom edges so it doesn't cover the add-zone or floating-zone indicators there. The launcher is not user-moveable; it re-centers when the **targeted zone changes** or **the targeted zone's frame changes** (e.g., zone add/remove/resize).
 2. If the targeted zone is the floating zone (which has no visible placeholder), center on the display containing the floating zone
 
 ## User Interface

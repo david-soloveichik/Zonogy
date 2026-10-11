@@ -4,14 +4,17 @@ import AppKit
 
 extension FrostedPanel {
     /// Centers the panel on a zone frame (screen coordinates, origin at the top left), clamped to the
-    /// zone's display so a small zone still leaves the panel fully visible.
+    /// zone's display so a small zone still leaves the panel fully visible. The clamp keeps clear of
+    /// the display's side and bottom edges so the panel never covers an add-zone or floating-zone
+    /// bar there, even at its widest.
     func centerOnZone(frame zoneFrame: CGRect, screenDescriptor: ScreenDescriptor) {
         let cocoaFrame = screenDescriptor.screenToCocoa(zoneFrame)
         let visibleBounds = screenDescriptor.visibleCocoaBounds
+        let barClearance = EdgeIndicatorPillSizing.dragThickness + 4
         var x = (cocoaFrame.midX - frame.width / 2).rounded()
         var y = (cocoaFrame.midY - frame.height / 2).rounded()
-        x = max(visibleBounds.minX, min(x, visibleBounds.maxX - frame.width))
-        y = max(visibleBounds.minY, min(y, visibleBounds.maxY - frame.height))
+        x = max(visibleBounds.minX + barClearance, min(x, visibleBounds.maxX - barClearance - frame.width))
+        y = max(visibleBounds.minY + barClearance, min(y, visibleBounds.maxY - frame.height))
         setFrameOrigin(NSPoint(x: x, y: y))
     }
 
