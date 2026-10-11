@@ -25,9 +25,10 @@ import ApplicationServices
 final class NotificationCenterMonitor {
     struct ShownNotification: Equatable {
         let identifier: String
-        /// The running application whose name begins the notification's description; nil when none
-        /// matches (its application is not running, say).
-        let pid: pid_t?
+        /// The running application whose name begins the notification's description, followed, if
+        /// that is a background helper, by the running applications whose bundles hold it; empty
+        /// when none matches (its application is not running, say).
+        let pids: [pid_t]
         /// In accessibility coordinates (origin at the primary display's top-left).
         let frame: CGRect
     }
@@ -177,7 +178,7 @@ final class NotificationCenterMonitor {
         // Logged when notifications come or go, not on every frame of their animations.
         if found.map(\.identifier) != scanned.map(\.identifier) {
             let summary = found.map { notification in
-                let name = notification.pid.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+                let name = notification.pids.first.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
                 return "\(name ?? "unknown app") at \(notification.frame)"
             }.joined(separator: "; ")
             Logger.debug("NotificationCenterMonitor: \(found.count) notification(s) shown\(found.isEmpty ? "" : ": \(summary)")")
@@ -202,8 +203,8 @@ final class NotificationCenterMonitor {
         }
         if let subrole = values[0] as? String, Self.notificationSubroles.contains(subrole) {
             if let identifier = values[1] as? String, let frame = Self.frame(position: values[3], size: values[4]) {
-                let pid = Self.pid(forDescription: values[2] as? String ?? "")
-                found.append(ShownNotification(identifier: identifier, pid: pid, frame: frame))
+                let pids = Self.pids(forDescription: values[2] as? String ?? "")
+                found.append(ShownNotification(identifier: identifier, pids: pids, frame: frame))
             }
             return
         }
@@ -227,11 +228,29 @@ final class NotificationCenterMonitor {
     /// Matching running applications' names, rather than cutting the description at its first comma,
     /// also keeps the notification's content out of the log. Every rescan matches anew (a lookup takes
     /// microseconds), so a notification follows its application across a relaunch.
-    private static func pid(forDescription description: String) -> pid_t? {
-        NSWorkspace.shared.runningApplications.first { application in
+    private static func pids(forDescription description: String) -> [pid_t] {
+        let applications = NSWorkspace.shared.runningApplications
+        guard let sender = applications.first(where: { application in
             guard let name = application.localizedName else { return false }
             return description == name || description.hasPrefix(name + ", ")
-        }?.processIdentifier
+        }) else {
+            return []
+        }
+        // A helper may have windows of its own that Zonogy manages (Steam's does), so it stays.
+        return ([sender] + enclosingApplications(of: sender, among: applications)).map(\.processIdentifier)
+    }
+
+    /// The running applications whose bundles hold `helper`, when `helper` is a background helper
+    /// such as a login item. Such a helper usually posts for the application holding it, which a
+    /// press then brings up (as Fantastical's login item does).
+    private static func enclosingApplications(
+        of helper: NSRunningApplication,
+        among applications: [NSRunningApplication]
+    ) -> [NSRunningApplication] {
+        guard helper.activationPolicy != .regular, let helperPath = helper.bundleURL?.path else { return [] }
+        return applications.filter { application in
+            application.bundleURL.map { helperPath.hasPrefix($0.path + "/") } ?? false
+        }
     }
 
     private func string(of element: AXUIElement, _ attribute: String) -> String? {

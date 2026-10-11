@@ -8,8 +8,8 @@ extension AppController {
     }
 
     internal func startNotificationPressPrePositioning() {
-        notificationClickInterceptor.onPress = { [weak self] pid in
-            self?.prePositionMinimizedWindows(ofApplication: pid, reason: "notification-press")
+        notificationClickInterceptor.onPress = { [weak self] pids in
+            self?.prePositionMinimizedWindows(ofApplications: pids, reason: "notification-press")
         }
         notificationClickInterceptor.start()
         notificationCenterMonitor.onChange = { [weak self] notifications in

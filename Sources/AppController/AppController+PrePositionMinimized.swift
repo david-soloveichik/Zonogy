@@ -146,27 +146,30 @@ extension AppController {
 // MARK: - Before an application's own unminimize
 
 extension AppController {
-    /// The user is pressing a notification of `pid`, which may then restore one of its minimized
-    /// windows itself. Pre-position each of them to the frame it would take in the targeted zone
-    /// (whichever one is restored goes there), so a restored window animates straight into its zone.
+    /// The user is pressing a notification, after which one of `pids` may restore one of its
+    /// minimized windows itself: the notification's application or, for a background helper's
+    /// notification, an application holding the helper (see
+    /// `NotificationCenterMonitor.ShownNotification.pids`). Pre-position all their minimized
+    /// windows to the frames they would take in the targeted zone (whichever one is restored goes
+    /// there), so a restored window animates straight into its zone.
     ///
     /// The press waits for this, and a napping application can take tens of milliseconds to answer,
-    /// so nothing here waits on the application: its minimized windows come from Zonogy's records
-    /// (its managed windows in no zone, other than a full-screen one and a displaced one still
-    /// visible until its deferred minimize; see `ManagedWindow.isPlacedInZone`), and the writes go
-    /// out without waiting for answers. They are sent before Notification Center receives the press.
-    internal func prePositionMinimizedWindows(ofApplication pid: pid_t, reason: String) {
+    /// so nothing here waits on an application: the minimized windows come from Zonogy's records
+    /// (managed windows in no zone, other than a full-screen one and a displaced one still visible
+    /// until its deferred minimize; see `ManagedWindow.isPlacedInZone`), and the writes go out
+    /// without waiting for answers. They are sent before Notification Center receives the press.
+    internal func prePositionMinimizedWindows(ofApplications pids: [pid_t], reason: String) {
         guard !sleepWakeProtectionActive else { return }
-        // Most recent first: the window the application most likely restores gets its writes first.
+        // Most recent first: the window most likely restored gets its writes first.
         let minimized = windowController.allWindowsOrderedByRecency().filter {
-            $0.backing.pid == pid && !$0.isPlacedInZone && !isTrackedFullScreenWindow($0)
+            pids.contains($0.backing.pid) && !$0.isPlacedInZone && !isTrackedFullScreenWindow($0)
                 && !deferredMinimizationCoordinator.isPending(windowId: $0.windowId)
         }
-        Logger.debug("Pre-positioning \(minimized.count) minimized window(s) of pid \(pid) (\(reason))")
+        Logger.debug("Pre-positioning \(minimized.count) minimized window(s) of pids \(pids) (\(reason))")
         guard !minimized.isEmpty else { return }
         guard isTargetedDisplayAvailableForPlacement(),
               let destination = targetedZoneManager.targetedDestination else {
-            Logger.debug("Minimized windows of pid \(pid) not pre-positioned (\(reason), no targeted display available)")
+            Logger.debug("Minimized windows of pids \(pids) not pre-positioned (\(reason), no targeted display available)")
             return
         }
         for managed in minimized {
