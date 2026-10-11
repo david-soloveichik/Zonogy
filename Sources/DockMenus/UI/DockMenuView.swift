@@ -106,16 +106,7 @@ struct DockMenuAppHeaderView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background {
-                if isHovered {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.22))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
-                        )
-                }
-            }
+            .dockMenuHoverHighlight(isHovered)
             .contentShape(Rectangle())
             .onHover { hovering in
                 onHover(hovering)
@@ -157,7 +148,15 @@ struct DockMenuWindowRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background {
+        .dockMenuHoverHighlight(isHovered)
+    }
+}
+
+private extension View {
+    /// Draws the hover highlight behind a row, inset from the panel's sides like a menu's selection.
+    /// The inset stays part of the row, so the row is hoverable and clickable across the full width.
+    func dockMenuHoverHighlight(_ isHovered: Bool) -> some View {
+        background {
             if isHovered {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.accentColor.opacity(0.22))
@@ -167,5 +166,6 @@ struct DockMenuWindowRowView: View {
                     )
             }
         }
+        .padding(.horizontal, 5)
     }
 }
