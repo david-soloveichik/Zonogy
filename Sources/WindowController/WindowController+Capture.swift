@@ -379,7 +379,11 @@ extension WindowController {
         )
         // Seed the cached frame now so it is available even if placement issues no move
         // (e.g. the window is already at its target frame); refreshed on later move/resize.
+        // A window found minimized gets no minimize notification, so seed its pre-minimize frame too.
         recordCachedFrame(for: managed)
+        if isMinimized {
+            managed.preMinimizeFrame = managed.cachedFrame
+        }
         windowRegistry.insert(managed)
         externalWindowsByElement[elementKey] = managed
         externalWindows[identifier] = managed

@@ -214,6 +214,10 @@ To pre-position a window restored due to a notification click, Zonogy watches No
 
 To keep the press short, the writes don't wait for the application's answers, so this pre-positioning is best effort.
 
+#### Applications that restore a window's frame
+
+Some applications (eg Adobe Illustrator) disregard frame changes made while a window is minimized: shortly after the window is unminimized, they move it back to the frame it had when it was minimized. This arrives as an ordinary move/resize notification, which Zonogy would otherwise take for the user intentionally moving or resizing the window. To tell them apart, Zonogy remembers each window's frame when it is minimized and watches for two seconds after the window is unminimized: if the window arrives at that frame although Zonogy asked for another, Zonogy immediately moves it back.
+
 ### Focusing a specific window of another application
 
 Making a window main or raising it while its application isn't frontmost puts the window behind the frontmost application's windows, even if it was originally in front of them. An unminimized window appears in front of every window, so raising it before its application is frontmost would hide it until the application activates. (As far as I am concerned this is a macOS bug.)

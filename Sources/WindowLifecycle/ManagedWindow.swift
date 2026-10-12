@@ -45,6 +45,17 @@ class ManagedWindow {
     /// resize). Nil until the first move/resize is observed.
     var cachedFrame: CGRect?
 
+    /// The frame, in accessibility coordinates, that Zonogy last asked this window to take.
+    var requestedFrame: CGRect?
+
+    /// `cachedFrame` as of this window's last minimize (or when it was found minimized), in case
+    /// its application moves it back there once it is unminimized (see
+    /// `WindowController.undoReturnToPreMinimizeFrame`).
+    var preMinimizeFrame: CGRect?
+
+    /// When this window was last unminimized.
+    var unminimizedAt: Date?
+
     /// Whether this window is placed in any zone (tiled or floating).
     ///
     /// A managed window in no zone is normally minimized. Exceptions include a window holding a

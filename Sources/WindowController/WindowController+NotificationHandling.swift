@@ -135,10 +135,12 @@ extension WindowController {
 
         case axMiniaturizedNotification:
             Logger.debug("External window \(managed.windowId) minimized")
+            managed.preMinimizeFrame = managed.cachedFrame
             delegate?.windowDidMiniaturize(windowId: managed.windowId)
 
         case axDeminiaturizedNotification:
             Logger.debug("External window \(managed.windowId) deminiaturized")
+            managed.unminimizedAt = Date()
             // The moves and resizes of a pre-positioned window can all arrive while they are ignored
             // (see isProgrammaticUpdateOfUnplacedWindow), so remember the restored frame now.
             recordCachedFrame(for: managed)
@@ -511,6 +513,32 @@ extension WindowController {
         programmaticUpdateWindowIds.contains(managed.windowId) && !managed.isPlacedInZone
     }
 
+    /// Some applications (Adobe Illustrator, for one) disregard frame changes made while a window
+    /// is minimized and, shortly after it is unminimized, move it back to the frame it had when
+    /// minimized, often while the window is still marked as Zonogy's own update. If a placed
+    /// window arrives at that frame soon after its unminimize although Zonogy asked for another,
+    /// move it back to the requested frame, once (a window that cannot shrink to its zone can land
+    /// at its old frame by itself), rather than ignoring the change or taking it for the user's.
+    /// `frame` is the window's fresh accessibility frame. Returns true when moving the window back.
+    private func undoReturnToPreMinimizeFrame(_ managed: ManagedWindow, frame: CGRect?) -> Bool {
+        guard managed.isPlacedInZone,
+              let unminimizedAt = managed.unminimizedAt,
+              Date().timeIntervalSince(unminimizedAt) < Self.preMinimizeFrameWatchWindow,
+              let preMinimizeFrame = managed.preMinimizeFrame,
+              let requestedFrame = managed.requestedFrame,
+              let frame,
+              framesRoughlyEqual(frame, preMinimizeFrame),
+              !framesRoughlyEqual(frame, requestedFrame) else {
+            return false
+        }
+        managed.preMinimizeFrame = nil
+        Logger.debug("External window \(managed.windowId) returned to its pre-minimize frame \(frame); moving it back to \(requestedFrame)")
+        if let screenId = managed.screenDisplayId, let screen = delegate?.screenDescriptor(for: screenId) {
+            moveWindow(managed, to: screen.accessibilityToScreen(requestedFrame), on: screen)
+        }
+        return true
+    }
+
     private func handleWindowMovedNotification(managed: ManagedWindow) {
         guard !isProgrammaticUpdateOfUnplacedWindow(managed) else {
             Logger.debug("External window \(managed.windowId) moved (ignored programmatic update of a window in no zone)")
@@ -518,6 +546,9 @@ extension WindowController {
         }
         // One frame read serves the cache, the log line, and the drag pipeline.
         let accessibilityFrame = recordCachedFrame(for: managed)
+        if undoReturnToPreMinimizeFrame(managed, frame: accessibilityFrame) {
+            return
+        }
         let loggedFrame = accessibilityFrame ?? .zero
         if programmaticUpdateWindowIds.contains(managed.windowId) {
             Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (ignored programmatic update)")
@@ -556,6 +587,9 @@ extension WindowController {
         // since entering/exiting full-screen fires resize notifications
         delegate?.windowDidResize(windowId: managed.windowId)
 
+        if undoReturnToPreMinimizeFrame(managed, frame: accessibilityFrame) {
+            return
+        }
         guard !programmaticUpdateWindowIds.contains(managed.windowId) else {
             return
         }

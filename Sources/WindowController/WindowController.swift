@@ -106,6 +106,10 @@ class WindowController {
     /// frame reasserts stay suppressed for that window.
     internal static let externalMoveReassertSuppressionWindow: TimeInterval = 0.3
 
+    /// How long after a window is unminimized a return to its pre-minimize frame is undone (see
+    /// `undoReturnToPreMinimizeFrame`).
+    internal static let preMinimizeFrameWatchWindow: TimeInterval = 2.0
+
     /// Tracks the last time each window was activated for shared managed-window recency ordering.
     internal var windowLastActiveTime: [Int: Date] = [:]
 

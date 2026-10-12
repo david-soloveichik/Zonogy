@@ -53,6 +53,7 @@ extension WindowController {
             newTargetScreenFrame: effectiveTargetScreenFrame,
             reason: "show-window"
         )
+        managedWindow.requestedFrame = screen.screenToAccessibility(effectiveTargetScreenFrame)
         let element = managedWindow.backing.element
         // Accessibility API uses screen coordinates directly
         performProgrammaticUpdate(for: managedWindow.windowId) {

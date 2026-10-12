@@ -40,6 +40,7 @@ extension WindowController {
             newTargetScreenFrame: effectiveTargetScreenFrame,
             reason: "new-programmatic-move"
         )
+        managedWindow.requestedFrame = screen.screenToAccessibility(effectiveTargetScreenFrame)
 
         let currentFrameForSkip = currentFrame ?? .zero
         if framesRoughlyEqual(currentFrameForSkip, effectiveTargetScreenFrame) {
@@ -777,6 +778,7 @@ extension WindowController {
 
         // Compute accessibility-coordinate frame on the main thread (pure math).
         let targetAXFrame = screen.screenToAccessibility(effectiveTargetScreenFrame)
+        managedWindow.requestedFrame = targetAXFrame
 
         // Choose size-vs-position order using the previous target as "current frame"
         // (no AX read needed) so intermediate frames stay on-screen when possible.
