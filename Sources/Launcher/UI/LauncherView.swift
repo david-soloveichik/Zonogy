@@ -33,6 +33,8 @@ struct LauncherView: View {
                 .frame(width: 16, height: 16)
                 TextField(searchPlaceholder, text: $model.query)
                     .textFieldStyle(.plain)
+                    .autocorrectionDisabled(true)
+                    .writingToolsBehavior(.disabled)
                     .font(.system(size: 18, weight: .medium))
                     .focused($isSearchFocused)
                     .frame(maxWidth: .infinity)

@@ -1,5 +1,12 @@
 // swift-tools-version:5.9
+// Defines the app and developer tools, including metadata for unbundled debug runs.
+import Foundation
 import PackageDescription
+
+let debugInfoPlistPath = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .appendingPathComponent("Resources/DebugInfo.plist")
+    .path
 
 let package = Package(
     name: "Zonogy",
@@ -24,7 +31,16 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Zonogy",
-            path: "Sources"
+            path: "Sources",
+            linkerSettings: [
+                // `swift run Zonogy` has no app bundle, so embed its AutoFill policy.
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", debugInfoPlistPath
+                ], .when(configuration: .debug))
+            ]
         ),
         .executableTarget(
             name: "unrulywin",
