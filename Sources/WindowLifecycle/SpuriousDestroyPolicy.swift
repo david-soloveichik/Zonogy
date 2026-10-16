@@ -35,8 +35,9 @@ enum SpuriousDestroyPolicy {
     ///   - windowStillListed: Whether the WindowServer still lists the window's `(pid, CGWindowID)`.
     ///   - currentElementResolves: Whether the element we currently hold still resolves to the window.
     ///   - replacementLookup: Result of looking for a *different* live element for the window.
-    ///   - confirmedAXAbsenceIsAuthoritative: Whether a successful AX absence is backed by an
-    ///     explicit destroy notification and may therefore override a stale WindowServer entry.
+    ///   - confirmedAXAbsenceIsAuthoritative: Whether a successful AX absence is backed by a close
+    ///     signal (a destroy notification, or the window losing its live WindowServer frame) and may
+    ///     therefore override a stale WindowServer entry.
     static func resolve(
         windowStillListed: Bool,
         currentElementResolves: Bool,

@@ -1147,6 +1147,12 @@ extension AppController {
             )
             return
         }
+        closeVanishedWindowsBeforePlacing(window)
+        // Closing those windows can settle this one already: a native-tab rebind adopts its
+        // backing (dropping this record), or a full-screen exit places it.
+        guard windowController.window(withId: window.windowId) != nil, !window.isPlacedInZone else {
+            return
+        }
         windowPlacementManager.placeNewWindow(window)
         reconcileCapturedFrontmostWindowIfNeeded(window)
         focusExplicitlyUnminimizedWindowIfNeeded(
@@ -1154,6 +1160,30 @@ extension AppController {
             resolvedWindowId: window.windowId,
             reason: "capture-placement"
         )
+    }
+
+    /// Closes the application's windows that are gone but not yet reported closed (see
+    /// `stageClosedWindowsWithoutLiveFrame`) before placing its new window: their zones empty and are
+    /// targeted first, so the new window takes the zone the user saw vacated.
+    private func closeVanishedWindowsBeforePlacing(_ window: ManagedWindow) {
+        let pid = window.backing.pid
+        let vanishedWindowIds = windowController.stageClosedWindowsWithoutLiveFrame(forPid: pid, excluding: window.windowId)
+        guard !vanishedWindowIds.isEmpty else {
+            return
+        }
+        Logger.debug(
+            "Closing window(s) \(vanishedWindowIds) of pid \(pid), without a live WindowServer frame, before placing window \(window.windowId)"
+        )
+        // The new window fills the emptied zone next, so the Launcher does not auto-show there.
+        withLauncherAutoShowSuppressed {
+            handleDestroyedWindows(
+                vanishedWindowIds,
+                reason: "closed-before-new-window",
+                retarget: true,
+                shouldSync: false,
+                shouldRefreshWinShotChooser: true
+            )
+        }
     }
 
     private func reconcileCapturedFrontmostWindowIfNeeded(_ window: ManagedWindow) {

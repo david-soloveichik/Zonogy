@@ -132,6 +132,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// When true, target changes do not flash the zone border. Scoped via `withTargetChangeFlashSuppressed`
     /// around operations (e.g. creating a zone) whose retarget should not draw a flash.
     internal var suppressTargetChangeFlash = false
+    /// When true, an emptied tiling zone does not auto-show the Launcher. Scoped via
+    /// `withLauncherAutoShowSuppressed` around operations that fill the zone right away.
+    internal var suppressLauncherAutoShow = false
     internal let capturePipeline: WindowCapturePipeline
     internal let placeholderManager: PlaceholderManager
     internal let placeholderCoordinator: PlaceholderCoordinator

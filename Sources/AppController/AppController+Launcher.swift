@@ -233,6 +233,7 @@ extension AppController {
     /// - Only when the "Auto-show Launcher for empty tiling zones" preference is enabled
     internal func autoShowLauncherIfEmptyTargetedTiledZone() {
         guard autoShowLauncherForEmptyZonesEnabled,
+              !suppressLauncherAutoShow,
               !launcherController.isActive,
               case .tiled(let targetedKey) = targetedZoneManager.targetedDestination,
               targetedZoneManager.isZoneEmpty(targetedKey) else {
@@ -247,6 +248,14 @@ extension AppController {
         if showLauncherIfAllowed(trigger: "auto-show-empty-targeted-zone", autoShow: true) {
             Logger.debug("Launcher: Auto-shown for empty zone \(targetedKey.index)")
         }
+    }
+
+    /// Runs `body` with the Launcher's empty-zone auto-show suppressed, restoring the prior state after.
+    func withLauncherAutoShowSuppressed(_ body: () -> Void) {
+        let previous = suppressLauncherAutoShow
+        suppressLauncherAutoShow = true
+        defer { suppressLauncherAutoShow = previous }
+        body()
     }
 
     /// Floating counterpart for zone-navigation commits only: releasing the gesture over an empty

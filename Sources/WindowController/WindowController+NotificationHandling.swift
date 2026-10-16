@@ -108,28 +108,7 @@ extension WindowController {
         switch notificationName {
         case axDestroyedNotification:
             Logger.debug("*** AXUIElementDestroyed notification received for window \(managed.windowId)")
-            let livenessResolution = resolveWindowAfterAXFailure(
-                managed: managed,
-                staleElement: element,
-                reason: "AXUIElementDestroyed",
-                confirmedAXAbsenceIsAuthoritative: true
-            )
-            if livenessResolution != .prune {
-                if livenessResolution == .preserve {
-                    delegate?.windowController(
-                        self,
-                        didDeferPruneForPidValidation: managed.backing.pid
-                    )
-                }
-                break
-            }
-
-            // Stage before notifying the delegate so deferred-prune-aware cleanup
-            // (e.g. remembered-size preservation) can detect the pending entry and
-            // avoid dropping state on a spurious AXDestroyed + restore cycle. Staging may instead
-            // rebind a closed native-tab window to a surviving sibling; only notify close if it
-            // actually staged for prune.
-            if stagePendingPrunedWindow(managed, reason: "ax-destroyed-notification") {
+            if stageWindowIfClosed(managed, staleElement: element, signal: "AXUIElementDestroyed") {
                 delegate?.windowWillClose(windowId: managed.windowId)
             }
 
@@ -208,6 +187,43 @@ extension WindowController {
         }
 
         return managed.windowId
+    }
+
+    /// Applies the destroy checks of `resolveWindowAfterAXFailure` to a window that `signal` suggests
+    /// has closed, with AX absence authoritative, and stages it for deferred prune if they confirm it
+    /// is gone. Staging precedes any close notification so deferred-prune-aware cleanup (e.g.
+    /// remembered-size preservation) sees the pending entry; it may instead rebind a closed native-tab
+    /// window to a surviving sibling. Returns true only when the window was staged.
+    private func stageWindowIfClosed(_ managed: ManagedWindow, staleElement: AXUIElement, signal: String) -> Bool {
+        let resolution = resolveWindowAfterAXFailure(
+            managed: managed,
+            staleElement: staleElement,
+            reason: signal,
+            confirmedAXAbsenceIsAuthoritative: true
+        )
+        if resolution == .preserve {
+            delegate?.windowController(self, didDeferPruneForPidValidation: managed.backing.pid)
+        }
+        return resolution == .prune && stagePendingPrunedWindow(managed, reason: signal)
+    }
+
+    /// Stages the application's placed windows, other than `excludedWindowId`, that no longer have a
+    /// live WindowServer frame (the windows native-tab replacement considers) and that the destroy
+    /// checks confirm are gone. An application can show a new window before Zonogy learns that another
+    /// of its windows closed: Keynote withdraws its theme chooser's frame as the new document arrives,
+    /// while the chooser's destroy notification comes much later. Returns the staged window ids.
+    func stageClosedWindowsWithoutLiveFrame(forPid pid: pid_t, excluding excludedWindowId: Int) -> [Int] {
+        var stagedWindowIds: [Int] = []
+        for managed in windowRegistry.allWindows
+        where managed.backing.pid == pid && managed.windowId != excludedWindowId && managed.isPlacedInZone {
+            guard WindowServerWindowList.frame(for: managed.backing.cgWindowId, ownerPid: pid) == nil else {
+                continue
+            }
+            if stageWindowIfClosed(managed, staleElement: managed.backing.element, signal: "no-live-frame-before-new-window") {
+                stagedWindowIds.append(managed.windowId)
+            }
+        }
+        return stagedWindowIds
     }
 
     /// Preserve or repair a tracked window when its cached AX element may be stale.
