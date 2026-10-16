@@ -1,5 +1,6 @@
 /// Manages loading and saving the exceptions portion of the user config.json file.
-/// If config.json doesn't exist, it's created pre-filled with bundled defaults.
+/// If config.json doesn't exist, it's created pre-filled with bundled defaults; an existing file
+/// receives the defaults introduced since it was written, each default exception rule only once.
 
 import Foundation
 
@@ -8,10 +9,34 @@ extension Notification.Name {
 }
 
 enum ExceptionsConfigurationStore {
-    private struct UserConfig: Codable {
+    struct UserConfig: Codable, Equatable {
         var ignoredBundleIdentifiers: [String]?
         var deriveBundleIdFromPathForProcesses: [String]?
         var bundleExceptions: [ApplicationExceptionRule]?
+        /// Apps whose default exception rule this file has already received, so a removed rule stays removed.
+        var offeredDefaultExceptions: [String]?
+
+        /// Adds the defaults this config has not received yet without overriding user-provided values:
+        /// the process list when its key is missing, and each default exception rule once (skipped when
+        /// the config already has a rule for that app). Returns whether anything changed.
+        mutating func addMissingDefaults(from defaults: UserConfig) -> Bool {
+            let original = self
+            if deriveBundleIdFromPathForProcesses == nil {
+                deriveBundleIdFromPathForProcesses = defaults.deriveBundleIdFromPathForProcesses ?? []
+            }
+
+            let defaultRules = defaults.bundleExceptions ?? []
+            let offered = Set(offeredDefaultExceptions ?? [])
+            let configured = Set((bundleExceptions ?? []).map(\.bundleIdentifier))
+            let newRules = defaultRules.filter {
+                !offered.contains($0.bundleIdentifier) && !configured.contains($0.bundleIdentifier)
+            }
+            if !newRules.isEmpty {
+                bundleExceptions = (bundleExceptions ?? []) + newRules
+            }
+            offeredDefaultExceptions = offered.union(defaultRules.map(\.bundleIdentifier)).sorted()
+            return self != original
+        }
     }
 
     /// Returns the URL for the user config.json file
@@ -23,58 +48,23 @@ enum ExceptionsConfigurationStore {
             .appending(path: "config.json", directoryHint: .notDirectory)
     }
 
-    /// Ensures config.json exists, seeding from bundled defaults if needed.
-    /// Call this before loading to ensure the file is present.
+    /// Ensures config.json exists and has the bundled defaults it has not received yet.
+    /// Call this before loading the configuration so new defaults apply right away.
     static func ensureConfigExists() {
+        guard let defaults = loadBundledDefaults() else {
+            return
+        }
         let fileURL = configurationFileURL()
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            backfillMissingDefaults(in: fileURL)
+        // A new file starts with the default ignored apps; addMissingDefaults supplies the rest
+        // (and always reports a change for it, since a new file has no offered-defaults record yet).
+        let newFile = UserConfig(ignoredBundleIdentifiers: defaults.ignoredBundleIdentifiers)
+        guard var config = readConfig(at: fileURL, orIfMissing: newFile),
+              config.addMissingDefaults(from: defaults) else {
             return
         }
-
-        // Create directory if needed
-        let directoryURL = fileURL.deletingLastPathComponent()
-        if !FileManager.default.fileExists(atPath: directoryURL.path) {
-            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        if write(config, to: fileURL) {
+            Logger.debug("Added bundled defaults to config.json")
         }
-
-        // Seed with bundled defaults
-        let defaults = loadBundledDefaults()
-        let config = UserConfig(
-            ignoredBundleIdentifiers: defaults.ignoredBundleIdentifiers,
-            deriveBundleIdFromPathForProcesses: defaults.deriveBundleIdFromPathForProcesses,
-            bundleExceptions: defaults.bundleExceptions
-        )
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(config) {
-            try? data.write(to: fileURL, options: [.atomic])
-        }
-    }
-
-    /// Adds newly introduced default fields to existing config files without overriding
-    /// user-provided values.
-    private static func backfillMissingDefaults(in fileURL: URL) {
-        guard let data = try? Data(contentsOf: fileURL),
-              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return
-        }
-
-        let key = "deriveBundleIdFromPathForProcesses"
-        guard object[key] == nil else {
-            return
-        }
-
-        let defaultProcesses = loadBundledDefaults().deriveBundleIdFromPathForProcesses ?? []
-        object[key] = defaultProcesses
-
-        guard JSONSerialization.isValidJSONObject(object),
-              let updatedData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else {
-            return
-        }
-
-        try? updatedData.write(to: fileURL, options: [.atomic])
     }
 
     /// Loads the Preferences > Exceptions rows from config.json.
@@ -82,9 +72,7 @@ enum ExceptionsConfigurationStore {
     static func loadEntries() -> [ExceptionsPreferencesEntry] {
         ensureConfigExists()
 
-        let fileURL = configurationFileURL()
-        guard let data = try? Data(contentsOf: fileURL),
-              let config = try? JSONDecoder().decode(UserConfig.self, from: data) else {
+        guard let config = readConfig(at: configurationFileURL(), orIfMissing: UserConfig()) else {
             return []
         }
         return ExceptionsPreferencesEntry.buildEntries(
@@ -97,40 +85,53 @@ enum ExceptionsConfigurationStore {
     /// Preserves any unrelated configuration fields already present in the file.
     static func saveEntries(_ entries: [ExceptionsPreferencesEntry]) {
         let fileURL = configurationFileURL()
-        let directoryURL = fileURL.deletingLastPathComponent()
-
-        // Ensure directory exists
-        if !FileManager.default.fileExists(atPath: directoryURL.path) {
-            try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        }
-
-        // Load existing config to preserve other fields
-        var existingConfig = UserConfig()
-        if FileManager.default.fileExists(atPath: fileURL.path),
-           let data = try? Data(contentsOf: fileURL),
-           let decoded = try? JSONDecoder().decode(UserConfig.self, from: data) {
-            existingConfig = decoded
+        guard var config = readConfig(at: fileURL, orIfMissing: UserConfig()) else {
+            Logger.error("Exceptions not saved: config.json fails to decode")
+            return
         }
 
         let persisted = ExceptionsPreferencesEntry.splitForPersistence(entries)
-        existingConfig.ignoredBundleIdentifiers = persisted.ignoredBundleIdentifiers.isEmpty
+        config.ignoredBundleIdentifiers = persisted.ignoredBundleIdentifiers.isEmpty
             ? nil
             : persisted.ignoredBundleIdentifiers
-        existingConfig.bundleExceptions = persisted.rules.isEmpty ? nil : persisted.rules
+        config.bundleExceptions = persisted.rules.isEmpty ? nil : persisted.rules
 
-        // Save
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(existingConfig) {
-            try? data.write(to: fileURL, options: [.atomic])
-
+        if write(config, to: fileURL) {
             // Notify observers that exception rules changed
             NotificationCenter.default.post(name: .exceptionsConfigurationDidChange, object: nil)
         }
     }
 
-    /// Returns bundled defaults from Resources/defaults.json
-    private static func loadBundledDefaults() -> UserConfig {
+    /// Returns the decoded config.json, `fallback` if the file doesn't exist yet, or nil if it can't be
+    /// read or decoded. Callers leave such a file alone rather than replace everything in it.
+    private static func readConfig(at fileURL: URL, orIfMissing fallback: UserConfig) -> UserConfig? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return fallback
+        }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UserConfig.self, from: data)
+    }
+
+    /// Writes config.json, creating its directory if needed. Returns whether the write succeeded.
+    private static func write(_ config: UserConfig, to fileURL: URL) -> Bool {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try encoder.encode(config).write(to: fileURL, options: [.atomic])
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Returns bundled defaults from Resources/defaults.json, or nil if the file can't be found or decoded.
+    private static func loadBundledDefaults() -> UserConfig? {
         let fileName = "defaults.json"
         let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
 
@@ -149,6 +150,6 @@ enum ExceptionsConfigurationStore {
             }
         }
 
-        return UserConfig()
+        return nil
     }
 }

@@ -1,7 +1,8 @@
 import Foundation
 
 /// Top-level configuration for Zonogy, loaded from ~/Library/Application Support/Zonogy/config.json.
-/// If config.json doesn't exist, it's created at startup with bundled defaults (see ExceptionsConfigurationStore).
+/// At startup, config.json is created from bundled defaults if missing, or receives newly introduced
+/// defaults (see ExceptionsConfigurationStore).
 struct Configuration {
     private struct FileContents: Decodable {
         let ignoredBundleIdentifiers: [String]?

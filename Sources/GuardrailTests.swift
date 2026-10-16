@@ -174,6 +174,9 @@ enum GuardrailTests {
         if !ExceptionsPreferencesEntryTests.run() {
             allPassed = false
         }
+        if !ExceptionsConfigurationStoreTests.run() {
+            allPassed = false
+        }
         if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }

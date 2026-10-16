@@ -532,7 +532,7 @@ Zonogy uses a single user-editable configuration file, seeded from bundled defau
 1. **Bundled defaults** – `Resources/defaults.json` is included in the app bundle and provides sensible defaults for common applications.
 2. **User config** – `~/Library/Application Support/Zonogy/config.json` is the active configuration file.
 
-On launch, if the user config file does not exist, it is created by copying the bundled defaults. The user config is the single source of truth—users edit it directly to customize behavior.
+On launch, if the user config file does not exist, it is created by copying the bundled defaults. The user config is the single source of truth—users edit it directly to customize behavior. On later launches, any default exception rule the user config has not received yet is added to it, unless the config already has a rule for that app. The config lists the apps whose default rules it has received in `offeredDefaultExceptions`, so a rule the user removes is not added back.
 
 ### File Schema
 
@@ -573,5 +573,6 @@ Fields:
   - `doNotResizeWidth` – when `true`, Zonogy preserves the window's current width during zone-aligned moves/resizes instead of attempting to apply the zone width. Height and position still update normally.
   - `disableMouseGestures` – when `true`, Zonogy does not consume that app's gesture-modifier (default Control-Command) click targeting or external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
+- `offeredDefaultExceptions` – maintained by Zonogy (see **Configuration Loading** above).
 
 For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, title, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

@@ -16,6 +16,10 @@
       "ignoreZoomButtonRequirement": true
     },
     {
+      "bundleIdentifier": "com.apple.Keynote",
+      "treatAXUnknownFullWidthAsFullScreen": true
+    },
+    {
       "bundleIdentifier": "com.apple.MobileSMS",
       "hasMainWindow": true
     },
