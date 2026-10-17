@@ -45,6 +45,7 @@ So the launcher automatically dismisses when:
 - User clicks outside the launcher window
 - The targeted destination changes to an occupied tiling zone (to avoid showing the Launcher for non-empty zones)
 - Focus shifts to a managed window in a tiling or floating zone (so the user can interact with it) — including zone navigation focusing a window, which dismisses immediately on the commit
+- Another application takes the keyboard from it without becoming the active application, as Siri does. (Note: Switching applications alone doesn't dismiss Launcher: when a forwarded Cmd-Q quits the menu bar owner, macOS activates another application and the Launcher stays.)
 - A window is placed into a zone (so the user can interact with it)
 - An unmanaged window appears beneath the Launcher (see "Covered unmanaged windows"). Windows already beneath the Launcher when it opened or moved are tolerated (the user may have opened the Launcher over them deliberately).
 - A zone is removed (see "Zone removal behavior")
@@ -272,7 +273,7 @@ Custom items config schema:
 
 ### Accessibility API Workarounds
 
-- **Auto-show grace period:** When a window is minimized or closed in a tiling zone, the Launcher auto-shows. However, macOS may automatically focus another window, which would normally trigger the Launcher to dismiss. To prevent this, the Launcher ignores focus-based dismissals for 0.5 seconds after auto-showing.
+- **Auto-show grace period:** When a window is minimized or closed in a tiling zone, the Launcher auto-shows. However, macOS may automatically focus another window, which would normally trigger the Launcher to dismiss. To prevent this, the Launcher ignores focus shifting to another window for 0.5 seconds after auto-showing.
 
 ### Window Configuration
 

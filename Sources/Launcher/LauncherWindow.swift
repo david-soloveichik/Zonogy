@@ -12,8 +12,16 @@ final class LauncherWindow: FrostedPanel {
     /// another Zonogy panel that opened over the Launcher (the WinShot chooser) closes.
     var onDidBecomeKey: (() -> Void)?
 
+    /// Runs each time the panel resigns key, whether to another Zonogy panel or to another application.
+    var onDidResignKey: (() -> Void)?
+
     override func becomeKey() {
         super.becomeKey()
         onDidBecomeKey?()
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        onDidResignKey?()
     }
 }

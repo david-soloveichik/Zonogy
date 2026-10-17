@@ -88,6 +88,8 @@ final class LauncherController {
     private var placement: LauncherCoveredWindowPolicy.Placement?
     private var autoShowGraceUntil: Date?
     private var pendingAutoShowGraceOnOpen = false
+    /// The frontmost application when the panel last became key (see `windowDidResignKey`).
+    private var frontmostPidWhileKey: pid_t?
     private var clickSuppressionGate = LauncherClickSuppressionGate()
     private lazy var rowDragController = CursorDrivenRowDragController<LauncherDragPayload>(
         logPrefix: "Launcher",
@@ -125,7 +127,7 @@ final class LauncherController {
     }
 
     /// Returns true if the Launcher is within its auto-show grace period.
-    /// During this period, focus-based dismissals should be skipped.
+    /// During this period, focus shifting to another window should not dismiss it.
     var isInAutoShowGracePeriod: Bool {
         guard let graceUntil = autoShowGraceUntil else { return false }
         return Date() < graceUntil
@@ -332,7 +334,8 @@ final class LauncherController {
     private func positionWindowOnCurrentTarget() {
         if window == nil {
             let newWindow = LauncherWindow()
-            newWindow.onDidBecomeKey = { [weak self] in self?.refocusSearchField() }
+            newWindow.onDidBecomeKey = { [weak self] in self?.windowDidBecomeKey() }
+            newWindow.onDidResignKey = { [weak self] in self?.windowDidResignKey() }
             window = newWindow
         }
         guard let delegate, let window else {
@@ -367,6 +370,28 @@ final class LauncherController {
         window.makeKeyAndOrderFront(nil)
     }
 
+    private func windowDidBecomeKey() {
+        frontmostPidWhileKey = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        refocusSearchField()
+    }
+
+    /// Another application's panel took the keyboard without becoming frontmost (Siri, LaunchBar): the
+    /// Launcher can no longer be typed into and no focus change would close it, so it is cancelled like
+    /// an outside click. Decided a turn later, once key status settles, so that another Zonogy panel
+    /// opening over the Launcher (the WinShot chooser) keeps it. Application switches are left to the
+    /// delegate's focus rules: macOS activating another application after a forwarded Cmd-Q, for one,
+    /// must not close it.
+    private func windowDidResignKey() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isActive, NSApp.keyWindow == nil,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == self.frontmostPidWhileKey else {
+                return
+            }
+            Logger.debug("Launcher: Cancelling because another application took keyboard focus")
+            self.cancel()
+        }
+    }
+
     /// Re-focuses the search field whenever the panel becomes key (`LauncherWindow.onDidBecomeKey`).
     /// SwiftUI ends the field's editing when the panel resigns key, as when the WinShot chooser opens
     /// over the Launcher, and does not resume it when the panel becomes key again (AppKit hands key
@@ -378,25 +403,18 @@ final class LauncherController {
         }
     }
 
-    /// Makes the Launcher window key after system events that may have broken the non-activating panel focus path.
-    /// Call this only for wake/system recovery cases where ordinary `makeKeyAndOrderFront` is insufficient.
+    /// Takes keyboard focus back for the open Launcher after a system event took it (another app
+    /// quitting, sleep), the way opening the Launcher takes it, without activating Zonogy: while Zonogy
+    /// is the active app, another app's panel taking the keyboard (Siri) does not resign the Launcher's
+    /// key status, so `windowDidResignKey` could not dismiss it, and closing the Launcher would leave
+    /// typing with Zonogy.
     func makeKeyIfActive() {
-        guard isActive, window != nil else { return }
-
-        // After wake from sleep, the nonactivatingPanel may not properly receive keyboard
-        // focus with just makeKeyAndOrderFront. We need to also activate the app.
-        // NSApp.activate is asynchronous, so we must defer makeKeyAndOrderFront until
-        // the next run loop iteration when the app will be active.
-        NSApp.activate()
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.isActive, let window = self.window else { return }
-            window.makeKeyAndOrderFront(nil)
-            // Explicit here: after wake the panel may still count as key, so becoming key would not
-            // re-focus the field, and this recovery runs only once per wake.
-            self.model?.requestSearchFieldFocus()
-            Logger.debug("Launcher: Made key after system event - isNowKey:\(window.isKeyWindow)")
-        }
+        guard isActive, let window else { return }
+        window.makeKeyAndOrderFront(nil)
+        // Explicit here: after wake the panel may still count as key, so becoming key would not
+        // re-focus the field, and this recovery runs only once per wake.
+        refocusSearchField()
+        Logger.debug("Launcher: Made key after system event - isNowKey:\(window.isKeyWindow)")
     }
 
     /// Re-anchors the open Launcher when its target or that target's frame moved; positioning
