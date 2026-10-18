@@ -159,7 +159,7 @@ Apps don't expose enough information for Zonogy to always make the right choices
   $ defaults delete -g NSZoomButtonShowMenu
   ```
 
-- Most default Zonogy shortcuts use `Control-Cmd` as the modifier. Using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap `Caps Lock` to `Control-Cmd` is very convenient. The [config I use](docs/karabiner-elements.md) sets this up, with the bonus that tapping `Caps Lock` on its own opens the Launcher.
+- Most default Zonogy shortcuts use `Control-Cmd` as the modifier. Using [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap `Caps Lock` to `Control-Cmd` is very convenient. The [config I use](docs/karabiner-elements.md) sets this up, and also puts three frequent shortcuts on single keys: tapping `Caps Lock` toggles the destination with the focused window's zone, `F3` clears zones on the active display, and `F4` opens the Launcher.
 
 ## Performance
 
