@@ -135,7 +135,7 @@ DockMenu dismisses when:
 
 ### Dock Icon Drag Interception
 
-- Swallow `leftMouseDown` on eligible app items so the Dock can’t start its own press-and-hold menu or icon drag. A second event tap watches drags and the release, and is enabled only between an intercepted press and its release, so ordinary drags elsewhere never involve Zonogy.
+- Swallow `leftMouseDown` on eligible app items so the Dock can’t start its own press-and-hold menu or icon drag. Watch drags and the release only between an intercepted press and its release, so ordinary drags elsewhere don't involve Zonogy.
 - Cursor-driven drags must not rely on `NSEvent.mouseLocation` (mouse events are swallowed); instead forward `CGEvent.location` (accessibility coordinates) through the drag pipeline for hit-testing and drag-preview positioning.
 - Ensure the drag-preview window is frontmost even while other apps are active (e.g., `orderFrontRegardless`).
 

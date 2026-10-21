@@ -33,13 +33,12 @@ protocol DockClickInterceptorDelegate: AnyObject {
 /// Clicks on folders, files, Launchpad, Trash pass through.
 /// Drags are detected; eligible app-item drags are intercepted and routed into Zonogy.
 ///
-/// Performance-critical: two event taps keep the system-wide cost down. The press tap sees left
+/// Performance-critical: separate event taps keep the system-wide cost down. The press tap sees left
 /// mouse-downs only while the Dock is showing, and answers on the mouse tap thread: a click outside
 /// the Dock frame passes at once, without involving the main thread, and only a click inside it waits
 /// for the main thread to decide (an Accessibility hit-test on the Dock, then the delegate). The
-/// gesture tap sees drags and the release only between an intercepted press and its release, so
-/// ordinary drags anywhere else never wake Zonogy; it stays on the main run loop, where all of the
-/// gesture state lives.
+/// drag and release taps run only between an intercepted press and its release, so ordinary drags
+/// anywhere else never wake Zonogy. Both stay on the main run loop, where the gesture state lives.
 final class DockClickInterceptor {
     private enum Constants {
         static let dockBundleIdentifier = "com.apple.dock"
@@ -70,19 +69,25 @@ final class DockClickInterceptor {
     /// Sees left mouse-downs; enabled only while the Dock is showing and located.
     private var pressTap: EventTapController?
 
-    /// Sees drags and the release; enabled only while a click is pending.
-    private var gestureTap: EventTapController?
+    /// Sees drags; enabled only while a click is pending.
+    private var dragTap: EventTapController?
+
+    /// Sees the release; enabled only while a click is pending.
+    private var releaseTap: EventTapController?
 
     /// Tracks a pending click that may be intercepted on mouse-up.
     private var pendingClick: PendingClick? {
-        didSet { gestureTap?.isEnabled = pendingClick != nil }
+        didSet {
+            dragTap?.isEnabled = pendingClick != nil
+            releaseTap?.isEnabled = pendingClick != nil
+        }
     }
 
     private enum DragState {
         case none
         case intercepted
-        case unhandled
-        case cancelled
+        /// A declined or cancelled drag: the rest of the gesture is swallowed without any action.
+        case ignored
     }
 
     private enum TopmostDockHit {
@@ -106,14 +111,13 @@ final class DockClickInterceptor {
         syncPressTapEnabled()
     }
 
-    /// Mark the in-flight intercepted drag as cancelled (e.g., user pressed Esc). Further
-    /// drag updates are ignored and the eventual mouse-up will not post a synthetic mouse-up
-    /// or fire the drag-end delegate — it is consumed silently so the Dock takes no action.
+    /// Cancel the in-flight intercepted drag (e.g., user pressed Esc). Further drag updates are
+    /// ignored and the eventual mouse-up is consumed without resolving a drop.
     func cancelInProgressDrag() {
         guard var pending = pendingClick, pending.dragState == .intercepted else {
             return
         }
-        pending.dragState = .cancelled
+        pending.dragState = .ignored
         pendingClick = pending
         Logger.debug("DockClickInterceptor: in-progress drag marked cancelled (Escape)")
     }
@@ -137,23 +141,37 @@ final class DockClickInterceptor {
         pendingClick = nil
 
         let press = makeTap(
-            name: "DockClickInterceptor press", events: [.leftMouseDown], runLoop: EventTapThread.mouse.runLoop
+            name: "DockClickInterceptor press", events: [.leftMouseDown],
+            tapLocation: .cghidEventTap, runLoop: EventTapThread.mouse.runLoop
         ) { [weak self] _, event in
             self?.processPress(event) ?? .pass
         }
-        let gesture = makeTap(
-            name: "DockClickInterceptor gesture", events: [.leftMouseUp, .leftMouseDragged], runLoop: CFRunLoopGetMain()
-        ) { [weak self] type, event in
-            self?.processGesture(event, type: type) ?? .pass
+        // Let WindowServer update the cursor before swallowing movement, including during capture.
+        let drag = makeTap(
+            name: "DockClickInterceptor drag", events: [.leftMouseDragged],
+            tapLocation: .cgAnnotatedSessionEventTap, runLoop: CFRunLoopGetMain()
+        ) { [weak self] _, event in
+            self?.processDrag(event) ?? .pass
         }
-        gesture.isEnabled = false
-        guard press.start(), gesture.start() else {
+        // The press was swallowed at HID, so its release may never reach the annotated tap.
+        // Intercept the release at HID too, for both clicks and drags (including cancellation).
+        let release = makeTap(
+            name: "DockClickInterceptor release", events: [.leftMouseUp],
+            tapLocation: .cghidEventTap, runLoop: CFRunLoopGetMain()
+        ) { [weak self] _, event in
+            self?.processRelease(event) ?? .pass
+        }
+        drag.isEnabled = false
+        release.isEnabled = false
+        guard press.start(), drag.start(), release.start() else {
             press.stop()
-            gesture.stop()
+            drag.stop()
+            release.stop()
             return
         }
         pressTap = press
-        gestureTap = gesture
+        dragTap = drag
+        releaseTap = release
         syncPressTapEnabled()
     }
 
@@ -161,27 +179,31 @@ final class DockClickInterceptor {
         pendingClick = nil
         pressTap?.stop()
         pressTap = nil
-        gestureTap?.stop()
-        gestureTap = nil
+        dragTap?.stop()
+        dragTap = nil
+        releaseTap?.stop()
+        releaseTap = nil
         Logger.debug("DockClickInterceptor: stopped")
     }
 
     private func makeTap(
         name: String,
         events: [CGEventType],
+        tapLocation: CGEventTapLocation,
         runLoop: CFRunLoop,
         handler: @escaping EventTapController.Handler
     ) -> EventTapController {
         EventTapController(
             name: name,
             events: events,
+            tapLocation: tapLocation,
             runLoop: runLoop,
             onDisabled: { [weak self] type in
                 // A user-input report is indistinguishable from the (possibly late) echo of switching
                 // a tap off, so only a timeout is taken to mean the pending click cannot be trusted.
-                // The pending click is main-thread state: the gesture tap reports on main and clears
-                // it at once (a clearing queued behind a newer press would erase that press), while
-                // the press tap reports on the mouse thread and hands the clearing to main.
+                // The pending click is main-thread state: the drag and release taps report on main and
+                // clear it at once (a clearing queued behind a newer press would erase that press),
+                // while the press tap reports on the mouse thread and hands the clearing to main.
                 guard type == .tapDisabledByTimeout else { return }
                 if Thread.isMainThread {
                     self?.pendingClick = nil
@@ -199,83 +221,65 @@ final class DockClickInterceptor {
         pressTap?.isEnabled = isDockVisible && interceptFrame != nil
     }
 
-    /// The gesture tap's callback, on the main run loop: the drags and the release of a pending click.
-    private func processGesture(_ event: CGEvent, type: CGEventType) -> EventTapDecision {
-        // Track drag movement to distinguish clicks from drags
-        if type == .leftMouseDragged {
-            if var pending = pendingClick {
-                if pending.dragState == .intercepted {
-                    delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: event.location)
-                    return .swallow
-                }
-
-                if pending.dragState == .unhandled || pending.dragState == .cancelled {
-                    return .swallow
-                }
-
-                let location = event.location
-                let dx = abs(location.x - pending.downLocation.x)
-                let dy = abs(location.y - pending.downLocation.y)
-                if dx > Constants.dragThreshold || dy > Constants.dragThreshold {
-                    // Call the appropriate delegate method based on whether the app is running
-                    let accepted: Bool
-                    if pending.isRunning {
-                        accepted = delegate?.dockClickInterceptor(self, didBeginDragOnApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
-                    } else {
-                        accepted = delegate?.dockClickInterceptor(self, didBeginDragOnNonRunningApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
-                    }
-
-                    if accepted {
-                        pending.dragState = .intercepted
-                        pendingClick = pending
-                        delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: location)
-                        return .swallow
-                    }
-
-                    // Can't handle this drag - still swallow it so the Dock doesn't start rearranging.
-                    pending.dragState = .unhandled
-                    pendingClick = pending
-                    return .swallow
-                }
-
-                // Swallow small drags so the Dock doesn't start rearranging before we decide it's a drag.
-                return .swallow
-            }
+    /// The drag tap's callback, on the main run loop: tells a drag from a click and follows an
+    /// intercepted drag. Every drag of a pending click is swallowed so the Dock never starts
+    /// rearranging its icons.
+    private func processDrag(_ event: CGEvent) -> EventTapDecision {
+        guard var pending = pendingClick else {
             return .pass
         }
+        let location = event.location
+        switch pending.dragState {
+        case .intercepted:
+            delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: location)
+            return .swallow
+        case .ignored:
+            return .swallow
+        case .none:
+            break
+        }
 
-        // On mouse-up, intercept if we have a pending click that wasn't a drag
-        if type == .leftMouseUp {
-            guard let pending = pendingClick else {
-                return .pass
-            }
-            pendingClick = nil
-
-            switch pending.dragState {
-            case .intercepted:
-                // Complete the Dock's click tracking, then end the intercepted drag.
-                postMouseUp(at: pending.downLocation)
-                delegate?.dockClickInterceptorDidEndDrag(self, cursorPoint: event.location)
-                return .swallow
-            case .unhandled:
-                // Still complete the Dock's click tracking, but don't trigger any Zonogy action.
-                postMouseUp(at: pending.downLocation)
-                return .swallow
-            case .cancelled:
-                // User cancelled mid-drag (Escape). Drop the eventual mouse-up silently — no
-                // synthetic mouse-up to the Dock and no drag-end delegate.
-                return .swallow
-            case .none:
-                break
-            }
-
-            // Fully swallow the click - don't post any events to the Dock.
-            // See SPECIFICATION-IMPLEMENTATION.md "Dock click interception activation workaround".
-            delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame, dockItemElement: pending.dockItemElement)
+        // Within the threshold, the press is still a click.
+        let dx = abs(location.x - pending.downLocation.x)
+        let dy = abs(location.y - pending.downLocation.y)
+        guard dx > Constants.dragThreshold || dy > Constants.dragThreshold else {
             return .swallow
         }
 
-        return .pass
+        // Call the appropriate delegate method based on whether the app is running
+        let accepted: Bool
+        if pending.isRunning {
+            accepted = delegate?.dockClickInterceptor(self, didBeginDragOnApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+        } else {
+            accepted = delegate?.dockClickInterceptor(self, didBeginDragOnNonRunningApp: pending.appURL, itemFrame: pending.itemFrame, cursorPoint: location) ?? false
+        }
+        pending.dragState = accepted ? .intercepted : .ignored
+        pendingClick = pending
+        if accepted {
+            delegate?.dockClickInterceptorDidUpdateDrag(self, cursorPoint: location)
+        }
+        return .swallow
+    }
+
+    /// The release tap's callback, on the main run loop: finishes the pending click or drag at the
+    /// physical release location.
+    private func processRelease(_ event: CGEvent) -> EventTapDecision {
+        guard let pending = pendingClick else {
+            return .pass
+        }
+        pendingClick = nil
+
+        // The Dock never received the press, so there is no native click tracking to finish.
+        // Posting a synthetic mouse-up at the press location would move the cursor back there.
+        switch pending.dragState {
+        case .intercepted:
+            delegate?.dockClickInterceptorDidEndDrag(self, cursorPoint: event.location)
+        case .none:
+            delegate?.dockClickInterceptor(self, didInterceptClickOnApp: pending.appURL, itemFrame: pending.itemFrame, dockItemElement: pending.dockItemElement)
+        case .ignored:
+            break
+        }
+        return .swallow
     }
 
     /// The press tap's callback, on the mouse tap thread. The fast exits need only the mirrored Dock
@@ -536,19 +540,5 @@ final class DockClickInterceptor {
         }
 
         return CGRect(origin: position, size: size)
-    }
-
-    /// Posts a synthetic mouse-up at the given location to complete the Dock's click tracking.
-    private func postMouseUp(at location: CGPoint) {
-        guard let mouseUp = CGEvent(
-            mouseEventSource: nil,
-            mouseType: .leftMouseUp,
-            mouseCursorPosition: location,
-            mouseButton: .left
-        ) else {
-            return
-        }
-
-        mouseUp.post(tap: .cghidEventTap)
     }
 }

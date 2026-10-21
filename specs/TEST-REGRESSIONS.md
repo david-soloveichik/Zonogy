@@ -106,6 +106,9 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
 - Bug report: DockMenus window rows can stop highlighting on hover even though the app header still highlights.
   - Think about: Tracking areas in shared interaction views should use `.activeAlways` rather than `.activeInKeyWindow`, since the view may be hosted in non-activating panels that never become key.
 
+- Bug report: Dock-icon drags can hide the local pointer during screen capture, miss the drop, or jump the pointer back to the Dock on release. (In contrast, DockMenu window-row drags remain fine.)
+  - Think about: Where mouse events are intercepted, which parts of the gesture macOS receives, and the side effects of synthetic events.
+
 - Bug report: In some rare circumstances, hovering Dock icons can silently stop showing DockMenus until the feature is toggled off and on.
   - Think about: The Dock can rebuild its accessibility hierarchy in place, potentially leaving the hover observer attached to a stale AXList element.
 

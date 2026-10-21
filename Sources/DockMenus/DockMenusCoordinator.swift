@@ -132,9 +132,8 @@ final class DockMenusCoordinator {
             case .dockApp(let appURL):
                 Logger.debug("DockMenusCoordinator: drag cancelled for dock app \(appURL.lastPathComponent)")
             }
-            // For Dock-icon drags, the CGEventTap is still holding a pendingClick that would
-            // post a synthetic mouse-up on release. Mark it cancelled so the eventual
-            // mouse-up is consumed silently.
+            // For Dock-icon drags, the interceptor still owns the button until release.
+            // Mark the pending drag cancelled so that release cannot resolve a drop.
             self.clickInterceptor.cancelInProgressDrag()
             self.delegate?.dockMenusCoordinatorDidCancelDrag(self)
         }
