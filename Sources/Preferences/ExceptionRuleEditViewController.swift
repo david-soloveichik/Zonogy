@@ -102,6 +102,21 @@ final class ExceptionRuleEditViewController: NSViewController {
 
         topAnchor = separator.bottomAnchor
 
+        // Hint: every checkbox's tooltip explains it in full
+        let hoverHintLabel = NSTextField(labelWithString: "Hover over an exception for more information.")
+        hoverHintLabel.translatesAutoresizingMaskIntoConstraints = false
+        hoverHintLabel.font = NSFont.systemFont(ofSize: 11)
+        hoverHintLabel.textColor = .secondaryLabelColor
+        container.addSubview(hoverHintLabel)
+
+        NSLayoutConstraint.activate([
+            hoverHintLabel.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            hoverHintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            hoverHintLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+        ])
+
+        topAnchor = hoverHintLabel.bottomAnchor
+
         ignoreApplicationCheckbox = makeCheckbox(
             title: "Ignore this application altogether",
             tooltip: "Windows from this app are never captured or managed by Zonogy",
@@ -111,7 +126,7 @@ final class ExceptionRuleEditViewController: NSViewController {
         container.addSubview(ignoreApplicationCheckbox)
 
         NSLayoutConstraint.activate([
-            ignoreApplicationCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            ignoreApplicationCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             ignoreApplicationCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             ignoreApplicationCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])

@@ -223,7 +223,7 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
         let sheet = NSWindow(contentViewController: editVC)
         sheet.styleMask = [.titled, .closable]
         sheet.title = "Edit Exception: \(entry.bundleIdentifier)"
-        sheet.setContentSize(NSSize(width: 450, height: 490))
+        sheet.setContentSize(NSSize(width: 450, height: 512))
 
         window.beginSheet(sheet) { _ in }
     }
