@@ -89,7 +89,7 @@ final class LauncherController {
     private var autoShowGraceUntil: Date?
     private var pendingAutoShowGraceOnOpen = false
     /// The frontmost application when the panel last became key (see `windowDidResignKey`).
-    private var frontmostPidWhileKey: pid_t?
+    private var frontmostAppWhileKey: NSRunningApplication?
     private var clickSuppressionGate = LauncherClickSuppressionGate()
     private lazy var rowDragController = CursorDrivenRowDragController<LauncherDragPayload>(
         logPrefix: "Launcher",
@@ -371,7 +371,7 @@ final class LauncherController {
     }
 
     private func windowDidBecomeKey() {
-        frontmostPidWhileKey = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        frontmostAppWhileKey = NSWorkspace.shared.frontmostApplication
         refocusSearchField()
     }
 
@@ -379,16 +379,23 @@ final class LauncherController {
     /// Launcher can no longer be typed into and no focus change would close it, so it is cancelled like
     /// an outside click. Decided a turn later, once key status settles, so that another Zonogy panel
     /// opening over the Launcher (the WinShot chooser) keeps it. Application switches are left to the
-    /// delegate's focus rules: macOS activating another application after a forwarded Cmd-Q, for one,
-    /// must not close it.
+    /// delegate's focus rules, except the one macOS makes when the frontmost application quits (after a
+    /// forwarded Cmd-Q, for one): the Launcher stays and takes the keyboard back. The termination
+    /// observer re-keys too, but AppKit can report the loss after the termination notification, when
+    /// re-keying a panel that still counts as key does nothing.
     private func windowDidResignKey() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.isActive, NSApp.keyWindow == nil,
-                  NSWorkspace.shared.frontmostApplication?.processIdentifier == self.frontmostPidWhileKey else {
+            guard let self, self.isActive, NSApp.keyWindow == nil else {
                 return
             }
-            Logger.debug("Launcher: Cancelling because another application took keyboard focus")
-            self.cancel()
+            if self.frontmostAppWhileKey?.isTerminated == true {
+                Logger.debug("Launcher: Taking keyboard focus back after the frontmost application quit")
+                self.makeKeyIfActive()
+            } else if NSWorkspace.shared.frontmostApplication?.processIdentifier
+                        == self.frontmostAppWhileKey?.processIdentifier {
+                Logger.debug("Launcher: Cancelling because another application took keyboard focus")
+                self.cancel()
+            }
         }
     }
 
@@ -865,7 +872,8 @@ final class LauncherController {
     /// Observes app termination to restore Launcher keyboard focus.
     /// When an app quits (e.g., via forwarded Cmd-Q), macOS activates another app,
     /// which can cause the Launcher's nonactivatingPanel to lose keyboard focus.
-    /// This observer ensures we reclaim focus so the user can continue typing.
+    /// This observer ensures we reclaim focus so the user can continue typing. When AppKit registers
+    /// that loss only after this notification, `windowDidResignKey` reclaims it instead.
     private func startAppTerminationObserver() {
         appTerminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification,
