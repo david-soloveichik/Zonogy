@@ -16,6 +16,9 @@ final class AccessibilityWatcher {
     private var observersByPid: [pid_t: AXObserver] = [:]
     private var applicationsByPid: [pid_t: AXUIElement] = [:]
     private var pendingNotificationNamesByPid: [pid_t: Set<String>] = [:]
+    /// Windows whose notification registration failed because the application did not answer;
+    /// `ensureObserver` registers them again.
+    private var pendingWindowElementsByPid: [pid_t: [AXUIElement]] = [:]
 
     private lazy var observerRefcon: UnsafeMutableRawPointer = {
         Unmanaged.passUnretained(self).toOpaque()
@@ -102,6 +105,13 @@ final class AccessibilityWatcher {
             needsRetry = true
         }
 
+        for element in pendingWindowElementsByPid.removeValue(forKey: pid) ?? [] {
+            registerWindowNotifications(for: element, pid: pid)
+        }
+        if hasPendingWindowRegistrations(for: pid) {
+            needsRetry = true
+        }
+
         return ObserverSetupResult(needsRetry: needsRetry)
     }
 
@@ -110,17 +120,29 @@ final class AccessibilityWatcher {
             return
         }
 
+        var needsRetry = false
         for notification in windowNotifications {
             let status = AXCall.addObserverNotification(observer, element, notification, observerRefcon)
             if status == .success || status == .notificationAlreadyRegistered {
                 Logger.debug("Registered window AX notification '\(notification as String)' for pid \(pid)")
             } else {
                 Logger.debug("Failed to register window AX notification \(notification) for pid \(pid) (AX error \(status.rawValue))")
+                if status == .cannotComplete {
+                    needsRetry = true
+                }
             }
+        }
+        if needsRetry, pendingWindowElementsByPid[pid]?.contains(where: { CFEqual($0, element) }) != true {
+            pendingWindowElementsByPid[pid, default: []].append(element)
         }
     }
 
+    func hasPendingWindowRegistrations(for pid: pid_t) -> Bool {
+        pendingWindowElementsByPid[pid]?.isEmpty == false
+    }
+
     func removeWindowNotifications(for element: AXUIElement, pid: pid_t) {
+        pendingWindowElementsByPid[pid]?.removeAll { CFEqual($0, element) }
         guard let observer = observersByPid[pid] else {
             return
         }
@@ -138,6 +160,7 @@ final class AccessibilityWatcher {
         CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), CFRunLoopMode.commonModes)
         applicationsByPid.removeValue(forKey: pid)
         pendingNotificationNamesByPid.removeValue(forKey: pid)
+        pendingWindowElementsByPid.removeValue(forKey: pid)
     }
 
     func cancelAllObservers() {
@@ -147,6 +170,7 @@ final class AccessibilityWatcher {
             pendingNotificationNamesByPid.removeValue(forKey: pid)
         }
         observersByPid.removeAll()
+        pendingWindowElementsByPid.removeAll()
     }
 
     fileprivate func handleCallback(element: AXUIElement, notification: CFString) {

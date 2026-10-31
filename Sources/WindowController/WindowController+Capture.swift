@@ -241,7 +241,10 @@ extension WindowController {
                 "\(tally.alreadyTracked) already tracked, \(captured.count) returned (allowExisting: \(allowExisting))"
         )
 
-        return CaptureResult(windows: captured, needsRetry: needsRetry)
+        return CaptureResult(
+            windows: captured,
+            needsRetry: needsRetry || accessibilityWatcher.hasPendingWindowRegistrations(for: pid)
+        )
     }
 
     internal func captureWindowIfNeeded(

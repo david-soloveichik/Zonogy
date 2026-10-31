@@ -34,7 +34,7 @@ Set `sleepWakeProtectionActive = true` and cancel all pending timers/work items 
 - Display-change recapture timers
 - Display-change debounce timer
 
-This prevents timers scheduled just before sleep from firing during sleep when AX APIs are unavailable.
+This prevents timers scheduled just before sleep from firing during sleep when AX APIs are unavailable. The background check for an [application that stopped answering](SPECIFICATION-IMPLEMENTATION.md#applications-that-stop-answering) keeps running, since it only asks that application whether it answers.
 
 ## Waking up
 

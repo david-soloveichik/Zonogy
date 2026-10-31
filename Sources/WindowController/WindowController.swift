@@ -214,14 +214,11 @@ class WindowController {
     /// - Returns: The window identifiers that were removed.
     func removeAllWindows(forPid pid: pid_t) -> [Int] {
         let windowsForPid = windowRegistry.allWindows.filter { $0.backing.pid == pid }
-        let hadPendingPrunedWindows = pendingPrunedWindows.hasEntries(forPid: pid)
 
         discardPendingPrunedWindows(forPid: pid, reason: "pid-removal")
 
         guard !windowsForPid.isEmpty else {
-            if hadPendingPrunedWindows {
-                accessibilityWatcher.removeObserver(for: pid)
-            }
+            accessibilityWatcher.removeObserver(for: pid)
             return []
         }
 

@@ -23,7 +23,11 @@ private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMut
 /// which macOS persists for days so the calls can be counted over time. It includes the
 /// call name, attribute/action, duration, AX status, target pid, bundle ID, and the thread
 /// the call ran on. The detail strings are built only for slow calls or active signposts,
-/// keeping the per-call overhead of the wrappers to two clock readings.
+/// keeping the per-call overhead of the wrappers to two clock readings and a pid lookup.
+///
+/// A call that fails slowly with `.cannotComplete` marks its application unavailable (see
+/// `AXUnavailableApps`): until the application answers again, calls to it return
+/// `.cannotComplete` at once instead of each waiting out the timeout.
 ///
 /// `AXCall` also hosts small shared AX value-decoding helpers (e.g. element arrays), so
 /// call sites pair the instrumented calls with one canonical way to interpret results.
@@ -60,6 +64,7 @@ enum AXCall {
         _ attribute: CFString,
         _ value: UnsafeMutablePointer<CFTypeRef?>
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXCopyAttribute", detail: attribute as String)
         let status = AXUIElementCopyAttributeValue(element, attribute, value)
@@ -75,6 +80,7 @@ enum AXCall {
         _ options: AXCopyMultipleAttributeOptions,
         _ values: UnsafeMutablePointer<CFArray?>
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval(
             "AXCopyMultipleAttributes",
@@ -98,6 +104,7 @@ enum AXCall {
         _ attribute: CFString,
         _ value: CFTypeRef
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXSetAttribute", detail: attribute as String)
         let status = AXUIElementSetAttributeValue(element, attribute, value)
@@ -111,6 +118,7 @@ enum AXCall {
         _ element: AXUIElement,
         _ action: CFString
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXPerformAction", detail: action as String)
         let status = AXUIElementPerformAction(element, action)
@@ -126,6 +134,7 @@ enum AXCall {
         _ y: Float,
         _ element: UnsafeMutablePointer<AXUIElement?>
     ) -> AXError {
+        guard !isUnavailable(application) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXElementAtPosition", detail: "(\(x), \(y))")
         let status = AXUIElementCopyElementAtPosition(application, x, y, element)
@@ -144,6 +153,7 @@ enum AXCall {
         _ attribute: CFString,
         _ settable: UnsafeMutablePointer<DarwinBoolean>
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXIsAttributeSettable", detail: attribute as String)
         let status = AXUIElementIsAttributeSettable(element, attribute, settable)
@@ -157,6 +167,7 @@ enum AXCall {
         _ element: AXUIElement,
         _ windowID: UnsafeMutablePointer<CGWindowID>
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXGetWindowID", detail: nil)
         let status = _AXUIElementGetWindow(element, windowID)
@@ -171,6 +182,7 @@ enum AXCall {
         _ callback: AXObserverCallback,
         _ observer: UnsafeMutablePointer<AXObserver?>
     ) -> AXError {
+        guard !AXUnavailableApps.contains(application) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXCreateObserver", detail: "pid=\(application)")
         let status = AXObserverCreate(application, callback, observer)
@@ -186,6 +198,7 @@ enum AXCall {
         _ notification: CFString,
         _ refcon: UnsafeMutableRawPointer?
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXAddObserverNotification", detail: notification as String)
         let status = AXObserverAddNotification(observer, element, notification, refcon)
@@ -200,12 +213,19 @@ enum AXCall {
         _ element: AXUIElement,
         _ notification: CFString
     ) -> AXError {
+        guard !isUnavailable(element) else { return .cannotComplete }
         let start = DispatchTime.now()
         let interval = beginAXInterval("AXRemoveObserverNotification", detail: notification as String)
         let status = AXObserverRemoveNotification(observer, element, notification)
         endAXInterval("AXRemoveObserverNotification", interval, status: status)
         report(start: start, function: "AXObserverRemoveNotification", detail: notification as String, element: element, status: status)
         return status
+    }
+
+    /// Whether `element` belongs to an application that `AXUnavailableApps` has marked.
+    private static func isUnavailable(_ element: AXUIElement) -> Bool {
+        var pid: pid_t = 0
+        return AXUIElementGetPid(element, &pid) == .success && AXUnavailableApps.contains(pid)
     }
 
     private static func beginAXInterval(_ name: StaticString, detail: @autoclosure () -> String?) -> OSSignpostIntervalState? {
@@ -237,7 +257,7 @@ enum AXCall {
 
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
-            logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
+            reportSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
         } else {
             logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, appComponent: "pid=unknown bundle=unknown", status: status)
         }
@@ -253,10 +273,11 @@ enum AXCall {
         let elapsedNs = DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds
         let durationSeconds = Double(elapsedNs) / 1_000_000_000
         guard durationSeconds >= thresholdSeconds else { return }
-        logSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
+        reportSlowCall(function: function, detail: detail(), durationSeconds: durationSeconds, pid: pid, status: status)
     }
 
-    private static func logSlowCall(
+    /// Logs a slow call to `pid`. A slow `.cannotComplete` also marks the application unavailable.
+    private static func reportSlowCall(
         function: String,
         detail: String?,
         durationSeconds: TimeInterval,
@@ -264,13 +285,17 @@ enum AXCall {
         status: AXError
     ) {
         let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown-bundle"
+        let appComponent = "pid=\(pid) bundle=\(bundle)"
         logSlowCall(
             function: function,
             detail: detail,
             durationSeconds: durationSeconds,
-            appComponent: "pid=\(pid) bundle=\(bundle)",
+            appComponent: appComponent,
             status: status
         )
+        if status == .cannotComplete, durationSeconds >= AXUnavailableApps.slowFailureSeconds {
+            AXUnavailableApps.markTimedOut(pid, appDescription: appComponent)
+        }
     }
 
     private static func logSlowCall(

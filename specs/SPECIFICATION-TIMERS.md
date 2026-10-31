@@ -21,10 +21,11 @@ AX operations can fail transiently — windows may not be queryable yet, frames 
 
 ### AX Verification & Protection
 
-These compensate for AX operations that report success but may not actually take effect, or for macOS firing spurious events in response to Zonogy's own actions.
+These compensate for AX operations that report success but may not actually take effect, for macOS firing spurious events in response to Zonogy's own actions, or for an application that stops answering.
 
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
+| **Unavailable-application check** | 1.0s after marking and after each failed check | `asyncAfter` (global queue) | `AXUnavailableApps.swift` | Asks an application marked unavailable whether it answers again (see [Applications That Stop Answering](SPECIFICATION-IMPLEMENTATION.md#applications-that-stop-answering)). While the application stays stuck, each check itself waits out the AX timeout. |
 | **Programmatic minimize verification** | 0.12s first, 0.2s retry | `asyncAfter` | `AppController+ZoneLifecycle.swift` | AX minimize requests can silently fail (e.g., Word activates a sibling window during a minimize burst, undoing the minimize). Verifies the window actually minimized and retries once if not. |
 | **Notification suppression timeout** | 3.0s | deadline-based (lazily checked) | `AppController+ZoneLifecycle.swift` | When Zonogy programmatically minimizes/unminimizes windows, it suppresses the next AX notification for that window to avoid reacting to its own actions. The 3s deadline is a safety net so suppression doesn't persist indefinitely if the notification never arrives. Not a scheduled timer — checked lazily when events arrive. |
 | **WinShot full-screen exit wait** | 0.05s poll, 3.0s timeout | `asyncAfter` | `AppController+WinShotFullScreenExit.swift` | An arrangement chosen on a display paused for native full-screen waits for the display to leave full-screen before it opens: pause cleared, full-screen Space gone, and the former full-screen window back on screen (macOS re-presents it ~50ms after the Space is torn down, undoing a minimize issued before then). Events prompt the checks; while any signal is outstanding (or unreadable) they are re-checked every 50ms. If the three are not all met within 3s (e.g. the app never leaves full-screen), the wait is dropped. |

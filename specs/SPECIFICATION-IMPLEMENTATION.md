@@ -105,15 +105,19 @@ When a placement displaces an existing zone occupant, Zonogy picks one of two wa
 
 ## Work Off the Main Thread
 
-Zonogy's state lives on the main thread, which also makes most of its Accessibility calls, so an application that is slow to answer can hold up Zonogy (see [Slow AX Call Logging](#slow-ax-call-logging)). Work moves off the main thread in two cases: (a) when macOS waits on Zonogy's answer, so that Zonogy doesn't slow down other apps, and (b) for a few jobs that would otherwise keep the main thread waiting often or long.
+Zonogy's state lives on the main thread, which also makes most of its Accessibility calls, so an application that is slow to answer can hold up Zonogy (see [Slow AX Call Logging](#slow-ax-call-logging) and [Applications That Stop Answering](#applications-that-stop-answering)). Work moves off the main thread in two cases: (a) when macOS waits on Zonogy's answer, so that Zonogy doesn't slow down other apps, and (b) for a few jobs that would otherwise keep the main thread waiting often or long.
 
 **(a) Event taps.** macOS waits on each tap before delivering a keystroke or click, so the taps that watch input to other apps answer on their own threads. Keystrokes never wait for the main thread, and a click waits only if it may concern Zonogy, such as a press on the Dock or on a notification.
 
 **(b) Background work.** Watching Notification Center, moving windows during a live zone resize, and routine work such as writing the log, capturing windows, and checking for updates run in the background.
 
+## Applications That Stop Answering
+
+An AX request to a stuck application holds up Zonogy's main thread until the macOS timeout (about 1.5 seconds) fails it, and Zonogy's syncs and retries can send many such requests in a row. So once a request times out, Zonogy marks the application "unavailable" and fails later requests to it at once, without sending them. A background check keeps asking the application (1s between tries), and clears the mark when the application answers or quits.
+
 ## Slow AX Call Logging
 
-Every synchronous AX API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`) is wrapped in a timing helper. Calls exceeding 0.1s emit a single persisted `[SLOW-AX]` line (`Logger.keep` in the `SlowAX` log category) with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
+Every synchronous AX API call (e.g., `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue`, `AXUIElementPerformAction`, `AXObserverCreate`, `AXObserverAddNotification`), except the background check for an [unavailable application](#applications-that-stop-answering), is wrapped in a timing helper. Calls exceeding 0.1s emit a single persisted `[SLOW-AX]` line (`Logger.keep` in the `SlowAX` log category) with the function name, attribute/action, duration (`took Nms`), AX status, target pid + bundle, and a `thread=main`/`thread=bg` tag; calls under the threshold are silent so normal operation adds no log noise. The `thread=` tag distinguishes main-thread blocks (which surface as freezes) from background-queue blocks (which show up as stalled UI updates).
 
 To inspect slow calls (macOS keeps them for days):
 
