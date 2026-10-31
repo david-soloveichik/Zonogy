@@ -579,6 +579,12 @@ extension AppController: LauncherControllerDelegate {
         performDefaultLauncherAction(for: url)
     }
 
+    func launcherController(_ controller: LauncherController, didOpenFileOrFolder url: URL) {
+        if !NSWorkspace.shared.open(url) {
+            Logger.error("Launcher: Failed to open \(url.path)")
+        }
+    }
+
     func launcherController(_ controller: LauncherController, didRequestNewWindowForApp url: URL) {
         Logger.debug("Launcher: Option-Enter on app row — opening new window for \(url.lastPathComponent)")
         targetedZoneManager.ensureTargetedZone(reason: "launcher-option-enter")

@@ -10,6 +10,9 @@ protocol LauncherControllerDelegate: AnyObject {
     /// Called when an application should be launched
     func launcherController(_ controller: LauncherController, didLaunchApp url: URL)
 
+    /// Called when a file or folder row is selected: it should open in its default app.
+    func launcherController(_ controller: LauncherController, didOpenFileOrFolder url: URL)
+
     /// Called when the user selects an application row while Option is held: instead of the
     /// default launcher action, Zonogy should open a new window of that app in the targeted zone.
     func launcherController(_ controller: LauncherController, didRequestNewWindowForApp url: URL)
@@ -455,14 +458,15 @@ final class LauncherController {
 
     private func handleAppLaunch(url: URL) {
         // Capture state synchronously, before `hide()` tears down the model. Option-new-window
-        // only applies to application rows; file/folder rows always do the default action.
+        // only applies to application rows; file/folder rows always just open.
         let isOptionHeld = NSEvent.modifierFlags.contains(.option)
         let isAppItem = MainActor.assumeIsolated { model?.selectedItem()?.kind == .application }
-        let asNewWindow = isOptionHeld && isAppItem
         hide()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if asNewWindow {
+            if !isAppItem {
+                self.delegate?.launcherController(self, didOpenFileOrFolder: url)
+            } else if isOptionHeld {
                 self.delegate?.launcherController(self, didRequestNewWindowForApp: url)
             } else {
                 self.delegate?.launcherController(self, didLaunchApp: url)
