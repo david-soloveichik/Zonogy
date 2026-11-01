@@ -627,41 +627,4 @@ extension AppController {
         notificationDebugOverlay?.updatePrimaryScreenBounds(primaryScreenBounds)
     }
 
-    private func handleRemovedScreens(
-        _ removed: [ScreenContextStore.RebuildResult.RemovedContext],
-        framesBeforeRemoval: [CGDirectDisplayID: CGRect]
-    ) {
-        for entry in removed {
-            let displayId = entry.displayId
-
-            // Snapshot all windows that currently report this displayId.
-            let windowsOnDisplay = windowController.allWindows.filter {
-                $0.screenDisplayId == displayId
-            }
-
-            // Clear placeholders for this display and close the windows.
-            placeholderCoordinator.clearPlaceholdersForScreen(displayId)
-            dropPendingWinShotOpenAfterFullScreenExit(on: displayId, reason: "display removed")
-
-            let zoneCount = entry.context.zoneController.allZones.count
-            Logger.debug("Handling removal of screen \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] with \(zoneCount) zone(s)")
-
-            // Save the arrangement the minimization below dismantles (auto-save mode permitting) and
-            // hand the display's WinShot snapshots to its neighbor, while the zone state is intact.
-            handleWinShotSnapshotsForRemovedScreen(entry.context, framesBeforeRemoval: framesBeforeRemoval)
-
-            // Minimize every managed window that was on the removed display,
-            // instead of reassigning it to another screen. We rely on the pre-snapshot
-            // windowsOnDisplay so this is robust even if earlier syncs cleared
-            // screenDisplayId for those windows. The display's tiling zones left with its
-            // context, but its floating-zone booking did not; releasing it here keeps the
-            // system's relocation of the minimizing window from re-booking it on another display.
-            for managed in windowsOnDisplay {
-                Logger.debug("Minimizing window \(managed.windowId) from removed \(entry.context.descriptor.localizedName) [screen \(screenContextStore.loggingIndex(for: displayId))] due to display-removal policy")
-                removeWindowFromAllZones(windowId: managed.windowId, reason: "display-removal", retarget: false, logIfUnassigned: false)
-                minimizeWindowProgrammatically(managed, reason: "display-removal")
-            }
-        }
-    }
-
 }

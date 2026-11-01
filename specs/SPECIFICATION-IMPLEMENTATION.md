@@ -259,7 +259,7 @@ Zonogy detects native macOS full-screen windows using the (undocumented)`AXFullS
 
 Some full-screen exits emit no resize event, which would leave a display stuck in pause after its full-screen window is gone. Focusing an ordinary window on a paused display prompts a check of the recorded full-screen window. Keep the pause while its native full-screen Space still exists, or while its non-native presentation still matches the full-screen rule and remains on the active Space. (Another window covering a presentation is not a full-screen exit.)
 
-Both full-screen kinds use the same arrival rules (see **Full-screen pause** in [SPECIFICATION.md](SPECIFICATION.md)). Deferred windows stay tracked but unassigned. For these windows, we retry normal placement on full-screen exits and during the existing Space-change rescan, once the destination display is unpaused and showing a regular Space. (macOS can report an exit before the Space switch finishes.) Note that there is no "deferred list". Instead these retries find deferred windows by scanning all tracked, unminimized windows without a zone. Full-screen windows, records with no live window, and displaced windows awaiting minimization are excluded because they are not waiting for placement.
+Both full-screen kinds use the same arrival rules (see **Full-screen pause** in [SPECIFICATION.md](SPECIFICATION.md)). Deferred windows stay tracked but unassigned. For these windows, we retry normal placement on full-screen exits and during the existing Space-change rescan, once the destination display is unpaused and showing a regular Space. (macOS can report an exit before the Space switch finishes.) Note that there is no "deferred list". Instead these retries find deferred windows by scanning all tracked, unminimized windows without a zone. Full-screen windows, records with no live window, and windows awaiting minimization are excluded because they are not waiting for placement.
 
 #### Native full-screen
 
@@ -279,7 +279,7 @@ Going back to the full-screen Space (per the previous section) depends on knowin
 
 CGS Spaces (`CGSCopySpacesForWindows` + `CGSSpaceGetType == kCGSSpaceFullscreen`) answers the question directly: it reports which Spaces a window currently belongs to. We rely on it in places where we would otherwise mistakenly drop Zonogy's full-screen pause.
 
-**Leaving full-screen for WinShot:** Writing `false` to `AXFullScreen` makes the app leave full-screen as the green button would. The chosen arrangement opens only once the display has fully left full screen, which takes two signals. First, `CGSCopyManagedDisplaySpaces` reports that the display's current Space is no longer a full-screen Space. Second, the former full-screen window is back on screen. If the signals do not both arrive within a few seconds, the arrangement is not opened (see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md)).
+**Leaving full-screen for WinShot:** Writing `false` to `AXFullScreen` makes the app leave full-screen as the green button would. The chosen arrangement opens only once the display has fully left full screen, which takes two signals besides the pause clearing. First, `CGSCopyManagedDisplaySpaces` reports that the display's current Space is no longer a full-screen Space. Second, the former full-screen window is back on screen. If the signals do not both arrive within a few seconds, the arrangement is not opened (see [SPECIFICATION-TIMERS.md](SPECIFICATION-TIMERS.md)).
 
 ---
 

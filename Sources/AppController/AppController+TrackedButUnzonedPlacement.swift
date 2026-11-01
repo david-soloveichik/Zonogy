@@ -26,6 +26,7 @@ extension AppController {
             // application (this runs on every Space change).
             guard zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(window.windowId),
+                  !isAwaitingMinimization(window),
                   !window.isMinimizedPerAccessibility else {
                 return nil
             }
@@ -55,5 +56,13 @@ extension AppController {
         }
 
         return placedCount
+    }
+
+    /// Windows Zonogy is about to minimize are not waiting for placement: displaced windows in the
+    /// deferred queue (placing one would put it back over the incoming window), and windows from a
+    /// disconnected display leaving full-screen first.
+    private func isAwaitingMinimization(_ window: ManagedWindow) -> Bool {
+        deferredMinimizationCoordinator.isPending(windowId: window.windowId)
+            || windowsLeavingFullScreenToMinimize.contains(CGWindowID(window.backing.cgWindowId))
     }
 }

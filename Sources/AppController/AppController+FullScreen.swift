@@ -88,13 +88,13 @@ extension AppController {
         return SpaceQueries.isWindowInNativeFullScreenSpace(cgWindowId: info.cgWindowId)
     }
 
-    /// True when `managed` is the window holding some display in full-screen pause. macOS
+    /// True when `managed` is the window holding some display in full-screen pause, or a window
+    /// leaving full-screen to be minimized (see AppController+DisplayRemoval.swift). macOS
     /// controls that window's frame, so Zonogy cannot place it into a zone.
     internal func isTrackedFullScreenWindow(_ managed: ManagedWindow) -> Bool {
-        fullScreenTracker.displayId(
-            forCgWindowId: CGWindowID(managed.backing.cgWindowId),
-            pid: managed.backing.pid
-        ) != nil
+        let cgWindowId = CGWindowID(managed.backing.cgWindowId)
+        return windowsLeavingFullScreenToMinimize.contains(cgWindowId)
+            || fullScreenTracker.displayId(forCgWindowId: cgWindowId, pid: managed.backing.pid) != nil
     }
 
     /// True when `managed` is parked behind a full-screen Space: placed on a display whose
@@ -464,7 +464,10 @@ extension AppController {
             return
         }
 
-        guard let resolvedCgWindowId = cgWindowId else {
+        // A window leaving full-screen to be minimized (see AppController+DisplayRemoval.swift)
+        // pauses no display, so the display that received its full-screen Space keeps working.
+        guard let resolvedCgWindowId = cgWindowId,
+              !windowsLeavingFullScreenToMinimize.contains(resolvedCgWindowId) else {
             return
         }
 
@@ -648,10 +651,7 @@ extension AppController {
             reason: baseReason,
             candidateKind: "full-screen-exit"
         ) { window in
-            // Displaced windows awaiting minimization are not deferred arrivals. A later
-            // exit/Space notification must not place them back over the incoming window.
-            guard !deferredMinimizationCoordinator.isPending(windowId: window.windowId),
-                  !isTrackedFullScreenWindow(window),
+            guard !isTrackedFullScreenWindow(window),
                   !FullScreenTracker.isWindowFullScreen(element: window.backing.element),
                   // Reuse recapture's live-window check to exclude stale parked tab identities.
                   WindowServerWindowList.frame(

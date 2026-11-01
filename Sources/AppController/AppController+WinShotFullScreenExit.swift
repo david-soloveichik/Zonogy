@@ -52,12 +52,12 @@ extension AppController {
                 guard let self, self.pendingWinShotOpensAfterFullScreenExit[screenId]?.token == token else { return }
                 self.dropPendingWinShotOpenAfterFullScreenExit(
                     on: screenId,
-                    reason: "did not leave full-screen within \(self.winShotFullScreenExitTimeout)s"
+                    reason: "did not leave full-screen within \(self.fullScreenExitTimeout)s"
                 )
             }
         )
         pendingWinShotOpensAfterFullScreenExit[screenId] = pending
-        DispatchQueue.main.asyncAfter(deadline: .now() + winShotFullScreenExitTimeout, execute: pending.timeout)
+        DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenExitTimeout, execute: pending.timeout)
         Logger.debug(
             "WinShot: asked full-screen window (CGWindowID \(info.cgWindowId), bundle: \(bundleDesc)) to leave " +
                 "full-screen; snapshot \(snapshot.id) opens on \(screenDescription) once it has"
@@ -80,7 +80,7 @@ extension AppController {
     ///   is undone).
     ///
     /// Called when the display's pause clears and when the active Space changes; while any signal
-    /// is still outstanding (or cannot be read), it re-checks every `winShotFullScreenExitRecheckInterval`
+    /// is still outstanding (or cannot be read), it re-checks every `fullScreenExitRecheckInterval`
     /// until the wait's timeout.
     internal func attemptPendingWinShotOpenAfterFullScreenExit(on screenId: CGDirectDisplayID, reason: String) {
         guard var pending = pendingWinShotOpensAfterFullScreenExit[screenId] else {
@@ -101,7 +101,7 @@ extension AppController {
             }
             pending.recheck = recheck
             pendingWinShotOpensAfterFullScreenExit[screenId] = pending
-            DispatchQueue.main.asyncAfter(deadline: .now() + winShotFullScreenExitRecheckInterval, execute: recheck)
+            DispatchQueue.main.asyncAfter(deadline: .now() + fullScreenExitRecheckInterval, execute: recheck)
             return
         }
 

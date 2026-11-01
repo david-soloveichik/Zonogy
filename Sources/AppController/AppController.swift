@@ -372,11 +372,15 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
     /// At most one waiting arrangement per display.
     internal var pendingWinShotOpensAfterFullScreenExit: [CGDirectDisplayID: PendingWinShotOpenAfterFullScreenExit] = [:]
-    /// How long a chosen arrangement waits for its display to leave full-screen before it is dropped.
-    internal let winShotFullScreenExitTimeout: TimeInterval = 3.0
-    /// Polling interval while a readiness signal is outstanding (the former full-screen window's
-    /// re-presentation is announced by nothing).
-    internal let winShotFullScreenExitRecheckInterval: TimeInterval = 0.05
+    /// Windows from a disconnected display that were asked to leave native full-screen, by CGWindowID;
+    /// each is minimized once it has (see AppController+DisplayRemoval.swift).
+    internal var windowsLeavingFullScreenToMinimize: Set<CGWindowID> = []
+    /// How long Zonogy waits for a window it asked to leave full-screen (a chosen arrangement, or the
+    /// minimize of a disconnected display's window) before giving up.
+    internal let fullScreenExitTimeout: TimeInterval = 3.0
+    /// Polling interval while waiting for a full-screen exit to finish (the former full-screen
+    /// window's re-presentation is announced by nothing).
+    internal let fullScreenExitRecheckInterval: TimeInterval = 0.05
     /// Minimized windows explicitly selected or dropped by the user should become frontmost
     /// after the deminiaturize path finishes placement or native-tab adoption.
     internal var pendingExplicitUnminimizeFocusWindowIds: Set<Int> = []
