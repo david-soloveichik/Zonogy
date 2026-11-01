@@ -63,7 +63,8 @@ extension AppController {
         return ZoneKey(screenId: screenId, index: fallbackZone.index)
     }
 
-    internal enum UnmanagedFocusResolution {
+    /// The focused-window check's verdict on the frontmost application's focused window.
+    internal enum FocusedWindowClassification {
         case managed(window: ManagedWindow, pid: pid_t, focusedElement: AXUIElement)
         case managedUnknown
         case unmanaged(screenId: CGDirectDisplayID, pid: pid_t, focusedElement: AXUIElement, reason: String)
@@ -74,11 +75,11 @@ extension AppController {
         case ownContentWindow(screenId: CGDirectDisplayID)
     }
 
-    /// Resolves whether frontmost focus is managed, confirmed unmanaged, or unresolved.
+    /// Classifies the frontmost application's focused window as managed, confirmed unmanaged, or unresolved.
     /// Unmanaged focus requires positive confirmation — the frontmost app failing app-level
     /// capture policy (`shouldManage`) or the focused window failing window-level management
-    /// criteria; transient AX failures stay unresolved.
-    internal func resolveUnmanagedFocusState() -> UnmanagedFocusResolution {
+    /// criteria. A focused window or window ID that cannot be read yet stays unresolved.
+    internal func classifyFocusedWindow() -> FocusedWindowClassification {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
             return .managedUnknown
         }
@@ -151,7 +152,7 @@ extension AppController {
     /// Every other Zonogy-owned window (Launcher, placeholders, indicators, the resize bars
     /// themselves, etc.) leaves the bars unaffected. Resolved synchronously from AppKit — no AX
     /// round trip and no retry confirmation needed.
-    private func resolveOwnAppFocusState() -> UnmanagedFocusResolution {
+    private func resolveOwnAppFocusState() -> FocusedWindowClassification {
         guard let preferencesWindow = focusedPreferencesWindow(),
               let screen = preferencesWindow.screen,
               let screenId = ScreenContextStore.displayId(for: screen) else {

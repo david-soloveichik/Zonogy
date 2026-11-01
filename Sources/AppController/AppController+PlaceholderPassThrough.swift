@@ -6,7 +6,7 @@ import AppKit
 extension AppController {
     /// Schedule a pass-through refresh for the next runloop turn (coalescing repeated requests).
     /// Event-driven (no polling): requested after full zone syncs (which re-front placeholders),
-    /// after unmanaged-focus state updates (which follow app activation and focused-window
+    /// after focused-window checks (which follow app activation and focused-window
     /// changes), when an observed application creates a window, shortly after a placeholder
     /// press ends (the click raises its panel; see `placeholderPressEnded`), after app
     /// terminations (which can remove windows without any sync), after a managed window

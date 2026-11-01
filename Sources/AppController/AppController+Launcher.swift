@@ -766,7 +766,7 @@ extension AppController: LauncherControllerDelegate {
         targetedZoneManager.markFloatingTargetImplicit(reason: "launcher-cancelled")
         DispatchQueue.main.async { [weak self] in
             guard let self, self.implicitlyTargetedFloatingScreenId != nil else { return }
-            self.updateUnmanagedFocusState()
+            self.runFocusedWindowCheck()
         }
     }
 

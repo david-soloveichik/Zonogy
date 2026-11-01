@@ -107,7 +107,7 @@ extension AppController {
         handleManualResizeActivationCandidate(pid: application?.processIdentifier)
         handleActiveFitActivationCandidate(pid: application?.processIdentifier)
         handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
-        updateUnmanagedFocusState()
+        runFocusedWindowCheck()
 
         if focusedManagedWindow != nil {
             exitPinnedResizeBarMode(reason: "managed-window-activation")
@@ -288,13 +288,16 @@ extension AppController {
         scheduleScreenTopologyRefresh(reason: "appkit-notification")
     }
 
-    /// Updates `unmanagedFocusedWindowScreenId` based on the current frontmost window.
-    /// If the focused window is confirmed unmanaged, stores its screen ID; otherwise clears the state.
-    /// Calls `refreshResizeHandles()` when the state changes (the state drives resize-bar hiding).
-    /// Also lets an implicit floating target follow a placed or unmanaged frontmost window's display.
-    internal func updateUnmanagedFocusState() {
+    /// The focused-window check (see "Window Capture" in SPECIFICATION-IMPLEMENTATION.md): classifies
+    /// the frontmost application's focused window and acts on the result. A confirmed-unmanaged
+    /// window's screen goes into `unmanagedFocusedWindowScreenId`, which hides resize bars there
+    /// (`refreshResizeHandles()` runs when it changes); an implicit floating target follows a placed
+    /// or unmanaged window's display; the focused window repairs stale full-screen pause state; and
+    /// an untracked window that passes every management rule gets its application captured. An
+    /// unresolved result is retried.
+    internal func runFocusedWindowCheck() {
         let previousScreenId = unmanagedFocusedWindowScreenId
-        let resolution = resolveUnmanagedFocusState()
+        let resolution = classifyFocusedWindow()
         let newScreenId: CGDirectDisplayID?
         // A placed managed window or an unmanaged one says where the user is working; the other
         // resolutions (Zonogy's own windows, windows still on their way into a zone) say nothing.
@@ -302,7 +305,7 @@ extension AppController {
 
         switch resolution {
         case .managed(let window, let pid, let focusedElement):
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             let focusedScreenId = window.screenDisplayId ?? detectScreenId(for: window)
             frontmostScreenId = focusedScreenId
             if let focusedScreenId {
@@ -315,15 +318,15 @@ extension AppController {
             }
             newScreenId = nil
         case .managedUnknown:
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             newScreenId = nil
         case .ownContentWindow(let screenId):
             // Zonogy's own Preferences window is focused: suppress resize bars on its screen.
             // No AX focus to confirm, so cancel any in-flight retry and apply immediately.
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             newScreenId = screenId
         case .unmanaged(let screenId, let pid, let focusedElement, let reason):
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             frontmostScreenId = screenId
             repairFullScreenPauseStateFromFocusedWindowIfNeeded(
                 focusedWindow: focusedElement,
@@ -342,15 +345,15 @@ extension AppController {
                         reason: "unresolved-focus-\(reason)"
                     )
                 }
-                // No capture has caught this window (e.g. its AXWindowCreated was missed while its
-                // application was unavailable): capture the application now.
+                // A manageable window that earlier captures missed (see "Window Capture" in
+                // SPECIFICATION-IMPLEMENTATION.md): capture its application now.
                 if windowController.managedWindow(matching: focusedElement) == nil,
                    let application = NSRunningApplication(processIdentifier: pid) {
                     Logger.debug("Focused window of pid \(pid) appears manageable but is untracked; capturing its application")
                     scheduleCapture(for: application, delay: 0.0)
                 }
             }
-            scheduleUnmanagedFocusRetry(for: pid, reason: reason)
+            scheduleFocusedWindowCheckRetry(for: pid, reason: reason)
             newScreenId = nil
         }
 
@@ -371,28 +374,28 @@ extension AppController {
         }
     }
 
-    internal func cancelUnmanagedFocusRetry() {
-        unmanagedFocusRetryState?.workItem?.cancel()
-        unmanagedFocusRetryState = nil
+    internal func cancelFocusedWindowCheckRetry() {
+        focusedWindowCheckRetryState?.workItem?.cancel()
+        focusedWindowCheckRetryState = nil
     }
 
-    private func scheduleUnmanagedFocusRetry(for pid: pid_t, reason: String) {
+    private func scheduleFocusedWindowCheckRetry(for pid: pid_t, reason: String) {
         guard !sleepWakeProtectionActive else {
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             return
         }
 
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
-            cancelUnmanagedFocusRetry()
+            cancelFocusedWindowCheckRetry()
             return
         }
 
-        if unmanagedFocusRetryState?.pid != pid {
-            cancelUnmanagedFocusRetry()
-            unmanagedFocusRetryState = UnmanagedFocusRetryState(pid: pid, attempt: 0, workItem: nil)
+        if focusedWindowCheckRetryState?.pid != pid {
+            cancelFocusedWindowCheckRetry()
+            focusedWindowCheckRetryState = FocusedWindowCheckRetryState(pid: pid, attempt: 0, workItem: nil)
         }
 
-        guard var retry = unmanagedFocusRetryState else {
+        guard var retry = focusedWindowCheckRetryState else {
             return
         }
 
@@ -400,37 +403,37 @@ extension AppController {
             return
         }
 
-        guard retry.attempt < unmanagedFocusRetryDelays.count else {
-            Logger.keep("Unmanaged focus retry exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(reason))")
-            unmanagedFocusRetryState = nil
+        guard retry.attempt < focusedWindowCheckRetryDelays.count else {
+            Logger.keep("Focused-window check retries exhausted for pid \(pid) after \(retry.attempt) attempts (reason: \(reason))")
+            focusedWindowCheckRetryState = nil
             return
         }
 
-        let delay = unmanagedFocusRetryDelays[retry.attempt]
+        let delay = focusedWindowCheckRetryDelays[retry.attempt]
         let nextAttempt = retry.attempt + 1
         Logger.debug(
-            "Scheduling unmanaged focus retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (reason: \(reason))"
+            "Scheduling focused-window check retry #\(nextAttempt) for pid \(pid) in \(String(format: "%.1f", delay))s (reason: \(reason))"
         )
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             guard !self.sleepWakeProtectionActive else {
-                self.cancelUnmanagedFocusRetry()
+                self.cancelFocusedWindowCheckRetry()
                 return
             }
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
-                self.cancelUnmanagedFocusRetry()
+                self.cancelFocusedWindowCheckRetry()
                 return
             }
 
-            self.unmanagedFocusRetryState?.workItem = nil
-            self.unmanagedFocusRetryState?.attempt = nextAttempt
-            Logger.debug("Executing unmanaged focus retry #\(nextAttempt) for pid \(pid)")
-            self.updateUnmanagedFocusState()
+            self.focusedWindowCheckRetryState?.workItem = nil
+            self.focusedWindowCheckRetryState?.attempt = nextAttempt
+            Logger.debug("Running focused-window check retry #\(nextAttempt) for pid \(pid)")
+            self.runFocusedWindowCheck()
         }
 
         retry.workItem = workItem
-        unmanagedFocusRetryState = retry
+        focusedWindowCheckRetryState = retry
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 

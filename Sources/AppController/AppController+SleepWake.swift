@@ -237,7 +237,7 @@ extension AppController {
     /// Any new delayed AX/window-state work should be cancelled from this path.
     internal func cancelSleepSensitiveAsyncWork(reason: String) {
         validationRetryManager.cancelAllValidationRetries()
-        cancelUnmanagedFocusRetry()
+        cancelFocusedWindowCheckRetry()
         cancelUnmanagedWindowEdgeDrag(reason: reason)
         winShotChooserController.cancelThumbnailDrag(reason: reason)
         dropAllPendingWinShotOpensAfterFullScreenExit(reason: reason)

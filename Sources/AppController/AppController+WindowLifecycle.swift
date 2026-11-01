@@ -279,7 +279,7 @@ extension AppController {
         // Refresh on focus changes so the UI updates immediately.
         refreshResizeHandles()
 
-        updateUnmanagedFocusState()
+        runFocusedWindowCheck()
     }
 
     func placeholderCloseRequested(screenId: CGDirectDisplayID, zoneIndex: Int) {

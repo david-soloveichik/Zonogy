@@ -362,7 +362,7 @@ extension AppController {
             self.pendingFullScreenSpaceChangeWorkItem = nil
             Logger.debug("FullScreenTracker: refreshing full-screen state after active space change")
             self.scanAllWindowsForFullScreenState()
-            self.updateUnmanagedFocusState()
+            self.runFocusedWindowCheck()
             self.enforceHiddenParkedSpaces(reason: "space-change")
             if self.placeTrackedButUnzonedWindowsAfterFullScreenExit() > 0 {
                 self.syncWindowsToZones()

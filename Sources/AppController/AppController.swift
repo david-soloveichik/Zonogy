@@ -27,7 +27,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         let displacedWindowId: Int?
         let displacedWindowFrame: CGRect?
     }
-    struct UnmanagedFocusRetryState {
+    struct FocusedWindowCheckRetryState {
         let pid: pid_t
         var attempt: Int
         var workItem: DispatchWorkItem?
@@ -172,10 +172,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Screen ID where an unmanaged window currently has focus, or nil if the active window is managed.
     /// Used to hide zone resize bars on that screen.
     internal var unmanagedFocusedWindowScreenId: CGDirectDisplayID?
-    /// Retry state for unresolved unmanaged-focus classification.
+    /// Retry state for the focused-window check while its result is unresolved.
     /// A focus is only treated as unmanaged once confirmed; transient AX failures retry first.
-    internal var unmanagedFocusRetryState: UnmanagedFocusRetryState?
-    internal let unmanagedFocusRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+    internal var focusedWindowCheckRetryState: FocusedWindowCheckRetryState?
+    internal let focusedWindowCheckRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by CmdTab to determine initial selection without an AX call.
     /// All mutations must go through `setCurrentFrontmostManagedWindowId(_:reason:)` so transitions
@@ -581,7 +581,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         // mainWindow fallback and keep suppression, and the panel's own key notification is
         // filtered out here. Reading after the tick sees the true new key window.
         DispatchQueue.main.async { [weak self] in
-            self?.updateUnmanagedFocusState()
+            self?.runFocusedWindowCheck()
         }
     }
 
