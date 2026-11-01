@@ -333,15 +333,22 @@ extension AppController {
             )
             newScreenId = screenId
         case .unresolved(let pid, let focusedElement, let reason):
-            if reason == "window-appears-manageable",
-               let focusedElement,
-               let focusedScreenId = detectScreenId(for: focusedElement) {
-                repairFullScreenPauseStateFromFocusedWindowIfNeeded(
-                    focusedWindow: focusedElement,
-                    pid: pid,
-                    screenId: focusedScreenId,
-                    reason: "unresolved-focus-\(reason)"
-                )
+            if reason == "window-appears-manageable", let focusedElement {
+                if let focusedScreenId = detectScreenId(for: focusedElement) {
+                    repairFullScreenPauseStateFromFocusedWindowIfNeeded(
+                        focusedWindow: focusedElement,
+                        pid: pid,
+                        screenId: focusedScreenId,
+                        reason: "unresolved-focus-\(reason)"
+                    )
+                }
+                // No capture has caught this window (e.g. its AXWindowCreated was missed while its
+                // application was unavailable): capture the application now.
+                if windowController.managedWindow(matching: focusedElement) == nil,
+                   let application = NSRunningApplication(processIdentifier: pid) {
+                    Logger.debug("Focused window of pid \(pid) appears manageable but is untracked; capturing its application")
+                    scheduleCapture(for: application, delay: 0.0)
+                }
             }
             scheduleUnmanagedFocusRetry(for: pid, reason: reason)
             newScreenId = nil

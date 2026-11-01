@@ -35,19 +35,32 @@ final class WindowCapturePipeline {
         let description = request.application.bundleIdentifier ?? request.application.localizedName ?? "unknown-app"
         Logger.debug("CapturePipeline: capturing windows for \(description) (pid \(pid)), allowExisting: \(request.allowExisting)")
 
+        // An unavailable application's requests would fail at once without being sent: wait for
+        // its answer, which runs the retry (`retryAfterAnswer`), instead of spending an attempt.
+        if AXUnavailableApps.contains(pid) {
+            if retryStates[pid] == nil {
+                retryStates[pid] = RetryState(bundleId: request.application.bundleIdentifier)
+            }
+            Logger.debug("CapturePipeline: pid \(pid) is unavailable; capturing when it answers")
+            return []
+        }
+
         let result = windowController.captureWindows(
             for: request.application,
             notifyDelegate: request.notifyDelegate,
             allowExisting: request.allowExisting
         )
 
-        if result.needsRetry {
+        // A request that timed out during the capture marked the application unavailable, even
+        // where the capture itself did not ask for a retry; the application's answer runs it.
+        let needsRetry = result.needsRetry || AXUnavailableApps.contains(pid)
+        if needsRetry {
             scheduleRetry(for: request.application, hintBundleId: request.application.bundleIdentifier)
         } else {
             cancelRetry(forPid: pid)
         }
 
-        Logger.debug("CapturePipeline: capture complete for \(description) (pid \(pid)): \(result.windows.count) window(s), needsRetry: \(result.needsRetry)")
+        Logger.debug("CapturePipeline: capture complete for \(description) (pid \(pid)): \(result.windows.count) window(s), needsRetry: \(needsRetry)")
 
         return result.windows
     }
@@ -63,6 +76,16 @@ final class WindowCapturePipeline {
         // attempt count, so rapid triggers don't escalate the delay before the new window is adopted.
         retryStates[pid]?.attempt = 0
         scheduleRetry(for: application, hintBundleId: bundleId)
+    }
+
+    /// Runs a pid's pending or owed retry at once, now that its application answers again after
+    /// being unavailable (see `AXUnavailableApps`).
+    func retryAfterAnswer(forPid pid: pid_t) {
+        guard retryStates[pid] != nil else {
+            return
+        }
+        retryStates[pid]?.cancel()
+        runRetry(forPid: pid)
     }
 
     /// Cancel any pending retry for a pid.
@@ -95,6 +118,10 @@ final class WindowCapturePipeline {
         }
 
         guard state.attempt < retryConfiguration.delays.count else {
+            // A capture failing while the last retry is still pending leaves that retry to run.
+            guard state.workItem == nil else {
+                return
+            }
             let description = state.bundleId ?? hintBundleId ?? "unknown-bundle-identifier"
             Logger.keep("CapturePipeline: retry exhausted for pid \(pid) (bundle \(description))")
             state.cancel()
@@ -108,35 +135,7 @@ final class WindowCapturePipeline {
         state.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-
-            // Clear the stored work item before executing.
-            if var stored = self.retryStates[pid] {
-                stored.workItem = nil
-                self.retryStates[pid] = stored
-            }
-
-            guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
-                Logger.debug("CapturePipeline: retry cancelled for pid \(pid); application no longer running")
-                self.retryStates.removeValue(forKey: pid)
-                return
-            }
-
-            if let expectedBundle = self.retryStates[pid]?.bundleId,
-               let currentBundle = refreshedApplication.bundleIdentifier,
-               expectedBundle != currentBundle {
-                Logger.debug("CapturePipeline: retry cancelled for pid \(pid); bundle changed from \(expectedBundle) to \(currentBundle)")
-                self.retryStates.removeValue(forKey: pid)
-                return
-            }
-
-            guard self.delegate?.capturePipeline(self, shouldManage: refreshedApplication) ?? true else {
-                self.retryStates.removeValue(forKey: pid)
-                return
-            }
-
-            let request = CaptureRequest(application: refreshedApplication, notifyDelegate: true, allowExisting: false)
-            self.capture(request)
+            self?.runRetry(forPid: pid)
         }
 
         state.workItem = workItem
@@ -144,6 +143,36 @@ final class WindowCapturePipeline {
 
         Logger.debug("CapturePipeline: scheduling retry \(state.attempt) for pid \(pid) in \(delay) second(s)")
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func runRetry(forPid pid: pid_t) {
+        // Clear the stored work item before executing.
+        if var stored = retryStates[pid] {
+            stored.workItem = nil
+            retryStates[pid] = stored
+        }
+
+        guard let refreshedApplication = NSRunningApplication(processIdentifier: pid) else {
+            Logger.debug("CapturePipeline: retry cancelled for pid \(pid); application no longer running")
+            retryStates.removeValue(forKey: pid)
+            return
+        }
+
+        if let expectedBundle = retryStates[pid]?.bundleId,
+           let currentBundle = refreshedApplication.bundleIdentifier,
+           expectedBundle != currentBundle {
+            Logger.debug("CapturePipeline: retry cancelled for pid \(pid); bundle changed from \(expectedBundle) to \(currentBundle)")
+            retryStates.removeValue(forKey: pid)
+            return
+        }
+
+        guard delegate?.capturePipeline(self, shouldManage: refreshedApplication) ?? true else {
+            retryStates.removeValue(forKey: pid)
+            return
+        }
+
+        let request = CaptureRequest(application: refreshedApplication, notifyDelegate: true, allowExisting: false)
+        capture(request)
     }
 }
 

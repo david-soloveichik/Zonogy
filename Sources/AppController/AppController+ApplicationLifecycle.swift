@@ -1,8 +1,16 @@
 import Foundation
 import AppKit
 
-/// Handles NSWorkspace application launch/terminate/state-change events and schedules capture.
+/// Handles NSWorkspace application launch/terminate/state-change events and applications that
+/// answer Accessibility requests again, and schedules capture.
 extension AppController {
+    @objc internal func handleAccessibilityApplicationAnswered(_ notification: Notification) {
+        guard let pid = notification.userInfo?["pid"] as? pid_t, !sleepWakeProtectionActive else {
+            return
+        }
+        capturePipeline.retryAfterAnswer(forPid: pid)
+    }
+
     internal func handleApplicationEvent(_ application: NSRunningApplication?) {
         guard let application else {
             Logger.debug("handleApplicationEvent: application is nil, skipping")

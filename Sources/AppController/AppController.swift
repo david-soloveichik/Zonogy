@@ -459,6 +459,14 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
+        // Captures of an application that stopped answering failed; redo them once it answers.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAccessibilityApplicationAnswered(_:)),
+            name: .accessibilityApplicationAnswered,
+            object: nil
+        )
+
         // Recompute resize-bar suppression when our Preferences window gains/loses key status.
         // Activation notifications only fire on app switches; these catch intra-Zonogy focus
         // moves (e.g. the Launcher opening over Preferences) so suppression never lingers.
