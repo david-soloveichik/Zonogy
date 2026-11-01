@@ -318,6 +318,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var pendingWindowActivityRecordWorkItem: DispatchWorkItem?
     /// Monotonic token used to invalidate previously scheduled recordings.
     internal var pendingWindowActivityRecordToken: Int = 0
+    /// Bundle identifiers of applications launched for the Launcher, DockMenus, or a new-window
+    /// request whose first window Zonogy has not captured yet (see `AppController+AppLaunch.swift`).
+    internal var launchesAwaitingFirstWindow: Set<String> = []
     /// Active Launcher shortcut-targeting session, used to toggle between the session's
     /// original target and the currently active window's destination while Launcher is open.
     internal var launcherRetargetSession: TemporaryRetargetSession?

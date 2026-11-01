@@ -499,60 +499,70 @@ extension AppController: LauncherControllerDelegate {
         // First, try to use the managed window if Zonogy already knows about it
         if let managedWindowId = window.managedWindowId,
            let managed = windowController.window(withId: managedWindowId) {
-
-            // macOS controls a full-screen window's frame, so selecting it can only activate it.
-            // (The Launcher and DockMenus leave it out of their lists, but a list can predate the
-            // window's switch to full screen.)
-            if isTrackedFullScreenWindow(managed) {
-                Logger.debug("Launcher: window \(managedWindowId) is full screen, activating in place")
-                activateWindow(managed)
-                return .activatedInPlace
-            }
-
-            // A window parked behind a full-screen Space is effectively minimized, and one
-            // observation decides its disposition for every caller (including the Launcher's
-            // plain move): never activated in place (that would pull its display out of full
-            // screen), placed only onto a destination confirmed to show a regular Space, and
-            // otherwise ignored — showing it anywhere would just be bounced back by the
-            // parked-Space invariant.
-            let behindFullScreen = isWindowBehindFullScreenSpace(managed)
-            if !behindFullScreen && activateInPlace && managed.isPlacedInZone {
-                Logger.debug("Launcher: window \(managedWindowId) already in zone, activating in place")
-                activateWindow(managed)
-                return .activatedInPlace
-            }
-
-            let destination = launcherSelectionDestination(for: managed)
-            if behindFullScreen {
-                guard let destination,
-                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false else {
-                    Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space with no visible destination; ignoring selection")
-                    return .ignored
-                }
-                Logger.debug("Launcher: window \(managedWindowId) is behind a full-screen Space; placing into the targeted zone")
-            }
-            let targetInfo = destination.flatMap { prePositionFrame(for: managed, in: $0) }
-
-            // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
-            // Do not assign a minimized window to a zone; the deminiaturize notification will place it.
-            if managed.isMinimizedPerAccessibility {
-                unminimizeWithPrePositioning(
-                    managed,
-                    targetFrame: targetInfo?.frame,
-                    on: targetInfo?.descriptor,
-                    reason: "launcher",
-                    focusAfterPlacement: true
-                )
-                return .placed
-            }
-            // Place in targeted zone
-            return placeSelectedWindow(managed, destination: destination)
+            return selectManagedWindow(managed, activateInPlace: activateInPlace)
         }
 
         // Window no longer tracked (removed between item construction and selection) -
         // focus via Accessibility API and let Zonogy recapture it
         focusWindowViaAccessibility(window)
         return .selectionUntracked
+    }
+
+    /// Selects a managed window for the Launcher, DockMenus, or CmdTab: activates it in place where
+    /// `activateInPlace` allows (see `handleWindowSelection`), otherwise unminimizes or moves it
+    /// into the targeted zone.
+    @discardableResult
+    private func selectManagedWindow(
+        _ managed: ManagedWindow,
+        activateInPlace: Bool
+    ) -> CmdTabTemporaryTargetPolicy.SelectionAction {
+        // macOS controls a full-screen window's frame, so selecting it can only activate it.
+        // (The Launcher and DockMenus leave it out of their lists, but a list can predate the
+        // window's switch to full screen.)
+        if isTrackedFullScreenWindow(managed) {
+            Logger.debug("Launcher: window \(managed.windowId) is full screen, activating in place")
+            activateWindow(managed)
+            return .activatedInPlace
+        }
+
+        // A window parked behind a full-screen Space is effectively minimized, and one
+        // observation decides its disposition for every caller (including the Launcher's
+        // plain move): never activated in place (that would pull its display out of full
+        // screen), placed only onto a destination confirmed to show a regular Space, and
+        // otherwise ignored — showing it anywhere would just be bounced back by the
+        // parked-Space invariant.
+        let behindFullScreen = isWindowBehindFullScreenSpace(managed)
+        if !behindFullScreen && activateInPlace && managed.isPlacedInZone {
+            Logger.debug("Launcher: window \(managed.windowId) already in zone, activating in place")
+            activateWindow(managed)
+            return .activatedInPlace
+        }
+
+        let destination = launcherSelectionDestination(for: managed)
+        if behindFullScreen {
+            guard let destination,
+                  SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false else {
+                Logger.debug("Launcher: window \(managed.windowId) is behind a full-screen Space with no visible destination; ignoring selection")
+                return .ignored
+            }
+            Logger.debug("Launcher: window \(managed.windowId) is behind a full-screen Space; placing into the targeted zone")
+        }
+        let targetInfo = destination.flatMap { prePositionFrame(for: managed, in: $0) }
+
+        // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
+        // Do not assign a minimized window to a zone; the deminiaturize notification will place it.
+        if managed.isMinimizedPerAccessibility {
+            unminimizeWithPrePositioning(
+                managed,
+                targetFrame: targetInfo?.frame,
+                on: targetInfo?.descriptor,
+                reason: "launcher",
+                focusAfterPlacement: true
+            )
+            return .placed
+        }
+        // Place in targeted zone
+        return placeSelectedWindow(managed, destination: destination)
     }
 
     private func focusWindowViaAccessibility(_ window: LauncherWindowItem) {
@@ -592,8 +602,8 @@ extension AppController: LauncherControllerDelegate {
     }
 
     /// Performs the default Launcher action for an app URL.
-    /// - If the app is running with managed windows: selects preferred window (respecting hasMainWindow),
-    ///   pre-positions if minimized, unminimizes, and places in targeted zone.
+    /// - If the app is running with managed windows: selects its preferred window
+    ///   (`selectPreferredWindow(ofAppWithBundleIdentifier:activateInPlace:)`).
     /// - If the app is not running or has no managed windows: launches/activates the app.
     ///
     /// This is the shared code path used by both Launcher and DockMenus click interception.
@@ -607,47 +617,8 @@ extension AppController: LauncherControllerDelegate {
     ///     no managed windows, we simulate a press on the Dock item instead of using NSWorkspace,
     ///     which triggers the app's native "clicked in Dock" behavior (typically creating a new window).
     internal func performDefaultLauncherAction(for url: URL, activateInPlace: Bool = false, dockItemElement: AXUIElement? = nil) {
-        // Check if app is already running - select the preferred window
         if let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: url),
-           let preferredWindow = preferredManagedWindowForRunningApp(
-               bundleIdentifier: bundleId,
-               placedMainWindowYields: !activateInPlace
-           ) {
-
-            // Same single-observation disposition as handleWindowSelection.
-            let behindFullScreen = isWindowBehindFullScreenSpace(preferredWindow)
-            if !behindFullScreen && activateInPlace && preferredWindow.isPlacedInZone {
-                Logger.debug("Launcher: window \(preferredWindow.windowId) already in zone, activating in place")
-                activateWindow(preferredWindow)
-                return
-            }
-
-            let destination = launcherSelectionDestination(for: preferredWindow)
-            if behindFullScreen {
-                guard let destination,
-                      SpaceQueries.isDisplayShowingFullScreenSpace(displayId: destination.screenId) == false else {
-                    Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space with no visible destination; ignoring selection")
-                    return
-                }
-                Logger.debug("Launcher: window \(preferredWindow.windowId) is behind a full-screen Space; placing into the targeted zone")
-            }
-            let targetInfo = destination.flatMap { prePositionFrame(for: preferredWindow, in: $0) }
-
-            // Pre-position and unminimize if needed. Do not assign a minimized window to a zone;
-            // the deminiaturize notification will place it.
-            if preferredWindow.isMinimizedPerAccessibility {
-                unminimizeWithPrePositioning(
-                    preferredWindow,
-                    targetFrame: targetInfo?.frame,
-                    on: targetInfo?.descriptor,
-                    reason: "launcher",
-                    focusAfterPlacement: true
-                )
-                return
-            }
-
-            // Place in targeted zone
-            placeSelectedWindow(preferredWindow, destination: destination)
+           selectPreferredWindow(ofAppWithBundleIdentifier: bundleId, activateInPlace: activateInPlace) {
             return
         }
 
@@ -655,21 +626,30 @@ extension AppController: LauncherControllerDelegate {
         // This triggers the app's native "clicked in Dock" behavior (launches app or creates new window)
         if let dockItemElement {
             Logger.debug("Launcher: No managed windows, simulating Dock item press for \(url.lastPathComponent)")
-            _ = AXCall.performAction(dockItemElement, kAXPressAction as CFString)
+            let awaitedBundleId = awaitFirstWindow(ofLaunchAt: url)
+            if AXCall.performAction(dockItemElement, kAXPressAction as CFString) != .success {
+                endLaunchWait(awaitedBundleId)
+            }
             return
         }
 
         // Normal app launch (not running, or no eligible windows and no Dock element)
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
+        launchApplication(at: url, logPrefix: "Launcher")
+    }
 
-        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
-            if let error = error {
-                Logger.error("Launcher: Failed to launch app at \(url.path): \(error.localizedDescription)")
-            } else if let app = app {
-                Logger.debug("Launcher: Launched \(app.localizedName ?? url.lastPathComponent)")
-            }
+    /// Selects the preferred managed window of a running app (respecting hasMainWindow) with
+    /// `selectManagedWindow`. Returns false when the app is not running or has no managed windows.
+    /// `activateInPlace` is as for `performDefaultLauncherAction`.
+    @discardableResult
+    internal func selectPreferredWindow(ofAppWithBundleIdentifier bundleId: String, activateInPlace: Bool) -> Bool {
+        guard let preferredWindow = preferredManagedWindowForRunningApp(
+            bundleIdentifier: bundleId,
+            placedMainWindowYields: !activateInPlace
+        ) else {
+            return false
         }
+        selectManagedWindow(preferredWindow, activateInPlace: activateInPlace)
+        return true
     }
 
     /// Returns the preferred window for a running app based on configuration:

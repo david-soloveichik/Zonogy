@@ -478,6 +478,7 @@ extension AppController {
 
     func windowDidDeminiaturize(windowId: Int) {
         recentUserMinimizeTracker.clearMark(windowId: windowId)
+        windowController.window(withId: windowId).map(completeLaunch(showing:))
         if shouldIgnoreDueToSleepWake(event: "windowDidDeminiaturize(\(windowId))") {
             pendingExplicitUnminimizeFocusWindowIds.remove(windowId)
             return
@@ -1131,6 +1132,7 @@ extension AppController {
     }
 
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow) {
+        completeLaunch(showing: window)
         if shouldIgnoreDueToSleepWake(event: "didCaptureExternalWindow(\(window.windowId))") {
             return
         }

@@ -656,6 +656,8 @@ protocol WindowControllerDelegate: AnyObject {
     func windowAppDrivenMoveDidUpdate(windowId: Int, frame: CGRect)
     func screenDescriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func windowController(_ controller: WindowController, didCaptureExternalWindow window: ManagedWindow)
+    /// Called when a capture finds a new window minimized; Zonogy tracks it without placing it.
+    func windowController(_ controller: WindowController, didCaptureMinimizedWindow window: ManagedWindow)
     /// Called when pending-prune entries are permanently discarded (window truly gone).
     /// Staged windows restored via deferred-prune matching do NOT fire this callback.
     func windowController(_ controller: WindowController, didDiscardPendingPrunedWindowIds windowIds: [Int], reason: String)

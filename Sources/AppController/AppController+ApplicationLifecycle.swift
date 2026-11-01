@@ -9,6 +9,7 @@ extension AppController {
             return
         }
         capturePipeline.retryAfterAnswer(forPid: pid)
+        showLaunchedWindowIfOnlyMinimized(pid: pid)
     }
 
     internal func handleApplicationEvent(_ application: NSRunningApplication?) {

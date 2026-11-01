@@ -399,8 +399,10 @@ extension WindowController {
 
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 
-        // Only notify delegate for non-minimized windows (minimized windows are tracked but not placed in zones)
-        if notifyDelegate && !isMinimized {
+        // Minimized windows are tracked but not placed in zones.
+        if notifyDelegate && isMinimized {
+            delegate?.windowController(self, didCaptureMinimizedWindow: managed)
+        } else if notifyDelegate {
             Logger.debug("captureWindowIfNeeded: Notifying delegate about captured window \(managed.windowId) for pid \(pid)")
             delegate?.windowController(self, didCaptureExternalWindow: managed)
         }

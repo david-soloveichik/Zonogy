@@ -231,6 +231,7 @@ When the user selects a window or launches an application:
 
 3. **If launching a new application:**
    - The new window will be placed into the targeted zone via normal Zonogy window capture
+   - If the first windows Zonogy finds from the application are all minimized (it restores windows that were minimized when it last quit), Zonogy then selects the application as in 2, so the launch doesn't end with no window.
 
 4. **If activating an app header (not a specific window):**
    - Use `app.activate(options: [.activateIgnoringOtherApps])` without changing window placement

@@ -34,15 +34,7 @@ extension AppController {
         }
 
         Logger.debug("NewWindow: launching \(appURL.lastPathComponent) (\(reason))")
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
-            if let error = error {
-                Logger.error("NewWindow: Failed to launch app at \(appURL.path): \(error.localizedDescription)")
-            } else if let app = app {
-                Logger.debug("NewWindow: Launched \(app.localizedName ?? appURL.lastPathComponent)")
-            }
-        }
+        launchApplication(at: appURL, logPrefix: "NewWindow")
     }
 
     /// Posts Cmd-N to `pid` once the system reports the app has finished activating, or after
