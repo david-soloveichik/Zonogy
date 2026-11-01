@@ -1,17 +1,29 @@
 import AppKit
 
-/// Manages NSEvent monitors and workspace notifications, forwarding to a delegate
+/// An application that quit, identified as it was while running: a terminated
+/// `NSRunningApplication` no longer reports its pid or bundle identifier.
+struct TerminatedApplication {
+    let pid: pid_t
+    let bundleIdentifier: String?
+    let localizedName: String?
+}
+
+/// Manages NSEvent monitors, workspace notifications, and application quits, forwarding to a delegate
 final class SystemEventMonitor {
     weak var delegate: SystemEventMonitorDelegate?
 
     private var localMonitor: Any?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var defaultCenterObservers: [NSObjectProtocol] = []
+    private var runningApplicationsObservation: NSKeyValueObservation?
+    /// The running applications by pid as of the last change, so a quit one can still be identified.
+    private var runningApplicationsByPid: [pid_t: TerminatedApplication] = [:]
 
     func start(delegate: SystemEventMonitorDelegate) {
         self.delegate = delegate
         installLocalMonitor()
         installWorkspaceObservers()
+        installQuitObserver()
         delegate.systemEventMonitor(self, didActivate: NSWorkspace.shared.frontmostApplication)
     }
 
@@ -20,6 +32,8 @@ final class SystemEventMonitor {
             NSEvent.removeMonitor(monitor)
             localMonitor = nil
         }
+        runningApplicationsObservation?.invalidate()
+        runningApplicationsObservation = nil
 
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         for observer in workspaceObservers {
@@ -147,17 +161,6 @@ final class SystemEventMonitor {
         }
         workspaceObservers.append(hide)
 
-        let terminate = center.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self else { return }
-            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self.delegate?.systemEventMonitor(self, didTerminate: application)
-        }
-        workspaceObservers.append(terminate)
-
         let activeSpaceChanged = center.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil,
@@ -167,6 +170,35 @@ final class SystemEventMonitor {
             self.delegate?.systemEventMonitorActiveSpaceDidChange(self)
         }
         workspaceObservers.append(activeSpaceChanged)
+    }
+
+    /// Reports quits from changes to `NSWorkspace.runningApplications` (delivered on the main thread),
+    /// not NSWorkspace's termination notification, which macOS skips for an application that is not a
+    /// regular (Dock) application when it exits: agents, and applications such as Find My that turn
+    /// background-only while quitting.
+    private func installQuitObserver() {
+        runningApplicationsByPid = Self.currentApplicationsByPid()
+        runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            guard let self else { return }
+            let current = Self.currentApplicationsByPid()
+            let terminated = self.runningApplicationsByPid.values.filter { current[$0.pid] == nil }
+            self.runningApplicationsByPid = current
+            for application in terminated {
+                self.delegate?.systemEventMonitor(self, didTerminate: application)
+            }
+        }
+    }
+
+    private static func currentApplicationsByPid() -> [pid_t: TerminatedApplication] {
+        var applications: [pid_t: TerminatedApplication] = [:]
+        for application in NSWorkspace.shared.runningApplications where application.processIdentifier > 0 {
+            applications[application.processIdentifier] = TerminatedApplication(
+                pid: application.processIdentifier,
+                bundleIdentifier: application.bundleIdentifier,
+                localizedName: application.localizedName
+            )
+        }
+        return applications
     }
 
     deinit {
@@ -183,7 +215,7 @@ protocol SystemEventMonitorDelegate: AnyObject {
     func systemEventMonitor(_ monitor: SystemEventMonitor, didUnhide application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didDeactivate application: NSRunningApplication?)
     func systemEventMonitor(_ monitor: SystemEventMonitor, didHide application: NSRunningApplication?)
-    func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?)
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: TerminatedApplication)
     func systemEventMonitorScreensDidSleep(_ monitor: SystemEventMonitor)
     func systemEventMonitorScreensDidWake(_ monitor: SystemEventMonitor)
     func systemEventMonitorScreensDidChange(_ monitor: SystemEventMonitor)

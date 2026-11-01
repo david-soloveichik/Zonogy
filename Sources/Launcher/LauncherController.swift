@@ -85,7 +85,7 @@ final class LauncherController {
     private var flagsGlobalMonitor: Any?
     private var flagsLocalMonitor: Any?
     private var clickMonitor: ClickOutsideMonitor?
-    private var appTerminationObserver: Any?
+    private var appQuitObservation: NSKeyValueObservation?
     /// The unmanaged windows the open Launcher was last found over, and where (see
     /// `yieldToUnmanagedWindows`). Nil until the first pass-through refresh after opening.
     private var placement: LauncherCoveredWindowPolicy.Placement?
@@ -198,7 +198,7 @@ final class LauncherController {
         startMouseMonitor()
         startFlagsMonitor()
         startClickMonitor()
-        startAppTerminationObserver()
+        startAppQuitObserver()
 
         isActive = true
         Logger.debug("Launcher: Opened")
@@ -232,7 +232,7 @@ final class LauncherController {
         stopMouseMonitor()
         stopFlagsMonitor()
         stopClickMonitor()
-        stopAppTerminationObserver()
+        stopAppQuitObserver()
 
         window?.orderOut(nil)
         hostingView = nil
@@ -383,23 +383,33 @@ final class LauncherController {
     /// an outside click. Decided a turn later, once key status settles, so that another Zonogy panel
     /// opening over the Launcher (the WinShot chooser) keeps it. Application switches are left to the
     /// delegate's focus rules, except the one macOS makes when the frontmost application quits (after a
-    /// forwarded Cmd-Q, for one): the Launcher stays and takes the keyboard back. The termination
-    /// observer re-keys too, but AppKit can report the loss after the termination notification, when
-    /// re-keying a panel that still counts as key does nothing.
+    /// forwarded Cmd-Q, for one): the Launcher stays and takes the keyboard back. The quit observer
+    /// does that as the application quits, but AppKit can report the loss only after the quit.
     private func windowDidResignKey() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.isActive, NSApp.keyWindow == nil else {
+            guard let self, self.isActive, NSApp.keyWindow == nil,
+                  !self.reclaimKeyboardAfterFrontmostQuit() else {
                 return
             }
-            if self.frontmostAppWhileKey?.isTerminated == true {
-                Logger.debug("Launcher: Taking keyboard focus back after the frontmost application quit")
-                self.makeKeyIfActive()
-            } else if NSWorkspace.shared.frontmostApplication?.processIdentifier
-                        == self.frontmostAppWhileKey?.processIdentifier {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier
+                == self.frontmostAppWhileKey?.processIdentifier {
                 Logger.debug("Launcher: Cancelling because another application took keyboard focus")
                 self.cancel()
             }
         }
+    }
+
+    /// Takes the keyboard back once the application that was frontmost while the Launcher was key has
+    /// quit and no Zonogy window has the keyboard (the WinShot chooser can be open over the Launcher).
+    /// Returns whether it did.
+    @discardableResult
+    private func reclaimKeyboardAfterFrontmostQuit() -> Bool {
+        guard isActive, NSApp.keyWindow == nil, frontmostAppWhileKey?.isTerminated == true else {
+            return false
+        }
+        Logger.debug("Launcher: Taking keyboard focus back after the frontmost application quit")
+        makeKeyIfActive()
+        return true
     }
 
     /// Re-focuses the search field whenever the panel becomes key (`LauncherWindow.onDidBecomeKey`).
@@ -871,27 +881,24 @@ final class LauncherController {
         clickMonitor = nil
     }
 
-    // MARK: - App Termination Observer
+    // MARK: - App Quit Observer
 
-    /// Observes app termination to restore Launcher keyboard focus.
-    /// When an app quits (e.g., via forwarded Cmd-Q), macOS activates another app,
+    /// Observes app quits to restore Launcher keyboard focus.
+    /// When the frontmost app quits (e.g., via forwarded Cmd-Q), macOS activates another app,
     /// which can cause the Launcher's nonactivatingPanel to lose keyboard focus.
-    /// This observer ensures we reclaim focus so the user can continue typing. When AppKit registers
-    /// that loss only after this notification, `windowDidResignKey` reclaims it instead.
-    private func startAppTerminationObserver() {
-        appTerminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.makeKeyIfActive()
+    /// This observer ensures we reclaim focus so the user can continue typing. It watches
+    /// `runningApplications` because some apps quit without NSWorkspace's termination notification
+    /// (see `SystemEventMonitor`). When AppKit registers the loss only after the quit,
+    /// `windowDidResignKey` reclaims it instead.
+    private func startAppQuitObserver() {
+        appQuitObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, change in
+            guard change.kind == .removal else { return }
+            self?.reclaimKeyboardAfterFrontmostQuit()
         }
     }
 
-    private func stopAppTerminationObserver() {
-        if let observer = appTerminationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(observer)
-            appTerminationObserver = nil
-        }
+    private func stopAppQuitObserver() {
+        appQuitObservation?.invalidate()
+        appQuitObservation = nil
     }
 }

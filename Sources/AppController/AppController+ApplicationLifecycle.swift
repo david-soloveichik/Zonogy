@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-/// Handles NSWorkspace application launch/terminate/state-change events and applications that
-/// answer Accessibility requests again, and schedules capture.
+/// Handles application launch, quit, and state-change events and applications that answer
+/// Accessibility requests again, and schedules capture.
 extension AppController {
     @objc internal func handleAccessibilityApplicationAnswered(_ notification: Notification) {
         guard let pid = notification.userInfo?["pid"] as? pid_t, !sleepWakeProtectionActive else {
@@ -43,36 +43,30 @@ extension AppController {
         _ = validationRetryManager.validateWindowsForApplication(pid: application.processIdentifier, trigger: .workspaceStateChange)
     }
 
-    internal func handleApplicationTermination(_ application: NSRunningApplication?) {
-        guard let application else {
-            Logger.debug("NSWorkspace notification received: didTerminateApplication (no application payload)")
-            return
-        }
-
-        let name = application.localizedName ?? "Unknown App"
-        var details = "\(name), pid \(application.processIdentifier)"
+    internal func handleApplicationTermination(_ application: TerminatedApplication) {
+        let pid = application.pid
+        var details = "\(application.localizedName ?? "Unknown App"), pid \(pid)"
         if let bundleId = application.bundleIdentifier {
             details += ", bundle \(bundleId)"
         }
-        Logger.debug("NSWorkspace notification received: didTerminateApplication (\(details))")
+        Logger.debug("Application terminated: \(details)")
 
         // Notify full-screen tracker that this app terminated
-        notifyFullScreenTrackerOfAppTermination(pid: application.processIdentifier)
-        clearUnmanagedWindowEdgeState(forPid: application.processIdentifier, reason: "application-termination")
+        notifyFullScreenTrackerOfAppTermination(pid: pid)
+        clearUnmanagedWindowEdgeState(forPid: pid, reason: "application-termination")
 
-        capturePipeline.cancelRetry(forPid: application.processIdentifier)
+        capturePipeline.cancelRetry(forPid: pid)
         // A terminated app's windows vanish with it: retire any pass-through holes they
         // earned, even when the app had no managed windows (no sync runs then).
         schedulePlaceholderPassThroughRefresh(reason: "application-termination")
         // When an application terminates, remove all of its managed windows immediately
-        let removedWindowIds = windowController.removeAllWindows(forPid: application.processIdentifier)
-        if removedWindowIds.isEmpty {
-            Logger.debug("Application terminated, but no managed windows were associated with pid \(application.processIdentifier)")
+        let removedWindowIds = windowController.removeAllWindows(forPid: pid)
+        guard !removedWindowIds.isEmpty else {
             return
         }
 
         Logger.debug("Application terminated, pruned \(removedWindowIds.count) windows")
-        validationRetryManager.cancelValidationRetry(for: application.processIdentifier)
+        validationRetryManager.cancelValidationRetry(for: pid)
         handleDestroyedWindows(removedWindowIds, reason: "application-termination", retarget: true)
     }
 

@@ -56,7 +56,7 @@ final class LauncherModel: ObservableObject {
     private var windowItems: [LauncherWindowItem] = []
     private var savedAppQuery: String = ""
     private var allItems: [LaunchItem] = []
-    private var workspaceObservers: [NSObjectProtocol] = []
+    private var runningApplicationsObservation: NSKeyValueObservation?
     private var defaultCenterObservers: [NSObjectProtocol] = []
 
     private var usageStore: LaunchItemUsageStore { LaunchItemUsageStore.shared }
@@ -64,43 +64,26 @@ final class LauncherModel: ObservableObject {
     init() {
         reloadItems()
         refreshRunningApps()
-        setupWorkspaceObservers()
+        observeRunningApplications()
         setupCacheObservers()
     }
 
     deinit {
-        let workspaceCenter = NSWorkspace.shared.notificationCenter
-        for observer in workspaceObservers {
-            workspaceCenter.removeObserver(observer)
-        }
-
         let defaultCenter = NotificationCenter.default
         for observer in defaultCenterObservers {
             defaultCenter.removeObserver(observer)
         }
     }
 
-    private func setupWorkspaceObservers() {
-        let center = NSWorkspace.shared.notificationCenter
-        let launchObserver = center.addObserver(
-            forName: NSWorkspace.didLaunchApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
+    /// Refreshes running state as applications launch and quit. `runningApplications` covers every
+    /// application, unlike NSWorkspace's launch and termination notifications, which skip agents (such
+    /// as menu bar apps) and applications that turn background-only while quitting (Find My).
+    private func observeRunningApplications() {
+        runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
             Task { @MainActor in
                 self?.refreshRunningApps()
             }
         }
-        let terminateObserver = center.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshRunningApps()
-            }
-        }
-        workspaceObservers = [launchObserver, terminateObserver]
     }
 
     private func setupCacheObservers() {

@@ -276,6 +276,10 @@ Custom items config schema:
 
 - **Auto-show grace period:** When a window is minimized or closed in a tiling zone, the Launcher auto-shows. However, macOS may automatically focus another window, which would normally trigger the Launcher to dismiss. To prevent this, the Launcher ignores focus shifting to another window for 0.5 seconds after auto-showing.
 
+### Application Quits
+
+The Launcher watches `NSWorkspace.runningApplications`, as Zonogy does to notice application quits (see **Additional Notes** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)), to (1) take the keyboard back after the frontmost application quits (causing another to become key), and (2) keep its running indicators current.
+
 ### Window Configuration
 
 The launcher window should be configured as:

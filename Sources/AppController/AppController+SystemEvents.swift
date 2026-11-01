@@ -254,10 +254,10 @@ extension AppController {
         handleApplicationStateChange(application)
     }
 
-    func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: NSRunningApplication?) {
+    func systemEventMonitor(_ monitor: SystemEventMonitor, didTerminate application: TerminatedApplication) {
         // Needs no Accessibility, so a quit ends its launch even while sleep/wake protection is active.
-        endLaunchWait(application?.bundleIdentifier)
-        if shouldIgnoreDueToSleepWake(event: "NSWorkspace.didTerminateApplicationNotification") {
+        endLaunchWait(application.bundleIdentifier)
+        if shouldIgnoreDueToSleepWake(event: "application termination (pid \(application.pid))") {
             return
         }
         handleApplicationTermination(application)
