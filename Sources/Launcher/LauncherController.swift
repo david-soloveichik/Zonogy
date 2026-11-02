@@ -401,10 +401,12 @@ final class LauncherController {
 
     /// Takes the keyboard back once the application that was frontmost while the Launcher was key has
     /// quit and no Zonogy window has the keyboard (the WinShot chooser can be open over the Launcher).
-    /// Returns whether it did.
+    /// The quit is judged by the application leaving `runningApplications`, which `isTerminated` lags (it
+    /// still reads false while that removal is reported). Returns whether it did.
     @discardableResult
     private func reclaimKeyboardAfterFrontmostQuit() -> Bool {
-        guard isActive, NSApp.keyWindow == nil, frontmostAppWhileKey?.isTerminated == true else {
+        guard isActive, NSApp.keyWindow == nil, let app = frontmostAppWhileKey,
+              !NSWorkspace.shared.runningApplications.contains(app) else {
             return false
         }
         Logger.debug("Launcher: Taking keyboard focus back after the frontmost application quit")

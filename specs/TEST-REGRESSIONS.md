@@ -83,7 +83,7 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
   - Think about: Explicit Launcher opens should hand off from CmdTab, while automatic Launcher opens should be suppressed until CmdTab is gone.
 
 - Bug report: After an application quits while the Launcher is open (for example, after a forwarded Cmd-Q), the Launcher stays open but no longer takes typing.
-  - Think about: Some applications quit without NSWorkspace's termination notification (Find My turns background-only first), and AppKit can report the Launcher's lost key status only after the quit is seen. Quit detection must cover both.
+  - Think about: Some applications quit without NSWorkspace's termination notification (Find My turns background-only first), and AppKit can report the Launcher's lost key status only after the quit is seen. Quit detection must cover both, and `isTerminated` lags an application's removal from `runningApplications` (ChatGPT, which exits seconds after closing its window, left the Launcher deaf every time).
 
 - Bug report: Placing a window into zone 2/3 can visibly flicker (rest-position move(s) before reveal).
   - Think about: Avoid immediate duplicate geometry writes for a just-placed window before ActiveFit reveal applies.
