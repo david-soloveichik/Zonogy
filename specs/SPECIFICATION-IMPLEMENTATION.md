@@ -212,6 +212,10 @@ While a sheet (such as a save dialog) is open, the Accessibility API reports the
 
 Some applications report the subrole for their minimized windows as AXDialogSubrole even if it later becomes kAXStandardWindowSubrole upon un-minimization. So for enumeration of windows to manage, we don't check subrole for minimized windows.
 
+### Applications with enhanced accessibility on
+
+While an application's `AXEnhancedUserInterface` attribute is on, macOS animates the moves and resizes Zonogy makes to its windows, which can also leave a window at the wrong frame. Assistive applications such as VoiceOver turn the attribute on, and Firefox turns it on itself whenever an Accessibility client asks for its application role, so turning it off once would not last. Instead, each time Zonogy moves or resizes a window, it first checks the attribute; if it is on, Zonogy turns it off for those writes and then back on, so assistive applications keep working. Exception: Pre-positioning after a [notification click](#unminimize-after-a-notification-click) leaves the attribute alone, since checking it would wait for the application's answer.
+
 ### Pre-move feature
 
 The pre-move feature pre-positions a minimized window: it sets the window's position and size while the window is still minimized, so the unminimize animation reveals the window already at its destination. The size is written both before and after the position (an application can ignore a height change written only after a minimized window moves to another display). Zonogy computes the frame from its own records, without asking the application.

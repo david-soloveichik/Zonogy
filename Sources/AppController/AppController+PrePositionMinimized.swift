@@ -77,8 +77,8 @@ extension AppController {
         }
     }
 
-    /// Writes `screenFrame` to the still-minimized `managed`, asking the application nothing (a
-    /// width-preserving application's width comes from Zonogy's records too). The writes are marked as
+    /// Writes `screenFrame` to the still-minimized `managed`, without asking the application for the
+    /// window's frame (a width-preserving application's width comes from Zonogy's records too). The writes are marked as
     /// Zonogy's own, so the moves and resizes they cause are neither taken for the user's nor read
     /// back while the window is in no zone, when its application may be busy restoring it.
     ///
@@ -122,13 +122,17 @@ extension AppController {
                   let positionValue = AXValueCreate(.cgPoint, &position) else {
                 return
             }
-            if !waitingForApplication {
-                AXUIElementSetMessagingTimeout(element, 0.001)
+            let writes = {
+                _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
+                _ = AXCall.setAttribute(element, kAXPositionAttribute as CFString, positionValue)
+                _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
             }
-            _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
-            _ = AXCall.setAttribute(element, kAXPositionAttribute as CFString, positionValue)
-            _ = AXCall.setAttribute(element, kAXSizeAttribute as CFString, sizeValue)
-            if !waitingForApplication {
+            if waitingForApplication {
+                AXEnhancedUserInterface.whileOff(for: element, writes)
+            } else {
+                // AXEnhancedUserInterface is left alone: checking it would wait for the application.
+                AXUIElementSetMessagingTimeout(element, 0.001)
+                writes()
                 AXUIElementSetMessagingTimeout(element, 0)  // back to the global timeout
             }
         }

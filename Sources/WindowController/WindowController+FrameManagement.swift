@@ -265,15 +265,17 @@ extension WindowController {
     ) -> (applied: Bool, positionResult: Bool, sizeResult: Bool) {
         let sizeFirst = order == .sizeThenPosition
 
-        let sizeResult: Bool
-        let positionResult: Bool
+        var sizeResult = false
+        var positionResult = false
 
-        if sizeFirst {
-            sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
-            positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
-        } else {
-            positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
-            sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
+        AXEnhancedUserInterface.whileOff(for: element) {
+            if sizeFirst {
+                sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
+                positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
+            } else {
+                positionResult = setAccessibilityPoint(element: element, attribute: kAXPositionAttribute as CFString, point: targetAccessibilityFrame.origin)
+                sizeResult = setAccessibilitySize(element: element, size: targetAccessibilityFrame.size)
+            }
         }
 
         if !(sizeResult && positionResult) {
@@ -798,28 +800,30 @@ extension WindowController {
         // the batch as a single queue item.
         pendingLiveResizeWrites.append { [weak self] in
             guard let self else { return }
-            switch order {
-            case .sizeThenPosition:
-                if sizeChanged {
-                    _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
-                }
-                if positionChanged {
-                    _ = self.setAccessibilityPoint(
-                        element: managedWindow.backing.element,
-                        attribute: kAXPositionAttribute as CFString,
-                        point: targetAXFrame.origin
-                    )
-                }
-            case .positionThenSize:
-                if positionChanged {
-                    _ = self.setAccessibilityPoint(
-                        element: managedWindow.backing.element,
-                        attribute: kAXPositionAttribute as CFString,
-                        point: targetAXFrame.origin
-                    )
-                }
-                if sizeChanged {
-                    _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
+            AXEnhancedUserInterface.whileOff(for: managedWindow.backing.element) {
+                switch order {
+                case .sizeThenPosition:
+                    if sizeChanged {
+                        _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
+                    }
+                    if positionChanged {
+                        _ = self.setAccessibilityPoint(
+                            element: managedWindow.backing.element,
+                            attribute: kAXPositionAttribute as CFString,
+                            point: targetAXFrame.origin
+                        )
+                    }
+                case .positionThenSize:
+                    if positionChanged {
+                        _ = self.setAccessibilityPoint(
+                            element: managedWindow.backing.element,
+                            attribute: kAXPositionAttribute as CFString,
+                            point: targetAXFrame.origin
+                        )
+                    }
+                    if sizeChanged {
+                        _ = self.setAccessibilitySize(element: managedWindow.backing.element, size: targetAXFrame.size)
+                    }
                 }
             }
         }
