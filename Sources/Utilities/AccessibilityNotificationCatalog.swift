@@ -13,7 +13,6 @@ struct AccessibilityNotificationCatalog {
     static let applicationNotifications: [CFString] = [
         kAXWindowCreatedNotification as CFString,
         kAXFocusedWindowChangedNotification as CFString,
-        kAXMainWindowChangedNotification as CFString,
-        kAXUIElementDestroyedNotification as CFString
+        kAXMainWindowChangedNotification as CFString
     ]
 }

@@ -10,11 +10,20 @@ extension WindowController {
         let pid = managed.backing.pid
 
         let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        guard accessibilityWatcher.ensureObserver(for: pid, appElement: appElement, bundleIdentifier: bundleId) != nil else {
+        guard let observerSetup = accessibilityWatcher.ensureObserver(
+            for: pid,
+            appElement: appElement,
+            bundleIdentifier: bundleId
+        ) else {
             return
         }
 
         accessibilityWatcher.registerWindowNotifications(for: element, pid: pid)
+        // Registrations the application could not complete are retried by the next capture of its
+        // windows; without them the window's close would go unnoticed.
+        if observerSetup.needsRetry || accessibilityWatcher.hasPendingWindowRegistrations(for: pid) {
+            delegate?.windowCreationFailedRetryNeeded(forPid: pid)
+        }
     }
 
     /// Refresh the per-window liveness timestamp used by `pruneDestroyedExternalWindows`.
@@ -79,7 +88,12 @@ extension WindowController {
             return
         }
 
-        guard let managed = managedWindow(matching: element) else {
+        // A destroyed element can no longer report its CGWindowID, so a destroy matches a managed
+        // window only through the element itself.
+        let matchedWindow = notificationName == axDestroyedNotification
+            ? externalWindowsByElement[AccessibilityElementKey(element: element)]
+            : managedWindow(matching: element)
+        guard let managed = matchedWindow else {
             var pid: pid_t = 0
             if AXUIElementGetPid(element, &pid) == .success, pid != getpid() {
                 switch notificationName {

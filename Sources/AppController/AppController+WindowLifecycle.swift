@@ -1304,16 +1304,11 @@ extension AppController {
         if let workItem = fullScreenCheckWorkItemsByElement.removeValue(forKey: elementKey) {
             workItem.cancel()
         }
+        // A destroyed element can no longer report its CGWindowID; only the full-screen check
+        // that cached the element knows which window it was.
         if let cached = fullScreenElementCache.removeValue(forKey: elementKey) {
             Logger.debug("FullScreenTracker: using cached CGWindowID \(cached.cgWindowId) for destroyed element (pid \(pid))")
             notifyFullScreenTrackerOfWindowClose(cgWindowId: cached.cgWindowId, pid: pid)
-            return
-        }
-
-        if let cgWindowId = resolveCgWindowId(for: element) {
-            notifyFullScreenTrackerOfWindowClose(cgWindowId: cgWindowId, pid: pid)
-        } else {
-            Logger.debug("FullScreenTracker: unable to resolve CGWindowID for destroyed element (pid \(pid)); full-screen state may persist until rescan")
         }
     }
 
