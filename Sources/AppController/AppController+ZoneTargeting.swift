@@ -122,6 +122,8 @@ extension AppController {
     internal func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?) {
         managed.screenDisplayId = screenId
         managed.zoneIndex = zoneIndex
+        // Zonogy has decided where the window goes, so no unminimize placement is left pending.
+        managed.awaitsUnminimizePlacement = false
         if zoneIndex != nil {
             clearFloatingZone(for: managed.windowId, reason: "assigned-to-tiled-zone")
         }

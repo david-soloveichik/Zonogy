@@ -56,6 +56,12 @@ class ManagedWindow {
     /// When this window was last unminimized.
     var unminimizedAt: Date?
 
+    /// Whether this window was unminimized before the native-tab check that precedes its placement
+    /// could run (see `WindowController.resolvedDeminiaturizedWindowIdForPlacement`). The capture
+    /// that completes the check places the window, unless it was minimized again or assigned a zone
+    /// by then.
+    var awaitsUnminimizePlacement = false
+
     /// Whether this window is placed in any zone (tiled or floating).
     ///
     /// A managed window in no zone is normally minimized. Exceptions include a window holding a

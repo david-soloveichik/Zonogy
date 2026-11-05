@@ -129,6 +129,7 @@ extension WindowController {
         case axMiniaturizedNotification:
             Logger.debug("External window \(managed.windowId) minimized")
             managed.preMinimizeFrame = managed.cachedFrame
+            managed.awaitsUnminimizePlacement = false
             delegate?.windowDidMiniaturize(windowId: managed.windowId)
 
         case axDeminiaturizedNotification:
@@ -154,7 +155,9 @@ extension WindowController {
 
     /// Route a deminiaturized, unplaced native-tab candidate through the same replacement
     /// check used by created/focused windows before AppController places it. If the tab is
-    /// adopted into an existing placed managed window, there is no new window to place.
+    /// adopted into an existing placed managed window, there is no new window to place. If the
+    /// check cannot run yet (no live WindowServer frame, or the application is not answering),
+    /// the capture that completes it places the window (see `awaitsUnminimizePlacement`).
     private func resolvedDeminiaturizedWindowIdForPlacement(
         managed: ManagedWindow,
         element: AXUIElement
@@ -181,6 +184,7 @@ extension WindowController {
 
         if needsCaptureRetry {
             Logger.debug("AXWindowDeminiaturized: native-tab candidate \(managed.windowId) needs capture retry before placement")
+            managed.awaitsUnminimizePlacement = true
             delegate?.windowCreationFailedRetryNeeded(forPid: pid)
             return nil
         }

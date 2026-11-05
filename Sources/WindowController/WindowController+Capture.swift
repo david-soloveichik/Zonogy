@@ -367,6 +367,11 @@ extension WindowController {
             Logger.debug(
                 "Native tab replacement: no placed coincident window found for unplaced existing managed window \(existing.windowId) (pid \(pid), CGWindowID \(identifier.cgWindowId)); allowReturningExisting=\(allowReturningExisting)"
             )
+            if notifyDelegate, existing.awaitsUnminimizePlacement {
+                existing.awaitsUnminimizePlacement = false
+                Logger.debug("captureWindowIfNeeded: placing window \(existing.windowId), whose unminimize waited for this native-tab check")
+                delegate?.windowDidDeminiaturize(windowId: existing.windowId)
+            }
             return allowReturningExisting ? existing : nil
         }
 
