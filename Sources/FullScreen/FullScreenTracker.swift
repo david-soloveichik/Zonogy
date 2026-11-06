@@ -140,6 +140,16 @@ final class FullScreenTracker {
         treatAsFullScreen: Bool
     ) {
         let isNative = FullScreenTracker.isWindowFullScreen(element: element)
+        if !isNative, AXUnavailableApps.contains(pid) {
+            // The application did not answer, so the window's state is unknown and stays as
+            // recorded, unless CGS shows that a recorded native full-screen window has left its
+            // full-screen Space.
+            guard let recorded = trackedEntry(for: cgWindowId, pid: pid)?.info,
+                  recorded.isNativeFullScreen,
+                  !isWindowInNativeFullScreenSpaceQuery(cgWindowId) else {
+                return
+            }
+        }
         let claimsFullScreen = isNative || treatAsFullScreen
         let isOnScreenInActiveSpace = claimsFullScreen
             ? FullScreenTracker.isWindowOnScreen(cgWindowId: cgWindowId)

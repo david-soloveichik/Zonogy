@@ -119,7 +119,7 @@ Zonogy's state lives on the main thread, which also makes most of its Accessibil
 
 ## Applications That Stop Answering
 
-An AX request to a stuck application holds up Zonogy's main thread until the macOS timeout (about 1.5 seconds) fails it, and Zonogy's syncs and retries can send many such requests in a row. So once a request times out, Zonogy marks the application "unavailable" and fails later requests to it at once, without sending them. A background check then keeps asking the application (at most once a second) and clears the mark when the application answers or quits. Capturing the application's windows is the exception: instead of failing, it waits for the application's answer, without counting against the capture retry limit.
+An AX request to a stuck application holds up Zonogy's main thread until the macOS timeout (about 1.5 seconds) fails it, and Zonogy's syncs and retries can send many such requests in a row. So once a request times out, Zonogy marks the application "unavailable" and fails later requests to it at once, without sending them. A background check then keeps asking the application (at most once a second) and clears the mark when the application answers or quits. Trying to place one of the marked application's windows (from the Launcher, DockMenus, or CmdTab) shows a brief "not responding" message instead. A capture requested while the application is marked "unavailable" waits for the answer, without counting against the capture retry limit. When the application answers, Zonogy also catches up on what it may have missed meanwhile: it re-checks the full-screen state of the application's windows, captures its windows, and runs a full sync.
 
 ## Slow AX Call Logging
 

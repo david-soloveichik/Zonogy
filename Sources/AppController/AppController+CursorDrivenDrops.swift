@@ -59,23 +59,36 @@ extension AppController {
         target: DragDropCoordinator.CursorDrivenDropTarget,
         reason: String
     ) -> Bool {
+        if case .cancelled = target {
+            Logger.debug("Cursor-driven drop: window drag cancelled")
+            return false
+        }
+        guard let managed = managedWindow(from: window) else {
+            Logger.debug("Cursor-driven drop: cannot place window - window not managed")
+            return false
+        }
+        // Decided before any zone is added, so a declined drop leaves the zones as they were.
+        let isMinimized = managed.isMinimizedPerAccessibility
+        if declineSelectionIfApplicationNotAnswering(managed) {
+            return false
+        }
         switch target {
         case .tilingZone(let zoneKey):
-            return placeManagedWindowItem(window, intoTilingZone: zoneKey, reason: reason)
+            return place(managed, intoTilingZone: zoneKey, isMinimized: isMinimized, reason: reason)
         case .floatingZone(let screenId):
-            return placeManagedWindowItem(window, intoFloatingZone: screenId, reason: reason)
+            return place(managed, intoFloatingZone: screenId, isMinimized: isMinimized, reason: reason)
         case .addZone(let pill):
             guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
                 Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
                 return false
             }
-            return placeManagedWindowItem(
-                window,
+            return place(
+                managed,
                 intoTilingZone: ZoneKey(screenId: pill.screenId, index: newZone.index),
+                isMinimized: isMinimized,
                 reason: reason
             )
         case .cancelled:
-            Logger.debug("Cursor-driven drop: window drag cancelled")
             return false
         }
     }
@@ -181,16 +194,12 @@ extension AppController {
         }
     }
 
-    private func placeManagedWindowItem(
-        _ window: LauncherWindowItem,
+    private func place(
+        _ managed: ManagedWindow,
         intoTilingZone zoneKey: ZoneKey,
+        isMinimized: Bool,
         reason: String
     ) -> Bool {
-        guard let managed = managedWindow(from: window) else {
-            Logger.debug("Cursor-driven drop: cannot place window into tiling zone - window not managed")
-            return false
-        }
-
         guard let context = screenContexts[zoneKey.screenId],
               let descriptor = descriptor(for: zoneKey.screenId),
               let zone = context.zoneController.zone(at: zoneKey.index) else {
@@ -198,7 +207,7 @@ extension AppController {
             return false
         }
 
-        if managed.isMinimizedPerAccessibility {
+        if isMinimized {
             let displayFrame = frameWithMargin(for: zone, in: context.zoneController)
             targetedZoneManager.setTargetedZone(zoneKey, reason: reason)
             unminimizeWithPrePositioning(
@@ -215,17 +224,13 @@ extension AppController {
         return true
     }
 
-    private func placeManagedWindowItem(
-        _ window: LauncherWindowItem,
+    private func place(
+        _ managed: ManagedWindow,
         intoFloatingZone screenId: CGDirectDisplayID,
+        isMinimized: Bool,
         reason: String
     ) -> Bool {
-        guard let managed = managedWindow(from: window) else {
-            Logger.debug("Cursor-driven drop: cannot place window into floating zone - window not managed")
-            return false
-        }
-
-        if managed.isMinimizedPerAccessibility {
+        if isMinimized {
             targetFloatingZoneForDrop(on: screenId, reason: reason)
             let targetFrame = floatingZoneCoordinator.computePlacementFrame(for: managed, on: screenId)
             unminimizeWithPrePositioning(

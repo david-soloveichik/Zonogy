@@ -8,8 +8,19 @@ extension AppController {
         guard let pid = notification.userInfo?["pid"] as? pid_t, !sleepWakeProtectionActive else {
             return
         }
+        // While its requests failed at once, the application's windows may have changed unseen:
+        // re-read the full-screen state of those that show or are recorded as full screen (the
+        // application may still be slow, so the rest are spared the reads), capture what is new,
+        // and sync the zones.
+        for window in windowController.allWindows
+        where window.backing.pid == pid
+            && (isTrackedFullScreenWindow(window)
+                || WindowServerWindowList.frame(for: window.backing.cgWindowId, ownerPid: pid) != nil) {
+            checkWindowFullScreenState(windowId: window.windowId)
+        }
         capturePipeline.retryAfterAnswer(forPid: pid)
         showLaunchedWindowIfOnlyMinimized(pid: pid)
+        syncWindowsToZones()
     }
 
     internal func handleApplicationEvent(_ application: NSRunningApplication?) {

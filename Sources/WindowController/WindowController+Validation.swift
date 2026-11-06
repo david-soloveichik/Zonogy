@@ -262,9 +262,4 @@ extension WindowController {
         }
         return (cgWindowId, nil)
     }
-
-    /// AX errors that indicate a retry may succeed.
-    internal var retryableAXWindowErrors: Set<AXError> {
-        [.cannotComplete, .illegalArgument]
-    }
 }

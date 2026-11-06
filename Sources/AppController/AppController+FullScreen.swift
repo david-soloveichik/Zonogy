@@ -278,14 +278,19 @@ extension AppController {
         }
 
         if let info = fullScreenTracker.fullScreenWindowInfo(for: screenId),
-           !info.isNativeFullScreen,
-           shouldTreatAXUnknownWindowAsFullScreen(
-               element: info.element,
-               bundleIdentifier: info.bundleIdentifier,
-               screenDisplayId: screenId
-           ),
-           FullScreenTracker.isWindowOnScreen(cgWindowId: info.cgWindowId) != false {
-            return
+           !info.isNativeFullScreen {
+            if shouldTreatAXUnknownWindowAsFullScreen(
+                   element: info.element,
+                   bundleIdentifier: info.bundleIdentifier,
+                   screenDisplayId: screenId
+               ),
+               FullScreenTracker.isWindowOnScreen(cgWindowId: info.cgWindowId) != false {
+                return
+            }
+            // The presentation's application did not answer, so whether it still shows is unknown.
+            if AXUnavailableApps.contains(info.pid) {
+                return
+            }
         }
 
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
@@ -653,6 +658,8 @@ extension AppController {
         ) { window in
             guard !isTrackedFullScreenWindow(window),
                   !FullScreenTracker.isWindowFullScreen(element: window.backing.element),
+                  // A failed read says nothing about full screen.
+                  !AXUnavailableApps.contains(window.backing.pid),
                   // Reuse recapture's live-window check to exclude stale parked tab identities.
                   WindowServerWindowList.frame(
                       for: window.backing.cgWindowId, ownerPid: window.backing.pid

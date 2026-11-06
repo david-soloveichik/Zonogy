@@ -258,8 +258,9 @@ extension WindowController {
     ) -> ManagedWindow? {
         let cgResult = cgWindowIdWithStatus(for: element, pid: pid, context: "captureWindowIfNeeded")
         guard let cgWindowId = cgResult.id else {
-            if let error = cgResult.axError,
-               retryableAXWindowErrors.contains(error) {
+            // An application that did not answer may answer later; any other error (an element
+            // that is not a window, say) is the same on every retry.
+            if cgResult.axError == .cannotComplete {
                 needsRetry?.pointee = true
             } else if cgResult.axError == nil {
                 // Received CGWindowID 0; the window may not be fully initialized yet.

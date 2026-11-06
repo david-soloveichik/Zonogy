@@ -551,7 +551,11 @@ extension AppController: LauncherControllerDelegate {
 
         // Unminimize if needed - pre-position BEFORE unminimizing for smooth animation.
         // Do not assign a minimized window to a zone; the deminiaturize notification will place it.
-        if managed.isMinimizedPerAccessibility {
+        let isMinimized = managed.isMinimizedPerAccessibility
+        if declineSelectionIfApplicationNotAnswering(managed) {
+            return .ignored
+        }
+        if isMinimized {
             unminimizeWithPrePositioning(
                 managed,
                 targetFrame: targetInfo?.frame,
@@ -563,6 +567,20 @@ extension AppController: LauncherControllerDelegate {
         }
         // Place in targeted zone
         return placeSelectedWindow(managed, destination: destination)
+    }
+
+    /// An application that is not answering cannot say whether a selected window is minimized, and
+    /// placing a minimized window would book an invisible occupant: tells the user instead and
+    /// returns true. Call after reading the window's minimized state, so a read that just timed
+    /// out counts.
+    internal func declineSelectionIfApplicationNotAnswering(_ managed: ManagedWindow) -> Bool {
+        guard AXUnavailableApps.contains(managed.backing.pid) else {
+            return false
+        }
+        let appName = NSRunningApplication(processIdentifier: managed.backing.pid)?.localizedName ?? "The application"
+        Logger.debug("Window selection: \(appName) (pid \(managed.backing.pid)) is not answering; ignoring selection of window \(managed.windowId)")
+        TransientMessageOverlay.shared.show(title: "\(appName) is not responding", body: "")
+        return true
     }
 
     private func focusWindowViaAccessibility(_ window: LauncherWindowItem) {

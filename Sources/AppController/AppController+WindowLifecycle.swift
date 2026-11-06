@@ -515,7 +515,11 @@ extension AppController {
             )
             return
         }
-        windowPlacementManager.placeNewWindow(managed)
+        // A window already in a zone (its restore ran suppressed, and the suppression expired
+        // before this notification arrived) is not a new arrival.
+        if !managed.isPlacedInZone {
+            windowPlacementManager.placeNewWindow(managed)
+        }
         focusExplicitlyUnminimizedWindowIfNeeded(
             originalWindowId: windowId,
             resolvedWindowId: windowId,

@@ -488,7 +488,10 @@ extension WindowController {
                 Logger.debug("AXMainWindowChanged: capture needs retry for pid \(targetPid)")
                 delegate?.windowCreationFailedRetryNeeded(forPid: targetPid)
             }
-        } else if let managed = managedWindow(matching: element) {
+        }
+        // A capture that could not run (the application is not answering) still leaves the
+        // window's record to answer from, as in the focused-window handler.
+        if focusedWindowId == nil, let managed = managedWindow(matching: element) {
             focusedWindowId = managed.windowId
         }
 
@@ -578,20 +581,23 @@ extension WindowController {
             Logger.debug("External window \(managed.windowId) moved (ignored programmatic update of a window in no zone)")
             return
         }
-        // One frame read serves the cache, the log line, and the drag pipeline.
-        let accessibilityFrame = recordCachedFrame(for: managed)
+        // One frame read serves the cache, the log line, and the drag pipeline. Without it (the
+        // application is not answering) there is nothing to act on.
+        guard let accessibilityFrame = recordCachedFrame(for: managed) else {
+            Logger.debug("External window \(managed.windowId) moved; frame unavailable, ignoring")
+            return
+        }
         if undoReturnToPreMinimizeFrame(managed, frame: accessibilityFrame) {
             return
         }
-        let loggedFrame = accessibilityFrame ?? .zero
         if programmaticUpdateWindowIds.contains(managed.windowId) {
-            Logger.debug("External window \(managed.windowId) moved to \(loggedFrame) (ignored programmatic update)")
+            Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame) (ignored programmatic update)")
             return
         }
 
-        Logger.debug("External window \(managed.windowId) moved to \(loggedFrame)")
-        if ensureManualDragBegan(for: managed, frame: loggedFrame) {
-            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: loggedFrame)
+        Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame)")
+        if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
+            delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
         } else {
             // The application moved the window itself (not a Zonogy drag). Remember this so
             // immediate focus-driven layout checks can avoid fighting a still-settling move.
@@ -604,9 +610,7 @@ extension WindowController {
                 return
             }
             Logger.debug("External window \(managed.windowId) move not part of an active manual drag")
-            if let accessibilityFrame {
-                delegate?.windowAppDrivenMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
-            }
+            delegate?.windowAppDrivenMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
         }
     }
 
@@ -621,6 +625,11 @@ extension WindowController {
         // since entering/exiting full-screen fires resize notifications
         delegate?.windowDidResize(windowId: managed.windowId)
 
+        // Without a frame (the application is not answering) there is nothing more to act on.
+        guard let accessibilityFrame else {
+            Logger.debug("External window \(managed.windowId) resized; frame unavailable, ignoring")
+            return
+        }
         if undoReturnToPreMinimizeFrame(managed, frame: accessibilityFrame) {
             return
         }
@@ -650,8 +659,7 @@ extension WindowController {
 
         Logger.debug("External window \(managed.windowId) resized (non-programmatic)")
         var screenFrame: CGRect = .zero
-        if let accessibilityFrame,
-           let screenId = managed.screenDisplayId,
+        if let screenId = managed.screenDisplayId,
            let descriptor = delegate?.screenDescriptor(for: screenId) {
             screenFrame = descriptor.accessibilityToScreen(accessibilityFrame)
         }

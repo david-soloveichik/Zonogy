@@ -78,12 +78,10 @@ final class WindowCapturePipeline {
         scheduleRetry(for: application, hintBundleId: bundleId)
     }
 
-    /// Runs a pid's pending or owed retry at once, now that its application answers again after
-    /// being unavailable (see `AXUnavailableApps`).
+    /// Captures a pid's windows at once, now that its application answers again after being
+    /// unavailable (see `AXUnavailableApps`): its pending or owed retry, or a plain capture, since
+    /// a capture that failed on the last retry leaves no retry behind.
     func retryAfterAnswer(forPid pid: pid_t) {
-        guard retryStates[pid] != nil else {
-            return
-        }
         retryStates[pid]?.cancel()
         runRetry(forPid: pid)
     }

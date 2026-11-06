@@ -14,7 +14,8 @@ enum CmdTabTemporaryTargetPolicy {
     enum SelectionAction {
         case activatedInPlace
         case placed
-        /// Nothing happened: a window parked behind a full-screen Space had no visible destination.
+        /// Nothing happened: a window parked behind a full-screen Space had no visible destination,
+        /// or the window's application is not answering.
         case ignored
         case selectionUntracked
     }
