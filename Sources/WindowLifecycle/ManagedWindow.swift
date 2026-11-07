@@ -115,6 +115,15 @@ class ManagedWindow {
         ManagedWindow.isMinimizedPerAccessibility(backing.element)
     }
 
+    /// Whether the window's application lets Accessibility set its size: false for a window that
+    /// cannot be resized, such as Safari's Settings window (true when the query fails). This asks
+    /// the window's application.
+    var isSizeSettable: Bool {
+        var settable: DarwinBoolean = true
+        return AXCall.isAttributeSettable(backing.element, kAXSizeAttribute as CFString, &settable) != .success
+            || settable.boolValue
+    }
+
     /// Whether `element` is minimized according to the Accessibility API (false when the
     /// attribute cannot be read).
     static func isMinimizedPerAccessibility(_ element: AXUIElement) -> Bool {

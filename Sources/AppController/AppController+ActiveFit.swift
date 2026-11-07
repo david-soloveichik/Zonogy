@@ -190,8 +190,9 @@ extension AppController {
         // If a frame retry is still pending (e.g., from initial placement), skip — the
         // rest-mode moveWindow below would cancel the retry chain before it resizes the
         // window to zone dimensions. The retry chain will call frameRetryDidSettle when
-        // it completes, triggering re-evaluation.
-        if windowController.hasFrameRetryPending(for: managed.windowId) {
+        // it completes, triggering re-evaluation. A window whose size cannot be set refuses
+        // every resize, so its retries have nothing to wait for.
+        if windowController.hasFrameRetryPending(for: managed.windowId), managed.isSizeSettable {
             Logger.debug("ActiveFit: skipping reveal evaluation for window \(managed.windowId); frame retry pending")
             return
         }
