@@ -173,6 +173,11 @@ Focus changes do not retarget zones, with the exception of an implicitly targete
 
 An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) Only an explicit floating target colors its bar and flashes.
 
+Opening a document in an application that already has a window shown typically brings that window to the front first, moving an implicit floating target to its display, so the document's window would open there too. To prevent this, when an application coming to the front moves an implicit floating target to another display, its next window opened or unminimized within the WinShot settle delay (3 seconds by default) goes to the previous floating zone. This does not happen when something shows the user went to the new display explicitly:
+
+- A key or mouse button was pressed after the application came to the front, such as Cmd-N after switching to it.
+- The pointer was on the new display when the target moved there. (Clicking the application's window there brings it to the front just as opening a document does.)
+
 README and Preferences present a simpler user mental model: an implicitly targeted floating zone is described as there being no destination zone at all, with new windows going into the floating zone of the display the user is working on.
 
 **Target indicator UI (tiling zones):** If the current target is a tiling zone, that zone renders a slim translucent indicator (≈6 px tall, ≈⅓ the zone width) centered in the margin directly above the zone. When the targeted tiling zone is empty, its placeholder border is highlighted with a bluish tint (see **Placeholders**). When the targeted tiling zone is occupied, an analogous bluish border is drawn over the zone frame, on top of the occupant window, so the destination of the next window is apparent.

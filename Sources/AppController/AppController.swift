@@ -176,6 +176,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// A focus is only treated as unmanaged once confirmed; transient AX failures retry first.
     internal var focusedWindowCheckRetryState: FocusedWindowCheckRetryState?
     internal let focusedWindowCheckRetryDelays: [TimeInterval] = [0.2, 0.4, 0.8, 1.6, 3.2]
+    /// The application Zonogy last heard was activated, and when (system uptime). The implicit
+    /// floating target's follows of that application's windows count from its activation (see
+    /// `runFocusedWindowCheck()`).
+    internal var lastApplicationActivation: (pid: pid_t, time: TimeInterval)?
     /// The window ID of the currently frontmost managed window, or nil if no managed window is focused.
     /// Updated by windowFocusChanged; used by CmdTab to determine initial selection without an AX call.
     /// All mutations must go through `setCurrentFrontmostManagedWindowId(_:reason:)` so transitions

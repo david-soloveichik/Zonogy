@@ -481,12 +481,12 @@ enum TargetedZoneManagerTests {
 
             // An implicit floating target follows the frontmost window's display...
             manager.setFloatingTarget(on: screen1, reason: "test")
-            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            manager.followFrontmostWindow(of: 1, onDisplay: screen2, pointerScreenId: nil, reason: "frontmost")
             assert(manager.targetedFloatingScreenId == screen2 && !manager.isFloatingTargetExplicit, "an implicit floating target should follow the frontmost window's display (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
 
             // ...and an explicit one ignores the frontmost window altogether.
             manager.setFloatingTarget(on: screen1, reason: "test", explicit: true)
-            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            manager.followFrontmostWindow(of: 1, onDisplay: screen2, pointerScreenId: nil, reason: "frontmost")
             assert(manager.targetedFloatingScreenId == screen1 && manager.isFloatingTargetExplicit, "an explicit floating target should not follow the frontmost window (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
 
             // Any retarget demotes an explicit target, even one landing on the same zone: with every
@@ -501,7 +501,7 @@ enum TargetedZoneManagerTests {
 
             // Marking it implicit again undoes that alone, so it follows the frontmost window once more.
             manager.markFloatingTargetImplicit(reason: "launcher-cancelled")
-            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            manager.followFrontmostWindow(of: 1, onDisplay: screen2, pointerScreenId: nil, reason: "frontmost")
             assert(manager.targetedFloatingScreenId == screen2 && !manager.isFloatingTargetExplicit, "marking the targeted floating zone implicit should let it follow the frontmost window again (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
 
             // While the Launcher is shown, a floating target it re-anchors to is explicit even when the
@@ -519,8 +519,69 @@ enum TargetedZoneManagerTests {
             let tiled = ZoneKey(screenId: screen1, index: 1)
             manager.setTargetedZone(tiled, reason: "test")
             manager.markFloatingTargetImplicit(reason: "test")
-            manager.moveImplicitFloatingTarget(toDisplay: screen2, reason: "frontmost")
+            manager.followFrontmostWindow(of: 1, onDisplay: screen2, pointerScreenId: nil, reason: "frontmost")
             assert(manager.targetedZoneKey == tiled && !manager.isFloatingTargetExplicit, "a tiling target should never be explicit or follow the frontmost window (got \(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit))")
+        }
+
+        do {
+            let (manager, delegate) = makeEnvironment(
+                zoneCounts: [screen1: 1, screen2: 1],
+                screenOrder: [screen1, screen2]
+            )
+            delegate.zoneController(for: screen1)!.assignWindow(windowId: 1601, toZoneIndex: 1)
+            delegate.zoneController(for: screen2)!.assignWindow(windowId: 1602, toZoneIndex: 1)
+            let appA: pid_t = 100
+            let appB: pid_t = 200
+
+            // Each case starts with the implicit floating target on screen 1 following a window of
+            // application A to screen 2 at time 10, with the pointer on screen 1 unless stated.
+            func followAToScreen2(pointerOnScreen2: Bool = false) {
+                manager.setFloatingTarget(on: screen1, reason: "test")
+                manager.followFrontmostWindow(
+                    of: appA,
+                    onDisplay: screen2,
+                    pointerScreenId: pointerOnScreen2 ? screen2 : screen1,
+                    reason: "frontmost",
+                    startedAt: 10
+                )
+            }
+            let undoInterval: TimeInterval = 3
+            func undo(_ pid: pid_t, lastPress: TimeInterval = 60, at now: TimeInterval = 11) -> Bool {
+                manager.undoFollow(forWindowOf: pid, within: undoInterval, secondsSinceLastPress: lastPress, now: now)
+            }
+            func target() -> String {
+                "\(String(describing: manager.targetedDestination)), explicit: \(manager.isFloatingTargetExplicit)"
+            }
+
+            // A window of the followed application arriving soon after, with no press since the
+            // follow, returns the target to the display it left, once.
+            followAToScreen2()
+            assert(undo(appA) && manager.targetedFloatingScreenId == screen1 && !manager.isFloatingTargetExplicit, "a window of the followed application arriving soon after should undo the follow (got \(target()))")
+            assert(!undo(appA, at: 11.5) && manager.targetedFloatingScreenId == screen1, "a follow should be undone only once (got \(target()))")
+
+            // Only the next window placed can undo the follow: another application's window placed
+            // first leaves the target where it is, and so does the followed application's after it.
+            followAToScreen2()
+            assert(!undo(appB) && manager.targetedFloatingScreenId == screen2, "another application's window should not undo the follow (got \(target()))")
+            assert(!undo(appA) && manager.targetedFloatingScreenId == screen2, "the followed application's window placed after another application's should not undo the follow (got \(target()))")
+
+            // Each of these keeps the follow: a key or mouse press since it, an arrival after the undo
+            // interval, the pointer on the new display as the target moved, any other change of the
+            // target since, and a display left behind that can no longer be targeted.
+            followAToScreen2()
+            assert(!undo(appA, lastPress: 0.5) && manager.targetedFloatingScreenId == screen2, "a press since the follow should keep it (got \(target()))")
+            followAToScreen2()
+            assert(!undo(appA, at: 10 + undoInterval + 0.1) && manager.targetedFloatingScreenId == screen2, "an arrival after the undo interval should keep the follow (got \(target()))")
+            followAToScreen2(pointerOnScreen2: true)
+            assert(!undo(appA) && manager.targetedFloatingScreenId == screen2, "a follow made with the pointer on the new display should not be undoable (got \(target()))")
+            followAToScreen2()
+            manager.markFloatingTargetExplicit(reason: "launcher-shown")
+            manager.markFloatingTargetImplicit(reason: "launcher-cancelled")
+            assert(!undo(appA) && manager.targetedFloatingScreenId == screen2, "another change of the target should drop the follow (got \(target()))")
+            followAToScreen2()
+            delegate.fullScreenDisplayIds = [screen1]
+            assert(!undo(appA) && manager.targetedFloatingScreenId == screen2, "a follow should not be undone to a display paused for full screen (got \(target()))")
+            delegate.fullScreenDisplayIds = []
         }
 
         if allPassed {

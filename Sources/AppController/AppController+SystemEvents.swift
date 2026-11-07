@@ -69,6 +69,7 @@ extension AppController {
     }
 
     func systemEventMonitor(_ monitor: SystemEventMonitor, didActivate application: NSRunningApplication?) {
+        lastApplicationActivation = application.map { ($0.processIdentifier, ProcessInfo.processInfo.systemUptime) }
         let appDescription = application.map { "\($0.localizedName ?? "Unknown"), pid \($0.processIdentifier), bundle \($0.bundleIdentifier ?? "nil")" } ?? "nil"
         Logger.debug("NSWorkspace notification received: didActivateApplication (\(appDescription))")
 
@@ -303,14 +304,13 @@ extension AppController {
         let newScreenId: CGDirectDisplayID?
         // A placed managed window or an unmanaged one says where the user is working; the other
         // resolutions (Zonogy's own windows, windows still on their way into a zone) say nothing.
-        var frontmostScreenId: CGDirectDisplayID?
+        var frontmost: (pid: pid_t, screenId: CGDirectDisplayID)?
 
         switch resolution {
         case .managed(let window, let pid, let focusedElement):
             cancelFocusedWindowCheckRetry()
-            let focusedScreenId = window.screenDisplayId ?? detectScreenId(for: window)
-            frontmostScreenId = focusedScreenId
-            if let focusedScreenId {
+            if let focusedScreenId = window.screenDisplayId ?? detectScreenId(for: window) {
+                frontmost = (pid, focusedScreenId)
                 repairFullScreenPauseStateFromFocusedWindowIfNeeded(
                     focusedWindow: focusedElement,
                     pid: pid,
@@ -329,7 +329,7 @@ extension AppController {
             newScreenId = screenId
         case .unmanaged(let screenId, let pid, let focusedElement, let reason):
             cancelFocusedWindowCheckRetry()
-            frontmostScreenId = screenId
+            frontmost = (pid, screenId)
             repairFullScreenPauseStateFromFocusedWindowIfNeeded(
                 focusedWindow: focusedElement,
                 pid: pid,
@@ -363,8 +363,19 @@ extension AppController {
         // Not while CmdTab is open: its tentative target must stay restorable, and the chooser
         // must not jump displays under the user. The next focus change after CmdTab closes moves
         // the target.
-        if let frontmostScreenId, !cmdTabController.isActive {
-            targetedZoneManager.moveImplicitFloatingTarget(toDisplay: frontmostScreenId, reason: "frontmost-window")
+        if let frontmost, !cmdTabController.isActive {
+            // A follow counts from its application's activation, since resolving the newly
+            // frontmost window can take a while (a slow application, a retried check). A focus
+            // change can also arrive before the activation; that follow counts from now.
+            let activation = lastApplicationActivation
+            let activationTime = activation?.pid == frontmost.pid ? activation?.time : nil
+            targetedZoneManager.followFrontmostWindow(
+                of: frontmost.pid,
+                onDisplay: frontmost.screenId,
+                pointerScreenId: resolveCursorScreenId(),
+                reason: "frontmost-window",
+                startedAt: activationTime ?? ProcessInfo.processInfo.systemUptime
+            )
         }
 
         // Focus/activation changes reorder windows relative to placeholders (e.g. a clicked

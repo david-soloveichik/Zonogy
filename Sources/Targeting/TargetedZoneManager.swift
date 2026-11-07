@@ -45,10 +45,25 @@ class TargetedZoneManager {
     /// kind, or until the Launcher is cancelled, and is the only floating target that colors its
     /// bar. Implicit: any other rule landed the target on a floating zone; it follows the
     /// frontmost window's display silently (see
-    /// `moveImplicitFloatingTarget(toDisplay:reason:)`). Always `false` for a tiling target, and
-    /// always `true` for a floating target while the Launcher is shown (`setFloatingTarget` sees
-    /// to it, so the Launcher's anchor is explicit however it got there).
+    /// `followFrontmostWindow(of:onDisplay:pointerScreenId:reason:startedAt:)`). Always `false`
+    /// for a tiling target, and always `true` for a floating target while the Launcher is shown
+    /// (`setFloatingTarget` sees to it, so the Launcher's anchor is explicit however it got there).
     private(set) var isFloatingTargetExplicit = false
+
+    /// The implicit floating target's latest move to the frontmost window's display, while a window
+    /// of that window's application may still undo it (see
+    /// `undoFollow(forWindowOf:within:secondsSinceLastPress:now:)`). Any other change of the
+    /// target drops it.
+    private var undoableFollow: UndoableFollow?
+
+    private struct UndoableFollow {
+        /// The application whose window the target followed.
+        let pid: pid_t
+        /// The display the target left.
+        let fromScreenId: CGDirectDisplayID
+        /// When the change of frontmost window behind the follow began, in system uptime.
+        let time: TimeInterval
+    }
 
     var targetedZoneKey: ZoneKey? {
         targetedDestination?.tiledKey
@@ -98,6 +113,7 @@ class TargetedZoneManager {
     }
 
     func setTargetedZone(_ key: ZoneKey?, reason: String) {
+        undoableFollow = nil
         if let candidate = key, !isScreenTargetable(candidate.screenId) {
             if let destination = preferredRetargetDestination(preferredSameScreenId: candidate.screenId) {
                 applyRetargetDestination(destination, reason: reason)
@@ -142,6 +158,7 @@ class TargetedZoneManager {
     /// Targets the floating zone on `screenId`. `explicit` records whether the user pointed at it
     /// (see `isFloatingTargetExplicit`); re-selecting the targeted floating zone updates that alone.
     func setFloatingTarget(on screenId: CGDirectDisplayID, reason: String, explicit: Bool = false) {
+        undoableFollow = nil
         guard screenExists(screenId) else {
             delegate?.refreshIndicators()
             return
@@ -195,12 +212,56 @@ class TargetedZoneManager {
         setFloatingTarget(on: screenId, reason: reason)
     }
 
-    /// An implicit floating target follows the frontmost window's display; call with that display
-    /// whenever it may have changed. Explicit floating targets and tiling targets are left alone.
-    func moveImplicitFloatingTarget(toDisplay screenId: CGDirectDisplayID, reason: String) {
+    /// An implicit floating target follows the frontmost window's display; call with that window's
+    /// application and display whenever they may have changed. Explicit floating targets and tiling
+    /// targets are left alone. A move stays undoable for a while (see
+    /// `undoFollow(forWindowOf:within:secondsSinceLastPress:now:)`), unless the pointer is on the
+    /// new display: a click there may have brought the window forward, and may itself open a window.
+    /// `startedAt` is when the change of frontmost window began; the undo window and its check for
+    /// key and mouse presses count from there.
+    func followFrontmostWindow(
+        of pid: pid_t,
+        onDisplay screenId: CGDirectDisplayID,
+        pointerScreenId: CGDirectDisplayID?,
+        reason: String,
+        startedAt: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) {
         guard case .floating(let currentScreenId) = targetedDestination, !isFloatingTargetExplicit,
               screenId != currentScreenId, isScreenTargetable(screenId) else { return }
         setFloatingTarget(on: screenId, reason: reason)
+        if pointerScreenId != screenId {
+            undoableFollow = UndoableFollow(pid: pid, fromScreenId: currentScreenId, time: startedAt)
+        }
+    }
+
+    /// Call before placing a window of application `pid` at the target. An application asked to
+    /// open a document can first bring its existing window forward, so the target can follow that
+    /// window to another display just before the document's window arrives. So the next window
+    /// placed returns the target to the display it left when it belongs to the followed
+    /// application, arrives within `interval` of that change of frontmost window, and no key or
+    /// mouse button was pressed since the change began. Returns whether it did.
+    @discardableResult
+    func undoFollow(
+        forWindowOf pid: pid_t,
+        within interval: TimeInterval,
+        secondsSinceLastPress: @autoclosure () -> TimeInterval,
+        now: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> Bool {
+        guard let follow = undoableFollow else { return false }
+        undoableFollow = nil
+        guard follow.pid == pid else { return false }
+        let elapsed = now - follow.time
+        let lastPress = secondsSinceLastPress()
+        let undo = elapsed <= interval && lastPress >= elapsed && isScreenTargetable(follow.fromScreenId)
+        Logger.debug(
+            "Window of pid \(pid) arrives \(String(format: "%.2f", elapsed))s after its application came to the front"
+                + " (limit \(String(format: "%.0f", interval))s, last key or mouse press \(String(format: "%.2f", lastPress))s ago):"
+                + " \(undo ? "undoing" : "keeping") the follow"
+        )
+        if undo {
+            setFloatingTarget(on: follow.fromScreenId, reason: "follow-undone")
+        }
+        return undo
     }
 
     /// When a new tiling zone is created on a screen, always target the lowest-index empty tiling zone on that screen.
