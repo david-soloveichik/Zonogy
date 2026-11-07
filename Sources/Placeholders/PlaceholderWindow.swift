@@ -88,7 +88,7 @@ final class PlaceholderWindow {
         contentView?.refreshHitTestFillColor()
     }
 
-    /// Flash a vivid blue border to confirm a gesture-modifier click targeting gesture.
+    /// Flash a vivid highlight-colored border to confirm a gesture-modifier click targeting gesture.
     func flashBorder() {
         contentView?.flashBorder()
     }

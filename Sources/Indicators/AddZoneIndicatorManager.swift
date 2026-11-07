@@ -81,16 +81,12 @@ class AddZoneIndicatorView: NSView {
         let borderColor: NSColor
 
         if isDragHighlighted || isExternalDropHover {
-            fillColor = NSColor.systemBlue.withAlphaComponent(0.35)
-            borderColor = NSColor.systemBlue.withAlphaComponent(0.65)
+            fillColor = OverlayAppearance.highlight(0.35)
+            borderColor = OverlayAppearance.highlight(0.65)
         } else {
-            // Background color: white with semi-transparency (less transparent on hover)
-            let fillAlpha: CGFloat = isHovered ? 0.8 : 0.55
-            fillColor = NSColor.white.withAlphaComponent(fillAlpha)
-
-            // Border color: white with consistent alpha
-            let borderAlpha: CGFloat = 0.7
-            borderColor = NSColor.white.withAlphaComponent(borderAlpha)
+            // White, less transparent on hover
+            fillColor = OverlayAppearance.white(isHovered ? 0.8 : 0.55)
+            borderColor = OverlayAppearance.white(0.7)
         }
 
         // Create rounded rectangle path over the on-screen slice (excluding the offscreen hit
@@ -183,12 +179,18 @@ class AddZoneIndicatorView: NSView {
         super.init(frame: frameRect)
         ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+        OverlayAppearance.addObserver(self, selector: #selector(redraw))
     }
 
     required init?(coder decoder: NSCoder) {
         super.init(coder: decoder)
         ForceClickSuppression.apply(to: self)
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
+        OverlayAppearance.addObserver(self, selector: #selector(redraw))
+    }
+
+    @objc private func redraw() {
+        needsDisplay = true
     }
 
     private var trackingArea: NSTrackingArea?

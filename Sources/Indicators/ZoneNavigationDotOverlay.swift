@@ -1,10 +1,10 @@
 import AppKit
 
-/// A large translucent blue circle drawn at the center of the tiling zone currently selected by
-/// Control-Command zone navigation — or, for a selected floating zone, the upper half of that
-/// circle resting on the screen's bottom edge over the floating-zone bar. It is a non-interactive
-/// floating panel shown only while the gesture is in progress and torn down when the gesture
-/// commits or cancels. Mirrors `OccupiedZoneTargetOverlay`'s floating-panel approach.
+/// A large translucent circle in the highlight color, drawn at the center of the tiling zone
+/// currently selected by Control-Command zone navigation — or, for a selected floating zone, the
+/// upper half of that circle resting on the screen's bottom edge over the floating-zone bar. It is
+/// a non-interactive floating panel shown only while the gesture is in progress and torn down when
+/// the gesture commits or cancels. Mirrors `OccupiedZoneTargetOverlay`'s floating-panel approach.
 ///
 /// Both modes render the same full circle (a max-radius rounded square). The half-circle mode uses
 /// a half-height panel with the circle's lower half hanging below the panel's bottom edge: the
@@ -12,7 +12,7 @@ import AppKit
 /// cannot produce a semicircle — Core Animation clamps the radius to half the layer's smaller
 /// dimension, which flattens the sides.)
 final class ZoneNavigationDotOverlay {
-    private static let fillColor = NSColor.systemBlue.withAlphaComponent(0.45)
+    private static var fillColor: NSColor { OverlayAppearance.highlight(0.45) }
     /// One fixed circle diameter everywhere, independent of zone and screen dimensions.
     private static let circleDiameter: CGFloat = 170
 

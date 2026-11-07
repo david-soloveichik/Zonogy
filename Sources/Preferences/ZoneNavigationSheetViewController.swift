@@ -49,7 +49,7 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
     init() {
         super.init(
             title: "Zone Navigation",
-            subtitle: "Hold the modifier keys and press a navigation key: a blue circle highlights a zone.",
+            subtitle: "Hold the modifier keys and press a navigation key: a circle highlights a zone.",
             modifiersHint: "Select at least two.",
             walkthroughHeader: "Acting on this zone",
             initialModifiers: ModifierCombinationPreferences.zoneNavigation.modifiers

@@ -73,20 +73,9 @@ final class FloatingZoneIndicatorManager {
         }
         private let pillLayer = CALayer()
 
-        private let highlightFillColor = NSColor.systemBlue.withAlphaComponent(0.5)
-        private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.9)
-        private let targetedFillColor = IndicatorPalette.targetedFillColor
-        private let targetedBorderColor = IndicatorPalette.targetedBorderColor
         private let debugImplicitFillColor = NSColor.systemRed.withAlphaComponent(0.45)
         private let debugImplicitBorderColor = NSColor.systemRed.withAlphaComponent(0.7)
         private let debugImplicitShadowColor = NSColor.systemRed.withAlphaComponent(0.5).cgColor
-        private let occupiedFillColor = NSColor.systemBlue.withAlphaComponent(0.22)
-        private let occupiedBorderColor = NSColor.systemBlue.withAlphaComponent(0.4)
-        private let untargetedFillColor = NSColor.systemBlue.withAlphaComponent(0.12)
-        private let untargetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.25)
-        private let hoverFillColor = NSColor.systemBlue.withAlphaComponent(0.3)
-        private let hoverBorderColor = NSColor.systemBlue.withAlphaComponent(0.6)
-        private let hoverShadowColor = NSColor.systemBlue.withAlphaComponent(0.55).cgColor
         private let hoverShadowOpacity: Float = 0.55
         private let hoverShadowRadius: CGFloat = 7
 
@@ -110,6 +99,7 @@ final class FloatingZoneIndicatorManager {
             pillLayer.cornerCurve = .continuous
             registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
             applyStyle()
+            OverlayAppearance.addObserver(self, selector: #selector(applyStyle))
         }
 
         required init?(coder: NSCoder) {
@@ -212,7 +202,7 @@ final class FloatingZoneIndicatorManager {
             return EdgeIndicatorPillSizing.baseThickness
         }
 
-        private func applyStyle() {
+        @objc private func applyStyle() {
             let layer = pillLayer
             let background: NSColor
             let border: NSColor
@@ -222,15 +212,15 @@ final class FloatingZoneIndicatorManager {
             let borderWidth: CGFloat
 
             if isDragHighlighted || isExternalDropHover {
-                background = highlightFillColor
-                border = highlightBorderColor
-                shadowColor = NSColor.systemBlue.withAlphaComponent(0.95).cgColor
+                background = OverlayAppearance.highlight(0.5)
+                border = OverlayAppearance.highlight(0.9)
+                shadowColor = OverlayAppearance.highlight(0.95).cgColor
                 shadowOpacity = 1.0
                 shadowRadius = 9
                 borderWidth = 1.9
             } else if isTargeted {
-                background = targetedFillColor
-                border = targetedBorderColor
+                background = IndicatorPalette.targetedFillColor
+                border = IndicatorPalette.targetedBorderColor
                 shadowColor = IndicatorPalette.targetedShadowColor.cgColor
                 shadowOpacity = IndicatorPalette.targetedShadowOpacity
                 shadowRadius = IndicatorPalette.targetedShadowRadius
@@ -243,22 +233,22 @@ final class FloatingZoneIndicatorManager {
                 shadowRadius = IndicatorPalette.targetedShadowRadius
                 borderWidth = IndicatorPalette.defaultBorderWidth
             } else if isHovered {
-                background = hoverFillColor
-                border = hoverBorderColor
-                shadowColor = hoverShadowColor
+                background = OverlayAppearance.highlight(0.3)
+                border = OverlayAppearance.highlight(0.6)
+                shadowColor = OverlayAppearance.highlight(0.55).cgColor
                 shadowOpacity = hoverShadowOpacity
                 shadowRadius = hoverShadowRadius
                 borderWidth = IndicatorPalette.defaultBorderWidth + 0.2
             } else if isOccupied {
-                background = occupiedFillColor
-                border = occupiedBorderColor
+                background = OverlayAppearance.highlight(0.22)
+                border = OverlayAppearance.highlight(0.4)
                 shadowColor = NSColor.clear.cgColor
                 shadowOpacity = 0
                 shadowRadius = 0
                 borderWidth = IndicatorPalette.defaultBorderWidth
             } else {
-                background = untargetedFillColor
-                border = untargetedBorderColor
+                background = OverlayAppearance.highlight(0.12)
+                border = OverlayAppearance.highlight(0.25)
                 shadowColor = NSColor.clear.cgColor
                 shadowOpacity = 0
                 shadowRadius = 0

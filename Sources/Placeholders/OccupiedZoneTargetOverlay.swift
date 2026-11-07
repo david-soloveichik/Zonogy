@@ -6,8 +6,8 @@ import QuartzCore
 /// (`OccupiedZoneTargetOverlay`, below) and the empty-zone placeholder border animation
 /// (`PlaceholderContentView.flashBorder`) so the two stay in lockstep.
 enum ZoneFlashStyle {
-    /// Vivid blue the border starts at when the flash fires.
-    static let color = NSColor.systemBlue.withAlphaComponent(0.88)
+    /// Vivid highlight color the border starts at when the flash fires.
+    static var color: NSColor { OverlayAppearance.highlight(0.88) }
     /// Border width the flash starts at before settling back to the resting width.
     static let borderWidth: CGFloat = 9.0
     /// How long the flash takes to fade to its resting state.
@@ -16,10 +16,11 @@ enum ZoneFlashStyle {
     static var timing: CAMediaTimingFunction { CAMediaTimingFunction(name: .easeOut) }
 }
 
-/// Draws a persistent blue border over a targeted *occupied* tiling zone — the occupied-zone analog of
-/// the highlighted placeholder border shown for a targeted empty zone. An occupied zone has no
-/// placeholder, so this floats a non-interactive bordered panel over the zone frame, deliberately drawn
-/// on top of the occupant window, so the user can see which zone the next window will land in.
+/// Draws a persistent highlight-colored border over a targeted *occupied* tiling zone — the
+/// occupied-zone analog of the highlighted placeholder border shown for a targeted empty zone. An
+/// occupied zone has no placeholder, so this floats a non-interactive bordered panel over the zone
+/// frame, deliberately drawn on top of the occupant window, so the user can see which zone the next
+/// window will land in.
 ///
 /// Only one zone is targeted at a time, so a single panel suffices. `show(at:)`/`hide()` track the
 /// border's visibility (driven by the indicator refresh); `flash(at:)` pulses the border on a target
@@ -28,11 +29,15 @@ enum ZoneFlashStyle {
 final class OccupiedZoneTargetOverlay {
     /// Resting border once any flash settles. Brighter and a touch thicker than the empty-zone
     /// placeholder border so it stays legible when drawn over arbitrary window content.
-    private static let restingColor = NSColor.systemBlue.withAlphaComponent(0.80)
+    private static var restingColor: NSColor { OverlayAppearance.highlight(0.80) }
     private static let restingWidth: CGFloat = 4.0
 
     private var panel: NSPanel?
     private var borderView: NSView?
+
+    init() {
+        OverlayAppearance.addObserver(self, selector: #selector(applyRestingColor))
+    }
 
     /// Show (or move) the persistent border at the given Cocoa-coordinate frame.
     func show(at cocoaFrame: CGRect) {
@@ -104,7 +109,6 @@ final class OccupiedZoneTargetOverlay {
             layer.cornerRadius = windowCornerRadius
             layer.cornerCurve = .continuous
             layer.borderWidth = Self.restingWidth
-            layer.borderColor = Self.restingColor.cgColor
             layer.backgroundColor = CGColor.clear
         }
         p.contentView = view
@@ -114,6 +118,11 @@ final class OccupiedZoneTargetOverlay {
 
         self.panel = p
         self.borderView = view
+        applyRestingColor()
         return p
+    }
+
+    @objc private func applyRestingColor() {
+        borderView?.layer?.borderColor = Self.restingColor.cgColor
     }
 }

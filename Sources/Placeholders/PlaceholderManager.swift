@@ -4,11 +4,19 @@ import QuartzCore
 
 // MARK: - PlaceholderGlassButton
 
-/// Shared button for the placeholder's glass controls (blue button and search pill).
+/// Shared button for the placeholder's glass controls (highlight-colored button and search pill).
 /// Accepts first mouse clicks in non-activating panels (standard NSButton returns false
 /// for acceptsFirstMouse, which can cause clicks to be ignored when the window is
-/// inactive) and brightens subtly while the cursor hovers over it.
+/// inactive) and brightens subtly while the cursor hovers over it. Its glass layers take
+/// their colors from the overlay appearance and are rebuilt when it changes.
 private final class PlaceholderGlassButton: NSButton {
+    private enum LayerName {
+        static let closeButtonBase = "placeholder.close.base"
+        static let closeButtonSheen = "placeholder.close.sheen"
+        static let closeButtonInnerRing = "placeholder.close.inner-ring"
+        static let searchPillBase = "placeholder.search.base"
+    }
+
     private var hoverTrackingArea: NSTrackingArea?
     private var isHovered = false
     private var fillGradient: CAGradientLayer?
@@ -28,14 +36,16 @@ private final class PlaceholderGlassButton: NSButton {
     /// Registers the control's fill gradient and resting colors. While hovered (or
     /// pinned), the fill recolors to the same colors blended toward white by
     /// `hoverHighlightFraction` — the standard state-layer math applied to the fill.
-    func setFill(_ gradient: CAGradientLayer, colors: [NSColor], hoverHighlightFraction: CGFloat) {
+    private func setFill(_ gradient: CAGradientLayer, colors: [NSColor], hoverHighlightFraction: CGFloat) {
         // Standalone layers animate `colors` implicitly at the default duration, which
         // would race the explicit hover fade and snap mid-transition when it ends.
         gradient.actions = ["colors": NSNull()]
         fillGradient = gradient
         normalFillColors = colors.map { $0.cgColor }
+        // Blending toward white at the scaled opacity keeps the hover color scaled too.
+        let hoverWhite = OverlayAppearance.white(1)
         hoverFillColors = colors.map {
-            ($0.blended(withFraction: hoverHighlightFraction, of: .white) ?? $0).cgColor
+            ($0.blended(withFraction: hoverHighlightFraction, of: hoverWhite) ?? $0).cgColor
         }
         gradient.colors = (isHovered || isHighlightPinned) ? hoverFillColors : normalFillColors
     }
@@ -93,6 +103,104 @@ private final class PlaceholderGlassButton: NSButton {
         fillGradient.colors = target
         fillGradient.add(fade, forKey: "hoverHighlight")
     }
+
+    /// Round highlight-colored glass of the close/put-away button. Glass layers go to fixed
+    /// indices at the bottom so a rebuild keeps them under the title, which AppKit adds as a
+    /// subview layer on first display.
+    func applyCloseButtonGlassStyle() {
+        guard let layer else { return }
+        let buttonSize = bounds.height
+        layer.masksToBounds = false
+        layer.cornerRadius = buttonSize / 2
+        layer.borderWidth = 1.1
+        layer.borderColor = OverlayAppearance.white(0.32).cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(OverlayAppearance.scaled(0.12)).cgColor
+        layer.shadowOpacity = 1.0
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: -1)
+        layer.backgroundColor = NSColor.clear.cgColor
+
+        removeSublayers(named: LayerName.closeButtonBase, from: layer)
+        removeSublayers(named: LayerName.closeButtonSheen, from: layer)
+        removeSublayers(named: LayerName.closeButtonInnerRing, from: layer)
+
+        let baseGradient = CAGradientLayer()
+        baseGradient.name = LayerName.closeButtonBase
+        baseGradient.frame = layer.bounds
+        baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        baseGradient.cornerRadius = buttonSize / 2
+        baseGradient.startPoint = CGPoint(x: 0.2, y: 1.0)
+        baseGradient.endPoint = CGPoint(x: 0.8, y: 0.0)
+        layer.insertSublayer(baseGradient, at: 0)
+        setFill(
+            baseGradient,
+            colors: [
+                OverlayAppearance.highlight(0.56),
+                OverlayAppearance.highlight(0.28)
+            ],
+            hoverHighlightFraction: 0.25
+        )
+
+        let sheen = CAGradientLayer()
+        sheen.name = LayerName.closeButtonSheen
+        sheen.frame = layer.bounds.insetBy(dx: 1, dy: 1)
+        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        sheen.cornerRadius = max(0, buttonSize / 2 - 1)
+        sheen.colors = [
+            OverlayAppearance.white(0.24).cgColor,
+            OverlayAppearance.white(0.08).cgColor,
+            NSColor.clear.cgColor
+        ]
+        sheen.locations = [0.0, 0.35, 1.0]
+        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
+        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
+        layer.insertSublayer(sheen, at: 1)
+
+        let innerRing = CAShapeLayer()
+        innerRing.name = LayerName.closeButtonInnerRing
+        innerRing.frame = layer.bounds
+        innerRing.path = CGPath(
+            ellipseIn: layer.bounds.insetBy(dx: 1.4, dy: 1.4),
+            transform: nil
+        )
+        innerRing.fillColor = NSColor.clear.cgColor
+        innerRing.strokeColor = OverlayAppearance.white(0.2).cgColor
+        innerRing.lineWidth = 1
+        layer.insertSublayer(innerRing, at: 2)
+    }
+
+    /// Frosted white glass of the search pill (its magnifying-glass icon is a subview above it).
+    /// The pill's own corner radius tracks its width in the placeholder's layout.
+    func applySearchPillGlassStyle() {
+        guard let layer else { return }
+        layer.borderWidth = 1
+        layer.borderColor = OverlayAppearance.white(0.16).cgColor
+        layer.backgroundColor = NSColor.clear.cgColor
+
+        removeSublayers(named: LayerName.searchPillBase, from: layer)
+
+        let gradient = CAGradientLayer()
+        gradient.name = LayerName.searchPillBase
+        gradient.frame = layer.bounds
+        gradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        // Core Animation clamps the radius when the pill is narrower than it is tall.
+        gradient.cornerRadius = bounds.height / 2
+        gradient.startPoint = CGPoint(x: 0.1, y: 1.0)
+        gradient.endPoint = CGPoint(x: 0.9, y: 0.0)
+        layer.insertSublayer(gradient, at: 0)
+        setFill(
+            gradient,
+            colors: [
+                OverlayAppearance.white(0.36),
+                OverlayAppearance.white(0.1)
+            ],
+            hoverHighlightFraction: 0.1
+        )
+    }
+
+    private func removeSublayers(named layerName: String, from layer: CALayer) {
+        layer.sublayers?.filter { $0.name == layerName }.forEach { $0.removeFromSuperlayer() }
+    }
 }
 
 /// Delegate protocol for placeholder UI events.
@@ -143,13 +251,6 @@ let windowCornerRadius: CGFloat = {
 /// Creates and manages the UI for placeholder windows.
 /// Placeholders are visual representations of empty tiling zones.
 final class PlaceholderManager {
-    private enum LayerName {
-        static let closeButtonBase = "placeholder.close.base"
-        static let closeButtonSheen = "placeholder.close.sheen"
-        static let closeButtonInnerRing = "placeholder.close.inner-ring"
-        static let searchPillBase = "placeholder.search.base"
-    }
-
     weak var delegate: PlaceholderManagerDelegate?
 
     init() {}
@@ -209,7 +310,6 @@ final class PlaceholderManager {
         closeButton.isBordered = false
         closeButton.focusRingType = .none
         closeButton.wantsLayer = true
-        applyCloseButtonGlassStyle(closeButton, buttonSize: buttonSize)
         closeButton.autoresizingMask = [.maxXMargin, .minYMargin]
 
         contentView.addSubview(closeButton)
@@ -230,8 +330,6 @@ final class PlaceholderManager {
         searchPill.title = ""
         searchPill.image = nil
 
-        applySearchPillGlassStyle(searchPill, pillHeight: pillHeight)
-
         // Add icon as a separate image view
         var iconView: NSImageView?
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
@@ -245,7 +343,6 @@ final class PlaceholderManager {
                 height: iconSize
             ))
             iconImageView.image = icon
-            iconImageView.contentTintColor = NSColor.white.withAlphaComponent(0.7)
             iconImageView.imageScaling = .scaleProportionallyUpOrDown
             iconImageView.autoresizingMask = [.maxXMargin, .minYMargin, .maxYMargin]
             searchPill.addSubview(iconImageView)
@@ -259,6 +356,7 @@ final class PlaceholderManager {
 
         contentView.addSubview(searchPill)
         contentView.attachSearchPill(searchPill, iconView: iconView)
+        contentView.applyOverlayAppearance()
 
         panel.contentView = contentView
         contentView.autoresizingMask = [.width, .height]
@@ -278,105 +376,12 @@ final class PlaceholderManager {
     private func applyPanelGlassStyle(to layer: CALayer) {
         // The click-catching interior fill lives in the content view's hit-test background
         // layer (see PlaceholderContentView), which can punch pass-through holes over
-        // windows stuck behind the placeholder. The root layer only draws the border.
+        // windows stuck behind the placeholder. The root layer only draws the border
+        // (styled by the content view's border appearance).
         layer.backgroundColor = NSColor.clear.cgColor
         layer.cornerRadius = windowCornerRadius
-        layer.borderWidth = 1.5
-        layer.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
         layer.shadowOpacity = 0
         layer.cornerCurve = .continuous
-    }
-
-    private func applyCloseButtonGlassStyle(_ button: PlaceholderGlassButton, buttonSize: CGFloat) {
-        guard let layer = button.layer else { return }
-        layer.masksToBounds = false
-        layer.cornerRadius = buttonSize / 2
-        layer.borderWidth = 1.1
-        layer.borderColor = NSColor.white.withAlphaComponent(0.32).cgColor
-        layer.shadowColor = NSColor.black.withAlphaComponent(0.12).cgColor
-        layer.shadowOpacity = 1.0
-        layer.shadowRadius = 3
-        layer.shadowOffset = CGSize(width: 0, height: -1)
-        layer.backgroundColor = NSColor.clear.cgColor
-
-        removeSublayers(named: LayerName.closeButtonBase, from: layer)
-        removeSublayers(named: LayerName.closeButtonSheen, from: layer)
-        removeSublayers(named: LayerName.closeButtonInnerRing, from: layer)
-
-        let baseGradient = CAGradientLayer()
-        baseGradient.name = LayerName.closeButtonBase
-        baseGradient.frame = layer.bounds
-        baseGradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        baseGradient.cornerRadius = buttonSize / 2
-        baseGradient.startPoint = CGPoint(x: 0.2, y: 1.0)
-        baseGradient.endPoint = CGPoint(x: 0.8, y: 0.0)
-        layer.insertSublayer(baseGradient, at: 0)
-        button.setFill(
-            baseGradient,
-            colors: [
-                NSColor.systemBlue.withAlphaComponent(0.56),
-                NSColor.systemBlue.withAlphaComponent(0.28)
-            ],
-            hoverHighlightFraction: 0.25
-        )
-
-        let sheen = CAGradientLayer()
-        sheen.name = LayerName.closeButtonSheen
-        sheen.frame = layer.bounds.insetBy(dx: 1, dy: 1)
-        sheen.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        sheen.cornerRadius = max(0, buttonSize / 2 - 1)
-        sheen.colors = [
-            NSColor.white.withAlphaComponent(0.24).cgColor,
-            NSColor.white.withAlphaComponent(0.08).cgColor,
-            NSColor.clear.cgColor
-        ]
-        sheen.locations = [0.0, 0.35, 1.0]
-        sheen.startPoint = CGPoint(x: 0.5, y: 1.0)
-        sheen.endPoint = CGPoint(x: 0.5, y: 0.0)
-        layer.addSublayer(sheen)
-
-        let innerRing = CAShapeLayer()
-        innerRing.name = LayerName.closeButtonInnerRing
-        innerRing.frame = layer.bounds
-        innerRing.path = CGPath(
-            ellipseIn: layer.bounds.insetBy(dx: 1.4, dy: 1.4),
-            transform: nil
-        )
-        innerRing.fillColor = NSColor.clear.cgColor
-        innerRing.strokeColor = NSColor.white.withAlphaComponent(0.2).cgColor
-        innerRing.lineWidth = 1
-        layer.addSublayer(innerRing)
-    }
-
-    private func applySearchPillGlassStyle(_ pill: PlaceholderGlassButton, pillHeight: CGFloat) {
-        guard let layer = pill.layer else { return }
-        layer.cornerRadius = pillHeight / 2
-        layer.borderWidth = 1
-        layer.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
-        layer.backgroundColor = NSColor.clear.cgColor
-
-        removeSublayers(named: LayerName.searchPillBase, from: layer)
-
-        let gradient = CAGradientLayer()
-        gradient.name = LayerName.searchPillBase
-        gradient.frame = layer.bounds
-        gradient.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        gradient.cornerRadius = pillHeight / 2
-        gradient.startPoint = CGPoint(x: 0.1, y: 1.0)
-        gradient.endPoint = CGPoint(x: 0.9, y: 0.0)
-        layer.insertSublayer(gradient, at: 0)
-        pill.setFill(
-            gradient,
-            colors: [
-                NSColor.white.withAlphaComponent(0.36),
-                NSColor.white.withAlphaComponent(0.1)
-            ],
-            hoverHighlightFraction: 0.1
-        )
-    }
-
-    private func removeSublayers(named layerName: String, from layer: CALayer) {
-        layer.sublayers?.filter { $0.name == layerName }.forEach { $0.removeFromSuperlayer() }
     }
 
     // MARK: - Button Actions
@@ -499,9 +504,9 @@ final class PlaceholderContentView: NSView {
             }
         }
     }
-    private let normalBorderColor = NSColor.white.withAlphaComponent(0.45).cgColor
-    private let highlightedBorderColor = NSColor.systemBlue.withAlphaComponent(0.72).cgColor
-    private let targetedBorderColor = NSColor.systemBlue.withAlphaComponent(0.50).cgColor
+    private var normalBorderColor: CGColor { OverlayAppearance.white(0.45).cgColor }
+    private var highlightedBorderColor: CGColor { OverlayAppearance.highlight(0.72).cgColor }
+    private var targetedBorderColor: CGColor { OverlayAppearance.highlight(0.50).cgColor }
 
     init(frame: NSRect, manager: PlaceholderManager, screenId: CGDirectDisplayID, zoneIndex: Int) {
         self.manager = manager
@@ -513,6 +518,7 @@ final class PlaceholderContentView: NSView {
         registerForDraggedTypes(ExternalDropParser.registeredPasteboardTypes)
         setUpHitTestBackgroundLayer()
         updateBorderAppearance()
+        OverlayAppearance.addObserver(self, selector: #selector(applyOverlayAppearance))
     }
 
     required init?(coder: NSCoder) {
@@ -663,6 +669,16 @@ final class PlaceholderContentView: NSView {
         updateSearchPillLayout()
     }
 
+    /// Colors the border and controls from the overlay appearance. The manager calls this once
+    /// the controls are attached; it reruns whenever the appearance changes.
+    @objc func applyOverlayAppearance() {
+        updateBorderAppearance()
+        updateButtonStyle()
+        (closeButton as? PlaceholderGlassButton)?.applyCloseButtonGlassStyle()
+        (searchPill as? PlaceholderGlassButton)?.applySearchPillGlassStyle()
+        searchPillIconView?.contentTintColor = OverlayAppearance.white(0.7)
+    }
+
     private func updateButtonStyle() {
         guard let manager, let closeButton else { return }
 
@@ -679,7 +695,7 @@ final class PlaceholderContentView: NSView {
         }
 
         let titleAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.white,
+            .foregroundColor: OverlayAppearance.white(1),
             .font: NSFont.systemFont(ofSize: 20, weight: .semibold),
             .baselineOffset: baselineOffset
         ]
@@ -702,7 +718,7 @@ final class PlaceholderContentView: NSView {
         }
     }
 
-    /// Flashes a vivid blue border that animates to the resting state, providing
+    /// Flashes a vivid highlight-colored border that animates to the resting state, providing
     /// immediate visual feedback for a gesture-modifier click.
     func flashBorder() {
         guard let layer = layer else { return }

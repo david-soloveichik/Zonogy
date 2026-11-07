@@ -64,11 +64,6 @@ final class ZoneIndicatorManager {
             }
         }
 
-        private let targetedColor = IndicatorPalette.targetedFillColor
-        private let targetedBorder = IndicatorPalette.targetedBorderColor
-        private let untargetedColor = NSColor.systemBlue.withAlphaComponent(0.12)
-        private let untargetedBorder = NSColor.systemBlue.withAlphaComponent(0.25)
-
         init(frame frameRect: NSRect, key: ZoneKey, targeted: Bool) {
             self.key = key
             self.isTargeted = targeted
@@ -76,6 +71,7 @@ final class ZoneIndicatorManager {
             wantsLayer = true
             layer?.cornerCurve = .continuous
             applyStyle()
+            OverlayAppearance.addObserver(self, selector: #selector(applyStyle))
         }
 
         required init?(coder: NSCoder) {
@@ -87,13 +83,13 @@ final class ZoneIndicatorManager {
             layer?.cornerRadius = bounds.height / 2
         }
 
-        private func applyStyle() {
+        @objc private func applyStyle() {
             guard let layer else {
                 return
             }
 
-            let background = isTargeted ? targetedColor : untargetedColor
-            let border = isTargeted ? targetedBorder : untargetedBorder
+            let background = isTargeted ? IndicatorPalette.targetedFillColor : OverlayAppearance.highlight(0.12)
+            let border = isTargeted ? IndicatorPalette.targetedBorderColor : OverlayAppearance.highlight(0.25)
 
             layer.backgroundColor = background.cgColor
             layer.borderColor = border.cgColor

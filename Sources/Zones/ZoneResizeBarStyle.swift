@@ -4,7 +4,7 @@ import AppKit
 /// static handle view and the smooth drag overlay so they stay in sync.
 enum ZoneResizeBarStyle {
     static let thickness: CGFloat = 4.0
-    static let color = NSColor.white.withAlphaComponent(0.9)
+    static var color: NSColor { OverlayAppearance.white(0.9) }
     static let cornerRadius: CGFloat = 2.0
     static let inset: CGFloat = 4.0
 

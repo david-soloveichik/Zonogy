@@ -18,7 +18,6 @@ final class WinShotThumbnailView: NSView {
     private let selectionBorder: CALayer
     private let tilingIconRow: NSStackView    // Top row: one icon per occupied tiling zone
     private let floatingIconRow: NSStackView  // Bottom row: the floating-zone window's icon, if any
-    private static let selectionColor = NSColor(calibratedRed: 0.15, green: 0.35, blue: 0.85, alpha: 1.0)
 
     var isSelected: Bool = false {
         didSet {
@@ -74,9 +73,9 @@ final class WinShotThumbnailView: NSView {
         deleteButton.contentTintColor = .systemRed
         deleteButton.isHidden = true  // Show on hover
 
-        // Create selection border layer using the WinShot accent blue
+        // Create selection border layer in the macOS accent color
         selectionBorder = CALayer()
-        selectionBorder.borderColor = Self.selectionColor.withAlphaComponent(0.9).cgColor
+        selectionBorder.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.9).cgColor
         selectionBorder.borderWidth = Self.selectionBorderWidth
         selectionBorder.cornerRadius = Self.borderCornerRadius
         selectionBorder.isHidden = true

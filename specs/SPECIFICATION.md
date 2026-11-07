@@ -91,7 +91,7 @@ The big picture is that: (1) When user switches to another tab in a window (coul
 
 ## User Interactions
 
-> Note: For simplicity, this specification refers to keyboard shortcuts, gesture modifiers (mouse gestures and zone navigation), and zone-navigation keys by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts. Overlapping shortcuts are marked with a warning (see **Shortcut Conflicts** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
+> Note: For simplicity, this specification refers to keyboard shortcuts, gesture modifiers (mouse gestures and zone navigation), and zone-navigation keys by their defaults (for example, Control-Command). They are user-settable in Zonogy Preferences → Shortcuts. Overlapping shortcuts are marked with a warning (see **Shortcut Conflicts** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)). Likewise, it calls Zonogy's highlight color blue, its default (see **Highlight Color and Opacity**).
 
 ### Tiling Layout and Spacing
 
@@ -421,6 +421,15 @@ For DockMenus (hover/click integration with the macOS Dock), see **[SPECIFICATIO
 ## CmdTab
 
 For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFICATION-CMDTAB.md)**.
+
+## Highlight Color and Opacity
+
+Zonogy draws its desktop overlays (placeholders, target indicators, add-zone and floating zone indicators, the border over a targeted occupied zone, zone overlays during drags, the zone-navigation circle, and zone resize bars) in white and a highlight color, blue by default. Preferences → General sets:
+
+- **Highlight color:** any color, picked from a color well. "Reset to Blue" restores the default.
+- **Opacity:** a scale from 25% to 150% (default 100%) that multiplies every opacity in these overlays, white parts included, so they become subtler or bolder without changing their relative look. Opacities cap at fully opaque.
+
+Selection highlights in Zonogy's own panels (Launcher, CmdTab, DockMenus, WinShot chooser) follow the macOS accent color instead.
 
 ## Menu Bar Menu
 

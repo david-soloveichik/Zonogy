@@ -156,11 +156,6 @@ final class DragOverlayManager {
     private let interactiveExternalDrop: Bool
     private let windowLevel: NSWindow.Level
     private var overlays: [ZoneKey: OverlayHandle] = [:]
-    private let occupiedBaseColor = NSColor.systemBlue.withAlphaComponent(0.14)
-    private let emptyBaseColor = NSColor.systemBlue.withAlphaComponent(0.08)
-    private let highlightColor = NSColor.systemBlue.withAlphaComponent(0.32)
-    private let baseBorderColor = NSColor.systemBlue.withAlphaComponent(0.28)
-    private let highlightBorderColor = NSColor.systemBlue.withAlphaComponent(0.55)
 
     init(
         externalDropDelegate: DragOverlayExternalDropDelegate? = nil,
@@ -227,9 +222,9 @@ final class DragOverlayManager {
     }
 
     private func applyColors(handle: OverlayHandle, highlighted: Bool) {
-        let baseColor = handle.isEmpty ? emptyBaseColor : occupiedBaseColor
-        handle.view.fillColor = highlighted ? highlightColor : baseColor
-        handle.view.borderColor = highlighted ? highlightBorderColor : baseBorderColor
+        let baseFillAlpha: CGFloat = handle.isEmpty ? 0.08 : 0.14
+        handle.view.fillColor = OverlayAppearance.highlight(highlighted ? 0.32 : baseFillAlpha)
+        handle.view.borderColor = OverlayAppearance.highlight(highlighted ? 0.55 : 0.28)
     }
 
     fileprivate func canAcceptExternalDrop(from draggingInfo: NSDraggingInfo, for key: ZoneKey) -> Bool {

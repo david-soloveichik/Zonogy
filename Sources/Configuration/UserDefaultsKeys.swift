@@ -13,6 +13,8 @@ enum UserDefaultsKeys {
     // MARK: - General
     static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
     static let zoneLayoutStyle = "Zonogy.general.zoneLayoutStyle"
+    static let overlayHighlightColor = "Zonogy.general.overlayHighlightColor"
+    static let overlayOpacityScale = "Zonogy.general.overlayOpacityScale"
 
     // MARK: - Mouse Gestures
     static let mouseGestureModifiers = "Zonogy.mouseGestures.modifiers"
