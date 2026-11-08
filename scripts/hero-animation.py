@@ -13,8 +13,8 @@ Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
 import sys
 
 from animation_common import (CURSOR, EIO, EOUT, FRAME, GAP, MARGIN, ZBLUE, Timeline, at, bar, captions, center,
-                              columns, dock, dock_origin, document, ease_progress, icon_center, menubar, n, opacity,
-                              rect, ripple, scale, wallpapers, window, window_parts)
+                              columns, dock, dock_origin, document, ease_progress, full_window, icon_center, menubar,
+                              n, opacity, rect, ripple, scale, wallpapers, window_content, window_parts)
 
 DUR = 14.6  # loop length, seconds
 T_STILL = 5.3  # frame shown where CSS animations don't run: the Launcher open in the main display's emptied zone
@@ -49,6 +49,7 @@ ZONES = (Z1, Z2, Z3, Z4, Z5)
 # Windows that stay put (Z2 and Z5 change hands): (app, zone, resize class of the body, of the traffic lights).
 STATIC = (("purple", Z1, "rzA", ""), ("orange", Z3, "rzR", "rzL"), ("teal", Z4, "", ""))
 RESIZE_DX = -112  # the opening drag of the bar between the main display's columns, out and back
+CONTENT_OPACITY = .5  # window content stays subtle here
 BAR = (Z1[0] + Z1[2] + GAP / 2, Z1[1] + Z1[3] / 2)  # where the pointer grabs that bar
 
 LW, LH, ROW_H = 232, 178, 30  # Launcher, centered in the zone it opens in
@@ -86,11 +87,12 @@ M2 = (DM_X + 95, DM_ROW0 + 1.5 * DM_ROW_H)  # DockMenu row 2
 # ---------------------------------------------------------------- shapes
 
 def resizable_window(z, app, body_cls, lights_cls):
-    """A window whose body (title bar band included) can stretch with a zone resize while its traffic lights
-    only slide along with its left edge."""
+    """A window whose body (title bar band and content included) can stretch with a zone resize while its
+    traffic lights only slide along with its left edge."""
     body, band, lights, outline = window_parts(z, app)
+    content = window_content(z, app, CONTENT_OPACITY)
     wrap = lambda cls, parts: f'<g class="{cls}">\n' + "\n".join(parts) + "\n</g>" if cls else "\n".join(parts)
-    return wrap(body_cls, (body, band, outline)) + "\n" + wrap(lights_cls, (lights,))
+    return wrap(body_cls, (body, band, content, outline)) + "\n" + wrap(lights_cls, (lights,))
 
 
 def resize_bar():
@@ -306,9 +308,9 @@ def build():
         *(resizable_window(z, app, body, lights) for app, z, body, lights in STATIC),
         placeholder("ph1", Z2), placeholder("ph2", Z5), launcher("lc1", Z2), launcher("lc2", Z5), dock(S1),
         f'<g class="bfd">\n{resizable_window(Z2, "blue", "rzR", "rzL")}\n</g>', resize_bar(),
-        f'<g class="gmv"><g class="gfd">\n{window(Z2, "green")}\n</g></g>',
-        f'<g class="hmv"><g class="hfd">\n{window(Z5, "amber")}\n</g></g>',
-        f'<g class="fmv"><g class="ffd">\n{window(Z5, "pink")}\n</g></g>',
+        f'<g class="gmv"><g class="gfd">\n{full_window(Z2, "green", CONTENT_OPACITY)}\n</g></g>',
+        f'<g class="hmv"><g class="hfd">\n{full_window(Z5, "amber", CONTENT_OPACITY)}\n</g></g>',
+        f'<g class="fmv"><g class="ffd">\n{full_window(Z5, "pink", CONTENT_OPACITY)}\n</g></g>',
         dockmenu(), overlays(),
         ripple("rpY1", YB1), ripple("rpR1", R2A), ripple("rpY2", YB2), ripple("rpR2", R2B),
         ripple("rpM", M2), ripple("rpP", P0),

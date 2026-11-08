@@ -4,6 +4,7 @@ scripts/activefit-winshot-animation.py).
 Both draw an abstract macOS desktop as SVG and animate it with CSS keyframes only (no script), so they play
 wherever the README renders. Like the README's animated WebP images, they play even with Reduce Motion on.
 """
+import random
 
 ZBLUE = "#4a9eff"  # Zonogy's highlight blue
 FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
@@ -174,6 +175,143 @@ def window_parts(z, app):
 
 def window(z, app):
     return "\n".join(window_parts(z, app))
+
+
+# ---------------------------------------------------------------- window content
+
+def editor_lines(x, y, w, h):
+    """Code, one string per line. Line i is the same whatever the window's size; a shorter window shows fewer."""
+    rnd, lines, ly = random.Random(1), [], y + 36
+    while ly + 6 <= y + h - 10:
+        marks = [bar(x + 12, ly, 12, 5, "#fff", .2)]
+        if rnd.random() > .12:
+            xx = x + 34 + rnd.choice((0, 0, 1, 1, 2, 3)) * 18
+            for _ in range(rnd.choice((1, 2, 2, 3))):
+                ww = rnd.randint(22, 92)
+                if xx + ww > x + 360:
+                    break
+                marks.append(bar(xx, ly, ww, 6, rnd.choice(("#c4b5fd", "#7dd3c0", "#fcd34d", "#e5e7eb", "#e5e7eb")), .75))
+                xx += ww + 8
+        lines.append("".join(marks))
+        ly += 17
+    return lines
+
+
+def browser(x, y, w, h):
+    """A web page: address field, a banner, and cards."""
+    bh, count = min(70, (h - 40) * .32), 3 if w > 320 else 2
+    cw, cy = (w - 24 - (count - 1) * 10) / count, y + 44 + min(70, (h - 40) * .32)
+    ch = y + h - 12 - cy
+    s = [rect(x + w * .3, y + 5, w * .4, 12, 6, fill="#fff", fill_opacity=".7"),
+         rect(x + 12, y + 32, w - 24, bh, 6, fill="#2d7ff9", fill_opacity=".5"),
+         bar(x + 26, y + 32 + bh * .3, min(150, w * .4), 9, "#fff", .9),
+         bar(x + 26, y + 32 + bh * .3 + 16, min(100, w * .26), 6, "#fff", .7)]
+    for i in range(count):
+        cx = x + 12 + i * (cw + 10)
+        s += [rect(cx, cy, cw, ch, 5, fill="#fff", fill_opacity=".6"),
+              rect(cx + 8, cy + 8, cw - 16, ch * .45, 4, fill="#2d7ff9", fill_opacity=".2"),
+              bar(cx + 8, cy + ch * .45 + 18, cw * .7, 6, "#5b6475", .5),
+              bar(cx + 8, cy + ch * .45 + 30, cw * .5, 5, "#8b93a2", .45)]
+    return s
+
+
+def notes(x, y, w, h):
+    """Notes: a list of notes beside the open one."""
+    rnd, lw = random.Random(2), min(150, w * .34)
+    s, yy = [rect(x + 6, y + 28, lw - 6, h - 34, 6, fill="#fff", fill_opacity=".25")], y + 36
+    while yy + 24 <= y + h - 10:
+        if yy == y + 36:
+            s.append(rect(x + 10, yy - 5, lw - 14, 30, 5, fill="#f39c1d", fill_opacity=".28"))
+        s += [f'<circle cx="{n(x + 20)}" cy="{n(yy + 5)}" r="3.5" fill="#f39c1d"/>',
+              bar(x + 30, yy + 1.5, rnd.uniform(.45, .8) * (lw - 36), 6, "#5b6475", .55),
+              bar(x + 30, yy + 12, rnd.uniform(.3, .65) * (lw - 36), 4.5, "#8b93a2", .5)]
+        yy += 38
+    tx, tw = x + lw + 16, w - lw - 32
+    s.append(bar(tx, y + 36, min(180, tw * .7), 10, "#4d5566", .6))
+    for yy in range(int(y + 60), int(y + h - 17), 13):
+        s.append(bar(tx, yy, rnd.uniform(.55, 1) * tw, 5, "#8b93a2", .45))
+    return s
+
+
+def sheet(x, y, w, h):
+    """A spreadsheet: toolbar, header row, cells, and a selected range."""
+    rnd = random.Random(3)
+    cols, rows = max(3, int((w - 16) / 60)), max(3, int((h - 58) / 22))
+    gx, gy, gw, gh = x + 8, y + 50, w - 16, h - 58
+    cw, rh = gw / cols, gh / rows
+    s = [rect(x + 6, y + 27, w - 12, 16, 4, fill="#fff", fill_opacity=".35")]
+    s += [rect(x + 12 + i * 20, y + 31, 12, 8, 2, fill="#5b6475", fill_opacity=".3") for i in range(min(8, int((w - 24) / 20)))]
+    s.append(rect(gx, gy, gw, rh, fill="#1db45c", fill_opacity=".28"))
+    for r in range(rows):
+        for c in range(cols):
+            if r == 0 or rnd.random() < .6:
+                s.append(bar(gx + c * cw + 6, gy + r * rh + rh / 2 - 2.5, rnd.uniform(.3, .7) * cw, 5,
+                             "#1db45c" if r == 0 else "#5b6475", .55 if r == 0 else .4))
+    grid = "".join(f"M{n(gx)} {n(gy + r * rh)}H{n(gx + gw)}" for r in range(rows + 1))
+    grid += "".join(f"M{n(gx + c * cw)} {n(gy)}V{n(gy + gh)}" for c in range(cols + 1))
+    s += [f'<path d="{grid}" stroke="#fff" stroke-opacity=".7" stroke-width=".8" fill="none"/>',
+          rect(gx + cw, gy + rh, 2 * cw, 2 * rh, fill="#1db45c", fill_opacity=".15", stroke="#1db45c", stroke_width="1.5")]
+    return s
+
+
+def calendar(x, y, w, h):
+    """A calendar week: day columns with events."""
+    rnd, days, gx, gy = random.Random(4), 5, x + 10, y + 52
+    cw, rows = (w - 20) / days, int((h - 62) / 26)
+    s = [bar(x + 12, y + 30, min(110, w * .3), 9, "#4d5566", .6)]
+    s += [bar(gx + i * cw + 6, gy - 10, cw * .4, 5, "#5b6475", .5) for i in range(days)]
+    grid = "".join(f"M{n(gx)} {n(gy + r * 26)}H{n(gx + days * cw)}" for r in range(rows + 1))
+    grid += "".join(f"M{n(gx + i * cw)} {n(gy)}V{n(gy + rows * 26)}" for i in range(days + 1))
+    s.append(f'<path d="{grid}" stroke="#5b6475" stroke-opacity=".18" fill="none"/>')
+    for i in range(days):
+        for _ in range(rnd.choice((1, 2))):
+            span = rnd.choice((1, 1, 2))
+            start = rnd.randint(0, max(0, rows - span))
+            s.append(rect(gx + i * cw + 3, gy + start * 26 + 2, cw - 6, span * 26 - 4, 4,
+                          fill=rnd.choice(("#e0a800", "#2d7ff9", "#e64590", "#1db45c")), fill_opacity=".45"))
+    return s
+
+
+def chat(x, y, w, h):
+    """A conversation: message bubbles on both sides, and a message field."""
+    rnd, s, yy, mine = random.Random(5), [], y + 34, False
+    while True:
+        bh = rnd.choice((22, 22, 34))
+        if yy + bh > y + h - 44:
+            break
+        bw = rnd.uniform(.3, .62) * (w - 24)
+        s.append(rect(x + w - 12 - bw if mine else x + 12, yy, bw, bh, 9, fill="#52d6cc" if mine else "#fff",
+                      fill_opacity=".5" if mine else ".14"))
+        yy += bh + 10
+        mine = (not mine) if rnd.random() > .3 else mine
+    s.append(rect(x + 10, y + h - 34, w - 20, 24, 12, fill="#fff", fill_opacity=".12"))
+    return s
+
+
+def photos(x, y, w, h):
+    """A photo library: a grid of tiles."""
+    rnd, size, gap = random.Random(6), 54, 6
+    cols, rows = max(2, int((w - 20 + gap) / (size + gap))), max(1, int((h - 40 + gap) / (size + gap)))
+    ox = x + (w - cols * size - (cols - 1) * gap) / 2
+    return [rect(ox + c * (size + gap), y + 32 + r * (size + gap), size, size, 4, fill_opacity=".8",
+                 fill=rnd.choice(("#f8a5c2", "#f7d794", "#a29bfe", "#81ecec", "#fab1a0", "#74b9ff")))
+            for r in range(rows) for c in range(cols)]
+
+
+CONTENT = {"purple": editor_lines, "blue": browser, "orange": notes, "green": sheet, "amber": calendar,
+           "teal": chat, "pink": photos}
+
+
+def window_content(z, app, opacity=1):
+    """Abstract content for the app's window at frame z, laid out for its size; `opacity` below 1 subdues it."""
+    content = "\n".join(CONTENT[app](*z))
+    return content if opacity == 1 else f'<g opacity="{n(opacity)}">\n{content}\n</g>'
+
+
+def full_window(z, app, content_opacity=1):
+    """A window with abstract content for its app."""
+    body, band, lights, outline = window_parts(z, app)
+    return "\n".join([body, band, window_content(z, app, content_opacity), lights, outline])
 
 
 def dock(screen):
