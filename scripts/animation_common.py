@@ -138,6 +138,26 @@ def hardware(screens):
     return "\n".join(s)
 
 
+STAND_DEFS = ('<defs><linearGradient id="neck" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a2d34"/>'
+              '<stop offset=".5" stop-color="#4b4f58"/><stop offset="1" stop-color="#2a2d34"/></linearGradient>'
+              '<linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5f69"/>'
+              '<stop offset="1" stop-color="#2a2d34"/></linearGradient>'
+              '<filter id="footShadow" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="4"/>'
+              '</filter></defs>')
+
+
+def stand(screen, floor):
+    """A monitor stand: a neck from behind the display's bottom edge down to a foot resting on `floor`."""
+    x, y, w, h = screen
+    cx, top = x + w / 2, y + h + FRAME - 8
+    return "\n".join([
+        f'<ellipse cx="{n(cx)}" cy="{n(floor)}" rx="112" ry="5" fill="#000" fill-opacity=".5" filter="url(#footShadow)"/>',
+        rect(cx - 23, top, 46, floor - 9 - top, fill="url(#neck)"),
+        rect(cx - 96, floor - 10, 192, 10, 5, fill="url(#foot)"),
+        rect(cx - 95.5, floor - 9.5, 191, 9, 4.5, fill="none", stroke="url(#rimEdge)"),
+    ])
+
+
 def wallpapers(screens):
     return "\n".join(rect(*sc, fill=f"url(#wall{i + 1})") + rect(*sc, fill="url(#wallGlow)")
                      for i, sc in enumerate(screens))
@@ -341,8 +361,9 @@ CURSOR = ('<path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stro
           'stroke-linejoin="round" filter="url(#cshadow)"/>')
 
 
-def document(size, title, generator, screens, style, content, caption_svg):
-    """The SVG file: stage, display hardware, everything on the screens (clipped to them), then the captions."""
+def document(size, title, generator, screens, style, content, caption_svg, stands=()):
+    """The SVG file: stage, display hardware (with a stand under each (screen, floor) in `stands`), everything on
+    the screens (clipped to them), then the captions."""
     w, h = size
     return "\n".join([
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-labelledby="title">',
@@ -351,6 +372,8 @@ def document(size, title, generator, screens, style, content, caption_svg):
         defs(screens),
         style,
         rect(0, 0, w, h, 28, fill="url(#stage)"),
+        *([STAND_DEFS] if stands else []),
+        *(stand(screen, floor) for screen, floor in stands),
         hardware(screens),
         '<g clip-path="url(#screens)">',
         *content,
