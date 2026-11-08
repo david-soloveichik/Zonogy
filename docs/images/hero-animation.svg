@@ -105,7 +105,6 @@
 @keyframes cap1{0.000%{opacity:0}66.438%{opacity:0}67.808%{opacity:1}91.096%{opacity:1}92.466%{opacity:0}100.000%{opacity:0}}
 .cap1{animation:cap1 14.6s linear infinite;opacity:0}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}.caret{animation:blink 1s step-end infinite}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 <rect x="0" y="0" width="1600" height="712" rx="28" fill="url(#stage)"/>
 <rect x="36" y="40" width="888" height="566" rx="20" fill="url(#rim)" filter="url(#dshadow)"/>

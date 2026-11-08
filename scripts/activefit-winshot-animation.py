@@ -11,8 +11,6 @@ moves to its zone there. Control-Command-Tab and release then switch back, like 
 the opening frame.
 
 Usage: python3 scripts/activefit-winshot-animation.py docs/images/activefit-winshot-animation.svg
-With Reduce Motion on, browsers show the SVG's still frame; add --ignore-reduced-motion to write a
-preview copy that always animates.
 """
 import random
 import sys
@@ -22,7 +20,7 @@ from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MARGIN, ZBLUE
                               wallpapers, window_parts)
 
 DUR = 14.0  # loop length, seconds
-T_STILL = 7.8  # frame shown when the viewer prefers reduced motion: the chooser open on the older arrangement
+T_STILL = 7.8  # frame shown where CSS animations don't run: the chooser open on the older arrangement
 W, H = 1000, 740
 TITLE = (
     "ActiveFit and WinShot snapshots in Zonogy. A window too wide for its zone slides into view while focused, and "

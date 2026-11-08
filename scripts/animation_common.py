@@ -2,10 +2,8 @@
 scripts/activefit-winshot-animation.py).
 
 Both draw an abstract macOS desktop as SVG and animate it with CSS keyframes only (no script), so they play
-wherever the README renders. With Reduce Motion on, browsers show a still frame instead; pass
---ignore-reduced-motion to write a preview copy that always animates.
+wherever the README renders. Like the README's animated WebP images, they play even with Reduce Motion on.
 """
-import sys
 
 ZBLUE = "#4a9eff"  # Zonogy's highlight blue
 FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
@@ -253,8 +251,8 @@ def opacity(o, extra=""):
 
 
 class Timeline:
-    """CSS animations sharing one loop of `dur` seconds. `still` is the moment shown to viewers who prefer
-    reduced motion, so every track must hold steady then."""
+    """CSS animations sharing one loop of `dur` seconds. `still` is the moment shown where CSS animations don't
+    run, so every track must hold steady then."""
 
     def __init__(self, dur, still):
         self.dur, self.still, self.css = dur, still, []
@@ -288,7 +286,4 @@ class Timeline:
                                    (fading + .2, opacity(0))])
 
     def style(self):
-        css = self.css
-        if "--ignore-reduced-motion" not in sys.argv:
-            css = css + ["@media (prefers-reduced-motion:reduce){*{animation:none!important}}"]
-        return "<style>\n" + "\n".join(css) + "\n</style>"
+        return "<style>\n" + "\n".join(self.css) + "\n</style>"

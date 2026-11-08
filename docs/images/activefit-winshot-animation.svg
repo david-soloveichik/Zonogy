@@ -77,7 +77,6 @@
 .cap2{animation:cap2 14s linear infinite;opacity:1}
 @keyframes cap3{0.000%{opacity:0}61.429%{opacity:0}62.857%{opacity:1}78.571%{opacity:1}80.000%{opacity:0}100.000%{opacity:0}}
 .cap3{animation:cap3 14s linear infinite;opacity:0}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 <rect x="0" y="0" width="1000" height="740" rx="28" fill="url(#stage)"/>
 <rect x="56" y="40" width="888" height="566" rx="20" fill="url(#rim)" filter="url(#dshadow)"/>

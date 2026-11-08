@@ -9,8 +9,6 @@ lights up under the pointer), onto the secondary display's zone, replacing the w
 main display's zone crossfades back to its first window, so the loop restarts where it began.
 
 Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
-With Reduce Motion on, browsers show the SVG's still frame; add --ignore-reduced-motion to write a
-preview copy that always animates.
 """
 import sys
 
@@ -19,7 +17,7 @@ from animation_common import (CURSOR, EIO, EOUT, FRAME, GAP, MARGIN, ZBLUE, Time
                               rect, ripple, scale, wallpapers, window, window_parts)
 
 DUR = 14.6  # loop length, seconds
-T_STILL = 5.3  # frame shown when the viewer prefers reduced motion: the Launcher open in the main display's emptied zone
+T_STILL = 5.3  # frame shown where CSS animations don't run: the Launcher open in the main display's emptied zone
 W, H = 1600, 712
 TITLE = (
     "Zonogy on two displays. Each display keeps its own tiling zones. Minimizing a window, on either display, "
