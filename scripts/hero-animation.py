@@ -314,8 +314,10 @@ def build():
         ripple("rpM", M2), ripple("rpP", P0),
         f'<g class="curx"><g class="cury">{PILL}<g class="press">{CURSOR}</g></g></g>',
     ]
+    # The README shows this 1600-wide animation and the 1000-wide one at the same width, so captions here
+    # need 1.6 times the other's 25 to read at the same size.
     return document((W, H), TITLE, "scripts/hero-animation.py", (S1, S2), TL.style(), screens,
-                    captions(CAPTIONS, W / 2, CAPTION_Y))
+                    captions(CAPTIONS, W / 2, CAPTION_Y, size=40))
 
 
 if __name__ == "__main__":

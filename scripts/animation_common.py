@@ -191,9 +191,9 @@ def ripple(cls, p):
     return f'<circle class="{cls}" cx="{n(p[0])}" cy="{n(p[1])}" r="11" fill="none" stroke="{ZBLUE}" stroke-width="2.2"/>'
 
 
-def captions(texts, x, y):
+def captions(texts, x, y, size=25):
     return "\n".join(f'<text class="cap{i}" x="{n(x)}" y="{n(y)}" text-anchor="middle" font-family="{FONT}" '
-                     f'font-size="25" font-weight="500" fill="#e6eaf2">{text}</text>'
+                     f'font-size="{size}" font-weight="500" fill="#e6eaf2">{text}</text>'
                      for i, (text, _, _) in enumerate(texts))
 
 

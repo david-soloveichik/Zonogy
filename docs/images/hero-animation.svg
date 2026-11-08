@@ -314,6 +314,6 @@
 <circle class="rpP" cx="1416" cy="211" r="11" fill="none" stroke="#4a9eff" stroke-width="2.2"/>
 <g class="curx"><g class="cury"><g class="pill"><rect x="9" y="14" width="112" height="20" rx="6" fill="#262a33" fill-opacity=".92" filter="url(#cshadow)"/><rect x="16" y="20" width="10" height="8" rx="2" fill="none" stroke="#c3c8d2" stroke-width="1.3"/><path d="M16 23h10" stroke="#c3c8d2" stroke-width="1.3"/><rect x="31" y="21" width="72" height="6" rx="3" fill="#e6e9ef" fill-opacity="0.85"/></g><g class="press"><path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" filter="url(#cshadow)"/></g></g></g>
 </g>
-<text class="cap0" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="500" fill="#e6eaf2">Minimizing a window opens the Launcher in that zone to fill it</text>
-<text class="cap1" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="500" fill="#e6eaf2">Or hover over a Dock icon and drag a specific window</text>
+<text class="cap0" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="500" fill="#e6eaf2">Minimizing a window opens the Launcher in that zone to fill it</text>
+<text class="cap1" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="500" fill="#e6eaf2">Or hover over a Dock icon and drag a specific window</text>
 </svg>
