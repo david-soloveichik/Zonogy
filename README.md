@@ -72,7 +72,7 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 
 <img src="docs/images/cmdtab.png" alt="CmdTab" width="425" />
 
-- **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements and zone layouts; snapshots can also be saved automatically (configurable in Preferences). A visual timeline chooser lets you scrub through past snapshots.
+- **WinShot Snapshots** (`Control-Cmd-/` to save, `Control-Cmd-Tab` to browse) — save and restore entire window arrangements and zone layouts; snapshots can also be saved automatically (configurable in Preferences). A visual timeline chooser lets you scrub through past snapshots. Drag a thumbnail to another display to open the arrangement there.
 
 <img src="docs/images/winshot-chooser.png" alt="WinShot Chooser" width="1174" />
 
