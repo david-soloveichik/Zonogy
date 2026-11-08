@@ -21,7 +21,7 @@ from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MARGIN, ZBLUE
 
 DUR = 14.0  # loop length, seconds
 T_STILL = 7.8  # frame shown where CSS animations don't run: the chooser open on the older arrangement
-W, H = 1000, 740
+W, H = 1333, 746  # the README fits this to the page's width: 1333 rather than 1000 shows it at three quarters
 TITLE = (
     "ActiveFit and WinShot snapshots in Zonogy. A window too wide for its zone slides into view while focused, and "
     "back when another window is focused. Window arrangements are saved automatically. Holding Control-Command and "
@@ -37,7 +37,7 @@ CAPTIONS = (  # (text, shown from, fading out at)
 
 S = ((W - 860) / 2, 54, 860, 538)  # the display's screen
 KEYS_Y = S[1] + S[3] + FRAME + 16  # keycaps, under the display
-CAPTION_Y = KEYS_Y + 34 + 46
+CAPTION_Y = KEYS_Y + 34 + 50
 
 _top, _h, _cw, (_left, _) = columns(S, dock_origin(S)[1] - GAP)
 FULL = (_left, _top, 2 * _cw + GAP, _h)  # the zone area
@@ -271,7 +271,7 @@ def keycaps():
 # ---------------------------------------------------------------- motion
 
 TL = Timeline(DUR, T_STILL)
-REST, CLICK_B = (260, 420), (790, 200)  # pointer: rest point on the editor (below the chooser), and on the browser
+REST, CLICK_B = (S[0] + 190, 420), (S[0] + 720, 200)  # pointer: rest point on the editor (below the chooser), and on the browser
 CLICKS, FIT = (1.3, 3.6), (1.35, 3.65)  # clicks on the browser, then the editor; the browser slides in, then back
 WS = 4.0  # WinShot starts
 TAPS = tuple(WS + t for t in (2.1, 3.3, 7.55))  # Tab presses; Control-Command is held around them
@@ -350,7 +350,7 @@ def build():
         f'<g class="cur"><g class="press">{CURSOR}</g></g>',
     ]
     return document((W, H), TITLE, "scripts/activefit-winshot-animation.py", (S,), TL.style(), screen,
-                    keycaps() + "\n" + captions(CAPTIONS, W / 2, CAPTION_Y))
+                    keycaps() + "\n" + captions(CAPTIONS, W, CAPTION_Y))
 
 
 if __name__ == "__main__":

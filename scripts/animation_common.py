@@ -191,9 +191,11 @@ def ripple(cls, p):
     return f'<circle class="{cls}" cx="{n(p[0])}" cy="{n(p[1])}" r="11" fill="none" stroke="{ZBLUE}" stroke-width="2.2"/>'
 
 
-def captions(texts, x, y, size=25):
-    return "\n".join(f'<text class="cap{i}" x="{n(x)}" y="{n(y)}" text-anchor="middle" font-family="{FONT}" '
-                     f'font-size="{size}" font-weight="500" fill="#e6eaf2">{text}</text>'
+def captions(texts, width, y):
+    """Captions centered on a canvas `width` wide. The README shows every animation at the page's width, so
+    sizing captions to the canvas width makes them read the same size in each."""
+    return "\n".join(f'<text class="cap{i}" x="{n(width / 2)}" y="{n(y)}" text-anchor="middle" font-family="{FONT}" '
+                     f'font-size="{n(width / 40)}" font-weight="500" fill="#e6eaf2">{text}</text>'
                      for i, (text, _, _) in enumerate(texts))
 
 

@@ -8,7 +8,7 @@ Zonogy divides each display into persistent tiling zones plus a floating zone. A
 
 <img src="docs/images/hero-animation.svg" alt="Animation on two displays: minimizing a window, on either display, leaves its zone in place with the Launcher open there, and a window picked in the Launcher fills it; then a window dragged from a Dock icon's DockMenu across both displays replaces the window in a zone." width="1600" />
 
-<img src="docs/images/activefit-winshot-animation.svg" alt="Animation: a window too wide for its zone slides into view while focused (ActiveFit) and back when another window is focused; then holding Control-Command and tapping Tab opens the WinShot chooser, a timeline of automatically saved window arrangements; releasing the keys restores the selected one, zones and windows, and switching back works the same way." width="1000" />
+<img src="docs/images/activefit-winshot-animation.svg" alt="Animation: a window too wide for its zone slides into view while focused (ActiveFit) and back when another window is focused; then holding Control-Command and tapping Tab opens the WinShot chooser, a timeline of automatically saved window arrangements; releasing the keys restores the selected one, zones and windows, and switching back works the same way." width="1333" />
 
 ## Contents
 
