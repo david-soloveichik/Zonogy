@@ -119,8 +119,13 @@ final class ZoneResizeHandleManager {
         }
 
         override func mouseEntered(with event: NSEvent) {
-            // Prevent other handles from lighting up if a drag is in progress
+            // Light up only on a plain hover, never when the cursor crosses the bar mid-gesture:
+            // while another bar is dragged, or while the button is held for any other drag
+            // (e.g. moving a window across the margin between zones).
             if let dragger = HandleView.activeDragView, dragger !== self {
+                return
+            }
+            if MouseButtons.isLeftMouseButtonDown() {
                 return
             }
             isHovering = true
