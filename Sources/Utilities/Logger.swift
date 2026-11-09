@@ -2,12 +2,17 @@
 /// the source file as its category. `debug` lines are kept in memory only (info level); `keep` and
 /// `error` lines are the ones macOS also persists for days: countable events and unexpected failures.
 /// While the Debug tab's "Save the log to a file" toggle is on, every line also goes to `LogFile`.
+/// Window titles and the user's file names and links enter a line through `\(private:)`, which
+/// hides them unless the Debug tab's "Include window titles and file names in the log" toggle is on.
 import Foundation
 import os
 
 enum Logger {
     /// The unified-log subsystem for every Zonogy log line and signpost (also the bundle identifier).
     static let subsystem = "com.dsemeas.zonogy"
+
+    /// Whether `\(private:)` values appear in log lines. Read on any thread, whenever such a line is built.
+    @ThreadSafe static var includesPrivateValues = DebugPreferencesStore.loadPrivateValueLoggingEnabled()
 
     /// The everything log. Info level: macOS keeps it in memory and purges it as its buffers fill.
     /// Read it while it lasts with the time-travel capture, `log stream`, or `log show --info`.
@@ -74,5 +79,14 @@ enum Logger {
     private static func category(forFile fileID: String) -> String {
         let fileName = fileID.split(separator: "/").last.map(String.init) ?? fileID
         return fileName.hasSuffix(".swift") ? String(fileName.dropLast(".swift".count)) : fileName
+    }
+}
+
+extension DefaultStringInterpolation {
+    /// A window title, file name, path, or link in a log line: the value itself while
+    /// `Logger.includesPrivateValues`, otherwise `<private>`, as the `log` tool shows redacted values,
+    /// so the log does not reveal what the user is working on. An empty value stays empty.
+    mutating func appendInterpolation(private value: String) {
+        appendLiteral(value.isEmpty || Logger.includesPrivateValues ? value : "<private>")
     }
 }

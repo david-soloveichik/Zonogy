@@ -136,7 +136,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didSelectWindow window: LauncherWindowItem) {
-        Logger.debug("DockMenus: window selected \(window.title)")
+        Logger.debug("DockMenus: window selected \(private: window.title)")
         if shouldDockMenusRetargetForWindowSelection(window) {
             retargetDockMenusToActiveWindowIfNeeded(reason: "dockmenu-window-selection")
         }
@@ -159,7 +159,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     // MARK: - Drag-and-Drop
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didBeginDragForWindow window: LauncherWindowItem, appURL: URL) {
-        Logger.debug("DockMenus: drag began for window \(window.title)")
+        Logger.debug("DockMenus: drag began for window \(private: window.title)")
         launcherController.hide()
         // Begin in window-drag mode; the drop handler checks Option state and may switch
         // to a new-window action using `appURL`.
@@ -172,7 +172,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     }
 
     func dockMenusCoordinator(_ coordinator: DockMenusCoordinator, didEndDragForWindow window: LauncherWindowItem, appURL: URL, cursorPointAX: CGPoint?) {
-        Logger.debug("DockMenus: drag ended for window \(window.title)")
+        Logger.debug("DockMenus: drag ended for window \(private: window.title)")
         if NSEvent.modifierFlags.contains(.option) {
             Logger.debug("DockMenus: Option held at drop — switching to new-window for \(appURL.lastPathComponent)")
             _ = performCursorDrivenNewWindowDrop(

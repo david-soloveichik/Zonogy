@@ -11,7 +11,7 @@ extension AppController: CmdTabControllerDelegate {
             Logger.debug("CmdTab: Cancelled")
             restoreCmdTabOriginalTargetIfNeeded(reason: "cmdtab-cancelled")
         case .selected(let window):
-            Logger.debug("CmdTab: Selected \(window.title)")
+            Logger.debug("CmdTab: Selected \(private: window.title)")
             // Reuse the Launcher's window selection logic. What it actually did (activate in
             // place, or place — a window parked behind a full-screen Space is placed like a
             // minimized one) decides whether the tentative target commits or is restored, so
@@ -51,7 +51,7 @@ extension AppController: CmdTabControllerDelegate {
         // The CmdTab UI is being torn down; end the key interceptor's session so a later modifier
         // release does not try to activate a window in a destroyed session.
         endCmdTabEngagement()
-        Logger.debug("CmdTab: drag began for window \(window.title)")
+        Logger.debug("CmdTab: drag began for window \(private: window.title)")
         return true
     }
 
@@ -68,7 +68,7 @@ extension AppController: CmdTabControllerDelegate {
     }
 
     func cmdTabController(_ controller: CmdTabController, didEndDragForWindow window: LauncherWindowItem, cursorPointAX: CGPoint?) -> Bool {
-        Logger.debug("CmdTab: drag ended for window \(window.title)")
+        Logger.debug("CmdTab: drag ended for window \(private: window.title)")
         return performCursorDrivenManagedWindowDrop(
             for: window,
             cursorPointAX: cursorPointAX,

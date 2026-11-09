@@ -3,6 +3,7 @@ import Foundation
 
 enum DebugPreferencesStore {
     private static let defaultLogFileEnabled = false
+    private static let defaultPrivateValueLoggingEnabled = false
     private static let defaultDockMenusOverlayEnabled = false
     private static let defaultFullScreenOverlayEnabled = false
     private static let defaultNotificationOverlayEnabled = false
@@ -17,6 +18,17 @@ enum DebugPreferencesStore {
 
     static func saveLogFileEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.logFileEnabled)
+    }
+
+    static func loadPrivateValueLoggingEnabled() -> Bool {
+        loadBool(
+            forKey: UserDefaultsKeys.privateValueLoggingEnabled,
+            defaultValue: defaultPrivateValueLoggingEnabled
+        )
+    }
+
+    static func savePrivateValueLoggingEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.privateValueLoggingEnabled)
     }
 
     static func loadDockMenusOverlayEnabled() -> Bool {

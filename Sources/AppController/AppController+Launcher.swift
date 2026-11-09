@@ -403,12 +403,12 @@ extension AppController: LauncherControllerDelegate {
             guard beginCursorDrivenWindowDrag(for: window) else {
                 return nil
             }
-            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            Logger.debug("Launcher: drag began for payload \(private: payload.previewTitle)")
             return payload
         case .application(let item):
             if let preferredWindow = preferredDragWindowItem(forAppURL: item.url, placedMainWindowYields: true) {
                 if beginCursorDrivenWindowDrag(for: preferredWindow) {
-                    Logger.debug("Launcher: drag began for payload \(preferredWindow.title)")
+                    Logger.debug("Launcher: drag began for payload \(private: preferredWindow.title)")
                     // Resolve to a managedWindow drag, but carry the originating app URL so
                     // an Option-held drop can switch to a new-window action without having
                     // to rediscover the URL from the window's bundle identifier.
@@ -417,11 +417,11 @@ extension AppController: LauncherControllerDelegate {
             }
 
             beginCursorDrivenLaunchTargetDrag()
-            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            Logger.debug("Launcher: drag began for payload \(private: payload.previewTitle)")
             return payload
         case .launchableItem:
             beginCursorDrivenLaunchTargetDrag(zoneDropPolicy: .emptyZonesOnlyUnlessGestureModifiers)
-            Logger.debug("Launcher: drag began for payload \(payload.previewTitle)")
+            Logger.debug("Launcher: drag began for payload \(private: payload.previewTitle)")
             return payload
         }
     }
@@ -436,7 +436,7 @@ extension AppController: LauncherControllerDelegate {
     }
 
     func launcherController(_ controller: LauncherController, didEndDrag payload: LauncherDragPayload, cursorPointAX: CGPoint?) -> Bool {
-        Logger.debug("Launcher: drag ended for payload \(payload.previewTitle)")
+        Logger.debug("Launcher: drag ended for payload \(private: payload.previewTitle)")
 
         let optionHeldAtDrop = NSEvent.modifierFlags.contains(.option)
 
@@ -609,7 +609,7 @@ extension AppController: LauncherControllerDelegate {
 
     func launcherController(_ controller: LauncherController, didOpenFileOrFolder url: URL) {
         if !NSWorkspace.shared.open(url) {
-            Logger.error("Launcher: Failed to open \(url.path)")
+            Logger.error("Launcher: Failed to open \(private: url.path)")
         }
     }
 

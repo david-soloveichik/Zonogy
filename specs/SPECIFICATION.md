@@ -493,6 +493,8 @@ Zonogy logs through the macOS unified logging system (subsystem `com.dsemeas.zon
 - The normal trace is at level Info, which macOS holds in memory only and purges as its buffers fill (minutes).
 - Events worth finding later are at the Default and Error levels, which macOS keeps on disk until its store is full (days-weeks): unexpected failures (a minimize the application rejected, a shortcut that could not be registered) and countable events such as accessibility calls that took too long (category `SlowAX`).
 
+Window titles and the files and links the user opens through Zonogy appear in the log as `<private>` unless the Debug tab's "Include window titles and file names in the log" toggle (off by default) is on. This keeps what the user is working on out of a log that other software can read and that may be attached to a bug report.
+
 Read it with the `log` command in Terminal. It shows Default and above unless the info option is given, so drop `--info` to see only the persisted levels:
 
 - Live trace: `log stream --level info --predicate 'subsystem == "com.dsemeas.zonogy"'`

@@ -118,7 +118,7 @@ struct WinShotSnapshot {
                     ", rememberedSize=\($0)"
                 } ?? ""
                 Logger.debug(
-                    "\(prefix) zone \(index): windowId=\(identity.windowId), bundle=\(bundle), title=\(title), frame=\(frame)\(rememberedSizeDescription)"
+                    "\(prefix) zone \(index): windowId=\(identity.windowId), bundle=\(bundle), title=\(private: title), frame=\(frame)\(rememberedSizeDescription)"
                 )
             } else {
                 Logger.debug("\(prefix) zone \(index): empty, frame=\(frame)")
@@ -130,7 +130,7 @@ struct WinShotSnapshot {
             let title = floatingOccupant.windowTitle ?? "untitled"
             let frameStr = floatingZoneFrame.map { "\($0)" } ?? "nil"
             Logger.debug(
-                "\(prefix) floating-zone: windowId=\(floatingOccupant.windowId), bundle=\(bundle), title=\(title), frame=\(frameStr)"
+                "\(prefix) floating-zone: windowId=\(floatingOccupant.windowId), bundle=\(bundle), title=\(private: title), frame=\(frameStr)"
             )
         } else {
             Logger.debug("\(prefix) floating-zone: empty")
@@ -145,7 +145,7 @@ struct WinShotSnapshot {
             let bundle = identity.bundleIdentifier ?? "unknown"
             let title = identity.windowTitle ?? "untitled"
             Logger.debug(
-                "\(prefix) activeWindowId=\(activeId) (zone \(zoneIndex), bundle=\(bundle), title=\(title))"
+                "\(prefix) activeWindowId=\(activeId) (zone \(zoneIndex), bundle=\(bundle), title=\(private: title))"
             )
             return
         }
@@ -154,7 +154,7 @@ struct WinShotSnapshot {
             let bundle = floatingOccupant.bundleIdentifier ?? "unknown"
             let title = floatingOccupant.windowTitle ?? "untitled"
             Logger.debug(
-                "\(prefix) activeWindowId=\(activeId) (floating-zone, bundle=\(bundle), title=\(title))"
+                "\(prefix) activeWindowId=\(activeId) (floating-zone, bundle=\(bundle), title=\(private: title))"
             )
             return
         }

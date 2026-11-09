@@ -63,7 +63,7 @@ final class DockMenuPanelController: NSObject {
 
         viewModel.onWindowSelected = { [weak self] window in
             guard let self else { return }
-            Logger.debug("DockMenuPanelController: window selected \(window.title)")
+            Logger.debug("DockMenuPanelController: window selected \(private: window.title)")
             self.delegate?.dockMenuPanelController(self, didSelectWindow: window)
         }
 
@@ -75,7 +75,7 @@ final class DockMenuPanelController: NSObject {
 
         viewModel.onWindowDragStart = { [weak self] window in
             guard let self, let appURL = self.currentAppURL else { return }
-            Logger.debug("DockMenuPanelController: drag started for window \(window.title)")
+            Logger.debug("DockMenuPanelController: drag started for window \(private: window.title)")
             self.delegate?.dockMenuPanelController(self, didBeginDragForWindow: window, appURL: appURL)
         }
 

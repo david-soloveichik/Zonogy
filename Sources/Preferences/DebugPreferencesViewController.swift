@@ -3,6 +3,7 @@ import AppKit
 
 final class DebugPreferencesViewController: NSViewController {
     private var logFileCheckbox: NSButton?
+    private var privateValueLoggingCheckbox: NSButton?
     private var dockOverlayCheckbox: NSButton?
     private var fullScreenOverlayCheckbox: NSButton?
     private var notificationOverlayCheckbox: NSButton?
@@ -28,6 +29,13 @@ final class DebugPreferencesViewController: NSViewController {
             action: #selector(logFileToggled(_:))
         )
         logFileCheckbox = logFile.checkbox
+        let privateValueLogging = makeToggle(
+            title: "Include window titles and file names in the log",
+            hint: "When off, window titles and the files and links you open appear in the log as <private>, "
+                + "so the log does not reveal what you are working on.",
+            action: #selector(privateValueLoggingToggled(_:))
+        )
+        privateValueLoggingCheckbox = privateValueLogging.checkbox
         let dockOverlay = makeToggle(
             title: "Show Dock debug rectangle",
             hint: "Shows a blue rectangle around the Dock frame used by DockMenus.",
@@ -74,7 +82,7 @@ final class DebugPreferencesViewController: NSViewController {
         // The toggles scroll between the fixed title above and the fixed log section below.
         let toggleDocument = FlippedView()
         toggleDocument.translatesAutoresizingMaskIntoConstraints = false
-        let toggles = [logFile, dockOverlay, fullScreenOverlay, notificationOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
+        let toggles = [logFile, privateValueLogging, dockOverlay, fullScreenOverlay, notificationOverlay, showPassThroughHoles, disablePrePosition, disableNativeTabs, highlightImplicitFloatingTarget]
         var previousBottom = toggleDocument.topAnchor
         for (index, toggle) in toggles.enumerated() {
             toggleDocument.addSubview(toggle.view)
@@ -293,6 +301,12 @@ final class DebugPreferencesViewController: NSViewController {
         syncControls()
     }
 
+    @objc private func privateValueLoggingToggled(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppController.shared.setPrivateValueLoggingEnabledFromSettings(enabled)
+        syncControls()
+    }
+
     @objc private func dockOverlayToggled(_ sender: NSButton) {
         let enabled = sender.state == .on
         AppController.shared.setDockMenusDebugOverlayEnabledFromSettings(enabled)
@@ -337,6 +351,7 @@ final class DebugPreferencesViewController: NSViewController {
 
     private func syncControls() {
         logFileCheckbox?.state = AppController.shared.isLogFileEnabledInSettings ? .on : .off
+        privateValueLoggingCheckbox?.state = AppController.shared.isPrivateValueLoggingEnabledInSettings ? .on : .off
         dockOverlayCheckbox?.state = AppController.shared.isDockMenusDebugOverlayEnabledInSettings ? .on : .off
         fullScreenOverlayCheckbox?.state = AppController.shared.isFullScreenDebugOverlayEnabledInSettings ? .on : .off
         notificationOverlayCheckbox?.state = AppController.shared.isNotificationDebugOverlayEnabledInSettings ? .on : .off

@@ -13,7 +13,7 @@ final class BrowserLaunchController {
 
     func openNewWindow(with url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-            Logger.debug("Browser launch requested for non-web URL \(url.absoluteString)")
+            Logger.debug("Browser launch requested for non-web URL \(private: url.absoluteString)")
             return workspace.open(url)
         }
 
@@ -115,7 +115,9 @@ final class BrowserLaunchController {
         var errorDict: NSDictionary?
         script.executeAndReturnError(&errorDict)
         if let errorDict {
-            Logger.error("AppleScript execution failed: \(errorDict)")
+            // The error's message can quote the script, and with it the link.
+            let number = errorDict[NSAppleScript.errorNumber] ?? "unknown"
+            Logger.error("AppleScript execution failed with error \(number): \(private: errorDict.description)")
             return false
         }
         return true

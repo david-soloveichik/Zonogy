@@ -92,7 +92,7 @@ extension WindowController {
            let bundleId = app.bundleIdentifier {
             let excludedTitles = applicationExceptionPolicy.excludedWindowTitles(forBundleIdentifier: bundleId)
             if excludedTitles.contains(windowTitle) {
-                Logger.debug("\(contextPrefix): Window title '\(windowTitle)' is excluded for bundle \(bundleId)")
+                Logger.debug("\(contextPrefix): Window title '\(private: windowTitle)' is excluded for bundle \(bundleId)")
                 return false
             }
         }

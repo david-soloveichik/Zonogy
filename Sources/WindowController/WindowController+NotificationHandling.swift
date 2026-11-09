@@ -384,7 +384,7 @@ extension WindowController {
         var windowTitle = "unknown"
         if AXCall.copyAttribute(element, kAXTitleAttribute as CFString, &titleValue) == .success,
            let title = titleValue as? String {
-            windowTitle = title.isEmpty ? "(empty title)" : title
+            windowTitle = title.isEmpty ? "(empty title)" : "\(private: title)"
         }
 
         Logger.debug("AXWindowCreated notification received for pid \(pid), window title: \(windowTitle)")

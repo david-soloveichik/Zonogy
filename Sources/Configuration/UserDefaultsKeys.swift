@@ -34,6 +34,7 @@ enum UserDefaultsKeys {
 
     // MARK: - Debug
     static let logFileEnabled = "Zonogy.debug.logFileEnabled"
+    static let privateValueLoggingEnabled = "Zonogy.debug.privateValueLoggingEnabled"
     static let dockMenusDebugOverlay = "Zonogy.dockMenus.debugOverlay"
     static let fullScreenDebugOverlay = "Zonogy.fullScreen.debugOverlay"
     static let notificationDebugOverlay = "Zonogy.notifications.debugOverlay"

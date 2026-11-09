@@ -6,6 +6,10 @@ extension AppController {
         DebugPreferencesStore.loadLogFileEnabled()
     }
 
+    internal var isPrivateValueLoggingEnabledInSettings: Bool {
+        DebugPreferencesStore.loadPrivateValueLoggingEnabled()
+    }
+
     internal var isShowPlaceholderPassThroughHolesInSettings: Bool {
         DebugPreferencesStore.loadShowPlaceholderPassThroughHoles()
     }
@@ -27,6 +31,12 @@ extension AppController {
         DebugPreferencesStore.saveLogFileEnabled(enabled)
         LogFile.setEnabled(enabled)
         Logger.debug("Debug: save the log to a file=\(enabled)")
+    }
+
+    internal func setPrivateValueLoggingEnabledFromSettings(_ enabled: Bool) {
+        Logger.debug("Debug: include window titles and file names in the log=\(enabled)")
+        DebugPreferencesStore.savePrivateValueLoggingEnabled(enabled)
+        Logger.includesPrivateValues = enabled
     }
 
     internal func setShowPlaceholderPassThroughHolesFromSettings(_ enabled: Bool) {

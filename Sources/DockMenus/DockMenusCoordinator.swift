@@ -102,7 +102,7 @@ final class DockMenusCoordinator {
             guard let self else { return }
             switch payload {
             case .appWindow(let window, let appURL):
-                Logger.debug("DockMenusCoordinator: drag began for window \(window.title) (app \(appURL.lastPathComponent))")
+                Logger.debug("DockMenusCoordinator: drag began for window \(private: window.title) (app \(appURL.lastPathComponent))")
                 self.delegate?.dockMenusCoordinator(self, didBeginDragForWindow: window, appURL: appURL)
             case .dockApp:
                 Logger.debug("DockMenusCoordinator: dock-app drag began")
@@ -117,7 +117,7 @@ final class DockMenusCoordinator {
             guard let self else { return }
             switch payload {
             case .appWindow(let window, let appURL):
-                Logger.debug("DockMenusCoordinator: drag session ended for window \(window.title) (app \(appURL.lastPathComponent))")
+                Logger.debug("DockMenusCoordinator: drag session ended for window \(private: window.title) (app \(appURL.lastPathComponent))")
                 self.delegate?.dockMenusCoordinator(self, didEndDragForWindow: window, appURL: appURL, cursorPointAX: cursorPointAX)
             case .dockApp(let appURL):
                 Logger.debug("DockMenusCoordinator: drag session ended for dock app \(appURL.lastPathComponent)")
@@ -128,7 +128,7 @@ final class DockMenusCoordinator {
             guard let self else { return }
             switch payload {
             case .appWindow(let window, let appURL):
-                Logger.debug("DockMenusCoordinator: drag cancelled for window \(window.title) (app \(appURL.lastPathComponent))")
+                Logger.debug("DockMenusCoordinator: drag cancelled for window \(private: window.title) (app \(appURL.lastPathComponent))")
             case .dockApp(let appURL):
                 Logger.debug("DockMenusCoordinator: drag cancelled for dock app \(appURL.lastPathComponent)")
             }

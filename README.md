@@ -23,6 +23,7 @@ Zonogy divides each display into persistent tiling zones plus a floating zone. A
 - [Per-App Exceptions](#per-app-exceptions)
 - [Additional Suggestions](#additional-suggestions)
 - [Performance](#performance)
+- [Privacy](#privacy)
 - [Development](#development)
 - [History](#history)
 
@@ -163,6 +164,15 @@ Zonogy is designed to add negligible CPU cost and not to delay other apps:
 - **Sparing use of the Accessibility API.** Every window query is unavoidably a round trip to the target app, waking it. To minimize impact, Zonogy caches what it has recently learned, and skips queries whose answer cannot matter.
 - **High-frequency events are throttled.** Mouse drags, zone resizing, and bursts of display and window notifications are batched rather than handled event by event, so Zonogy's work stays bounded no matter how fast the events arrive.
 - **Cheap logging.** Zonogy logs through the macOS efficient unified logging system.
+
+## Privacy
+
+Zonogy has no analytics, telemetry, or accounts.
+
+- **Network:** Zonogy's only automatic request is the update check, which asks GitHub for the latest release (GitHub sees your IP address and Zonogy's version). Turn it off in *Preferences* > *General*.
+- **Permissions:** Accessibility lets Zonogy read and arrange windows (their titles appear in the Launcher, CmdTab, and DockMenus) and watch for its shortcuts; it never records what you type in other apps. Screen Recording is used only for WinShot thumbnails, which stay in memory only. Automation is used only to open a dropped link in a new browser window.
+- **Stored locally:** settings, per-app exceptions, and Launcher history (your searches, what you picked, and recently used apps, used for ranking), in `~/Library/Application Support/Zonogy` and Zonogy's preferences.
+- **Logs:** Zonogy logs through the macOS unified log, which keeps most lines in memory for minutes and failures on disk for days. The log names apps, but window titles and the files and links you open through Zonogy appear as `<private>` unless you turn them on in *Preferences* > *Debug*.
 
 ## Development
 

@@ -187,7 +187,7 @@ extension AppController {
             }
 
             Logger.debug(
-                "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(windowTitle))"
+                "minimizeWindowOrRemoveZoneAtCursor: Minimizing window \(managed.windowId) from pid \(pid) (\(private: windowTitle))"
             )
 
             // Exit UnderCovers on the screen where this window lives, if applicable.

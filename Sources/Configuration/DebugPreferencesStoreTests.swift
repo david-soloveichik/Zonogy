@@ -21,6 +21,12 @@ enum DebugPreferencesStoreTests {
                 DebugPreferencesStore.saveLogFileEnabled
             ),
             (
+                "include window titles and file names in the log",
+                UserDefaultsKeys.privateValueLoggingEnabled,
+                DebugPreferencesStore.loadPrivateValueLoggingEnabled,
+                DebugPreferencesStore.savePrivateValueLoggingEnabled
+            ),
+            (
                 "disable native tab handling",
                 UserDefaultsKeys.disableNativeTabHandling,
                 DebugPreferencesStore.loadDisableNativeTabHandling,

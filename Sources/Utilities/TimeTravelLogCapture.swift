@@ -67,9 +67,16 @@ enum TimeTravelLogCapture {
         // Drain before waiting, or a large capture fills the pipe and the tool never exits.
         let logText = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
-        do {
-            try (header + logText + footer).write(toFile: outputPath, atomically: true, encoding: .utf8)
-        } catch {
+        // Private to the user before anything is written, like the log file (every account on the Mac
+        // shares /tmp), and never through a symlink someone else left at the path.
+        let descriptor = open(outputPath, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0o600)
+        guard descriptor >= 0 else { return false }
+        defer { close(descriptor) }
+        // Opening keeps an existing file's permissions, which an earlier capture may have left open.
+        guard fchmod(descriptor, 0o600) == 0 else { return false }
+        var text = header + logText + footer
+        let byteCount = text.utf8.count
+        guard text.withUTF8({ Darwin.write(descriptor, $0.baseAddress, $0.count) }) == byteCount else {
             return false
         }
         return process.terminationStatus == 0
