@@ -1,9 +1,14 @@
 import AppKit
 
-/// Bridges gesture-modifier external drags over tiling windows and placeholders into zone placeholder behavior.
+/// Bridges gesture-modifier external drags over tiling windows and placeholders into zone placeholder behavior,
+/// and passes Shift external drags through the placeholders.
 extension AppController {
     var isManagedWindowDragInProgress: Bool {
         dragDropCoordinator.isDragging || floatingDragHandler.isActive
+    }
+
+    func setPlaceholderExternalDragPassThrough(_ enabled: Bool) {
+        placeholderCoordinator.setExternalDragPassThrough(enabled)
     }
 
     func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool {

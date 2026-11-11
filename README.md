@@ -96,6 +96,7 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 | Hold `Control-Cmd` during window drag | Promote between tiled and floating zone |
 | Drag file or URL → empty zone or New Zone Bar | Open it there in the default app |
 | Hold `Control-Cmd` during file or URL drag | Replace zone occupant with the dragged item opened in default app |
+| Hold `Shift` during file or URL drag | Drop onto the desktop behind an empty zone (e.g. to move a desktop icon) |
 | Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |
 | Hold `Option` while dragging a Dock icon, DockMenu window, or Launcher app row | Drop on a zone opens a new document/window of that app there (as if `Cmd-N` pressed) |
 

@@ -327,6 +327,8 @@ Dragging external content over an empty-zone placeholder shows the same blue zon
 
 Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-display zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
 
+Holding Shift during an external drag makes placeholders let the drag pass through to whatever is beneath them. This allows, for example, moving a desktop icon to a spot covered by a placeholder, where the drop would otherwise open the file in that zone.
+
 **Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on an add-zone indicator first creates the new zone on that indicator's side, targets the lowest-index empty tiling zone on that display, and then opens the file the same way.
 
 **URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.

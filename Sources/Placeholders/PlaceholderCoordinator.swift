@@ -165,6 +165,13 @@ final class PlaceholderCoordinator {
         }
     }
 
+    /// Let an external drag pass through every active placeholder to whatever is beneath it.
+    func setExternalDragPassThrough(_ enabled: Bool) {
+        for placeholder in activePlaceholders.values {
+            placeholder.setExternalDragPassThrough(enabled)
+        }
+    }
+
     /// Flash the border of the placeholder for the given zone key, if it exists.
     func flashPlaceholderBorder(for key: ZoneKey) {
         activePlaceholders[key]?.flashBorder()

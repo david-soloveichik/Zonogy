@@ -1,6 +1,7 @@
 import AppKit
 
-/// Tracks gesture-modifier external drags over managed tiling zones and presents zone overlays.
+/// Tracks gesture-modifier external drags over managed tiling zones and presents zone overlays,
+/// and lets Shift pass an external drag through the placeholders.
 protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDelegate {
     var isManagedWindowDragInProgress: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
@@ -13,6 +14,7 @@ protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDele
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?)
     func resetObservedPlaceholderExternalDrag(reason: String)
     func resetExternalDragSourceBundleIdentifier(reason: String)
+    func setPlaceholderExternalDragPassThrough(_ enabled: Bool)
     func updateExternalDragEdgePillHover(cursorPoint: CGPoint?)
     func performEdgePillExternalDropRescueIfNeeded(cursorPoint: CGPoint?)
 }
@@ -20,6 +22,8 @@ protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDele
 final class ExternalZoneDropInterceptor {
     private enum Constants {
         static let monitoredEvents: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp, .flagsChanged]
+        /// Marks the drag event that replays the cursor position (see `replayCursorPosition`).
+        static let cursorReplayEventMarker: Int64 = 0x5A4E475A
     }
 
     weak var host: ExternalZoneDropInterceptorHost?
@@ -34,6 +38,8 @@ final class ExternalZoneDropInterceptor {
     private let dragPasteboard = NSPasteboard(name: .drag)
     private var dragSession: ExternalDragSessionTracker
     private var isDrivingEdgePillHover = false
+    /// True while Shift is letting the external drag through the placeholders.
+    private var isPassingThroughPlaceholders = false
     /// Installed only while a live external drag is being driven: Escape cancels the drag
     /// session at the AppKit level with the button still down, and without observing it the
     /// hover state (and worse, the drop rescue) would outlive the cancelled session.
@@ -75,6 +81,7 @@ final class ExternalZoneDropInterceptor {
         if isDrivingEdgePillHover {
             stopDrivingEdgePillHover()
         }
+        setPlaceholderPassThrough(false)
         tearDownOverlays()
         host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-interceptor-stop")
         host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-interceptor-stop")
@@ -93,7 +100,10 @@ final class ExternalZoneDropInterceptor {
                 pendingMouseUpTearDownWorkItem = nil
                 finishGesture()
             }
-            refreshInterceptionState(allowBeginInterception: true)
+            // Only a real move may begin interception; a replayed cursor position is not one.
+            let isCursorReplay = event.cgEvent?.getIntegerValueField(.eventSourceUserData)
+                == Constants.cursorReplayEventMarker
+            refreshInterceptionState(allowBeginInterception: !isCursorReplay)
         case .flagsChanged:
             refreshInterceptionState(allowBeginInterception: false)
         case .leftMouseUp:
@@ -123,6 +133,16 @@ final class ExternalZoneDropInterceptor {
         }
         let cursorPoint = host?.currentCursorAccessibilityPoint()
         refreshEdgePillHover(isButtonDown: isButtonDown, cursorPoint: cursorPoint)
+
+        if setPlaceholderPassThrough(shouldPassThroughPlaceholders(isButtonDown: isButtonDown)) {
+            replayCursorPosition()
+        }
+        if isPassingThroughPlaceholders {
+            // The placeholders are not destinations now, so no zone overlay may claim otherwise.
+            tearDownOverlays()
+            host?.suspendPlaceholderExternalDragOverlay(reason: "shift-pass-through")
+            return
+        }
 
         // Free checks first; the pasteboard was consulted, if at all, by the tracker above.
         guard let host,
@@ -164,6 +184,50 @@ final class ExternalZoneDropInterceptor {
 
         host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
         overlayManager.updateHighlight(to: interceptedZoneKey)
+    }
+
+    /// Shift lets an external drag, whatever its content, through the placeholders to whatever is
+    /// beneath them, such as the desktop. The gesture modifiers may include Shift, so they take
+    /// precedence.
+    private func shouldPassThroughPlaceholders(isButtonDown: Bool) -> Bool {
+        guard isButtonDown, dragSession.hasSession else {
+            return false
+        }
+        let modifiers = NSEvent.modifierFlags
+        return modifiers.contains(.shift)
+            && !modifiers.contains(ModifierCombinationPreferences.mouseGestures.modifiers.nsEventFlags)
+    }
+
+    /// Returns true when the pass-through changed.
+    @discardableResult
+    private func setPlaceholderPassThrough(_ enabled: Bool) -> Bool {
+        guard isPassingThroughPlaceholders != enabled else {
+            return false
+        }
+        isPassingThroughPlaceholders = enabled
+        Logger.debug("External drag pass-through of placeholders \(enabled ? "began" : "ended")")
+        host?.setPlaceholderExternalDragPassThrough(enabled)
+        return true
+    }
+
+    /// A drag re-resolves its destination only when the cursor moves, so one held still would keep
+    /// the destination it had. Replays the cursor position as a drag event once the window server
+    /// has caught up with the placeholders' change.
+    private func replayCursorPosition() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard MouseButtons.isLeftMouseButtonDown(),
+                  let cursorPoint = self?.host?.currentCursorAccessibilityPoint(),
+                  let event = CGEvent(
+                      mouseEventSource: nil,
+                      mouseType: .leftMouseDragged,
+                      mouseCursorPosition: cursorPoint,
+                      mouseButton: .left
+                  ) else {
+                return
+            }
+            event.setIntegerValueField(.eventSourceUserData, value: Constants.cursorReplayEventMarker)
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     /// Drives edge-pill (add-zone + floating) drag hover from the monitor's precise cursor
@@ -258,6 +322,7 @@ final class ExternalZoneDropInterceptor {
         if isDrivingEdgePillHover {
             stopDrivingEdgePillHover()
         }
+        setPlaceholderPassThrough(false)
         tearDownOverlays()
         host?.suspendPlaceholderExternalDragOverlay(reason: "external-zone-drop-mouse-up")
         host?.resetObservedPlaceholderExternalDrag(reason: "external-zone-drop-mouse-up")

@@ -83,6 +83,11 @@ final class PlaceholderWindow {
         return contentView.setPassThroughHoles(viewRects)
     }
 
+    /// Let an external drag pass through this placeholder to whatever is beneath it.
+    func setExternalDragPassThrough(_ enabled: Bool) {
+        contentView?.passesExternalDragsThrough = enabled
+    }
+
     /// Re-apply the hit-test background fill after the pass-through debug setting changes.
     func refreshPassThroughDebugFill() {
         contentView?.refreshHitTestFillColor()

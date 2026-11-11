@@ -481,12 +481,29 @@ final class PlaceholderContentView: NSView {
 
     /// Pass-through hole rects in view coordinates.
     private var passThroughHoles: [CGRect] = []
-    private var isDropHighlighted = false {
+
+    /// While set, an external drag passes through the placeholder to whatever is beneath it:
+    /// the interior stops catching the cursor, and the border and controls decline the drop.
+    /// (The panel's `ignoresMouseEvents` cannot do this: once it has been set, even back to
+    /// false, a window stops passing the cursor through its transparent pixels, which the
+    /// pass-through holes rely on.)
+    var passesExternalDragsThrough = false {
         didSet {
-            if isDropHighlighted != oldValue {
+            hitTestBackgroundLayer.isHidden = passesExternalDragsThrough
+            updateBorderAppearance()
+        }
+    }
+
+    /// True while a drag this placeholder can accept is over it.
+    private var isAcceptableDragInside = false {
+        didSet {
+            if isAcceptableDragInside != oldValue {
                 updateBorderAppearance()
             }
         }
+    }
+    private var isDropHighlighted: Bool {
+        isAcceptableDragInside && !passesExternalDragsThrough
     }
     var isTargeted: Bool = false {
         didSet {
@@ -528,10 +545,12 @@ final class PlaceholderContentView: NSView {
     private func setUpHitTestBackgroundLayer() {
         hitTestBackgroundLayer.fillColor = Self.hitTestFillColor
         hitTestBackgroundLayer.strokeColor = nil
-        // Disable implicit animations: an animating path would briefly hit-test stale
-        // geometry, and the debug fill toggle should switch instantly, not crossfade.
+        // Disable implicit animations: an animating path or a fading hide would briefly
+        // hit-test stale geometry, and the debug fill toggle should switch instantly, not
+        // crossfade.
         hitTestBackgroundLayer.actions = [
             "path": NSNull(),
+            "hidden": NSNull(),
             "fillColor": NSNull(),
             "bounds": NSNull(),
             "position": NSNull()
@@ -619,10 +638,10 @@ final class PlaceholderContentView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard ExternalDropParser.canAccept(sender) else {
+        isAcceptableDragInside = ExternalDropParser.canAccept(sender)
+        guard isDropHighlighted else {
             return []
         }
-        isDropHighlighted = true
         manager?.handlePlaceholderExternalDragEntered(screenId: screenId, zoneIndex: zoneIndex)
         return .copy
     }
@@ -635,12 +654,12 @@ final class PlaceholderContentView: NSView {
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
-        isDropHighlighted = false
+        isAcceptableDragInside = false
         manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
-        isDropHighlighted = false
+        isAcceptableDragInside = false
         manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
     }
 
@@ -649,7 +668,7 @@ final class PlaceholderContentView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        isDropHighlighted = false
+        isAcceptableDragInside = false
         manager?.handlePlaceholderExternalDragExited(screenId: screenId, zoneIndex: zoneIndex)
         return manager?.handlePlaceholderExternalDrop(
             screenId: screenId,
