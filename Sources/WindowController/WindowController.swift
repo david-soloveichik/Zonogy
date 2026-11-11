@@ -69,6 +69,8 @@ class WindowController {
     internal var manualDragBlockedUntilMouseUp = false
     internal var mouseUpMonitor: Any?
     internal var mouseUpGlobalMonitor: Any?
+    /// The action waiting for the left mouse button's release (see `performAtLeftMouseUpIfHeld`).
+    internal var leftMouseUpAction: (() -> Void)?
     /// Primary display bounds for Cocoa<->Accessibility conversion (cursor/drag mapping).
     /// Refreshed by AppController on screen-topology changes so it tracks resolution changes.
     internal var primaryScreenBounds: CGRect
@@ -151,12 +153,30 @@ class WindowController {
 
     internal func updateMouseUpGlobalMonitorInstallation() {
         let needsGlobalMonitor = dragCandidate != nil || currentDraggingWindowId != nil
-            || manualDragBlockedUntilMouseUp
+            || manualDragBlockedUntilMouseUp || leftMouseUpAction != nil
         if needsGlobalMonitor {
             installMouseUpGlobalMonitorIfNeeded()
         } else {
             tearDownMouseUpGlobalMonitorIfNeeded()
         }
+    }
+
+    /// While the left mouse button is held, keeps `action` to run once at its release (replacing any
+    /// action already waiting) and returns true; returns false, keeping nothing, when the button is
+    /// up. The button is checked again once the release monitor is installed, so a release in between
+    /// cannot leave `action` waiting for the next click.
+    internal func performAtLeftMouseUpIfHeld(_ action: @escaping () -> Void) -> Bool {
+        guard MouseButtons.isLeftMouseButtonDown() else {
+            return false
+        }
+        leftMouseUpAction = action
+        updateMouseUpGlobalMonitorInstallation()
+        guard MouseButtons.isLeftMouseButtonDown() else {
+            leftMouseUpAction = nil
+            updateMouseUpGlobalMonitorInstallation()
+            return false
+        }
+        return true
     }
 
     private func installMouseUpGlobalMonitorIfNeeded() {

@@ -78,6 +78,18 @@ extension AppController {
             return
         }
 
+        // The click that made the window active may still be held, and some apps (Spotify, for one,
+        // when clicked in its draggable title area) put the window back where it was when that click
+        // is released after the reveal. So evaluate once the button is released, for whichever
+        // window is active then.
+        let awaitsMouseUp = windowController.performAtLeftMouseUpIfHeld { [weak self] in
+            self?.handleActiveFitActivationCandidate(pid: NSWorkspace.shared.frontmostApplication?.processIdentifier)
+        }
+        if awaitsMouseUp {
+            Logger.debug("ActiveFit: reveal evaluation for window \(managed.windowId) waits for mouse up")
+            return
+        }
+
         evaluateRevealModeIfNeeded(for: managed, screenId: screenId, zoneIndex: zoneIndex, reason: "focus-change")
     }
 

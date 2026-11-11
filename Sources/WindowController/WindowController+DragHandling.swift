@@ -104,6 +104,10 @@ extension WindowController {
 
     internal func handleMouseUp() {
         defer {
+            // After the gesture's own bookkeeping below, so the action sees its outcome.
+            let action = leftMouseUpAction
+            leftMouseUpAction = nil
+            action?()
             updateMouseUpGlobalMonitorInstallation()
         }
         manualDragBlockedUntilMouseUp = false
