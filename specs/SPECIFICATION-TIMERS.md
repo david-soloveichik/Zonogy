@@ -153,7 +153,7 @@ See [SPECIFICATION-WAKE.md](SPECIFICATION-WAKE.md).
 
 | Timer | Duration | Mechanism | File | Purpose |
 |-------|----------|-----------|------|---------|
-| **Accessibility permission polling** | 1.0s repeating with 0.5s tolerance | `Timer.scheduledTimer` | `GeneralPreferencesViewController.swift` | No notification exists for accessibility/screen-recording permission changes. Polls every 1s while the Preferences General tab is open to update the UI, with timer tolerance so macOS can coalesce wakeups. |
+| **Accessibility permission polling** | 1.0s repeating with 0.5s tolerance | `Timer.scheduledTimer` | `PermissionBannersView.swift` | No notification exists for accessibility/screen-recording permission changes. Polls every 1s while the Preferences General tab or the Welcome tour's Permissions page is open to update the UI, with timer tolerance so macOS can coalesce wakeups. |
 
 ---
 

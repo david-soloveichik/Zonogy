@@ -148,40 +148,38 @@ extension AppController {
         )
     }
 
-    /// When Zonogy itself is frontmost, only its Preferences window suppresses zone resize bars.
-    /// Every other Zonogy-owned window (Launcher, placeholders, indicators, the resize bars
-    /// themselves, etc.) leaves the bars unaffected. Resolved synchronously from AppKit — no AX
-    /// round trip and no retry confirmation needed.
+    /// When Zonogy itself is frontmost, only its content windows (Preferences, the Welcome tour)
+    /// suppress zone resize bars. Every other Zonogy-owned window (Launcher, placeholders,
+    /// indicators, the resize bars themselves, etc.) leaves the bars unaffected. Resolved
+    /// synchronously from AppKit — no AX round trip and no retry confirmation needed.
     private func resolveOwnAppFocusState() -> FocusedWindowClassification {
-        guard let preferencesWindow = focusedPreferencesWindow(),
-              let screen = preferencesWindow.screen,
+        guard let contentWindow = focusedOwnContentWindow(),
+              let screen = contentWindow.screen,
               let screenId = ScreenContextStore.displayId(for: screen) else {
             return .managedUnknown
         }
         return .ownContentWindow(screenId: screenId)
     }
 
-    /// The Preferences window if it is currently Zonogy's focused content window, else nil.
-    /// Preferences counts as focused when it — or one of its sheets (Add App, edit rule,
-    /// open/save panels) — holds key. Other Zonogy panels that can take key without becoming
-    /// main (Launcher, CmdTab) deliberately do not qualify, even when shown over Preferences.
-    private func focusedPreferencesWindow() -> NSWindow? {
-        let identifier = PreferencesWindowController.windowIdentifier
-
+    /// Zonogy's focused content window (Preferences or the Welcome tour), else nil. One counts
+    /// as focused when it — or one of its sheets (Add App, edit rule, open/save panels) — holds
+    /// key. Other Zonogy panels that can take key without becoming main (Launcher, CmdTab)
+    /// deliberately do not qualify, even when shown over a content window.
+    private func focusedOwnContentWindow() -> NSWindow? {
         // Walk the key window up its sheet-parent chain so a Preferences sheet resolves to
         // Preferences, while a key Launcher/CmdTab panel does not.
         var candidate = NSApp.keyWindow
         while let window = candidate {
-            if window.identifier == identifier {
+            if OwnContentWindows.contains(window) {
                 return window
             }
             candidate = window.sheetParent
         }
 
-        // Activation-race fallback: keyWindow can briefly be nil before the titled Preferences
-        // window settles as key, by which point mainWindow is already set. Only consulted when
-        // there is no key window, so a key Launcher/CmdTab panel never reaches here.
-        if NSApp.keyWindow == nil, let mainWindow = NSApp.mainWindow, mainWindow.identifier == identifier {
+        // Activation-race fallback: keyWindow can briefly be nil before a titled content window
+        // settles as key, by which point mainWindow is already set. Only consulted when there
+        // is no key window, so a key Launcher/CmdTab panel never reaches here.
+        if NSApp.keyWindow == nil, let mainWindow = NSApp.mainWindow, OwnContentWindows.contains(mainWindow) {
             return mainWindow
         }
 

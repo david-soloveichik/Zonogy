@@ -1,8 +1,9 @@
 """Shared drawing and keyframe helpers for the README animations (scripts/hero-animation.py and
-scripts/activefit-winshot-animation.py).
+scripts/activefit-winshot-animation.py) and the Welcome tour's scenes (scripts/tour-*.py).
 
-Both draw an abstract macOS desktop as SVG and animate it with CSS keyframes only (no script), so they play
-wherever the README renders. Like the README's animated WebP images, they play even with Reduce Motion on.
+All draw an abstract macOS desktop as SVG and animate it with CSS keyframes only (no script), so they play
+wherever the README renders, and in the tour's web view with scripting off. Like the README's animated WebP
+images, they play even with Reduce Motion on.
 """
 import random
 
@@ -349,6 +350,125 @@ def ripple(cls, p):
     return f'<circle class="{cls}" cx="{n(p[0])}" cy="{n(p[1])}" r="11" fill="none" stroke="{ZBLUE}" stroke-width="2.2"/>'
 
 
+# ---------------------------------------------------------------- Zonogy's interface
+
+LW, LH, ROW_H = 232, 178, 30  # Launcher, centered in the zone it opens in
+DM_W, DM_H, DM_ROW_H = 200, 124, 24  # a DockMenu, above its Dock icon
+
+
+def launcher_origin(z):
+    return (z[0] + (z[2] - LW) / 2, z[1] + (z[3] - LH) / 2)
+
+
+def row_center(z, i):
+    return launcher_origin(z)[1] + 44 + ROW_H / 2 + i * ROW_H
+
+
+def dockmenu_origin(screen, app):
+    """Top-left corner of the DockMenu over `app`'s Dock icon."""
+    return (icon_center(screen, app)[0] - DM_W / 2, dock_origin(screen)[1] - 8 - DM_H)
+
+
+def resizable_window(z, app, body_cls, lights_cls, content_opacity=1):
+    """A window whose body (title bar band and content included) can stretch with a zone resize while its
+    traffic lights only slide along with its left edge."""
+    body, band, lights, outline = window_parts(z, app)
+    content = window_content(z, app, content_opacity)
+    wrap = lambda cls, parts: f'<g class="{cls}">\n' + "\n".join(parts) + "\n</g>" if cls else "\n".join(parts)
+    return wrap(body_cls, (body, band, content, outline)) + "\n" + wrap(lights_cls, (lights,))
+
+
+def resize_bar(x, top, height):
+    """The zone resize bar centered on x, shown while the pointer hovers and drags it."""
+    return '<g class="rbar">' + rect(x - 2, top, 4, height, 2, fill="#fff", fill_opacity=".92") + "</g>"
+
+
+def placeholder(cls, z):
+    x, y, w, h = z
+    cx = x + w / 2
+    return "\n".join([
+        f'<g class="{cls}">',
+        rect(x, y, w, h, 8, fill="#9cc8ff", fill_opacity=".06"),
+        rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
+        rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2"),
+        f'<circle cx="{n(x + 20)}" cy="{n(y + 20)}" r="10" fill="{ZBLUE}" fill-opacity=".6"/>',
+        f'<path d="M{n(x + 16.5)} {n(y + 16.5)}l7 7m0-7l-7 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+        rect(cx - 31, y + 8, 62, 17, 8.5, fill="#fff", fill_opacity=".18"),
+        f'<circle cx="{n(cx - 1.5)}" cy="{n(y + 15.5)}" r="3.5" fill="none" stroke="#fff" stroke-width="1.5"/>',
+        f'<path d="M{n(cx + 1.2)} {n(y + 18.2)}l3 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>',
+        "</g>",
+    ])
+
+
+def launcher(cls, z, rows, query=""):
+    """The Launcher in zone z, listing `rows` of (app, title width, subtitle width). Its search hint, caret, and
+    rows carry classes so a typed `query` can replace the hint one prefix at a time, move the caret, and filter
+    the rows; a highlight then marks the opened row."""
+    lx, ly = launcher_origin(z)
+    s = [f'<g class="{cls}">',
+         rect(lx, ly, LW, LH, 12, fill="#f5f6f9", fill_opacity=".97", filter="url(#shadow)"),
+         rect(lx + .5, ly + .5, LW - 1, LH - 1, 11.5, fill="none", stroke="#fff", stroke_opacity=".8"),
+         rect(lx + 10, ly + 10, LW - 20, 26, 7, fill="#fff", stroke="#d8dce4"),
+         f'<circle cx="{n(lx + 24)}" cy="{n(ly + 22)}" r="4.5" fill="none" stroke="#8b93a2" stroke-width="1.6"/>',
+         f'<path d="M{n(lx + 27.3)} {n(ly + 25.3)}l3.3 3.3" stroke="#8b93a2" stroke-width="1.6" stroke-linecap="round"/>',
+         f'<g class="{cls}caret"><rect class="caret" x="{n(lx + 36)}" y="{n(ly + 16.5)}" width="1.6" height="13" '
+         f'rx=".8" fill="{ZBLUE}"/></g>',
+         f'<g class="{cls}hint">' + bar(lx + 42, ly + 20, 90, 6, "#c9ced8") + "</g>",
+         f'<g class="{cls}sel">' + rect(lx + 7, ly + 46, LW - 14, ROW_H - 4, 7, fill=ZBLUE, fill_opacity=".2",
+                                        stroke=ZBLUE, stroke_opacity=".6") + "</g>"]
+    s += [f'<text class="{cls}q{k}" x="{n(lx + 36.5)}" y="{n(ly + 27.5)}" font-family="{FONT}" font-size="13" '
+          f'font-weight="500" fill="#2b3140">{query[:k]}</text>' for k in range(1, len(query) + 1)]
+    if query:
+        s.append(f'<g class="{cls}go">' + rect(lx + 7, ly + 46, LW - 14, ROW_H - 4, 7, fill=ZBLUE, fill_opacity=".3")
+                 + "</g>")
+    for i, (app, w1, w2) in enumerate(rows):
+        cy = row_center(z, i)
+        s.append(f'<g class="{cls}r{i}">' + f'<use href="#ic-{app}" x="{n(lx + 16)}" y="{n(cy - 10)}" width="20" '
+                 f'height="20"/>' + bar(lx + 46, cy - 6.5, w1, 6, "#4d5566", .6) + bar(lx + 46, cy + 3, w2, 4.5, "#8a93a3", .5)
+                 + "</g>")
+    s.append("</g>")
+    return "\n".join(s)
+
+
+def dockmenu(origin, app, rows, selected):
+    """`app`'s DockMenu at `origin` (see dockmenu_origin): the app's name over its windows, one per title width
+    in `rows`, with a highlight (class `dmrow`) on the `selected` one."""
+    x, y = origin
+    row0 = y + 44
+    s = ['<g class="dm">',
+         rect(x, y, DM_W, DM_H, 10, fill="#f5f6f9", fill_opacity=".97", filter="url(#shadow)"),
+         rect(x + .5, y + .5, DM_W - 1, DM_H - 1, 9.5, fill="none", stroke="#fff", stroke_opacity=".8"),
+         f'<use href="#ic-{app}" x="{n(x + 11)}" y="{n(y + 10)}" width="18" height="18"/>',
+         bar(x + 37, y + 15.5, 70, 6.5, "#3f4757", .75),
+         bar(x + DM_W - 47, y + 16.5, 36, 5, "#8a93a3", .5),
+         f'<path d="M{n(x + 10)} {n(y + 36.5)}H{n(x + DM_W - 10)}" stroke="#d5d9e1"/>',
+         '<g class="dmrow">' + rect(x + 7, row0 + selected * DM_ROW_H + 1.5, DM_W - 14, DM_ROW_H - 3, 6, fill=ZBLUE,
+                                    fill_opacity=".2", stroke=ZBLUE, stroke_opacity=".6") + "</g>"]
+    for i, w in enumerate(rows):
+        s.append(bar(x + 37, row0 + (i + .5) * DM_ROW_H - 3, w, 6, "#4d5566", .6))
+    s.append("</g>")
+    return "\n".join(s)
+
+
+def overlays(zones):
+    """Zone overlays for a drag: a faint one on every zone (class `ov`), plus a highlight per zone (`hot0`,
+    `hot1`, ...) for when the pointer is over it."""
+    zone = lambda z, **a: rect(z[0] + 3, z[1] + 3, z[2] - 6, z[3] - 6, 7, fill=ZBLUE, **a)
+    return "\n".join(['<g class="ov">'] + [zone(z, fill_opacity=".1", stroke=ZBLUE, stroke_opacity=".55", stroke_width="1.5")
+                                           for z in zones] + ["</g>"] +
+                     [f'<g class="hot{i}">' + zone(z, fill_opacity=".28", stroke=ZBLUE, stroke_width="2.2") + "</g>"
+                      for i, z in enumerate(zones)])
+
+
+def drag_pill(title_w):
+    """Drag preview for a DockMenu or Launcher window row: a dark pill with a window glyph and the title,
+    below-right of the pointer."""
+    return ('<g class="pill">' + rect(9, 14, 112, 20, 6, fill="#262a33", fill_opacity=".92", filter="url(#cshadow)")
+            + rect(16, 20, 10, 8, 2, fill="none", stroke="#c3c8d2", stroke_width="1.3")
+            + '<path d="M16 23h10" stroke="#c3c8d2" stroke-width="1.3"/>'
+            + bar(31, 21, title_w, 6, "#e6e9ef", .85) + "</g>")
+
+
 def captions(texts, width, y):
     """Captions centered on a canvas `width` wide. The README shows every animation at the page's width, so
     sizing captions to the canvas width makes them read the same size in each."""
@@ -361,17 +481,19 @@ CURSOR = ('<path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stro
           'stroke-linejoin="round" filter="url(#cshadow)"/>')
 
 
-def document(size, title, generator, screens, style, content, caption_svg, stands=()):
+def document(size, title, generator, screens, style, content, caption_svg, stands=(), fluid=False):
     """The SVG file: stage, display hardware (with a stand under each (screen, floor) in `stands`), everything on
-    the screens (clipped to them), then the captions."""
+    the screens (clipped to them), then the captions. A `fluid` file is for the app to embed: it has no size of
+    its own, so it scales to whatever shows it, and its stage has square corners, for the app to round."""
     w, h = size
+    dimensions = "" if fluid else f'width="{w}" height="{h}" '
     return "\n".join([
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-labelledby="title">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" {dimensions}viewBox="0 0 {w} {h}" role="img" aria-labelledby="title">',
         f'<title id="title">{title}</title>',
         f"<!-- Generated by {generator} -->",
         defs(screens),
         style,
-        rect(0, 0, w, h, 28, fill="url(#stage)"),
+        rect(0, 0, w, h, 0 if fluid else 28, fill="url(#stage)"),
         *([STAND_DEFS] if stands else []),
         *(stand(screen, floor) for screen, floor in stands),
         hardware(screens),

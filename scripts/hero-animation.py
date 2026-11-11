@@ -9,12 +9,15 @@ lights up under the pointer), onto the secondary display's zone, replacing the w
 main display's zone crossfades back to its first window, so the loop restarts where it began.
 
 Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
+       python3 scripts/hero-animation.py Resources/Tour/welcome.svg --fluid   (the Welcome tour's first scene)
 """
 import sys
 
-from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MARGIN, ZBLUE, Timeline, at, bar, captions, center,
-                              columns, dock, dock_origin, document, ease_progress, full_window, icon_center, menubar,
-                              n, opacity, rect, ripple, scale, wallpapers, window_content, window_parts)
+from animation_common import (CURSOR, DM_ROW_H, EIO, EOUT, FRAME, GAP, LH, LW, MARGIN, ROW_H, Timeline, at, captions,
+                              center, columns, dock, dock_origin, dockmenu, dockmenu_origin, document, drag_pill,
+                              ease_progress, full_window, icon_center, launcher, launcher_origin, menubar, n,
+                              opacity, overlays, placeholder, resizable_window, resize_bar, ripple, row_center,
+                              scale, wallpapers)
 
 DUR = 14.6  # loop length, seconds
 T_STILL = 5.3  # frame shown where CSS animations don't run: the Launcher open in the main display's emptied zone
@@ -53,21 +56,12 @@ RESIZE_DX = -112  # the opening drag of the bar between the main display's colum
 CONTENT_OPACITY = .5  # window content stays subtle here
 BAR = (Z1[0] + Z1[2] + GAP / 2, Z1[1] + Z1[3] / 2)  # where the pointer grabs that bar
 
-LW, LH, ROW_H = 232, 178, 30  # Launcher, centered in the zone it opens in
 LAUNCHER_ROWS = {  # (app, title width, subtitle width); row 2 is the window picked, in Z5 by typing QUERY
     Z2: (("blue", 96, 52), ("green", 116, 62), ("amber", 86, 48), ("teal", 104, 56)),
     Z5: (("pink", 96, 52), ("amber", 116, 62), ("blue", 86, 48), ("green", 104, 56)),
 }
 QUERY = "rep"  # typed into Z5's Launcher, one key at a time
 QUERY_CARET = (6.5, 14, 22)  # where the caret moves after each typed character (just past the text)
-
-
-def launcher_origin(z):
-    return (z[0] + (z[2] - LW) / 2, z[1] + (z[3] - LH) / 2)
-
-
-def row_center(z, i):
-    return launcher_origin(z)[1] + 44 + ROW_H / 2 + i * ROW_H
 
 
 def row2(z):
@@ -77,110 +71,14 @@ def row2(z):
 
 
 DB = icon_center(S1, "pink")
-DM_W, DM_H = 200, 124  # the pink app's DockMenu, above its Dock icon
-DM_X, DM_Y = DB[0] - DM_W / 2, DOCK_Y - 8 - DM_H
-DM_ROW0, DM_ROW_H = DM_Y + 44, 24
+DM_X, DM_Y = dockmenu_origin(S1, "pink")  # the pink app's DockMenu, above its Dock icon
+DM_ROW0 = DM_Y + 44
 DM_ROWS = (118, 96, 130)  # title widths; the second row is the window that gets dragged
 P0 = (center(Z5)[0] + 13, center(Z5)[1] - 31)  # pointer rest point, also where the DockMenu drag drops
 YB1, YB2 = (Z2[0] + 26, Z2[1] + 11), (Z5[0] + 26, Z5[1] + 11)  # minimize buttons of the Z2 and Z5 windows
 R2A, ICON2A = row2(Z2)
 ICON1B = (launcher_origin(Z5)[0] + 26, row_center(Z5, 0))  # Z5's first row, where the search's match ends up
 M2 = (DM_X + 95, DM_ROW0 + 1.5 * DM_ROW_H)  # DockMenu row 2
-
-
-# ---------------------------------------------------------------- shapes
-
-def resizable_window(z, app, body_cls, lights_cls):
-    """A window whose body (title bar band and content included) can stretch with a zone resize while its
-    traffic lights only slide along with its left edge."""
-    body, band, lights, outline = window_parts(z, app)
-    content = window_content(z, app, CONTENT_OPACITY)
-    wrap = lambda cls, parts: f'<g class="{cls}">\n' + "\n".join(parts) + "\n</g>" if cls else "\n".join(parts)
-    return wrap(body_cls, (body, band, content, outline)) + "\n" + wrap(lights_cls, (lights,))
-
-
-def resize_bar():
-    """The zone resize bar between the main display's columns, as tall as the zones (menu bar to Dock), shown
-    while the pointer hovers and drags it."""
-    return '<g class="rbar">' + rect(BAR[0] - 2, Z1[1], 4, Z1[3], 2, fill="#fff", fill_opacity=".92") + "</g>"
-
-
-def placeholder(cls, z):
-    x, y, w, h = z
-    cx = x + w / 2
-    return "\n".join([
-        f'<g class="{cls}">',
-        rect(x, y, w, h, 8, fill="#9cc8ff", fill_opacity=".06"),
-        rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
-        rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2"),
-        f'<circle cx="{n(x + 20)}" cy="{n(y + 20)}" r="10" fill="{ZBLUE}" fill-opacity=".6"/>',
-        f'<path d="M{n(x + 16.5)} {n(y + 16.5)}l7 7m0-7l-7 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
-        rect(cx - 31, y + 8, 62, 17, 8.5, fill="#fff", fill_opacity=".18"),
-        f'<circle cx="{n(cx - 1.5)}" cy="{n(y + 15.5)}" r="3.5" fill="none" stroke="#fff" stroke-width="1.5"/>',
-        f'<path d="M{n(cx + 1.2)} {n(y + 18.2)}l3 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>',
-        "</g>",
-    ])
-
-
-def launcher(cls, z, query=""):
-    """The Launcher in zone z. Its search hint, caret, and rows carry classes so a typed `query` can replace the
-    hint one prefix at a time, move the caret, and filter the rows; a highlight then marks the opened row."""
-    lx, ly = launcher_origin(z)
-    s = [f'<g class="{cls}">',
-         rect(lx, ly, LW, LH, 12, fill="#f5f6f9", fill_opacity=".97", filter="url(#shadow)"),
-         rect(lx + .5, ly + .5, LW - 1, LH - 1, 11.5, fill="none", stroke="#fff", stroke_opacity=".8"),
-         rect(lx + 10, ly + 10, LW - 20, 26, 7, fill="#fff", stroke="#d8dce4"),
-         f'<circle cx="{n(lx + 24)}" cy="{n(ly + 22)}" r="4.5" fill="none" stroke="#8b93a2" stroke-width="1.6"/>',
-         f'<path d="M{n(lx + 27.3)} {n(ly + 25.3)}l3.3 3.3" stroke="#8b93a2" stroke-width="1.6" stroke-linecap="round"/>',
-         f'<g class="{cls}caret"><rect class="caret" x="{n(lx + 36)}" y="{n(ly + 16.5)}" width="1.6" height="13" '
-         f'rx=".8" fill="{ZBLUE}"/></g>',
-         f'<g class="{cls}hint">' + bar(lx + 42, ly + 20, 90, 6, "#c9ced8") + "</g>",
-         f'<g class="{cls}sel">' + rect(lx + 7, ly + 46, LW - 14, ROW_H - 4, 7, fill=ZBLUE, fill_opacity=".2",
-                                        stroke=ZBLUE, stroke_opacity=".6") + "</g>"]
-    s += [f'<text class="{cls}q{k}" x="{n(lx + 36.5)}" y="{n(ly + 27.5)}" font-family="{FONT}" font-size="13" '
-          f'font-weight="500" fill="#2b3140">{query[:k]}</text>' for k in range(1, len(query) + 1)]
-    if query:
-        s.append(f'<g class="{cls}go">' + rect(lx + 7, ly + 46, LW - 14, ROW_H - 4, 7, fill=ZBLUE, fill_opacity=".3")
-                 + "</g>")
-    for i, (app, w1, w2) in enumerate(LAUNCHER_ROWS[z]):
-        cy = row_center(z, i)
-        s.append(f'<g class="{cls}r{i}">' + f'<use href="#ic-{app}" x="{n(lx + 16)}" y="{n(cy - 10)}" width="20" '
-                 f'height="20"/>' + bar(lx + 46, cy - 6.5, w1, 6, "#4d5566", .6) + bar(lx + 46, cy + 3, w2, 4.5, "#8a93a3", .5)
-                 + "</g>")
-    s.append("</g>")
-    return "\n".join(s)
-
-
-def dockmenu():
-    s = ['<g class="dm">',
-         rect(DM_X, DM_Y, DM_W, DM_H, 10, fill="#f5f6f9", fill_opacity=".97", filter="url(#shadow)"),
-         rect(DM_X + .5, DM_Y + .5, DM_W - 1, DM_H - 1, 9.5, fill="none", stroke="#fff", stroke_opacity=".8"),
-         f'<use href="#ic-pink" x="{n(DM_X + 11)}" y="{n(DM_Y + 10)}" width="18" height="18"/>',
-         bar(DM_X + 37, DM_Y + 15.5, 70, 6.5, "#3f4757", .75),
-         bar(DM_X + DM_W - 47, DM_Y + 16.5, 36, 5, "#8a93a3", .5),
-         f'<path d="M{n(DM_X + 10)} {n(DM_Y + 36.5)}H{n(DM_X + DM_W - 10)}" stroke="#d5d9e1"/>',
-         '<g class="dmrow">' + rect(DM_X + 7, DM_ROW0 + DM_ROW_H + 1.5, DM_W - 14, DM_ROW_H - 3, 6, fill=ZBLUE,
-                                    fill_opacity=".2", stroke=ZBLUE, stroke_opacity=".6") + "</g>"]
-    for i, w in enumerate(DM_ROWS):
-        s.append(bar(DM_X + 37, DM_ROW0 + (i + .5) * DM_ROW_H - 3, w, 6, "#4d5566", .6))
-    s.append("</g>")
-    return "\n".join(s)
-
-
-def overlays():
-    """Zone overlays: a faint one on every zone, plus a highlight per zone for when the pointer is over it."""
-    zone = lambda z, **a: rect(z[0] + 3, z[1] + 3, z[2] - 6, z[3] - 6, 7, fill=ZBLUE, **a)
-    return "\n".join(['<g class="ov">'] + [zone(z, fill_opacity=".1", stroke=ZBLUE, stroke_opacity=".55", stroke_width="1.5")
-                                           for z in ZONES] + ["</g>"] +
-                     [f'<g class="hot{i}">' + zone(z, fill_opacity=".28", stroke=ZBLUE, stroke_width="2.2") + "</g>"
-                      for i, z in enumerate(ZONES)])
-
-
-# Drag preview for a DockMenu window row: a dark pill with a window glyph and the title, below-right of the pointer.
-PILL = ('<g class="pill">' + rect(9, 14, 112, 20, 6, fill="#262a33", fill_opacity=".92", filter="url(#cshadow)")
-        + rect(16, 20, 10, 8, 2, fill="none", stroke="#c3c8d2", stroke_width="1.3")
-        + '<path d="M16 23h10" stroke="#c3c8d2" stroke-width="1.3"/>'
-        + bar(31, 21, DM_ROWS[1] * .75, 6, "#e6e9ef", .85) + "</g>")
 
 
 # ---------------------------------------------------------------- motion
@@ -335,24 +233,26 @@ def motion():
     TL.css.append("@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}.caret{animation:blink 1s step-end infinite}")
 
 
-def build():
+def build(fluid=False):
     motion()
     screens = [
         wallpapers((S1, S2)), menubar(S1), menubar(S2),
-        *(resizable_window(z, app, body, lights) for app, z, body, lights in STATIC),
-        placeholder("ph1", Z2), placeholder("ph2", Z5), launcher("lc1", Z2), launcher("lc2", Z5, QUERY), dock(S1),
-        f'<g class="bfd">\n{resizable_window(Z2, "blue", "rzR", "rzL")}\n</g>', resize_bar(),
+        *(resizable_window(z, app, body, lights, CONTENT_OPACITY) for app, z, body, lights in STATIC),
+        placeholder("ph1", Z2), placeholder("ph2", Z5), launcher("lc1", Z2, LAUNCHER_ROWS[Z2]),
+        launcher("lc2", Z5, LAUNCHER_ROWS[Z5], QUERY), dock(S1),
+        f'<g class="bfd">\n{resizable_window(Z2, "blue", "rzR", "rzL", CONTENT_OPACITY)}\n</g>',
+        resize_bar(BAR[0], Z1[1], Z1[3]),
         f'<g class="gmv"><g class="gfd">\n{full_window(Z2, "green", CONTENT_OPACITY)}\n</g></g>',
         f'<g class="hmv"><g class="hfd">\n{full_window(Z5, "amber", CONTENT_OPACITY)}\n</g></g>',
         f'<g class="fmv"><g class="ffd">\n{full_window(Z5, "pink", CONTENT_OPACITY)}\n</g></g>',
-        dockmenu(), overlays(),
+        dockmenu((DM_X, DM_Y), "pink", DM_ROWS, 1), overlays(ZONES),
         ripple("rpY1", YB1), ripple("rpR1", R2A), ripple("rpY2", YB2), ripple("rpM", M2), ripple("rpP", P0),
-        f'<g class="curx"><g class="cury">{PILL}<g class="press">{CURSOR}</g></g></g>',
+        f'<g class="curx"><g class="cury">{drag_pill(DM_ROWS[1] * .75)}<g class="press">{CURSOR}</g></g></g>',
     ]
     return document((W, H), TITLE, "scripts/hero-animation.py", (S1, S2), TL.style(), screens,
-                    captions(CAPTIONS, W, CAPTION_Y), stands=((S2, STAND_FLOOR),))
+                    captions(CAPTIONS, W, CAPTION_Y), stands=((S2, STAND_FLOOR),), fluid=fluid)
 
 
 if __name__ == "__main__":
     with open(sys.argv[1], "w") as f:
-        f.write(build())
+        f.write(build(fluid="--fluid" in sys.argv))

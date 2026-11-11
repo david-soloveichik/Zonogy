@@ -478,18 +478,19 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
-        // Recompute resize-bar suppression when our Preferences window gains/loses key status.
-        // Activation notifications only fire on app switches; these catch intra-Zonogy focus
-        // moves (e.g. the Launcher opening over Preferences) so suppression never lingers.
+        // Recompute resize-bar suppression when one of our content windows (Preferences, the
+        // Welcome tour) gains/loses key status. Activation notifications only fire on app
+        // switches; these catch intra-Zonogy focus moves (e.g. the Launcher opening over
+        // Preferences) so suppression never lingers.
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            selector: #selector(handleOwnContentWindowKeyStateChange(_:)),
             name: NSWindow.didBecomeKeyNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
+            selector: #selector(handleOwnContentWindowKeyStateChange(_:)),
             name: NSWindow.didResignKeyNotification,
             object: nil
         )
@@ -582,8 +583,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         reloadLauncherItems()
     }
 
-    @objc private func handlePreferencesWindowKeyStateChange(_ notification: Notification) {
-        guard (notification.object as? NSWindow)?.identifier == PreferencesWindowController.windowIdentifier else {
+    @objc private func handleOwnContentWindowKeyStateChange(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, OwnContentWindows.contains(window) else {
             return
         }
         // Defer to the next runloop tick so the key-window transition has settled before we

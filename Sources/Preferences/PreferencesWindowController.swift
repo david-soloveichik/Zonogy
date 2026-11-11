@@ -12,8 +12,8 @@ protocol ReloadablePreferencesPane: AnyObject {
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
-    /// Stable tag so other subsystems can recognize the Preferences window (e.g. to suppress
-    /// zone resize bars while it is focused) without forcing this singleton to instantiate.
+    /// Stable tag so other subsystems can recognize the Preferences window (see
+    /// `OwnContentWindows`) without forcing this singleton to instantiate.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("ZonogyPreferences")
 
     private var tabViewController: NSTabViewController?

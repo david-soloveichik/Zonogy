@@ -132,24 +132,10 @@ enum ExceptionsConfigurationStore {
 
     /// Returns bundled defaults from Resources/defaults.json, or nil if the file can't be found or decoded.
     private static func loadBundledDefaults() -> UserConfig? {
-        let fileName = "defaults.json"
-        let executablePath = ProcessInfo.processInfo.arguments[0] as NSString
-
-        let searchPaths = [
-            "Resources/\(fileName)",
-            executablePath.deletingLastPathComponent + "/../Resources/\(fileName)",
-            executablePath.deletingLastPathComponent + "/\(fileName)"
-        ]
-
-        for path in searchPaths {
-            let expandedPath = (path as NSString).expandingTildeInPath
-            if FileManager.default.fileExists(atPath: expandedPath),
-               let data = try? Data(contentsOf: URL(fileURLWithPath: expandedPath)),
-               let decoded = try? JSONDecoder().decode(UserConfig.self, from: data) {
-                return decoded
-            }
+        guard let path = BundledResource.path("defaults.json"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return nil
         }
-
-        return nil
+        return try? JSONDecoder().decode(UserConfig.self, from: data)
     }
 }
