@@ -69,7 +69,6 @@ extension AppController {
 
         if recreatePlaceholders {
             syncWindowsToZones()
-            autoShowLauncherIfEmptyTargetedTiledZone()
         }
     }
 

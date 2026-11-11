@@ -471,7 +471,7 @@ extension AppController {
     /// cell keys.
     private func performZoneNavigationAdd(on screenId: CGDirectDisplayID, side: ZoneSide?) {
         let newZone = performZoneNavigationTopologyChange {
-            addZone(on: screenId, side: side, announce: true)
+            addZone(on: screenId, side: side)
         }
         guard let newZone else {
             Logger.debug("Zone navigation add: screen \(screenContextStore.loggingIndex(for: screenId)) is at its zone maximum; gesture unchanged")

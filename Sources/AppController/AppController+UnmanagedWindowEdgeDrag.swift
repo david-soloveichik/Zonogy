@@ -254,7 +254,7 @@ extension AppController {
     private func applyUnmanagedWindowEdgeTarget(_ target: UnmanagedWindowEdgeDragPolicy.EdgeDropTarget) -> Bool {
         switch target {
         case .addZone(let pill):
-            guard let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+            guard let zone = addZone(on: pill.screenId, side: pill.side, forDrop: true) else {
                 Logger.debug(
                     "Unmanaged edge drag: add-zone drop did nothing because screen " +
                     "\(screenContextStore.loggingIndex(for: pill.screenId)) has no room on the \(pill.side.rawValue) side"

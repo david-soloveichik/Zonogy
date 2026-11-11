@@ -81,7 +81,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func floatingIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     @discardableResult
-    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, forDrop: Bool) -> Zone?
 
     // Floating zone placement
     func dropWindowIntoFloatingZone(
@@ -611,7 +611,7 @@ class DragDropCoordinator {
         guard let delegate = delegate else {
             return nil
         }
-        guard let newZone = delegate.addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+        guard let newZone = delegate.addZone(on: pill.screenId, side: pill.side, forDrop: true) else {
             Logger.debug("Failed to add zone on \(ScreenContextStore.logDescription(for: pill.screenId)) for drag-drop request")
             return nil
         }

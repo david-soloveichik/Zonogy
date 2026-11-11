@@ -78,7 +78,7 @@ extension AppController {
         case .floatingZone(let screenId):
             return place(managed, intoFloatingZone: screenId, isMinimized: isMinimized, reason: reason)
         case .addZone(let pill):
-            guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+            guard let newZone = addZone(on: pill.screenId, side: pill.side, forDrop: true) else {
                 Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
                 return false
             }
@@ -156,7 +156,7 @@ extension AppController {
             openExternalDropItems(items)
             return true
         case .addZone(let pill):
-            if let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) {
+            if let zone = addZone(on: pill.screenId, side: pill.side, forDrop: true) {
                 let newZoneKey = zoneKey(for: pill.screenId, index: zone.index)
                 targetedZoneManager.setTargetedZone(newZoneKey, reason: reason)
             } else {
@@ -183,7 +183,7 @@ extension AppController {
             targetFloatingZoneForDrop(on: screenId, reason: reason)
             return true
         case .addZone(let pill):
-            guard let newZone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) else {
+            guard let newZone = addZone(on: pill.screenId, side: pill.side, forDrop: true) else {
                 Logger.debug("Cursor-driven drop: cannot add zone on screen \(screenContextStore.loggingIndex(for: pill.screenId))")
                 return false
             }

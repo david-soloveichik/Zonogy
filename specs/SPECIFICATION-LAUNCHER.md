@@ -23,7 +23,7 @@ The Launcher opens via:
     Big picture: Besides allowing the user to quickly choose another window, this behavior also allows the user to press Cmd-M twice (or Cmd-M then Cmd-W) to minimize the window and remove its tiling zone.
     For keyboard-initiated minimize of a tiled window (Cmd-M and Control-Cmd-M), and for Clear Zones (Control-Cmd-Escape on a display whose tiling zones aren't already all empty), the retarget and Launcher auto-show fire synchronously with the keystroke rather than after the AX miniaturize notifications arrive, so the Launcher appears immediately.
     (See "Accessibility API Workarounds" section below.)
-  - After a zone is added.
+  - After a zone is added, unless a drop onto the add-zone indicator created it (what was dropped takes that zone).
   - Zone navigation is released over an empty zone, tiling or floating (targeting it).
 - **Covered unmanaged windows:** The Launcher does not auto-show where it would cover an unmanaged window in an empty tiling zone: there the placeholder's pass-through holes (see **Click-through over covered windows** in the main specification) let the user interact with the window. Explicit opens are honored regardless.
 - **Zone removal behavior:** When Launcher is open and the zone is removed: If another empty, tiling zone becomes targeted, then keep the Launcher open. Otherwise, dismiss the Launcher.

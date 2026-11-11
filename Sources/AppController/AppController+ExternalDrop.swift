@@ -26,7 +26,7 @@ extension AppController {
     ) {
         guard !items.isEmpty else { return }
         lastEdgePillExternalDropAt = Date()
-        if let zone = addZone(on: pill.screenId, side: pill.side, announce: false, promoteFloatingOccupant: false) {
+        if let zone = addZone(on: pill.screenId, side: pill.side, forDrop: true) {
             let newZoneKey = zoneKey(for: pill.screenId, index: zone.index)
             targetedZoneManager.setTargetedZone(newZoneKey, reason: "add-zone-drop")
         } else {

@@ -16,7 +16,7 @@ protocol FloatingZoneCoordinatorHost: AnyObject {
     func descriptor(for screenId: CGDirectDisplayID) -> ScreenDescriptor?
     func setManagedWindow(_ managed: ManagedWindow, screenId: CGDirectDisplayID, zoneIndex: Int?)
     func clearManagedWindowZone(_ managed: ManagedWindow)
-    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, announce: Bool, promoteFloatingOccupant: Bool) -> Zone?
+    func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, forDrop: Bool) -> Zone?
     func addZoneIndicatorHitAreas() -> [AddZonePillKey: CGRect]
     func refreshIndicators()
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
@@ -335,7 +335,7 @@ final class FloatingZoneCoordinator {
             addZoneDropTarget(for: finalCursorPoint)
 
         if let addZonePill,
-           let newZone = host.addZone(on: addZonePill.screenId, side: addZonePill.side, announce: false, promoteFloatingOccupant: false) {
+           let newZone = host.addZone(on: addZonePill.screenId, side: addZonePill.side, forDrop: true) {
             clear(windowId: windowId, reason: "floating-drop-add-zone")
             // Zone creation applied its own targeting rule; the standard retarget-after-fill
             // then runs inside the assignment, so the move rule adds nothing here.

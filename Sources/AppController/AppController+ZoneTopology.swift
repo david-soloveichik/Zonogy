@@ -6,17 +6,18 @@ import ApplicationServices
 extension AppController {
     func addZone() {
         let screenId = activeScreenId()
-        _ = addZone(on: screenId, announce: true)
+        _ = addZone(on: screenId)
     }
 
     /// Add a zone on `side` (the clicked add-zone bar's edge); a nil side uses the layout
     /// style's preferred fill order (keyboard shortcut and other side-agnostic paths).
+    /// `forDrop` marks a zone created by a drop onto an add-zone bar: what was dropped fills it,
+    /// so the floating-zone occupant is not promoted into it and the Launcher does not auto-show.
     @discardableResult
     internal func addZone(
         on screenId: CGDirectDisplayID,
         side: ZoneSide? = nil,
-        announce: Bool = true,
-        promoteFloatingOccupant: Bool = true
+        forDrop: Bool = false
     ) -> Zone? {
         cancelZoneNavigationForTopologyChange(reason: "add-zone")
         // Special-case: if this screen is in UnderCovers and has a single empty zone 1,
@@ -30,6 +31,9 @@ extension AppController {
                zone.isEmpty {
                 Logger.debug("Add zone invoked while UnderCovers active on screen \(screenContextStore.loggingIndex(for: screenId)); exiting UnderCovers without adding a new zone")
                 endUnderCovers(on: screenId, reason: "add-zone-exit-undercovers", recreatePlaceholders: true)
+                if !forDrop {
+                    autoShowLauncherIfEmptyTargetedTiledZone()
+                }
                 return zone
             }
         }
@@ -39,10 +43,8 @@ extension AppController {
 
         guard let context = screenContexts[screenId],
               let newZone = context.zoneController.addZone(preferredSide: side) else {
-            if announce {
-                let maxZones = screenContexts[screenId]?.zoneController.layoutStyle.maxZoneCount ?? 3
-                Logger.debug("Failed to add zone (max \(maxZones) zones)")
-            }
+            let maxZones = screenContexts[screenId]?.zoneController.layoutStyle.maxZoneCount ?? 3
+            Logger.debug("Failed to add zone (max \(maxZones) zones)")
             return nil
         }
         // Zone topology has changed; cancel any in-flight accessibility frame retries
@@ -53,16 +55,16 @@ extension AppController {
         // new placeholder appears at the same moment, and an added flash looks wrong on creation.
         withTargetChangeFlashSuppressed {
             targetedZoneManager.targetAfterCreatingZone(on: screenId, reason: "zone-added")
-            if promoteFloatingOccupant {
+            if !forDrop {
                 promoteFloatingOccupantIfOverlapping(on: screenId, zone: newZone, context: context)
             }
             syncWindowsToZones()
             activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "zone-added")
         }
-        if announce {
-            Logger.debug("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
+        Logger.debug("Added zone \(newZone.index) on \(context.descriptor.localizedName)")
+        if !forDrop {
+            autoShowLauncherIfEmptyTargetedTiledZone()
         }
-        autoShowLauncherIfEmptyTargetedTiledZone()
         return newZone
     }
 
