@@ -2,18 +2,15 @@ import Foundation
 import ApplicationServices
 
 /// Pure bookkeeping for windows staged for deferred prune and later identifier reuse.
-enum PendingPrunedWindowDestination: Equatable {
-    case tiled(ZoneKey)
-    case floating(CGDirectDisplayID)
-}
-
-/// Pure bookkeeping for windows staged for deferred prune and later identifier reuse.
 struct PendingPrunedWindowStore {
     struct Entry: Equatable {
         let identifier: ExternalWindowIdentifier
         let windowId: Int
         let lastActiveTime: Date?
-        let preferredDestination: PendingPrunedWindowDestination?
+        /// The zone the window held when staged.
+        let preferredDestination: TargetedZoneManager.TargetedDestination?
+        /// The window's frame when staged (its last cached frame, in accessibility coordinates).
+        let frame: CGRect?
         let stagedAt: Date
     }
 
@@ -25,7 +22,8 @@ struct PendingPrunedWindowStore {
         identifier: ExternalWindowIdentifier,
         windowId: Int,
         lastActiveTime: Date?,
-        preferredDestination: PendingPrunedWindowDestination?,
+        preferredDestination: TargetedZoneManager.TargetedDestination?,
+        frame: CGRect?,
         stagedAt: Date = Date()
     ) {
         entriesByIdentifier[identifier] = Entry(
@@ -33,6 +31,7 @@ struct PendingPrunedWindowStore {
             windowId: windowId,
             lastActiveTime: lastActiveTime,
             preferredDestination: preferredDestination,
+            frame: frame,
             stagedAt: stagedAt
         )
     }

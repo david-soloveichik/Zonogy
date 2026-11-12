@@ -1143,8 +1143,8 @@ extension AppController {
         if handleCapturedWindowForUnmanagedWindowEdgeDrag(window) {
             return
         }
-        if let restoredDestination = controller.consumeRestoredPendingPruneDestination(for: window.windowId),
-           placeRestoredDeferredPruneWindowIfPossible(window, destination: restoredDestination) {
+        if let restored = controller.consumeRestoredPendingPruneEntry(for: window.windowId),
+           placeRestoredDeferredPruneWindowIfPossible(window, restored: restored) {
             reconcileCapturedFrontmostWindowIfNeeded(window)
             focusExplicitlyUnminimizedWindowIfNeeded(
                 originalWindowId: window.windowId,
@@ -1212,55 +1212,46 @@ extension AppController {
         }
     }
 
+    /// Puts a window restored from deferred-prune state back into the zone it held, if that zone
+    /// still exists and is empty. Returns false to leave the window to normal placement.
     private func placeRestoredDeferredPruneWindowIfPossible(
         _ window: ManagedWindow,
-        destination: PendingPrunedWindowDestination
+        restored entry: PendingPrunedWindowStore.Entry
     ) -> Bool {
-        switch destination {
-        case .tiled(let key):
-            guard let context = screenContexts[key.screenId],
-                  let zone = context.zoneController.zone(at: key.index),
-                  zone.occupantWindowId == nil else {
-                return false
-            }
+        guard let destination = entry.preferredDestination,
+              destinationExists(destination),
+              occupant(of: destination) == nil else {
+            return false
+        }
 
-            Logger.debug(
-                "Restoring deferred-prune window \(window.windowId) to original zone \(key.index) on \(screenContextStore.logDescription(for: key.screenId))"
-            )
-            windowPlacementManager.placeWindow(window, into: key, reason: "deferred-prune-restore")
-            return true
-
-        case .floating(let screenId):
-            guard screenContexts[screenId] != nil,
-                  floatingZoneOccupant(on: screenId) == nil else {
-                return false
-            }
-
-            // Floating restore is bookkeeping-only (no physical placement), so it requires
-            // positive confirmation from a live frame read that the window still sits on the
-            // booked display: an app can re-materialize a staged window on another display
-            // (e.g. Zoom morphing its home window into a meeting window). On a different
-            // display — or with no readable frame — decline so normal placement handles it.
-            let physicalScreenId = detectScreenId(for: window.accessibilityElement)
-            guard physicalScreenId == screenId else {
-                let physicalDescription = physicalScreenId.map { screenContextStore.logDescription(for: $0) } ?? "an unknown display"
+        // A floating restore leaves the window where it is, so it applies only to a window that came
+        // back where it left (the restore has just re-read its frame), on the display it is booked on
+        // (displays may have been rearranged meanwhile). One that came back elsewhere, such as Zoom's
+        // pre-meeting window turned into the meeting window at the last meeting's frame, is placed
+        // like any arriving window instead.
+        if case .floating = destination {
+            guard let stagedFrame = entry.frame,
+                  let frame = window.cachedFrame,
+                  windowController.framesRoughlyEqual(stagedFrame, frame),
+                  screenIdForAccessibilityFrame(frame) == destination.screenId else {
                 Logger.debug(
-                    "Skipping deferred-prune floating restore for window \(window.windowId): window is on \(physicalDescription), floating slot is on \(screenContextStore.logDescription(for: screenId))"
+                    "Skipping deferred-prune floating restore for window \(window.windowId): it left at \(entry.frame.map { "\($0)" } ?? "nil") on \(screenContextStore.logDescription(for: destination.screenId)) and came back at \(window.cachedFrame.map { "\($0)" } ?? "nil")"
                 )
                 return false
             }
-
-            Logger.debug(
-                "Restoring deferred-prune window \(window.windowId) to original floating zone on \(screenContextStore.logDescription(for: screenId))"
-            )
-            windowPlacementManager.placeWindow(
-                window,
-                into: .floating(screenId: screenId),
-                centerFloatingWindow: false,
-                reason: "deferred-prune-restore"
-            )
-            return true
         }
+
+        let zoneDescription = destination.tiledKey.map { "zone \($0.index)" } ?? "floating zone"
+        Logger.debug(
+            "Restoring deferred-prune window \(window.windowId) to original \(zoneDescription) on \(screenContextStore.logDescription(for: destination.screenId))"
+        )
+        windowPlacementManager.placeWindow(
+            window,
+            into: destination,
+            centerFloatingWindow: false,
+            reason: "deferred-prune-restore"
+        )
+        return true
     }
 
     func windowCreationFailedRetryNeeded(forPid pid: pid_t) {

@@ -31,7 +31,7 @@ extension WindowController {
         } else {
             windowLastActiveTime.removeValue(forKey: managed.windowId)
         }
-        restoredPendingPruneDestinationsByWindowId[managed.windowId] = pending.preferredDestination
+        restoredPendingPruneEntriesByWindowId[managed.windowId] = pending
 
         registerAccessibilityNotifications(for: managed, appElement: appElement)
 
@@ -94,8 +94,8 @@ extension WindowController {
         Set(allWindows.map { $0.backing.cgWindowId }).union(pendingPrunedWindows.cgWindowIds)
     }
 
-    internal func consumeRestoredPendingPruneDestination(for windowId: Int) -> PendingPrunedWindowDestination? {
-        restoredPendingPruneDestinationsByWindowId.removeValue(forKey: windowId)
+    internal func consumeRestoredPendingPruneEntry(for windowId: Int) -> PendingPrunedWindowStore.Entry? {
+        restoredPendingPruneEntriesByWindowId.removeValue(forKey: windowId)
     }
 
     /// Stage a managed window for deferred prune — unless it is a placed native-tab window whose
@@ -119,13 +119,13 @@ extension WindowController {
         let windowId = managed.windowId
         let identifier = managed.externalIdentifier
         let lastActiveTime = windowLastActiveTime.removeValue(forKey: windowId)
-        let preferredDestination = pendingPrunedWindowDestination(for: managed)
 
         pendingPrunedWindows.stage(
             identifier: identifier,
             windowId: windowId,
             lastActiveTime: lastActiveTime,
-            preferredDestination: preferredDestination
+            preferredDestination: managed.zoneDestination,
+            frame: managed.cachedFrame
         )
         removeManagedWindowFromLiveTracking(managed)
 
@@ -143,7 +143,7 @@ extension WindowController {
 
         clearBackingScopedState(for: windowId, reason: "remove-live-tracking")
         restoredPendingPruneActivitySkipWindowIds.remove(windowId)
-        restoredPendingPruneDestinationsByWindowId.removeValue(forKey: windowId)
+        restoredPendingPruneEntriesByWindowId.removeValue(forKey: windowId)
 
         if currentDraggingWindowId == windowId {
             currentDraggingWindowId = nil
@@ -166,15 +166,5 @@ extension WindowController {
             retryState.cancel()
             Logger.debug("Cancelled frame retry chain for window \(windowId) (reason: \(reason))")
         }
-    }
-
-    private func pendingPrunedWindowDestination(for managed: ManagedWindow) -> PendingPrunedWindowDestination? {
-        if managed.isInFloatingZone, let screenId = managed.screenDisplayId {
-            return .floating(screenId)
-        }
-        if let screenId = managed.screenDisplayId, let zoneIndex = managed.zoneIndex {
-            return .tiled(ZoneKey(screenId: screenId, index: zoneIndex))
-        }
-        return nil
     }
 }

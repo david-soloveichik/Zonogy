@@ -22,15 +22,17 @@ enum PendingPrunedWindowStoreTests {
         do {
             var store = PendingPrunedWindowStore()
             let identifier = ExternalWindowIdentifier(pid: pidA, cgWindowId: 11)
-            let destination = PendingPrunedWindowDestination.tiled(
+            let destination = TargetedZoneManager.TargetedDestination.tiled(
                 ZoneKey(screenId: 77, index: 2)
             )
+            let frame = CGRect(x: 10, y: 20, width: 300, height: 200)
 
             store.stage(
                 identifier: identifier,
                 windowId: 7,
                 lastActiveTime: date1,
-                preferredDestination: destination
+                preferredDestination: destination,
+                frame: frame
             )
             let restored = store.restoreMatch(for: identifier)
 
@@ -38,6 +40,7 @@ enum PendingPrunedWindowStoreTests {
             assert(restored?.windowId == 7, "restore should preserve the original window id")
             assert(restored?.lastActiveTime == date1, "restore should preserve recency metadata")
             assert(restored?.preferredDestination == destination, "restore should preserve the original preferred destination")
+            assert(restored?.frame == frame, "restore should preserve the staged frame")
             assert(store.restoreMatch(for: identifier) == nil, "restored entry should be removed from the store")
         }
 
@@ -49,19 +52,21 @@ enum PendingPrunedWindowStoreTests {
                 identifier: identifier,
                 windowId: 8,
                 lastActiveTime: date1,
-                preferredDestination: .tiled(ZoneKey(screenId: 1, index: 1))
+                preferredDestination: .tiled(ZoneKey(screenId: 1, index: 1)),
+                frame: nil
             )
             store.stage(
                 identifier: identifier,
                 windowId: 9,
                 lastActiveTime: date2,
-                preferredDestination: .floating(2)
+                preferredDestination: .floating(screenId: 2),
+                frame: nil
             )
 
             let restored = store.restoreMatch(for: identifier)
             assert(restored?.windowId == 9, "staging the same identifier again should replace the old window id")
             assert(restored?.lastActiveTime == date2, "staging the same identifier again should replace recency metadata")
-            assert(restored?.preferredDestination == .floating(2), "staging the same identifier again should replace preferred destination")
+            assert(restored?.preferredDestination == .floating(screenId: 2), "staging the same identifier again should replace preferred destination")
         }
 
         do {
@@ -70,9 +75,9 @@ enum PendingPrunedWindowStoreTests {
             let samePidB = ExternalWindowIdentifier(pid: pidA, cgWindowId: 32)
             let otherPid = ExternalWindowIdentifier(pid: pidB, cgWindowId: 41)
 
-            store.stage(identifier: samePidA, windowId: 3, lastActiveTime: date1, preferredDestination: nil)
-            store.stage(identifier: samePidB, windowId: 4, lastActiveTime: nil, preferredDestination: .floating(4))
-            store.stage(identifier: otherPid, windowId: 5, lastActiveTime: date2, preferredDestination: .tiled(ZoneKey(screenId: 5, index: 1)))
+            store.stage(identifier: samePidA, windowId: 3, lastActiveTime: date1, preferredDestination: nil, frame: nil)
+            store.stage(identifier: samePidB, windowId: 4, lastActiveTime: nil, preferredDestination: .floating(screenId: 4), frame: nil)
+            store.stage(identifier: otherPid, windowId: 5, lastActiveTime: date2, preferredDestination: .tiled(ZoneKey(screenId: 5, index: 1)), frame: nil)
 
             assert(store.hasEntries(forPid: pidA), "store should report pending entries for pid A")
             assert(store.hasEntries(forPid: pidB), "store should report pending entries for pid B")
@@ -95,6 +100,7 @@ enum PendingPrunedWindowStoreTests {
                 windowId: 11,
                 lastActiveTime: nil,
                 preferredDestination: nil,
+                frame: nil,
                 stagedAt: now.addingTimeInterval(-1.0)
             )
             store.stage(
@@ -102,6 +108,7 @@ enum PendingPrunedWindowStoreTests {
                 windowId: 12,
                 lastActiveTime: nil,
                 preferredDestination: nil,
+                frame: nil,
                 stagedAt: now.addingTimeInterval(-3.0)
             )
             store.stage(
@@ -109,6 +116,7 @@ enum PendingPrunedWindowStoreTests {
                 windowId: 13,
                 lastActiveTime: nil,
                 preferredDestination: nil,
+                frame: nil,
                 stagedAt: now.addingTimeInterval(-3.0)
             )
 

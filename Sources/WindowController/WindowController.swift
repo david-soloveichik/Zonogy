@@ -84,8 +84,8 @@ class WindowController {
     /// Window ids whose next activity record should be skipped because they were restored
     /// from deferred-prune state and should keep their prior recency ordering.
     internal var restoredPendingPruneActivitySkipWindowIds: Set<Int> = []
-    /// Original placement targets for windows restored from deferred-prune state.
-    internal var restoredPendingPruneDestinationsByWindowId: [Int: PendingPrunedWindowDestination] = [:]
+    /// Deferred-prune entries of restored windows, kept until their capture places them.
+    internal var restoredPendingPruneEntriesByWindowId: [Int: PendingPrunedWindowStore.Entry] = [:]
     /// Serial background queue for dispatching AX writes during live zone resize drags.
     /// Keeps the main thread free while window position/size updates proceed in order.
     internal let liveResizeAXQueue = DispatchQueue(
