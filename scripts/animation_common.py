@@ -51,6 +51,15 @@ DOCK_W = len(APPS) * ICON + (len(APPS) - 1) * ICON_GAP + 2 * DOCK_PAD
 DOCK_H = ICON + 2 * DOCK_PAD
 
 
+# Two displays side by side with their tops (and menu bars) aligned, on a wide canvas: the main one, which has
+# the Dock, and a smaller one on a stand. The pointer crosses between them only where their edges meet.
+WIDE = (1600, 712)
+MAIN_DISPLAY = ((WIDE[0] - 860 - 576 - 4 * FRAME - 36) / 2 + FRAME, 54, 860, 538)
+SIDE_DISPLAY = (MAIN_DISPLAY[0] + 860 + 2 * FRAME + 36, MAIN_DISPLAY[1], 576, 360)
+WIDE_CAPTION_Y = MAIN_DISPLAY[1] + 538 + FRAME + 58
+SIDE_STAND_FLOOR = SIDE_DISPLAY[1] + 360 + FRAME + 44  # a short neck and foot just under the smaller display
+
+
 def n(v):
     s = f"{v:.2f}".rstrip("0").rstrip(".")
     return "0" if s == "-0" else s
@@ -82,6 +91,22 @@ def columns(screen, bottom):
     top = y + MENU_H + GAP
     cw = (w - 2 * MARGIN - GAP) / 2
     return top, bottom - top, cw, (x + MARGIN, x + MARGIN + cw + GAP)
+
+
+def zone_frames(area, split, left_rows=None, right_rows=None):
+    """Zone frames for two columns filling `area`, left to right and top to bottom: `split` is the left
+    column's share of the width, and a column given a share is split into a top and a bottom zone by it (zones
+    can be resized)."""
+    x, y, w, h = area
+
+    def column(cx, cw, share):
+        if share is None:
+            return [(cx, y, cw, h)]
+        top = (h - GAP) * share
+        return [(cx, y, cw, top), (cx, y + top + GAP, cw, h - GAP - top)]
+
+    lw = (w - GAP) * split
+    return column(x, lw, left_rows) + column(x + lw + GAP, w - GAP - lw, right_rows)
 
 
 # ---------------------------------------------------------------- shapes
@@ -458,6 +483,54 @@ def overlays(zones):
                                            for z in zones] + ["</g>"] +
                      [f'<g class="hot{i}">' + zone(z, fill_opacity=".28", stroke=ZBLUE, stroke_width="2.2") + "</g>"
                       for i, z in enumerate(zones)])
+
+
+TW, TH = 150, 94  # a thumbnail in the WinShot chooser
+CHOOSER_H = 18 + TH + 9 + 16 + 4 + 16 + 14
+
+
+def chooser_layout(screen, order, gaps):
+    """The WinShot chooser's panel (x, y, width) centered on the display, and each thumbnail's x."""
+    width = len(order) * TW + sum(gaps) + 40
+    px, py = center(screen)[0] - width / 2, center(screen)[1] - CHOOSER_H / 2
+    return (px, py, width), [px + 20 + i * TW + sum(gaps[:i]) for i in range(len(order))]
+
+
+def thumbnail_defs(arrangements, area):
+    """Each snapshot as the chooser shows it, defined once at the origin as `th-{key}`: its windows, given as
+    (app, frame, floating?) in the zone area `area`, scaled down onto a plain background, with app icons
+    underneath (tiling zones on top, the floating window below)."""
+    k = min((TW - 10) / area[2], (TH - 10) / area[3])
+    ox, oy = (TW - area[2] * k) / 2 - area[0] * k, (TH - area[3] * k) / 2 - area[1] * k
+    s = ["<defs>", f'<clipPath id="thclip">{rect(0, 0, TW, TH, 6)}</clipPath>']
+    for key, wins in arrangements.items():
+        s += [f'<g id="th-{key}">', rect(0, 0, TW, TH, 6, fill="#dfe3ea"),
+              f'<g clip-path="url(#thclip)"><g transform="translate({n(ox)},{n(oy)}) scale({k:.4f})">',
+              *(full_window(frame, app) for app, frame, _ in wins), "</g></g>"]
+        for row, floating in enumerate((False, True)):
+            apps = [app for app, _, f in wins if f == floating]
+            left = TW / 2 - (len(apps) * 20 - 4) / 2
+            s += [f'<use href="#ic-{app}" x="{n(left + i * 20)}" y="{n(TH + 9 + row * 20)}" width="16" height="16"/>'
+                  for i, app in enumerate(apps)]
+        s.append("</g>")
+    s.append("</defs>")
+    return "\n".join(s)
+
+
+def chooser(cls, screen, order, gaps, selected):
+    """The WinShot chooser on a display: the snapshots `order` (keys of thumbnail_defs) on a timeline spaced
+    by `gaps`, with a selection frame (class `{cls}sel`) on the `selected` one."""
+    (px, py, width), xs = chooser_layout(screen, order, gaps)
+    ty = py + 18
+    return "\n".join([
+        f'<g class="{cls}">',
+        rect(px, py, width, CHOOSER_H, 18, fill="#f5f6f9", fill_opacity=".95", filter="url(#shadow)"),
+        rect(px + .5, py + .5, width - 1, CHOOSER_H - 1, 17.5, fill="none", stroke="#fff", stroke_opacity=".8"),
+        *(f'<use href="#th-{key}" x="{n(x)}" y="{n(ty)}"/>' for x, key in zip(xs, order)),
+        f'<g class="{cls}sel">' + rect(xs[selected] - 4, ty - 4, TW + 8, TH + 8, 9, fill="none", stroke=ZBLUE,
+                                         stroke_width="3") + "</g>",
+        "</g>",
+    ])
 
 
 def drag_pill(title_w):

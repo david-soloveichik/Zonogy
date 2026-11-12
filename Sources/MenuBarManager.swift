@@ -5,7 +5,7 @@ import AppKit
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
     func menuBarManagerDidRequestPreferences()
-    func menuBarManagerDidRequestWelcomeTour()
+    func menuBarManagerDidRequestTour(_ tour: Tour)
     func menuBarManagerDidRequestSaveSnapshot()
     func menuBarManagerDidRequestClearAllSnapshots()
     func menuBarManagerDidRequestCheckForUpdates()
@@ -75,6 +75,7 @@ class MenuBarManager: NSObject {
         // Feedback comes in two flavors: public on the issue tracker, or private by email.
         let helpMenu = NSMenu()
         addItem(to: helpMenu, title: "Welcome Tour...", action: #selector(handleWelcomeTour))
+        addItem(to: helpMenu, title: "WinShot Tour...", action: #selector(handleWinShotTour))
         helpMenu.addItem(NSMenuItem.separator())
         addItem(to: helpMenu, title: "GitHub", action: #selector(handleOpenGitHub))
         addItem(to: helpMenu, title: "Feedback on GitHub...", action: #selector(handleFeedbackOnGitHub))
@@ -135,7 +136,12 @@ class MenuBarManager: NSObject {
 
     @objc private func handleWelcomeTour() {
         Logger.debug("Welcome tour requested from menu bar")
-        delegate?.menuBarManagerDidRequestWelcomeTour()
+        delegate?.menuBarManagerDidRequestTour(.welcome)
+    }
+
+    @objc private func handleWinShotTour() {
+        Logger.debug("WinShot tour requested from menu bar")
+        delegate?.menuBarManagerDidRequestTour(.winShot)
     }
 
     @objc private func handleCheckForUpdates() {

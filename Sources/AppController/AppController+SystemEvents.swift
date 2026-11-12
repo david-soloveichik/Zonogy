@@ -322,11 +322,6 @@ extension AppController {
         case .managedUnknown:
             cancelFocusedWindowCheckRetry()
             newScreenId = nil
-        case .ownContentWindow(let screenId):
-            // One of Zonogy's own content windows is focused: suppress resize bars on its screen.
-            // No AX focus to confirm, so cancel any in-flight retry and apply immediately.
-            cancelFocusedWindowCheckRetry()
-            newScreenId = screenId
         case .unmanaged(let screenId, let pid, let focusedElement, let reason):
             cancelFocusedWindowCheckRetry()
             frontmost = (pid, screenId)

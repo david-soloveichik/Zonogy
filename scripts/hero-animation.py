@@ -13,15 +13,15 @@ Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
 """
 import sys
 
-from animation_common import (CURSOR, DM_ROW_H, EIO, EOUT, FRAME, GAP, LH, LW, MARGIN, ROW_H, Timeline, at, captions,
-                              center, columns, dock, dock_origin, dockmenu, dockmenu_origin, document, drag_pill,
-                              ease_progress, full_window, icon_center, launcher, launcher_origin, menubar, n,
-                              opacity, overlays, placeholder, resizable_window, resize_bar, ripple, row_center,
-                              scale, wallpapers)
+from animation_common import (CURSOR, DM_ROW_H, EIO, EOUT, GAP, LH, LW, MAIN_DISPLAY, MARGIN, ROW_H, SIDE_DISPLAY,
+                              SIDE_STAND_FLOOR, WIDE, WIDE_CAPTION_Y, Timeline, at, captions, center, columns,
+                              dock, dock_origin, dockmenu, dockmenu_origin, document, drag_pill, ease_progress,
+                              full_window, icon_center, launcher, launcher_origin, menubar, n, opacity, overlays,
+                              placeholder, resizable_window, resize_bar, ripple, row_center, scale, wallpapers)
 
 DUR = 14.6  # loop length, seconds
 T_STILL = 5.3  # frame shown where CSS animations don't run: the Launcher open in the main display's emptied zone
-W, H = 1600, 712
+W, H = WIDE
 TITLE = (
     "Zonogy on two displays. Each display keeps its own tiling zones. Minimizing a window, on either display, "
     "leaves its zone empty with the Launcher open there to pick a window for it. Dragging a specific window "
@@ -32,14 +32,10 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Or hover over a Dock icon and drag a specific window", 9.7, 13.3),
 )
 
-# Displays: screen rectangles (x, y, w, h), side by side with their tops (and menu bars) aligned. The left one
-# has the Dock. The pointer crosses between them only where their edges meet, so above the smaller one's bottom.
-DISPLAY_GAP = 36  # space between the displays
-SW1, SH1, SW2, SH2 = 860, 538, 576, 360
-S1 = ((W - SW1 - SW2 - 4 * FRAME - DISPLAY_GAP) / 2 + FRAME, 54, SW1, SH1)
-S2 = (S1[0] + SW1 + 2 * FRAME + DISPLAY_GAP, S1[1], SW2, SH2)
-CAPTION_Y = S1[1] + SH1 + FRAME + 58
-STAND_FLOOR = S2[1] + SH2 + FRAME + 44  # the secondary display's stand: a short neck and foot just under it
+# Displays: screen rectangles (x, y, w, h). The left one has the Dock.
+S1, S2 = MAIN_DISPLAY, SIDE_DISPLAY
+SH2 = S2[3]
+CAPTION_Y, STAND_FLOOR = WIDE_CAPTION_Y, SIDE_STAND_FLOOR
 DOCK_Y = dock_origin(S1)[1]
 
 _t1, _h1, _w1, (_l1, _r1) = columns(S1, DOCK_Y - GAP)

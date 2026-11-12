@@ -1,8 +1,10 @@
-/// The Welcome tour's window: a few pages introducing Zonogy, read front to back with Back and Continue.
-/// It opens by itself on the first launch, and again after the restart that follows granting Accessibility
-/// from its Permissions page; after that, from the menu bar's Help menu. Like Preferences it floats, so the
-/// user can try things on the windows beside it.
+/// The window that shows a tour: its pages, read front to back with Back and Continue. The Welcome tour
+/// opens by itself on the first launch, and again after the restart that follows granting Accessibility
+/// from its Permissions page; after that, tours open from the menu bar's Help menu. Like Preferences the
+/// window floats, so the user can try things on the windows beside it.
 import AppKit
+import ApplicationServices
+import Carbon.HIToolbox
 
 final class TourWindowController: NSWindowController, NSWindowDelegate {
     static let shared = TourWindowController()
@@ -11,6 +13,7 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
     /// forcing this singleton to instantiate.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("ZonogyTour")
 
+    private var tour = Tour.welcome
     private var pages: [TourPage] = []
     private var pageIndex = 0
     private var pageView: TourPageView?
@@ -27,10 +30,10 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to Zonogy"
         window.identifier = Self.windowIdentifier
-        window.level = .floating
         window.isReleasedWhenClosed = false
+        // The tour is often in the way of what it describes, so any part of it drags it aside.
+        window.isMovableByWindowBackground = true
 
         super.init(window: window)
         window.delegate = self
@@ -81,26 +84,33 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Showing
 
-    /// Opens the tour if this launch calls for it: the first launch, or the restart that follows granting
-    /// Accessibility from the tour. Returns whether it opened.
+    /// Opens the Welcome tour if this launch calls for it: the first launch, or the restart that follows
+    /// granting Accessibility from the tour. Returns whether it opened.
     static func showAtLaunchIfNeeded() -> Bool {
         if let page = TourProgressStore.takeResumePage() {
-            shared.show(at: page)
+            shared.show(.welcome, at: page)
             return true
         }
         guard !TourProgressStore.hasBeenShown else {
             return false
         }
-        shared.show(at: 0)
+        shared.show(.welcome)
         return true
     }
 
-    func show(at page: Int) {
-        TourProgressStore.hasBeenShown = true
+    func show(_ tour: Tour, at page: Int = 0) {
+        if tour == .welcome {
+            TourProgressStore.hasBeenShown = true
+        }
         guard let window else { return }
+        self.tour = tour
+        window.title = tour.windowTitle
+        // Until Accessibility is granted there is nothing of Zonogy's to try, and a floating tour would
+        // cover System Settings, where it is granted.
+        window.level = AXIsProcessTrusted() ? .floating : .normal
 
         // The window keeps one size, that of its tallest page, so its buttons stay put from page to page.
-        pages = TourPage.all()
+        pages = tour.pages()
         pageContainerHeight.constant = pages.map { TourPageView(page: $0).fittingSize.height }.max() ?? 0
         showPage(max(0, min(page, pages.count - 1)))
 
@@ -125,9 +135,11 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         ])
         pageView = view
 
-        // Granting Accessibility restarts Zonogy. The tour then reopens on the page after this one.
-        view.permissionBanners?.onAccessibilityGranted = {
-            TourProgressStore.saveResumePage(index + 1)
+        // Granting Accessibility restarts Zonogy. The Welcome tour then reopens on the page after this one.
+        view.permissionBanners?.onAccessibilityGranted = { [tour] in
+            if tour == .welcome {
+                TourProgressStore.saveResumePage(index + 1)
+            }
             AppController.shared.restartAfterAccessibilityGranted()
         }
         view.permissionBanners?.startPolling()
@@ -136,6 +148,11 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         positionLabel.stringValue = "\(index + 1) of \(pages.count)"
         backButton.isEnabled = index > 0
         continueButton.title = isLast ? "Done" : "Continue"
+        // The pages after the one asking for Accessibility describe Zonogy at work, so they wait for it.
+        // Granting it restarts Zonogy on the next page, so the button never needs enabling while this
+        // page shows.
+        let asksForAccessibility = view.permissionBanners?.permissions.contains(.accessibility) ?? false
+        continueButton.isEnabled = !asksForAccessibility || AXIsProcessTrusted()
     }
 
     private func removePage() {
@@ -153,6 +170,22 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
             window?.close()
         } else {
             showPage(pageIndex + 1)
+        }
+    }
+
+    /// The arrow keys turn the pages, and Command-W closes the tour. (Zonogy has no menu bar of its own
+    /// to give its windows a Close command.)
+    override func keyDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        switch (Int(event.keyCode), modifiers) {
+        case (kVK_LeftArrow, []) where backButton.isEnabled:
+            goBack()
+        case (kVK_RightArrow, []) where continueButton.isEnabled && pageIndex < pages.count - 1:
+            goForward()
+        case (kVK_ANSI_W, .command):
+            window?.performClose(nil)
+        default:
+            super.keyDown(with: event)
         }
     }
 

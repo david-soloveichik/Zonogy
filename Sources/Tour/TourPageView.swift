@@ -1,4 +1,4 @@
-/// One page of the Welcome tour, laid out top to bottom: its scene, its title, then its text.
+/// One page of a tour, laid out top to bottom: its scene, its title, then its text and controls.
 import AppKit
 
 final class TourPageView: NSView {
@@ -8,7 +8,8 @@ final class TourPageView: NSView {
 
     /// The page's permission banners, if it has them, for the tour to wire up and to start and stop polling.
     private(set) var permissionBanners: PermissionBannersView?
-    private var links: [URL] = []
+    private var buttonActions: [() -> Void] = []
+    private var toggleSetters: [(Bool) -> Void] = []
 
     init(page: TourPage) {
         super.init(frame: .zero)
@@ -41,7 +42,7 @@ final class TourPageView: NSView {
         for block in page.blocks {
             let view = makeView(for: block)
             stack.addArrangedSubview(view)
-            if case .link = block { continue }  // A button keeps its own width.
+            if view is NSButton { continue }  // A button or checkbox keeps its own width.
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
     }
@@ -64,15 +65,21 @@ final class TourPageView: NSView {
             return list
         case .tryIt(let text):
             return TryItView(text: text)
-        case .permissions:
-            let banners = PermissionBannersView()
+        case .permissions(let permissions):
+            let banners = PermissionBannersView(showing: permissions)
             permissionBanners = banners
             return banners
-        case .link(let title, let url):
-            let button = NSButton(title: title, target: self, action: #selector(openLink(_:)))
+        case .toggle(let title, let isOn, let set):
+            let checkbox = NSButton(checkboxWithTitle: title, target: self, action: #selector(toggleChanged(_:)))
+            checkbox.state = isOn() ? .on : .off
+            checkbox.tag = toggleSetters.count
+            toggleSetters.append(set)
+            return checkbox
+        case .button(let title, let action):
+            let button = NSButton(title: title, target: self, action: #selector(buttonPressed(_:)))
             button.bezelStyle = .rounded
-            button.tag = links.count
-            links.append(url)
+            button.tag = buttonActions.count
+            buttonActions.append(action)
             return button
         }
     }
@@ -104,8 +111,12 @@ final class TourPageView: NSView {
         return label
     }
 
-    @objc private func openLink(_ sender: NSButton) {
-        AppLinks.open(links[sender.tag])
+    @objc private func buttonPressed(_ sender: NSButton) {
+        buttonActions[sender.tag]()
+    }
+
+    @objc private func toggleChanged(_ sender: NSButton) {
+        toggleSetters[sender.tag](sender.state == .on)
     }
 }
 

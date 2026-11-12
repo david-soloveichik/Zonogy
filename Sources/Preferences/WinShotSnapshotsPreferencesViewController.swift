@@ -50,6 +50,12 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(titleLabel)
 
+        let tourButton = NSButton(title: "WinShot Tour…", target: self, action: #selector(showTour))
+        tourButton.bezelStyle = .rounded
+        tourButton.controlSize = .small
+        tourButton.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(tourButton)
+
         let winShotCheckbox = NSButton(checkboxWithTitle: "Enable WinShot", target: self, action: #selector(winShotToggled(_:)))
         winShotCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(winShotCheckbox)
@@ -183,6 +189,9 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
+            tourButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            tourButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+
             winShotCheckbox.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
             winShotCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
@@ -240,6 +249,10 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     override func viewWillAppear() {
         super.viewWillAppear()
         syncControls()
+    }
+
+    @objc private func showTour() {
+        TourWindowController.shared.show(.winShot)
     }
 
     @objc private func winShotToggled(_ sender: NSButton) {

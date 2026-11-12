@@ -26,10 +26,10 @@ extension AppController {
         PreferencesWindowController.shared.showWindow()
     }
 
-    func menuBarManagerDidRequestWelcomeTour() {
+    func menuBarManagerDidRequestTour(_ tour: Tour) {
         // Close Launcher if open to avoid overlap with the tour window
         dismissLauncherIfActive()
-        TourWindowController.shared.show(at: 0)
+        TourWindowController.shared.show(tour)
     }
 
     func menuBarManagerDidRequestSaveSnapshot() {

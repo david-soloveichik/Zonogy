@@ -1,11 +1,20 @@
-/// The Accessibility and Screen Recording permission banners, shown in Preferences (General tab) and on the
-/// Welcome tour's Permissions page. Each says whether its permission is granted and opens its System Settings
-/// pane. macOS posts no notification when a permission changes, so the banners poll while their owner has them
-/// on screen.
+/// The Accessibility and Screen Recording permission banners, shown in Preferences (General tab) and in the
+/// tours. Each says whether its permission is granted and opens its System Settings pane. macOS posts no
+/// notification when a permission changes, so the banners poll while their owner has them on screen.
 import AppKit
 import ApplicationServices
 
 final class PermissionBannersView: NSView {
+    struct Permissions: OptionSet {
+        let rawValue: Int
+        static let accessibility = Permissions(rawValue: 1 << 0)
+        static let screenRecording = Permissions(rawValue: 1 << 1)
+        static let all: Permissions = [.accessibility, .screenRecording]
+    }
+
+    /// The permissions these banners show.
+    let permissions: Permissions
+
     /// Called when polling finds that Accessibility went from missing to granted. Zonogy restarts then, so
     /// that everything that needs the permission starts with it.
     var onAccessibilityGranted: (() -> Void)?
@@ -18,9 +27,13 @@ final class PermissionBannersView: NSView {
     private let screenRecordingBanner = Banner(settingsPane: "Privacy_ScreenCapture")
     private var pollingTimer: Timer?
 
-    init() {
+    init(showing permissions: Permissions = .all) {
+        self.permissions = permissions
         super.init(frame: .zero)
-        let stack = NSStackView(views: [accessibilityBanner, screenRecordingBanner])
+        let banners = [(Permissions.accessibility, accessibilityBanner), (.screenRecording, screenRecordingBanner)]
+            .filter { permissions.contains($0.0) }
+            .map(\.1)
+        let stack = NSStackView(views: banners)
         stack.orientation = .vertical
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -30,9 +43,7 @@ final class PermissionBannersView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            accessibilityBanner.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            screenRecordingBanner.widthAnchor.constraint(equalTo: stack.widthAnchor),
-        ])
+        ] + banners.map { $0.widthAnchor.constraint(equalTo: stack.widthAnchor) })
         _ = Self.lastKnownAccessibilityState  // Looked at now, so a grant from here on is noticed.
         sync()
     }

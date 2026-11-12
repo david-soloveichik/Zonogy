@@ -1,8 +1,8 @@
-"""Layout, drawing and motion shared by the Welcome tour's scenes (scripts/tour-*.py): one display with two
-columns of zones, Zonogy's edge bars, labels, the pointer, and the file each scene writes. The drawing itself
-is in animation_common.py.
+"""Layout, drawing and motion shared by the scenes of the Welcome and WinShot tours (scripts/tour-*.py): one
+display with two columns of zones, Zonogy's edge bars, labels, the pointer, and the file each scene writes.
+The drawing itself is in animation_common.py.
 
-The tour plays a scene in a web view above a page's text. A scene's captions and labels name no keys:
+A tour plays a scene in a web view above a page's text. A scene's captions and labels name no keys:
 shortcuts are the user's to change, so only the page's text, which the app writes, mentions them.
 """
 from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, ZBLUE, at, bar, captions, center, columns,

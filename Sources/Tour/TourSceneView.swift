@@ -71,8 +71,13 @@ final class TourSceneView: NSView, WKNavigationDelegate {
     }
 }
 
-/// A web view that only shows its page: the mouse passes through it.
+/// A web view that only shows its page: the mouse passes through it, and it takes no keys (as first
+/// responder it would keep the arrow keys from turning the tour's pages).
 private final class PictureWebView: WKWebView {
+    override var acceptsFirstResponder: Bool {
+        false
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }

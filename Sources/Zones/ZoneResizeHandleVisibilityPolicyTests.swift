@@ -301,6 +301,44 @@ enum ZoneResizeHandleVisibilityPolicyTests {
             )
         }
 
+        // One of Zonogy's own windows clips each separator to its larger remaining part.
+        do {
+            let ownWindow = CGRect(x: 20, y: 30, width: 60, height: 50)
+            assertEqual(
+                ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                    vertical, activeFitContext: nil, ownWindowFrames: [ownWindow]),
+                CGRect(x: 50, y: 0, width: 8, height: 30),
+                label: "own window clips vertical separator"
+            )
+            assertEqual(
+                ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                    horizontal, activeFitContext: nil, ownWindowFrames: [ownWindow]),
+                CGRect(x: 0, y: 50, width: 20, height: 8),
+                label: "own window clips horizontal separator"
+            )
+        }
+
+        // Own windows that together cover a separator hide it; one that misses it changes nothing.
+        do {
+            assertEqual(
+                ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                    vertical,
+                    activeFitContext: nil,
+                    ownWindowFrames: [
+                        CGRect(x: 40, y: 0, width: 30, height: 60),
+                        CGRect(x: 40, y: 60, width: 30, height: 40),
+                    ]),
+                nil,
+                label: "own windows covering a separator hide it"
+            )
+            assertEqual(
+                ZoneResizeHandleVisibilityPolicy.adjustedSeparatorFrame(
+                    vertical, activeFitContext: nil, ownWindowFrames: [CGRect(x: 70, y: 0, width: 30, height: 100)]),
+                vertical.frame,
+                label: "own window beside a separator leaves it"
+            )
+        }
+
         if allPassed {
             print("ZoneResizeHandleVisibilityPolicyTests: all tests passed")
         }
