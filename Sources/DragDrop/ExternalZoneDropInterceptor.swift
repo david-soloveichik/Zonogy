@@ -238,7 +238,7 @@ final class ExternalZoneDropInterceptor {
             let now = Date()
             if dragSession.shouldPollChangeCount(now: now) {
                 dragSession.recordPoll(changeCount: dragPasteboard.changeCount, now: now) {
-                    ExternalDropParser.canAccept(dragPasteboard)
+                    ExternalDropParser.acceptance(of: dragPasteboard)
                 }
             }
         } else if dragSession.isTrackingGesture {

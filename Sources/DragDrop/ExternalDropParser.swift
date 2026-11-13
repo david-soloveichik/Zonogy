@@ -19,10 +19,19 @@ enum ExternalDropParser {
     ]
 
     static func canAccept(_ pasteboard: NSPasteboard) -> Bool {
-        guard let types = pasteboard.types else {
-            return false
-        }
+        canAccept(pasteboard, types: pasteboard.types ?? [])
+    }
 
+    /// Like `canAccept`, but nil while the pasteboard is still empty: a drag source can change the
+    /// drag pasteboard before its content lands. Judged from a single read of the types.
+    static func acceptance(of pasteboard: NSPasteboard) -> Bool? {
+        guard let types = pasteboard.types, !types.isEmpty else {
+            return nil
+        }
+        return canAccept(pasteboard, types: types)
+    }
+
+    private static func canAccept(_ pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
         if types.contains(.fileURL) || types.contains(.URL) {
             return true
         }

@@ -1,7 +1,8 @@
 /// Recognizes a live external (non-Zonogy) drag from the global mouse monitors while touching the
 /// drag pasteboard as little as possible: reading its change count is a round trip to the
 /// pasteboard server and the monitors see every drag event in every app, so the count is polled
-/// sparingly and a recognized session's content is examined once. Pure state, guardrail-tested.
+/// sparingly and a session's content is judged once, as soon as it has landed. Pure state,
+/// guardrail-tested.
 import Foundation
 
 struct ExternalDragSessionTracker {
@@ -11,8 +12,9 @@ struct ExternalDragSessionTracker {
     static let initialPollWindow: TimeInterval = 0.05
 
     /// After the initial window, the change count is read at most this often while the gesture has
-    /// no recognized drag session yet. Reads happen only as drag or modifier events arrive, so a
-    /// fresh external drag is recognized at the first event this long after the previous read.
+    /// no recognized drag session yet, or its content has not landed. Reads happen only as drag or
+    /// modifier events arrive, so a fresh external drag is recognized at the first event this long
+    /// after the previous read.
     static let changeCountPollInterval: TimeInterval = 0.1
 
     /// The drag pasteboard keeps its content after a drag ends, so content alone cannot tell a live
@@ -22,9 +24,10 @@ struct ExternalDragSessionTracker {
     private var firstPollTime: Date?
     private var lastPollTime: Date?
     /// The current gesture's drag session once its change count has been seen, with whether its
-    /// content is something Zonogy can accept. A session's content cannot change until the button
-    /// is released, so once set there is nothing further to poll.
-    private var session: (changeCount: Int, isAcceptable: Bool)?
+    /// content is something Zonogy can accept, or nil while the pasteboard is still empty: the count
+    /// can change before the source's content lands (Mail's drags show an empty pasteboard at
+    /// first). Once judged, the content is not examined again before the button is released.
+    private var session: (changeCount: Int, isAcceptable: Bool?)?
 
     init(handledChangeCount: Int) {
         self.handledChangeCount = handledChangeCount
@@ -35,7 +38,7 @@ struct ExternalDragSessionTracker {
         session?.isAcceptable == true
     }
 
-    /// True once the current gesture's drag session has been recognized, acceptable or not.
+    /// True once the current gesture's drag session has been recognized, whatever its content.
     var hasSession: Bool {
         session != nil
     }
@@ -48,7 +51,8 @@ struct ExternalDragSessionTracker {
 
     /// Whether the caller should read the change count now.
     func shouldPollChangeCount(now: Date) -> Bool {
-        guard session == nil else {
+        // Nothing further to poll once a session's content has been judged.
+        guard session?.isAcceptable == nil else {
             return false
         }
         guard let firstPollTime, let lastPollTime else {
@@ -60,9 +64,10 @@ struct ExternalDragSessionTracker {
         return now.timeIntervalSince(lastPollTime) >= Self.changeCountPollInterval
     }
 
-    /// Records a change-count read. `isAcceptable` is consulted, once, only when the count reveals
-    /// a fresh session.
-    mutating func recordPoll(changeCount: Int, now: Date, isAcceptable: () -> Bool) {
+    /// Records a change-count read. `acceptability` is consulted only when the count reveals a fresh
+    /// session: it says whether the content is acceptable, or nil while the pasteboard is still
+    /// empty, which keeps polling.
+    mutating func recordPoll(changeCount: Int, now: Date, acceptability: () -> Bool?) {
         if firstPollTime == nil {
             firstPollTime = now
         }
@@ -70,7 +75,7 @@ struct ExternalDragSessionTracker {
         guard changeCount != handledChangeCount else {
             return
         }
-        session = (changeCount, isAcceptable())
+        session = (changeCount, acceptability())
     }
 
     /// The gesture ended (mouse-up) or was cancelled (Escape): its pasteboard content is now a
