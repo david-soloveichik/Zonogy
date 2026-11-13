@@ -9,6 +9,8 @@ enum AppLinks {
 
     /// Repository home, opened from the menu bar's Help submenu.
     static let repository = URL(string: "https://github.com/\(repositorySlug)")!
+    /// The README's Additional Suggestions, linked from the tour's Finish setting up page.
+    static let additionalSuggestions = URL(string: "https://github.com/\(repositorySlug)#additional-suggestions")!
     /// New issue form, for feedback the user is happy to file in public.
     static let feedbackIssue = URL(string: "https://github.com/\(repositorySlug)/issues/new")!
     /// Release page offered by the update check.

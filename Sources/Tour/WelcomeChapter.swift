@@ -55,6 +55,8 @@ extension TourPage {
                     Point(lead: "Stage Manager:", text: "off. Zonogy takes its place."),
                 ]),
                 .button(title: "Open Desktop & Dock Settings…") { AppLinks.open(AppLinks.desktopAndDockSettings) },
+                .paragraph("More suggestions, such as remapping Caps Lock, are in the README."),
+                .button(title: "Open Additional Suggestions…") { AppLinks.open(AppLinks.additionalSuggestions) },
             ]),
             TourPage(title: "More to discover", blocks: [
                 .points([
