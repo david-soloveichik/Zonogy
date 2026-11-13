@@ -41,8 +41,8 @@ extension TourPage {
             ]),
             TourPage(title: "Moving and resizing", scene: "moving", blocks: [
                 .paragraph("Drag a window onto another zone to move it there. A window already there swaps places."),
-                .paragraph("Drop it on a New Zone Bar to give it a new zone, or on the Floating Zone Bar at the bottom of the display to float it above the tiles."),
-                .paragraph("To resize zones, hover between two zones and drag the bar that appears. Dragging a window's own edge is temporary: the window returns to its zone when you switch windows."),
+                .paragraph("To resize zones, hover between two zones and drag the bar that appears. (Note: Dragging a window's own edge is temporary: the window returns to its zone when you switch windows.)"),
+                .paragraph("With ActiveFit, a window too big for its zone slides fully into view while you use it."),
                 .tryIt("Drag a window onto another zone."),
             ]),
             TourPage(title: "Finish setting up", blocks: [
@@ -60,7 +60,6 @@ extension TourPage {
                 .points([
                     Point(lead: "\(gestureKeys)-click a zone", text: "to make it the destination, even if occupied."),
                     Point(lead: "Drag a Dock icon, file, or link", text: "onto an empty zone or a New Zone Bar to open it there."),
-                    Point(lead: "ActiveFit:", text: "a window too big for its zone slides fully into view while you use it."),
                 ]),
                 .paragraph("More chapters are at the top of this window. Every shortcut is in Preferences > Shortcuts, and this tour is under Help in the Zonogy menu."),
             ]),
