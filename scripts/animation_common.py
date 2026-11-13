@@ -27,6 +27,8 @@ TINTS = {  # window body colors, deliberately uneven in hue and lightness
     "amber": "#f1e19a",
     "pink": "#f5cadc",
     "teal": "#2f5d5a",
+    "mail": "#e9edf4",  # Mail and its replies have no Dock icon: only the tour's destination scene shows them
+    "reply": "#e9edf4",
 }
 GLYPHS = {
     "purple": '<path d="M20 17l-8 8 8 8M30 17l8 8-8 8"/>',
@@ -344,8 +346,89 @@ def photos(x, y, w, h):
             for r in range(rows) for c in range(cols)]
 
 
+MAIL_ROW_H = 42  # a message in Mail's list
+MAIL_TOOLBAR = ("forward", "replyall", "reply", "trash", "archive")  # Mail's toolbar buttons, right to left
+TOOLBAR_GLYPHS = {  # drawn around their center, about 14 across
+    "archive": "M-6-5h12v3.5h-12zM-5-1.5v7h10v-7M-2 1.5h4",
+    "trash": "M-5.5-4h11M-2-4v-2h4v2M-4-4l.8 10h6.4l.8-10",
+    "reply": "M-2.5-5.5L-7-1l4.5 4.5M-7-1h8.5c3.3 0 5.5 2.2 5.5 5.5V6",
+    "replyall": "M.5-5.5L-4-1l4.5 4.5M-3.5-5.5L-8-1l4.5 4.5M-4-1h6.5c3 0 5 2 5 5V6",
+    "forward": "M2.5-5.5L7-1l-4.5 4.5M7-1h-8.5c-3.3 0-5.5 2.2-5.5 5.5V6",
+    "send": "M-7-1L7-7 2 7-.5 1.5zM-.5 1.5L7-7",
+}
+
+
+def toolbar_glyph(name, p, color, width=1.6):
+    return (f'<path transform="translate({n(p[0])},{n(p[1])})" d="{TOOLBAR_GLYPHS[name]}" fill="none" '
+            f'stroke="{color}" stroke-width="{n(width)}" stroke-linecap="round" stroke-linejoin="round"/>')
+
+
+def mail_list_width(w):
+    return min(160, w * .38)
+
+
+def mail_button(z, name):
+    """Center of a toolbar button (see MAIL_TOOLBAR) of the Mail window at frame z."""
+    x, y, w, _ = z
+    return (x + w - 22 - 28 * MAIL_TOOLBAR.index(name), y + 35)
+
+
+def mail_row_center(z, i):
+    """Center of message i in the list of the Mail window at frame z."""
+    x, y, w, _ = z
+    return (x + 6 + mail_list_width(w) / 2, y + 50 + (i + .5) * MAIL_ROW_H)
+
+
+def mail(x, y, w, h):
+    """Mail: a toolbar over the message list, beside the open message."""
+    rnd, lw = random.Random(7), mail_list_width(w)
+    s = [rect(x + 6, y + 26, w - 12, 18, 5, fill="#fff", fill_opacity=".55"),
+         *(toolbar_glyph(name, mail_button((x, y, w, h), name), "#4d5566") for name in MAIL_TOOLBAR),
+         rect(x + 6, y + 48, lw, h - 54, 6, fill="#fff", fill_opacity=".45")]
+    for i in range(int((h - 54) / MAIL_ROW_H)):
+        ry = y + 50 + i * MAIL_ROW_H
+        if i in (3, 4, 6):  # unread
+            s.append(f'<circle cx="{n(x + 15)}" cy="{n(ry + 10)}" r="3" fill="{ZBLUE}"/>')
+        s += [bar(x + 24, ry + 7, rnd.uniform(.4, .65) * (lw - 56), 6, "#3b4252", .7),
+              bar(x + lw - 28, ry + 7.5, 20, 4.5, "#8b93a2", .55),
+              bar(x + 24, ry + 18, rnd.uniform(.5, .85) * (lw - 32), 5, "#4d5566", .55),
+              bar(x + 24, ry + 28, rnd.uniform(.55, .9) * (lw - 32), 4.5, "#8b93a2", .45),
+              rect(x + 24, ry + MAIL_ROW_H - 1, lw - 26, .8, fill="#5b6475", fill_opacity=".18")]
+    px, pw = x + lw + 18, w - lw - 30
+    s += [f'<circle cx="{n(px + 11)}" cy="{n(y + 65)}" r="11" fill="#2d7ff9" fill-opacity=".45"/>',
+          bar(px + 30, y + 57, min(110, pw * .55), 7, "#3b4252", .7),
+          bar(px + 30, y + 69, min(70, pw * .35), 4.5, "#8b93a2", .55),
+          bar(px, y + 92, min(190, pw * .85), 8, "#3b4252", .65),
+          rect(px, y + 108, pw, .8, fill="#5b6475", fill_opacity=".2")]
+    yy, k = y + 121, 0
+    while yy + 5 <= y + h - 12:
+        ends = k % 4 == 3  # a paragraph's last line
+        s.append(bar(px, yy, (rnd.uniform(.3, .6) if ends else rnd.uniform(.8, 1)) * pw, 5, "#8b93a2", .5))
+        yy, k = yy + (21 if ends else 13), k + 1
+    return s
+
+
+def reply(x, y, w, h):
+    """A reply being written in Mail: its address fields, the answer begun, and the message it quotes."""
+    rnd = random.Random(int(x + 3 * y))  # each reply's words differ a little
+    s = [rect(x + 6, y + 26, w - 12, 18, 5, fill="#fff", fill_opacity=".55"),
+         toolbar_glyph("send", (x + 22, y + 35), "#4d5566")]
+    for i, label_w in enumerate((16, 40)):  # To, Subject
+        fy = y + 52 + i * 18
+        s += [bar(x + 14, fy, label_w, 5, "#8b93a2", .6),
+              bar(x + 22 + label_w, fy - .5, rnd.uniform(.25, .45) * w, 6, "#3b4252", .65),
+              rect(x + 10, fy + 10.5, w - 20, .8, fill="#5b6475", fill_opacity=".2")]
+    s += [bar(x + 14, y + 96, rnd.uniform(.55, .75) * (w - 28), 5.5, "#3b4252", .6),
+          bar(x + 14, y + 109, rnd.uniform(.25, .4) * (w - 28), 5.5, "#3b4252", .6)]
+    quoted = int((h - 140) / 12) + 1  # lines of the message answered, under a bar
+    if quoted > 0:
+        s.append(rect(x + 14, y + 126, 2.5, (quoted - 1) * 12 + 9, 1.25, fill=ZBLUE, fill_opacity=".55"))
+        s += [bar(x + 24, y + 128 + i * 12, rnd.uniform(.6, 1) * (w - 40), 4.5, "#8b93a2", .5) for i in range(quoted)]
+    return s
+
+
 CONTENT = {"purple": editor_lines, "blue": browser, "orange": notes, "green": sheet, "amber": calendar,
-           "teal": chat, "pink": photos}
+           "teal": chat, "pink": photos, "mail": mail, "reply": reply}
 
 
 def window_content(z, app, opacity=1):
@@ -408,14 +491,21 @@ def resize_bar(x, top, height):
     return '<g class="rbar">' + rect(x - 2, top, 4, height, 2, fill="#fff", fill_opacity=".92") + "</g>"
 
 
-def placeholder(cls, z):
+def placeholder(cls, z, target_cls=None):
+    """An empty zone's placeholder, drawn as the destination: its border glows in the highlight color. Given
+    `target_cls`, its border is thin and white, as on a zone that is not the destination, and the glowing one
+    is a group of that class, for a scene to show while the zone is the destination."""
     x, y, w, h = z
     cx = x + w / 2
+    glowing = [rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
+               rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2")]
+    if target_cls:
+        glowing = [rect(x + .75, y + .75, w - 1.5, h - 1.5, 7.25, fill="none", stroke="#fff", stroke_opacity=".45",
+                        stroke_width="1.5"), f'<g class="{target_cls}">', *glowing, "</g>"]
     return "\n".join([
         f'<g class="{cls}">',
         rect(x, y, w, h, 8, fill="#9cc8ff", fill_opacity=".06"),
-        rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
-        rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2"),
+        *glowing,
         f'<circle cx="{n(x + 20)}" cy="{n(y + 20)}" r="10" fill="{ZBLUE}" fill-opacity=".6"/>',
         f'<path d="M{n(x + 16.5)} {n(y + 16.5)}l7 7m0-7l-7 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
         rect(cx - 31, y + 8, 62, 17, 8.5, fill="#fff", fill_opacity=".18"),

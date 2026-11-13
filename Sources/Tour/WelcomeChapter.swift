@@ -26,8 +26,9 @@ extension TourPage {
                 .tryIt("Click a New Zone Bar, then × on the new zone. A full display shows no bar."),
             ]),
             TourPage(title: "The destination zone", scene: "destination", blocks: [
-                .paragraph("Minimize or close a window and its zone becomes the destination, with the Launcher open in it. Type a few letters of an app, then press Return."),
-                .tryIt("Click a window, minimize it with \(minimize), then pick another in the Launcher."),
+                .paragraph("The next window opens in the destination zone, marked by a glow, whatever app it comes from. Click an empty zone to make it the destination."),
+                .paragraph("Once that zone is filled, the destination moves to another empty zone. When every zone is full, new windows float above the tiles."),
+                .tryIt("Minimize a window with \(minimize), then open a new window in any app, such as an email reply."),
             ]),
             TourPage(title: "Finding windows", scene: "finding", blocks: [
                 .paragraph("Minimized windows are out of sight but one step away."),
