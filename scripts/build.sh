@@ -53,7 +53,7 @@ echo "Stamped build: ${GIT_COUNT:-?} · ${GIT_SHA:-?}"
 # Copy resources
 cp "$PROJECT_DIR/Resources/defaults.json" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/Resources/icon_menubar.svg" "$APP_BUNDLE/Contents/Resources/"
-# The Welcome tour's scenes (regenerate with scripts/build-tour-animations.sh)
+# The tour's scenes (regenerate with scripts/build-tour-animations.sh)
 cp -R "$PROJECT_DIR/Resources/Tour" "$APP_BUNDLE/Contents/Resources/"
 
 # Bundle the optional experimental feature's tools. No system-wide installation or login service.

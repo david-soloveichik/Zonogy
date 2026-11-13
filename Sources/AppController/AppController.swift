@@ -480,7 +480,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
-        // Zone resize bars keep clear of our content windows (Preferences, the Welcome tour), so
+        // Zone resize bars keep clear of our content windows (Preferences, the tour), so
         // refresh them when one of those, or a sheet on it, appears or closes (its occlusion
         // state changes), moves, or ends a sheet. None of these depends on Zonogy being active.
         for name in [

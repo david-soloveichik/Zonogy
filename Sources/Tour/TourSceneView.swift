@@ -1,4 +1,4 @@
-/// Plays one of the Welcome tour's scenes: an animated SVG from Resources/Tour, drawn by scripts/tour-*.py.
+/// Plays one of the tour's scenes: an animated SVG from Resources/Tour, drawn by scripts/tour-*.py.
 /// A scene animates with CSS keyframes, which takes a web view to play. It is only a picture: scripting is
 /// off, and the view takes no clicks or scrolling.
 import AppKit

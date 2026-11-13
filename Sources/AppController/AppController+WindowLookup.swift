@@ -81,7 +81,7 @@ extension AppController {
         }
 
         // Zonogy's own windows are not classified. (Resize bars keep clear of its Preferences and
-        // Welcome tour windows by their frames, whichever application is frontmost.)
+        // tour windows by their frames, whichever application is frontmost.)
         let pid = frontmostApp.processIdentifier
         guard pid != getpid() else {
             return .managedUnknown

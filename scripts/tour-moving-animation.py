@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates Resources/Tour/moving.svg, the scene on the Welcome tour's Moving and resizing page.
+"""Generates Resources/Tour/moving.svg, the scene on the Welcome chapter's Moving and resizing page.
 
 One loop: three windows fill the display's three zones. The top-right window is dragged by its title bar onto
 the zone below: every zone gets an overlay, the one under the pointer lights up, and on the drop the two

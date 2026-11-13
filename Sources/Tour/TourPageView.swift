@@ -1,4 +1,4 @@
-/// One page of a tour, laid out top to bottom: its scene, its title, then its text and controls.
+/// One page of a tour chapter, laid out top to bottom: its scene, its title, then its text and controls.
 import AppKit
 
 final class TourPageView: NSView {
@@ -42,8 +42,12 @@ final class TourPageView: NSView {
         for block in page.blocks {
             let view = makeView(for: block)
             stack.addArrangedSubview(view)
-            if view is NSButton { continue }  // A button or checkbox keeps its own width.
-            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            switch block {
+            case .button, .toggle, .illustration:
+                break  // These keep their own width.
+            case .paragraph, .points, .tryIt, .permissions:
+                view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            }
         }
     }
 
@@ -81,6 +85,8 @@ final class TourPageView: NSView {
             button.tag = buttonActions.count
             buttonActions.append(action)
             return button
+        case .illustration(let makeIllustration):
+            return makeIllustration()
         }
     }
 

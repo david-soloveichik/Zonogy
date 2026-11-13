@@ -19,9 +19,9 @@ import sys
 
 import tour_common
 
-from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MARGIN, ZBLUE, Timeline, at, captions, center,
+from animation_common import (CURSOR, EIO, EOUT, FRAME, GAP, MARGIN, Timeline, at, captions, center,
                               chooser, chooser_layout, columns, dock, dock_origin, document, editor_lines,
-                              full_window, menubar, n, opacity, rect, ripple, scale, thumbnail_defs, wallpapers,
+                              full_window, keycaps, menubar, n, opacity, ripple, scale, thumbnail_defs, wallpapers,
                               window_parts, zone_frames)
 
 TOUR = "--tour" in sys.argv
@@ -77,24 +77,6 @@ SESSIONS = (  # each ⌃⌘Tab: the chooser's arrangements, newest first, and th
 KEYS = (("⌃", 46, "kmod"), ("⌘", 46, "kmod"), ("Tab", 64, "ktab"))
 
 
-# ---------------------------------------------------------------- shapes
-
-def keycaps():
-    """The keys being pressed, drawn under the display: each cap sinks and turns blue while held."""
-    total = sum(w for _, w, _ in KEYS) + 10 * (len(KEYS) - 1)
-    x, s = W / 2 - total / 2, ['<g class="keys">']
-    for label, w, cls in KEYS:
-        size = 18 if len(label) == 1 else 14
-        s += [rect(x, KEYS_Y + 3, w, 34, 7, fill="#0b0e15"),
-              f'<g class="{cls}">' + rect(x, KEYS_Y, w, 34, 7, fill="#20263a", stroke="#3b4357")
-              + f'<g class="{cls}hi">' + rect(x, KEYS_Y, w, 34, 7, fill=ZBLUE, fill_opacity=".6") + "</g>"
-              + f'<text x="{n(x + w / 2)}" y="{n(KEYS_Y + 23)}" text-anchor="middle" font-family="{FONT}" '
-                f'font-size="{size}" font-weight="500" fill="#e6eaf2">{label}</text></g>']
-        x += w + 10
-    s.append("</g>")
-    return "\n".join(s)
-
-
 # ---------------------------------------------------------------- motion
 
 TL = Timeline(DUR, T_STILL)
@@ -119,13 +101,10 @@ def motion():
         rest, revealed = "transform:translateX(0px)", f"transform:translateX({n(FIT_SHIFT)}px)"
         TL.track("bfit", [(FIT[0], rest, EIO), (FIT[0] + .4, revealed), (FIT[1], revealed, EIO), (FIT[1] + .4, rest)])
 
-        down, up = "transform:translateY(2px)", "transform:translateY(0px)"
-        press = lambda t0, t1, on, off: [(t0, off), (t0 + .06, on), (t1, on), (t1 + .06, off)]
         TL.track("keys", [p for t0, t1 in HELD for p in ((t0 - .15, opacity(0)), (t0, opacity(1)), (t1 + .2, opacity(1)),
                                                          (t1 + .4, opacity(0)))])
-        for cls, spans in (("kmod", HELD), ("ktab", [(t, t + .14) for t in TAPS])):
-            TL.track(cls, sum((press(t0, t1, down, up) for t0, t1 in spans), []))
-            TL.track(cls + "hi", sum((press(t0, t1, opacity(1), opacity(0)) for t0, t1 in spans), []))
+        TL.key_presses("kmod", HELD)
+        TL.key_presses("ktab", [(t, t + .14) for t in TAPS])
 
     # The chooser opens on the first Tab, starting on the arrangement before the current one, and closes on release.
     hidden, shown = opacity(0, scale(.97)), opacity(1, scale(1))
@@ -181,7 +160,7 @@ def build():
                         captions(CAPTIONS, W, CAPTION_Y), fluid=True)
     screen += [ripple("rpB", CLICK_B), ripple("rpP", REST), f'<g class="cur"><g class="press">{CURSOR}</g></g>']
     return document((W, H), TITLE, "scripts/activefit-winshot-animation.py", (S,), TL.style(), screen,
-                    keycaps() + "\n" + captions(CAPTIONS, W, CAPTION_Y))
+                    keycaps(KEYS, W / 2, KEYS_Y) + "\n" + captions(CAPTIONS, W, CAPTION_Y))
 
 
 if __name__ == "__main__":

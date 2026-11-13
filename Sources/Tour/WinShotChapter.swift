@@ -1,9 +1,9 @@
-/// The WinShot tour's pages: what a snapshot is, how snapshots are saved, and the chooser that switches
-/// between them.
+/// The tour's WinShot Snapshots chapter: what a snapshot is, how snapshots are saved, and the chooser that
+/// switches between them.
 import AppKit
 
 extension TourPage {
-    static func winShotTour() -> [TourPage] {
+    static func winShotChapter() -> [TourPage] {
         let shortcuts = KeyboardShortcutPreferences.shared
         let save = shortcuts.keyPhrase(for: .saveWinShotSnapshot)
         // The chooser is worked like Command-Tab: its shortcut's modifiers are held while its key is tapped.

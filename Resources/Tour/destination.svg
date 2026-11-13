@@ -293,6 +293,6 @@
 <g class="cur"><g class="press"><path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" filter="url(#cshadow)"/></g></g>
 </g>
 <text class="cap0" x="460" y="578" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">An emptied zone becomes the destination, with the Launcher open in it</text>
-<text class="cap1" x="460" y="578" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">With every zone full, new windows float above the tiles</text>
-<text class="cap2" x="460" y="578" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">A floating window is minimized when you focus one it covers</text>
+<text class="cap1" x="460" y="578" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">When every zone is full, new windows open in the floating zone</text>
+<text class="cap2" x="460" y="578" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">A floating zone window is minimized when you focus one it covers</text>
 </svg>

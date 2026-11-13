@@ -24,7 +24,7 @@ enum UserDefaultsKeys {
     static let zoneNavigationKeyGroups = "Zonogy.zoneNavigation.keyGroups"
     static let zoneNavigationJumpKeys = "Zonogy.zoneNavigation.jumpKeys"
 
-    // MARK: - Welcome Tour
+    // MARK: - Tour
     static let tourShown = "Zonogy.tour.shown"
     static let tourResumePage = "Zonogy.tour.resumePage"
 

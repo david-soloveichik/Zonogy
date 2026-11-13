@@ -1,4 +1,4 @@
-/// One page of a tour: its title, the scene it shows, and its text and controls.
+/// One page of a tour chapter: its title, the scene it shows, and its text and controls.
 import AppKit
 
 struct TourPage {
@@ -18,6 +18,8 @@ struct TourPage {
         /// A checkbox for a setting: `isOn` reads it when the page is shown, and `set` stores a change.
         case toggle(title: String, isOn: () -> Bool, set: (Bool) -> Void)
         case button(title: String, action: () -> Void)
+        /// A picture made of views, such as keycaps on a pictogram, at its own size.
+        case illustration(() -> NSView)
     }
 
     let title: String

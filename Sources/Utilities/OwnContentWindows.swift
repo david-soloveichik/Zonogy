@@ -1,4 +1,4 @@
-/// Zonogy's own content windows: Preferences and the Welcome tour. Unlike its panels and overlays, they are
+/// Zonogy's own content windows: Preferences and the tour. Unlike its panels and overlays, they are
 /// ordinary windows the user reads and clicks in, so zone resize bars keep clear of them.
 import AppKit
 

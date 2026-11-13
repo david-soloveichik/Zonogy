@@ -206,7 +206,7 @@ enum ZoneResizeHandleVisibilityPolicy {
             frame = adjusted
         }
 
-        // Zonogy's own content windows (Preferences, the Welcome tour): every separator stays
+        // Zonogy's own content windows (Preferences, the tour): every separator stays
         // outside them, as it does outside a managed window.
         for ownWindowFrame in ownWindowFrames {
             guard let adjusted = clipSeparatorFrame(

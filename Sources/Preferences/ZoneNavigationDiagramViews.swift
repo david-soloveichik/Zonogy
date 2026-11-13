@@ -180,6 +180,7 @@ class JumpKeysDiagramView: KeyDiagramView {
 /// A screen's two-by-two zone grid with the key that jumps to each cell, plus the Floating Zone
 /// Bar across the bottom edge carrying the floating zone's key.
 final class ZoneJumpKeysDiagramView: JumpKeysDiagramView {
+    static let caption = "Jump to that zone, adding it if it isn't there yet. The key on the bar is the floating zone."
     /// Height of the band along the bottom edge reserved for the Floating Zone Bar and its cap.
     private static let floatingBand: CGFloat = 23
     private static let screenInset: CGFloat = 6
@@ -248,6 +249,7 @@ final class ZoneJumpKeysDiagramView: JumpKeysDiagramView {
 
 /// The displays in left-to-right order, with the key that jumps to each.
 final class DisplayJumpKeysDiagramView: JumpKeysDiagramView {
+    static let caption = "Jump to that display."
     private static let displayCount = 3
     private static let displaySize = NSSize(width: 46, height: 32)
     private static let gap: CGFloat = 12

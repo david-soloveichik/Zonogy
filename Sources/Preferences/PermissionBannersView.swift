@@ -1,5 +1,5 @@
 /// The Accessibility and Screen Recording permission banners, shown in Preferences (General tab) and in the
-/// tours. Each says whether its permission is granted and opens its System Settings pane. macOS posts no
+/// tour. Each says whether its permission is granted and opens its System Settings pane. macOS posts no
 /// notification when a permission changes, so the banners poll while their owner has them on screen.
 import AppKit
 import ApplicationServices

@@ -18,7 +18,7 @@ enum AppLinks {
     /// New message to the maintainer, for feedback the user would rather keep private.
     static let feedbackEmail = URL(string: "mailto:vulpine-minds-0d@icloud.com?subject=Zonogy%20Feedback")!
 
-    /// System Settings' Desktop & Dock pane, where the Welcome tour's recommended settings are.
+    /// System Settings' Desktop & Dock pane, where the tour's recommended settings are.
     static let desktopAndDockSettings = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension")!
 
     /// SIP setup shared by yabai's scripting addition and Zonogy's instant minimize feature.

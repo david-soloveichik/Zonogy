@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates Resources/Tour/finding.svg, the scene on the Welcome tour's Finding windows page.
+"""Generates Resources/Tour/finding.svg, the scene on the Welcome chapter's Finding windows page.
 
 One loop, two ways to bring a minimized window back into the empty bottom-right zone, the destination. First
 CmdTab opens there: it lists windows, most recent first, starting on the one used before the current one; the

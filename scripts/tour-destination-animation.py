@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates Resources/Tour/destination.svg, the scene on the Welcome tour's destination page.
+"""Generates Resources/Tour/destination.svg, the scene on the Welcome chapter's destination page.
 
 One loop: three windows fill the display's three zones. Minimizing the top-right one leaves its zone in place,
 empty: it is now the destination, marked by its glow and the bar above it, with the Launcher open in it, and
@@ -24,8 +24,8 @@ TITLE = (
 )
 CAPTIONS = (  # (text, shown from, fading out at)
     ("An emptied zone becomes the destination, with the Launcher open in it", 1.1, 4.3),
-    ("With every zone full, new windows float above the tiles", 4.8, 7.4),
-    ("A floating window is minimized when you focus one it covers", 7.7, 10.2),
+    ("When every zone is full, new windows open in the floating zone", 4.8, 7.4),
+    ("A floating zone window is minimized when you focus one it covers", 7.7, 10.2),
 )
 
 ZONE = top_half(RIGHT)  # the zone that is emptied and filled

@@ -9,7 +9,7 @@ lights up under the pointer), onto the secondary display's zone, replacing the w
 main display's zone crossfades back to its first window, so the loop restarts where it began.
 
 Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
-       python3 scripts/hero-animation.py Resources/Tour/welcome.svg --fluid   (the Welcome tour's first scene)
+       python3 scripts/hero-animation.py Resources/Tour/welcome.svg --fluid   (the Welcome chapter's first scene)
 """
 import sys
 

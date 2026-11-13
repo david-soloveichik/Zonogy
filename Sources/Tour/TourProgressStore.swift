@@ -1,5 +1,6 @@
-/// What the Welcome tour remembers between launches: that it has been shown, so it opens by itself only
-/// once, and the page to reopen at after the restart that follows granting Accessibility from it.
+/// What the tour remembers between launches: that it has been shown, so its Welcome chapter opens by itself
+/// only once, and the page of that chapter to reopen at after the restart that follows granting Accessibility
+/// from it.
 import Foundation
 
 enum TourProgressStore {

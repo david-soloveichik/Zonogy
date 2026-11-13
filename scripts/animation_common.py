@@ -1,5 +1,5 @@
 """Shared drawing and keyframe helpers for the README animations (scripts/hero-animation.py and
-scripts/activefit-winshot-animation.py) and the Welcome tour's scenes (scripts/tour-*.py).
+scripts/activefit-winshot-animation.py) and the tour's scenes (scripts/tour-*.py).
 
 All draw an abstract macOS desktop as SVG and animate it with CSS keyframes only (no script), so they play
 wherever the README renders, and in the tour's web view with scripting off. Like the README's animated WebP
@@ -533,6 +533,23 @@ def chooser(cls, screen, order, gaps, selected):
     ])
 
 
+def keycaps(keys, center_x, y):
+    """The keys being pressed, as a row of (label, width, class) caps centered on center_x: each cap sinks and
+    turns blue while held (see Timeline.key_presses)."""
+    total = sum(w for _, w, _ in keys) + 10 * (len(keys) - 1)
+    x, s = center_x - total / 2, ['<g class="keys">']
+    for label, w, cls in keys:
+        size = 18 if len(label) == 1 else 14
+        s += [rect(x, y + 3, w, 34, 7, fill="#0b0e15"),
+              f'<g class="{cls}">' + rect(x, y, w, 34, 7, fill="#20263a", stroke="#3b4357")
+              + f'<g class="{cls}hi">' + rect(x, y, w, 34, 7, fill=ZBLUE, fill_opacity=".6") + "</g>"
+              + f'<text x="{n(x + w / 2)}" y="{n(y + 23)}" text-anchor="middle" font-family="{FONT}" '
+                f'font-size="{size}" font-weight="500" fill="#e6eaf2">{label}</text></g>']
+        x += w + 10
+    s.append("</g>")
+    return "\n".join(s)
+
+
 def drag_pill(title_w):
     """Drag preview for a DockMenu or Launcher window row: a dark pill with a window glyph and the title,
     below-right of the pointer."""
@@ -633,6 +650,13 @@ class Timeline:
         if origin:
             rule += f";transform-origin:{n(origin[0])}px {n(origin[1])}px"
         self.css.append(f".{cls}{{{rule}}}")
+
+    def key_presses(self, cls, spans):
+        """The keycap of class `cls` (see keycaps) sinks and lights up over each (down, up) span."""
+        down, up = "transform:translateY(2px)", "transform:translateY(0px)"
+        press = lambda t0, t1, on, off: [(t0, off), (t0 + .06, on), (t1, on), (t1 + .06, off)]
+        self.track(cls, sum((press(t0, t1, down, up) for t0, t1 in spans), []))
+        self.track(cls + "hi", sum((press(t0, t1, opacity(1), opacity(0)) for t0, t1 in spans), []))
 
     def ripple(self, cls, t, p):
         self.track(cls, [(t, opacity(0, scale(.3))), (t + .001, opacity(.9, scale(.3)), EOUT),

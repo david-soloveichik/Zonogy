@@ -35,6 +35,8 @@
 .press{animation:press 8.6s linear infinite;transform:scale(1);transform-origin:0px 0px}
 @keyframes rp0{0.000%{opacity:0;transform:scale(0.3)}29.767%{opacity:0;transform:scale(0.3)}29.779%{opacity:0.9;transform:scale(0.3);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}35.000%{opacity:0;transform:scale(1.5)}35.012%{opacity:0;transform:scale(0.3)}100.000%{opacity:0;transform:scale(0.3)}}
 .rp0{animation:rp0 8.6s linear infinite;opacity:0;transform:scale(0.3);transform-origin:460px 302.5px}
+@keyframes held{0.000%{opacity:0}30.000%{opacity:0}31.163%{opacity:1}48.837%{opacity:1}50.233%{opacity:0}100.000%{opacity:0}}
+.held{animation:held 8.6s linear infinite;opacity:0}
 @keyframes ch{0.000%{opacity:0;transform:scale(0.97)}9.302%{opacity:0;transform:scale(0.97);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}11.047%{opacity:1;transform:scale(1)}48.837%{opacity:1;transform:scale(1)}50.233%{opacity:0;transform:scale(1)}100.000%{opacity:0;transform:scale(1)}}
 .ch{animation:ch 8.6s linear infinite;opacity:1;transform:scale(1);transform-origin:480px 323px}
 @keyframes carrymv{0.000%{transform:translate(0px,0px) scale(1)}31.395%{transform:translate(0px,0px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}46.512%{transform:translate(802px,-68.5px) scale(1)}50.581%{transform:translate(802px,-68.5px) scale(1)}50.593%{transform:translate(0px,0px) scale(1)}100.000%{transform:translate(0px,0px) scale(1)}}
@@ -589,7 +591,7 @@
 </g>
 <g class="carrymv"><g class="carry" filter="url(#shadow)"><use href="#th-earlier" x="385" y="255.5"/></g></g>
 <circle class="rp0" cx="460" cy="302.5" r="11" fill="none" stroke="#4a9eff" stroke-width="2.2"/>
-<g class="cur"><g class="press"><path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" filter="url(#cshadow)"/></g></g>
+<g class="cur"><circle class="held" r="13" fill="#4a9eff" fill-opacity=".28" stroke="#4a9eff" stroke-width="2.2"/><g class="press"><path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" filter="url(#cshadow)"/></g></g>
 </g>
 <text class="cap0" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="500" fill="#e6eaf2">Drag a snapshot to another display to open its arrangement there</text>
 </svg>
