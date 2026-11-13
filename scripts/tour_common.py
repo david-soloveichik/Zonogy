@@ -16,6 +16,7 @@ CONTENT_OPACITY = .5  # window content stays subtle
 
 _top, _h, _cw, (_left, _right) = columns(S, dock_origin(S)[1] - GAP)
 LEFT, RIGHT = (_left, _top, _cw, _h), (_right, _top, _cw, _h)  # the two columns, each as one zone
+FULL = (_left, _top, 2 * _cw + GAP, _h)  # one zone filling the display
 
 
 def top_half(z):

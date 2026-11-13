@@ -11,6 +11,7 @@ mkdir -p Resources/Tour
 
 python3 scripts/hero-animation.py Resources/Tour/welcome.svg --fluid
 python3 scripts/activefit-winshot-animation.py Resources/Tour/winshot-switching.svg --tour
-for scene in zones destination finding moving keyboard-stepping keyboard-acting winshot-display; do
+for scene in zones destination finding moving keyboard-zones keyboard-one-zone keyboard-clear keyboard-stepping \
+             keyboard-acting winshot-display; do
     python3 "scripts/tour-$scene-animation.py" "Resources/Tour/$scene.svg"
 done

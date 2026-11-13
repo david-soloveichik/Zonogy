@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generates Resources/Tour/keyboard-stepping.svg, the first scene of the tour's Keyboard Navigation chapter.
+"""Generates Resources/Tour/keyboard-stepping.svg, the scene on the Keyboard chapter's Stepping between
+zones page.
 
 One loop, worked from the keyboard (the keys pressed show under the display). The left window is focused, and
 the bottom-right zone is empty. With the modifier keys held, the right arrow puts the circle on the zone to the

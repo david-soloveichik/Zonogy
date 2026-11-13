@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generates Resources/Tour/keyboard-acting.svg, the second scene of the tour's Keyboard Navigation chapter.
+"""Generates Resources/Tour/keyboard-acting.svg, the scene on the Keyboard chapter's Acting on this zone
+page.
 
 One loop, worked from the keyboard (the keys pressed show under the display; those the user can change say
 what they do instead of naming a key). Three windows fill three zones, and the left one is focused. With the

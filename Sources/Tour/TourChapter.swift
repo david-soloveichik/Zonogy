@@ -1,16 +1,16 @@
 /// The tour's chapters, each a run of pages, listed in the tour window's toolbar. The Welcome chapter
-/// introduces Zonogy on first launch; each of the others covers one feature.
+/// introduces Zonogy on first launch; each of the others covers one topic.
 import Foundation
 
 enum TourChapter: String, CaseIterable {
     case welcome
-    case keyboardNavigation
+    case keyboard
     case winShot
 
     var title: String {
         switch self {
         case .welcome: return "Welcome"
-        case .keyboardNavigation: return "Keyboard Navigation"
+        case .keyboard: return "Keyboard"
         case .winShot: return "WinShot Snapshots"
         }
     }
@@ -19,7 +19,7 @@ enum TourChapter: String, CaseIterable {
     var symbolName: String {
         switch self {
         case .welcome: return "hand.wave"
-        case .keyboardNavigation: return "arrowkeys"
+        case .keyboard: return "keyboard"
         case .winShot: return "camera"  // as on the Snapshots tab of Preferences
         }
     }
@@ -29,7 +29,7 @@ enum TourChapter: String, CaseIterable {
     func pages() -> [TourPage] {
         switch self {
         case .welcome: return TourPage.welcomeChapter()
-        case .keyboardNavigation: return TourPage.keyboardNavigationChapter()
+        case .keyboard: return TourPage.keyboardChapter()
         case .winShot: return TourPage.winShotChapter()
         }
     }
