@@ -898,6 +898,13 @@ extension AppController {
         guard floatingDragHandler.isActive else {
             return false
         }
+        // The mouse-up settles gesture-modifier changes since the last move, as a move would:
+        // the drag can turn into a zone drag (or back into a tiled one), which the drag
+        // coordinator then ends.
+        floatingDragHandler.updateDrag(frame: finalFrame)
+        guard floatingDragHandler.isActive else {
+            return false
+        }
         floatingDragHandler.endDrag(finalFrame: finalFrame)
         activeFitResumeAfterDrag(windowId: windowId)
         refreshResizeHandles()
@@ -1621,15 +1628,17 @@ extension AppController {
         // count-limited and time-bounded, so it cannot linger if no event ever arrives.
         suppressNextEvents(for: [displacedId], events: [.deminiaturized], reason: "floating-drag-revert")
         unminimizeWithPrePositioning(displaced, reason: "floating-drag-revert")
+        // Restored passively: focus stays with the window being dragged (or just dropped).
         assignWindowToFloatingZone(
             displaced,
             on: context.floatingScreenId,
             centerWindow: false,
+            activate: false,
             reason: "floating-drag-revert"
         )
         if let frame = context.displacedWindowFrame,
            let descriptor = descriptor(for: context.floatingScreenId) {
-            windowController.showWindow(displaced, at: frame, on: descriptor)
+            windowController.showWindow(displaced, at: frame, on: descriptor, raise: false)
             // Override any stale seed from assign (which used pre-revert actualFrame)
             // so the remembered floating size matches the restored pre-drag frame.
             floatingZoneCoordinator.rememberSize(for: displaced.windowId, size: frame.size)

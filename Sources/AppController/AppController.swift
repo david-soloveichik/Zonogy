@@ -21,10 +21,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var right: CGFloat
     }
     struct TiledToFloatingDragContext {
-        let originZoneKey: ZoneKey?
+        var originZoneKey: ZoneKey?
         let originScreenId: CGDirectDisplayID?
         let floatingScreenId: CGDirectDisplayID
-        let displacedWindowId: Int?
+        var displacedWindowId: Int?
         let displacedWindowFrame: CGRect?
     }
     struct FocusedWindowCheckRetryState {

@@ -4,7 +4,7 @@ import Cocoa
 
 struct DragSession {
     let windowId: Int?  // nil for non-running app drags
-    let originZoneKey: ZoneKey?
+    var originZoneKey: ZoneKey?
     let originScreenId: CGDirectDisplayID?
     let originFrame: CGRect
     var latestFrame: CGRect
@@ -132,6 +132,12 @@ class DragDropCoordinator {
     /// Whether a cursor-driven chooser-row session currently owns the mouse button.
     var isCursorDrivenDragActive: Bool {
         dragSession?.isCursorDriven == true
+    }
+
+    /// The cursor position a cursor-driven session tracks, or nil outside one. Its source forwards
+    /// the position because Dock-icon drags swallow the mouse events `NSEvent.mouseLocation` follows.
+    var cursorDrivenCursorPoint: CGPoint? {
+        isCursorDrivenDragActive ? currentCursorAccessibilityPoint() : nil
     }
 
     func beginDragSession(
@@ -402,6 +408,28 @@ class DragDropCoordinator {
         cursorPointOverrideAX = nil
         delegate?.updateAddZoneIndicatorHighlight(pill: nil)
         delegate?.updateFloatingIndicatorHighlight(screenId: nil)
+    }
+
+    /// The dragged window left its origin zone mid-drag (its display was cleared under it): the
+    /// drag continues sourceless, so its drop places or swaps like a tear-out drag.
+    func detachDragFromOriginZone() {
+        dragSession?.originZoneKey = nil
+    }
+
+    /// Zones changed mid-drag (the display under the cursor was cleared or reset): redraw the
+    /// overlays over the current zones. A hovered zone that no longer exists is forgotten, so
+    /// the next drag update or the drop resolves the target from the cursor instead.
+    func zonesDidChange() {
+        guard var session = dragSession else {
+            return
+        }
+        if let key = session.hoveredZoneKey,
+           delegate?.zoneController(for: key.screenId)?.zone(at: key.index) == nil {
+            session.hoveredZoneKey = nil
+            dragSession = session
+        }
+        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        dragOverlayManager.updateHighlight(to: session.hoveredZoneKey)
     }
 
     // MARK: - Private Methods

@@ -154,6 +154,8 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the di
 
 **Hold to clear and reset:** A quick press clears the display; a 0.5-second hold clears and resets it to one zone. If the display is already clear, either gesture resets it immediately.
 
+**Clearing mid-drag:** While the mouse button is held, as in any drag, Control-Cmd-Escape operates on the display where the mouse pointer is (like its Shift variant), so a drag can clear its destination before the drop.
+
 ### Targeting
 
 **Targeting rule:** Exactly one zone (tiling zone or floating zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.

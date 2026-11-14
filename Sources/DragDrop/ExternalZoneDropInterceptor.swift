@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 
 /// Tracks gesture-modifier external drags over managed tiling zones and presents zone overlays,
 /// and lets Shift pass an external drag through the placeholders.
@@ -186,6 +187,19 @@ final class ExternalZoneDropInterceptor {
         overlayManager.updateHighlight(to: interceptedZoneKey)
     }
 
+    /// Zones changed mid-drag (the display under the cursor was cleared or reset): redraw the
+    /// interception overlays over the current zones, and replay the cursor so the drag resolves its
+    /// destination (and the highlight) against the windows now under it.
+    func zonesDidChange() {
+        guard dragSession.isLiveExternalDrag else {
+            return
+        }
+        if isInterceptionActive, let host {
+            overlayManager.present(over: host.externalDropOverlayDescriptors())
+        }
+        replayCursorPosition()
+    }
+
     /// Shift lets an external drag, whatever its content, through the placeholders to whatever is
     /// beneath them, such as the desktop. The gesture modifiers may include Shift, so they take
     /// precedence.
@@ -278,19 +292,25 @@ final class ExternalZoneDropInterceptor {
         finishGesture()
     }
 
+    /// Escape with Command, Control, or Option is a shortcut, such as Clear/Reset Zones mid-drag,
+    /// not a cancel.
     private func installEscapeMonitors() {
         guard escapeGlobalMonitor == nil, escapeLocalMonitor == nil else { return }
         escapeGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {
+            if Self.isCancellingEscape(event) {
                 self?.handleEscapeDuringExternalDrag()
             }
         }
         escapeLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {
+            if Self.isCancellingEscape(event) {
                 self?.handleEscapeDuringExternalDrag()
             }
             return event
         }
+    }
+
+    private static func isCancellingEscape(_ event: NSEvent) -> Bool {
+        event.keyCode == UInt16(kVK_Escape) && event.modifierFlags.isDisjoint(with: [.command, .control, .option])
     }
 
     private func tearDownEscapeMonitors() {

@@ -23,8 +23,10 @@ extension AppController {
             }
 
             // Zonogy's records first, so only windows in no zone cost a round trip to their
-            // application (this runs on every Space change).
-            guard zoneKey(forManagedWindow: window) == nil,
+            // application (this runs on every Space change). A window being dragged is placed
+            // by its drop.
+            guard window.windowId != dragDropCoordinator.currentManualDragWindowId,
+                  zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(window.windowId),
                   !isAwaitingMinimization(window),
                   !window.isMinimizedPerAccessibility else {
