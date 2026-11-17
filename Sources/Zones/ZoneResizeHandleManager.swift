@@ -55,12 +55,20 @@ final class ZoneResizeHandleManager {
         let separatorId: ZoneLayout.SeparatorIdentity
         var orientation: ZoneLayout.SeparatorOrientation { separatorId.orientation }
 
-        private var isHovering = false
         private var isDragging = false
         private var hasActiveResizeDrag = false
         /// When true, the overlay is drawing the bar — suppress local drawing to avoid a double bar.
         private var suppressBarDrawing = false
         fileprivate static weak var activeDragView: HandleView?
+        /// The one bar lit by a hover. A bar can miss its mouse-exited event and stay lit;
+        /// hovering another bar then unlights it.
+        private static weak var hoveredView: HandleView? {
+            didSet {
+                oldValue?.needsDisplay = true
+                hoveredView?.needsDisplay = true
+            }
+        }
+        private var isHovering: Bool { HandleView.hoveredView === self }
 
         /// Accumulated delta and throttle timer for heavy layout work.
         /// The timer fires at a fixed interval (~20Hz) so the main thread stays
@@ -107,6 +115,12 @@ final class ZoneResizeHandleManager {
             trackingAreas.forEach { removeTrackingArea($0) }
             let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .cursorUpdate]
             addTrackingArea(NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil))
+            // A rebuilt area sends no exit for a pointer it no longer covers (e.g. the bar was
+            // shortened under a resting pointer), so unlight the bar here.
+            if isHovering, let window,
+               !isMousePoint(convert(window.mouseLocationOutsideOfEventStream, from: nil), in: bounds) {
+                HandleView.hoveredView = nil
+            }
         }
 
         override func cursorUpdate(with event: NSEvent) {
@@ -128,13 +142,13 @@ final class ZoneResizeHandleManager {
             if MouseButtons.isLeftMouseButtonDown() {
                 return
             }
-            isHovering = true
-            needsDisplay = true
+            HandleView.hoveredView = self
         }
 
         override func mouseExited(with event: NSEvent) {
-            isHovering = false
-            needsDisplay = true
+            if HandleView.hoveredView === self {
+                HandleView.hoveredView = nil
+            }
         }
 
         override func draw(_ dirtyRect: NSRect) {
