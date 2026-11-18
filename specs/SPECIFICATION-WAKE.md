@@ -41,7 +41,7 @@ This prevents timers scheduled just before sleep from firing during sleep when A
 Triggered by either `NSWorkspace.screensDidWakeNotification` or `loginwindow` ceasing to be active. The returning regular application's activation can arrive before the `loginwindow` deactivation notification; either event starts the same readiness polling.
 
 When we receive these notifications, the display may still be unready and calls such as `_AXUIElementGetWindow` may fail. Wait for the following checks to pass:
-    - Is the Display Asleep? (CGDisplayIsAsleep) => must not be
+    - Is the Main Display Asleep? (CGDisplayIsAsleep on CGMainDisplayID) => must not be
     - Is the Screen Locked? (CGSSessionScreenIsLocked) => must not be
     - Does `NSWorkspace.shared.frontmostApplication` return a non-`loginwindow` application? => must be yes (uses NSWorkspace instead of AX because AX can hang indefinitely with some apps during wake recovery)
 We poll at 0.5 increments until this passes. At this point we assume that AX API is ready.
