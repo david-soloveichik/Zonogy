@@ -1,4 +1,5 @@
-/// View controller for editing a single app's exception rules
+/// View controller for editing a single app's exception rules. Each exception's title ends with the
+/// gray short name that stands for it in the Exceptions table.
 
 import AppKit
 
@@ -7,22 +8,10 @@ final class ExceptionRuleEditViewController: NSViewController {
     private let originalEntry: ExceptionsPreferencesEntry
     var onSave: ((ExceptionsPreferencesEntry) -> Void)?
 
-    // Checkbox controls for each exception type
     private var ignoreApplicationCheckbox: NSButton!
-    private var hasMainWindowCheckbox: NSButton!
-    private var ignoreActivationPolicyCheckbox: NSButton!
-    private var ignoreZoomButtonCheckbox: NSButton!
-    private var requireActiveZoomButtonCheckbox: NSButton!
-    private var ignoreHeightCheckbox: NSButton!
-    private var manageNonStandardWindowsCheckbox: NSButton!
-    private var disallowEmptyTitleCheckbox: NSButton!
-    private var snapToZoneCheckbox: NSButton!
-    private var doNotResizeWidthCheckbox: NSButton!
-    private var disableMouseGesturesCheckbox: NSButton!
-    private var treatAXUnknownFullWidthAsFullScreenCheckbox: NSButton!
+    private var optionCheckboxes: [(option: ExceptionOption, checkbox: NSButton)] = []
     private var excludedTitlesLabel: NSTextField!
     private var excludedTitlesField: NSTextField!
-    private var exceptionControls: [NSControl] = []
 
     init(entry: ExceptionsPreferencesEntry) {
         self.originalEntry = entry
@@ -44,8 +33,6 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     private func setupUI(in container: NSView) {
-        var topAnchor = container.topAnchor
-
         // App icon
         let icon: NSImage
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: originalEntry.bundleIdentifier) {
@@ -73,12 +60,12 @@ final class ExceptionRuleEditViewController: NSViewController {
         container.addSubview(bundleIdValue)
 
         NSLayoutConstraint.activate([
-            iconView.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+            iconView.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             iconView.widthAnchor.constraint(equalToConstant: 32),
             iconView.heightAnchor.constraint(equalToConstant: 32),
 
-            bundleIdLabel.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+            bundleIdLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             bundleIdLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
 
             bundleIdValue.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 2),
@@ -86,229 +73,52 @@ final class ExceptionRuleEditViewController: NSViewController {
             bundleIdValue.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
 
-        topAnchor = iconView.bottomAnchor
+        // Everything below the icon stacks in full-width rows
+        var previousBottom = iconView.bottomAnchor
+        func addRow(_ row: NSView, spacing: CGFloat) {
+            row.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(row)
+            NSLayoutConstraint.activate([
+                row.topAnchor.constraint(equalTo: previousBottom, constant: spacing),
+                row.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+                row.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            ])
+            previousBottom = row.bottomAnchor
+        }
 
-        // Separator
         let separator = NSBox()
         separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(separator)
-
-        NSLayoutConstraint.activate([
-            separator.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            separator.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            separator.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-
-        topAnchor = separator.bottomAnchor
+        addRow(separator, spacing: 12)
 
         // Hint: every checkbox's tooltip explains it in full
         let hoverHintLabel = NSTextField(labelWithString: "Hover over an exception for more information.")
-        hoverHintLabel.translatesAutoresizingMaskIntoConstraints = false
         hoverHintLabel.font = NSFont.systemFont(ofSize: 11)
         hoverHintLabel.textColor = .secondaryLabelColor
-        container.addSubview(hoverHintLabel)
-
-        NSLayoutConstraint.activate([
-            hoverHintLabel.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            hoverHintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            hoverHintLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-
-        topAnchor = hoverHintLabel.bottomAnchor
+        addRow(hoverHintLabel, spacing: 12)
 
         ignoreApplicationCheckbox = makeCheckbox(
             title: "Ignore this application altogether",
+            shortName: ExceptionOption.ignoredShortName,
             tooltip: "Windows from this app are never captured or managed by Zonogy",
-            target: self,
             action: #selector(ignoreApplicationChanged)
         )
-        container.addSubview(ignoreApplicationCheckbox)
+        addRow(ignoreApplicationCheckbox, spacing: 12)
 
-        NSLayoutConstraint.activate([
-            ignoreApplicationCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            ignoreApplicationCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            ignoreApplicationCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = ignoreApplicationCheckbox.bottomAnchor
+        optionCheckboxes = ExceptionOption.all.map { option in
+            (option, makeCheckbox(title: option.title, shortName: option.shortName, tooltip: option.tooltip))
+        }
+        for (index, item) in optionCheckboxes.enumerated() {
+            addRow(item.checkbox, spacing: index == 0 ? 12 : 8)
+        }
 
-        // Exception checkboxes - "Has main window" first
-        hasMainWindowCheckbox = makeCheckbox(
-            title: "Prefer app's main window",
-            tooltip: "For Launcher and DockMenus, treat the window with the lowest CGWindowID as this app's main window and prefer it when choosing a window. The Launcher prefers it only while it isn't already in a zone."
-        )
-        container.addSubview(hasMainWindowCheckbox)
-        exceptionControls.append(hasMainWindowCheckbox)
-
-        NSLayoutConstraint.activate([
-            hasMainWindowCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            hasMainWindowCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            hasMainWindowCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = hasMainWindowCheckbox.bottomAnchor
-
-        snapToZoneCheckbox = makeCheckbox(
-            title: "Snap to zone on self-resize",
-            tooltip: "Immediately snap window back when the app resizes it internally"
-        )
-        container.addSubview(snapToZoneCheckbox)
-        exceptionControls.append(snapToZoneCheckbox)
-
-        NSLayoutConstraint.activate([
-            snapToZoneCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            snapToZoneCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            snapToZoneCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = snapToZoneCheckbox.bottomAnchor
-
-        doNotResizeWidthCheckbox = makeCheckbox(
-            title: "Don't resize width",
-            tooltip: "Preserve the window's current width when Zonogy moves it into a zone; only the position and height are adjusted"
-        )
-        container.addSubview(doNotResizeWidthCheckbox)
-        exceptionControls.append(doNotResizeWidthCheckbox)
-
-        NSLayoutConstraint.activate([
-            doNotResizeWidthCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            doNotResizeWidthCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            doNotResizeWidthCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = doNotResizeWidthCheckbox.bottomAnchor
-
-        disableMouseGesturesCheckbox = makeCheckbox(
-            title: "Disable mouse gestures",
-            tooltip: "Let this app receive the gesture-modifier clicks and drags instead of Zonogy's mouse-gesture overrides"
-        )
-        container.addSubview(disableMouseGesturesCheckbox)
-        exceptionControls.append(disableMouseGesturesCheckbox)
-
-        NSLayoutConstraint.activate([
-            disableMouseGesturesCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            disableMouseGesturesCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            disableMouseGesturesCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = disableMouseGesturesCheckbox.bottomAnchor
-
-        disallowEmptyTitleCheckbox = makeCheckbox(
-            title: "Disallow empty title windows",
-            tooltip: "Don't manage windows with empty titles from this app"
-        )
-        container.addSubview(disallowEmptyTitleCheckbox)
-        exceptionControls.append(disallowEmptyTitleCheckbox)
-
-        NSLayoutConstraint.activate([
-            disallowEmptyTitleCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            disallowEmptyTitleCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            disallowEmptyTitleCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = disallowEmptyTitleCheckbox.bottomAnchor
-
-        ignoreActivationPolicyCheckbox = makeCheckbox(
-            title: "Ignore activation policy",
-            tooltip: "Manage windows from helper/accessory apps that aren't .regular activation policy"
-        )
-        container.addSubview(ignoreActivationPolicyCheckbox)
-        exceptionControls.append(ignoreActivationPolicyCheckbox)
-
-        NSLayoutConstraint.activate([
-            ignoreActivationPolicyCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            ignoreActivationPolicyCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            ignoreActivationPolicyCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = ignoreActivationPolicyCheckbox.bottomAnchor
-
-        ignoreZoomButtonCheckbox = makeCheckbox(
-            title: "Ignore zoom button requirement",
-            tooltip: "Manage windows that don't have a zoom button"
-        )
-        container.addSubview(ignoreZoomButtonCheckbox)
-        exceptionControls.append(ignoreZoomButtonCheckbox)
-
-        NSLayoutConstraint.activate([
-            ignoreZoomButtonCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            ignoreZoomButtonCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            ignoreZoomButtonCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = ignoreZoomButtonCheckbox.bottomAnchor
-
-        requireActiveZoomButtonCheckbox = makeCheckbox(
-            title: "Require active zoom button",
-            tooltip: "Only manage windows whose zoom button is enabled (not grayed out)"
-        )
-        container.addSubview(requireActiveZoomButtonCheckbox)
-        exceptionControls.append(requireActiveZoomButtonCheckbox)
-
-        NSLayoutConstraint.activate([
-            requireActiveZoomButtonCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            requireActiveZoomButtonCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            requireActiveZoomButtonCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = requireActiveZoomButtonCheckbox.bottomAnchor
-
-        ignoreHeightCheckbox = makeCheckbox(
-            title: "Ignore height requirement",
-            tooltip: "Manage windows shorter than 250px"
-        )
-        container.addSubview(ignoreHeightCheckbox)
-        exceptionControls.append(ignoreHeightCheckbox)
-
-        NSLayoutConstraint.activate([
-            ignoreHeightCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            ignoreHeightCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            ignoreHeightCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = ignoreHeightCheckbox.bottomAnchor
-
-        manageNonStandardWindowsCheckbox = makeCheckbox(
-            title: "Manage non-standard windows",
-            tooltip: "Manage windows even if they report a non-standard accessibility role or subrole (e.g., AXUnknown / AXDialog, as some Adobe apps do)"
-        )
-        container.addSubview(manageNonStandardWindowsCheckbox)
-        exceptionControls.append(manageNonStandardWindowsCheckbox)
-
-        NSLayoutConstraint.activate([
-            manageNonStandardWindowsCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            manageNonStandardWindowsCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            manageNonStandardWindowsCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = manageNonStandardWindowsCheckbox.bottomAnchor
-
-        treatAXUnknownFullWidthAsFullScreenCheckbox = makeCheckbox(
-            title: "Treat AXUnknown full-width windows as full-screen",
-            tooltip: "Only enable for apps where AXFullScreen is missing/unreliable (e.g., some presentation windows)"
-        )
-        container.addSubview(treatAXUnknownFullWidthAsFullScreenCheckbox)
-        exceptionControls.append(treatAXUnknownFullWidthAsFullScreenCheckbox)
-
-        NSLayoutConstraint.activate([
-            treatAXUnknownFullWidthAsFullScreenCheckbox.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            treatAXUnknownFullWidthAsFullScreenCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            treatAXUnknownFullWidthAsFullScreenCheckbox.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
-        topAnchor = treatAXUnknownFullWidthAsFullScreenCheckbox.bottomAnchor
-
-        // Excluded window titles
-        excludedTitlesLabel = NSTextField(labelWithString: "Excluded window titles (comma-separated):")
-        excludedTitlesLabel.translatesAutoresizingMaskIntoConstraints = false
-        excludedTitlesLabel.font = NSFont.systemFont(ofSize: 12)
-        container.addSubview(excludedTitlesLabel)
+        // Excluded window titles; updateExceptionControlsEnabledState() sets the label's text
+        excludedTitlesLabel = NSTextField(labelWithString: "")
+        addRow(excludedTitlesLabel, spacing: 16)
 
         excludedTitlesField = NSTextField()
-        excludedTitlesField.translatesAutoresizingMaskIntoConstraints = false
         excludedTitlesField.placeholderString = "e.g., Preferences, Settings"
         excludedTitlesField.font = NSFont.systemFont(ofSize: 12)
-        container.addSubview(excludedTitlesField)
-        exceptionControls.append(excludedTitlesField)
-
-        NSLayoutConstraint.activate([
-            excludedTitlesLabel.topAnchor.constraint(equalTo: topAnchor, constant: 16),
-            excludedTitlesLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            excludedTitlesLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-
-            excludedTitlesField.topAnchor.constraint(equalTo: excludedTitlesLabel.bottomAnchor, constant: 4),
-            excludedTitlesField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            excludedTitlesField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-        ])
+        addRow(excludedTitlesField, spacing: 4)
 
         // Buttons
         let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelAction))
@@ -331,32 +141,32 @@ final class ExceptionRuleEditViewController: NSViewController {
         ])
     }
 
-    private func makeCheckbox(
-        title: String,
-        tooltip: String,
-        target: AnyObject? = nil,
-        action: Selector? = nil
-    ) -> NSButton {
-        let checkbox = NSButton(checkboxWithTitle: title, target: target, action: action)
-        checkbox.translatesAutoresizingMaskIntoConstraints = false
+    private func makeCheckbox(title: String, shortName: String, tooltip: String, action: Selector? = nil) -> NSButton {
+        let checkbox = NSButton(checkboxWithTitle: title, target: self, action: action)
+        checkbox.attributedTitle = Self.titleWithShortName(title, shortName)
         checkbox.toolTip = tooltip
-        checkbox.font = NSFont.systemFont(ofSize: 12)
         return checkbox
+    }
+
+    /// `title` followed by the gray `(shortName)` the Exceptions table shows for it. A disabled checkbox
+    /// dims its whole title by itself; a label doesn't, so a disabled label passes `enabled: false`.
+    private static func titleWithShortName(_ title: String, _ shortName: String, enabled: Bool = true) -> NSAttributedString {
+        let text = NSMutableAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 12),
+            .foregroundColor: enabled ? NSColor.labelColor : .disabledControlTextColor,
+        ])
+        text.append(NSAttributedString(string: " (\(shortName))", attributes: [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: enabled ? NSColor.secondaryLabelColor : .disabledControlTextColor,
+        ]))
+        return text
     }
 
     private func populateFields() {
         ignoreApplicationCheckbox.state = originalEntry.isIgnored ? .on : .off
-        hasMainWindowCheckbox.state = (originalEntry.rule.hasMainWindow == true) ? .on : .off
-        snapToZoneCheckbox.state = (originalEntry.rule.snapToZoneOnSelfResize == true) ? .on : .off
-        doNotResizeWidthCheckbox.state = (originalEntry.rule.doNotResizeWidth == true) ? .on : .off
-        disableMouseGesturesCheckbox.state = (originalEntry.rule.disableMouseGestures == true) ? .on : .off
-        treatAXUnknownFullWidthAsFullScreenCheckbox.state = (originalEntry.rule.treatAXUnknownFullWidthAsFullScreen == true) ? .on : .off
-        disallowEmptyTitleCheckbox.state = (originalEntry.rule.disallowEmptyTitleWindows == true) ? .on : .off
-        ignoreActivationPolicyCheckbox.state = (originalEntry.rule.ignoreActivationPolicy == true) ? .on : .off
-        ignoreZoomButtonCheckbox.state = (originalEntry.rule.ignoreZoomButtonRequirement == true) ? .on : .off
-        requireActiveZoomButtonCheckbox.state = (originalEntry.rule.requireActiveZoomButton == true) ? .on : .off
-        ignoreHeightCheckbox.state = (originalEntry.rule.ignoreHeightRequirement == true) ? .on : .off
-        manageNonStandardWindowsCheckbox.state = (originalEntry.rule.manageNonStandardWindows == true) ? .on : .off
+        for (option, checkbox) in optionCheckboxes {
+            checkbox.state = originalEntry.rule[keyPath: option.setting] == true ? .on : .off
+        }
 
         if let titles = originalEntry.rule.excludedWindowTitles, !titles.isEmpty {
             excludedTitlesField.stringValue = titles.joined(separator: ", ")
@@ -371,10 +181,15 @@ final class ExceptionRuleEditViewController: NSViewController {
 
     private func updateExceptionControlsEnabledState() {
         let exceptionsEnabled = ignoreApplicationCheckbox.state != .on
-        for control in exceptionControls {
-            control.isEnabled = exceptionsEnabled
+        for (_, checkbox) in optionCheckboxes {
+            checkbox.isEnabled = exceptionsEnabled
         }
-        excludedTitlesLabel.textColor = exceptionsEnabled ? .labelColor : .disabledControlTextColor
+        excludedTitlesField.isEnabled = exceptionsEnabled
+        excludedTitlesLabel.attributedStringValue = Self.titleWithShortName(
+            "Excluded window titles, comma-separated",
+            "\(ExceptionOption.excludedTitlesShortName):N",
+            enabled: exceptionsEnabled
+        )
     }
 
     @objc private func cancelAction() {
@@ -382,27 +197,15 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     @objc private func saveAction() {
-        // Parse excluded titles
-        let excludedTitlesText = excludedTitlesField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let excludedTitles: [String]? = excludedTitlesText.isEmpty ? nil :
-            excludedTitlesText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        // Unchecked settings are stored as nil to keep the JSON clean
+        var updatedRule = originalEntry.rule
+        for (option, checkbox) in optionCheckboxes {
+            updatedRule[keyPath: option.setting] = checkbox.state == .on ? true : nil
+        }
 
-        // Build the updated rule - use nil for false values to keep JSON clean
-        let updatedRule = ApplicationExceptionRule(
-            bundleIdentifier: originalEntry.bundleIdentifier,
-            ignoreActivationPolicy: ignoreActivationPolicyCheckbox.state == .on ? true : nil,
-            ignoreZoomButtonRequirement: ignoreZoomButtonCheckbox.state == .on ? true : nil,
-            ignoreHeightRequirement: ignoreHeightCheckbox.state == .on ? true : nil,
-            disallowEmptyTitleWindows: disallowEmptyTitleCheckbox.state == .on ? true : nil,
-            hasMainWindow: hasMainWindowCheckbox.state == .on ? true : nil,
-            snapToZoneOnSelfResize: snapToZoneCheckbox.state == .on ? true : nil,
-            doNotResizeWidth: doNotResizeWidthCheckbox.state == .on ? true : nil,
-            disableMouseGestures: disableMouseGesturesCheckbox.state == .on ? true : nil,
-            treatAXUnknownFullWidthAsFullScreen: treatAXUnknownFullWidthAsFullScreenCheckbox.state == .on ? true : nil,
-            requireActiveZoomButton: requireActiveZoomButtonCheckbox.state == .on ? true : nil,
-            manageNonStandardWindows: manageNonStandardWindowsCheckbox.state == .on ? true : nil,
-            excludedWindowTitles: excludedTitles
-        )
+        let excludedTitlesText = excludedTitlesField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        updatedRule.excludedWindowTitles = excludedTitlesText.isEmpty ? nil :
+            excludedTitlesText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
         onSave?(
             ExceptionsPreferencesEntry(
