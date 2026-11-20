@@ -592,7 +592,7 @@ extension AppController {
         Logger.debug("Focused explicitly unminimized window \(managed.windowId) (\(reason))")
     }
 
-    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect) {
+    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect, mouse: MouseButtons.Snapshot) {
         if shouldIgnoreDueToSleepWake(event: "windowManualResizeDidEnd(\(windowId))") {
             return
         }
@@ -636,7 +636,8 @@ extension AppController {
             managed: managed,
             screenId: resolvedScreenId,
             zoneIndex: zoneIndex,
-            reportedFrame: frame
+            reportedFrame: frame,
+            mouse: mouse
         ) {
             return
         }
@@ -693,7 +694,8 @@ extension AppController {
         managed: ManagedWindow,
         screenId: CGDirectDisplayID?,
         zoneIndex: Int,
-        reportedFrame: CGRect
+        reportedFrame: CGRect,
+        mouse: MouseButtons.Snapshot
     ) -> Bool {
         guard shouldSnapToZoneOnSelfResize(managed: managed) else {
             return false
@@ -708,15 +710,16 @@ extension AppController {
 
         let isAlreadyDetached = manualResizeDetachedWindowIds.contains(managed.windowId)
 
-        // If the cursor is near the window border and the left button is down (or just went up),
-        // assume this resize came from a user edge drag and keep Sticky Resize tracking updated.
-        let cursorPoint = currentCursorScreenPoint(on: descriptor)
+        // Judged by the pointer as it was when handling of this resize began: a held left button,
+        // or a just-released one with the cursor at the window's border, means a user edge drag,
+        // so keep Sticky Resize tracking updated.
+        let cursorPoint = descriptor.cocoaToScreen(CGRect(origin: mouse.location, size: .zero)).origin
         let isLikelyUserResize = WindowResizeHeuristics.isLikelyUserEdgeDragResize(
             cursorPoint: cursorPoint,
             windowFrame: reportedFrame,
             edgeProximity: userResizeEdgeProximityThreshold,
-            leftMouseButtonDown: MouseButtons.isLeftMouseButtonDown(),
-            secondsSinceLeftMouseUp: MouseButtons.secondsSinceLastLeftMouseUp(),
+            leftMouseButtonDown: mouse.isLeftButtonDown,
+            secondsSinceLeftMouseUp: mouse.secondsSinceLeftButtonUp,
             mouseUpGrace: userResizeMouseUpGraceInterval
         )
         let action = WindowSelfResizePolicy.action(
@@ -750,7 +753,11 @@ extension AppController {
         }
 
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
-        Logger.debug("Self-resize snap: moving window \(managed.windowId) to zone \(zone.index) on screen \(screenIndex)")
+        Logger.debug(
+            "Self-resize snap: moving window \(managed.windowId) to zone \(zone.index) on screen \(screenIndex) " +
+            "(reported frame \(reportedFrame); before the frame read: cursor \(cursorPoint), " +
+            "left mouse up \(String(format: "%.2f", mouse.secondsSinceLeftButtonUp)) s earlier)"
+        )
         windowController.moveWindow(managed, to: targetFrame, on: descriptor)
         activeFitHandleAssignmentChange(managed: managed, screenId: screenId, zoneIndex: zoneIndex)
         return true
@@ -761,12 +768,6 @@ extension AppController {
             return false
         }
         return windowController.applicationExceptionPolicy.snapsToZoneOnSelfResize(forBundleIdentifier: bundleId)
-    }
-
-    private func currentCursorScreenPoint(on descriptor: ScreenDescriptor) -> CGPoint {
-        let cocoaPoint = NSEvent.mouseLocation
-        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
-        return descriptor.cocoaToScreen(cocoaFrame).origin
     }
 
     func windowManualMoveDidBegin(windowId: Int, frame: CGRect) {

@@ -619,6 +619,9 @@ extension WindowController {
             Logger.debug("External window \(managed.windowId) resized (ignored programmatic update of a window in no zone)")
             return
         }
+        // Taken before the frame read, which a busy app can stall for most of a second: by the
+        // time the frame arrives, the drag behind this resize may be over.
+        let mouse = MouseButtons.snapshot()
         // One frame read serves the cache and every consumer below.
         let accessibilityFrame = recordCachedFrame(for: managed)
         // Always check full-screen state on resize (even for programmatic updates of placed windows)
@@ -663,7 +666,12 @@ extension WindowController {
            let descriptor = delegate?.screenDescriptor(for: screenId) {
             screenFrame = descriptor.accessibilityToScreen(accessibilityFrame)
         }
-        delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+        delegate?.windowManualResizeDidEnd(
+            windowId: managed.windowId,
+            screenId: managed.screenDisplayId,
+            frame: screenFrame,
+            mouse: mouse
+        )
     }
 
     private func collapseNativeTabSourceForAppGeometryChangeIfNeeded(

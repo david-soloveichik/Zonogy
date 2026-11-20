@@ -661,7 +661,8 @@ protocol WindowControllerDelegate: AnyObject {
     func windowElementDidResize(element: AXUIElement, pid: pid_t)
     func windowElementDidClose(element: AXUIElement, pid: pid_t)
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)
-    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    /// `mouse` is the pointer as it was when handling of the resize began, before its frame was read.
+    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect, mouse: MouseButtons.Snapshot)
     /// Whether a cursor-driven chooser-row drag currently owns the mouse button (blocks
     /// manual-drag candidate detection for the gesture's duration).
     func isCursorDrivenDragActive() -> Bool

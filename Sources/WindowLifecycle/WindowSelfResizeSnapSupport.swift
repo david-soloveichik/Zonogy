@@ -31,6 +31,11 @@ struct WindowResizeHeuristics {
         return nearLeft || nearRight || nearTop || nearBottom
     }
 
+    /// A resize while the left button is held is the user's drag in progress. The cursor is not
+    /// compared with the frame then: an app slow to answer can take most of a second to report its
+    /// frame (Zoom has taken ~0.9 s mid-drag), so the two describe different moments of the drag.
+    /// Just after release the cursor rests where the drag ended, at the window's edge, which tells
+    /// a finished drag apart from a click on the app's own controls that made it resize itself.
     static func isLikelyUserEdgeDragResize(
         cursorPoint: CGPoint,
         windowFrame: CGRect,
@@ -39,23 +44,15 @@ struct WindowResizeHeuristics {
         secondsSinceLeftMouseUp: TimeInterval,
         mouseUpGrace: TimeInterval
     ) -> Bool {
-        guard isCursorNearWindowEdge(
-            cursorPoint: cursorPoint,
-            windowFrame: windowFrame,
-            edgeProximity: edgeProximity
-        ) else {
-            return false
-        }
-
         if leftMouseButtonDown {
             return true
         }
-
-        if secondsSinceLeftMouseUp <= mouseUpGrace {
-            return true
-        }
-
-        return false
+        return secondsSinceLeftMouseUp <= mouseUpGrace
+            && isCursorNearWindowEdge(
+                cursorPoint: cursorPoint,
+                windowFrame: windowFrame,
+                edgeProximity: edgeProximity
+            )
     }
 }
 
