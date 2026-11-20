@@ -249,11 +249,16 @@ extension AppController {
         // This catches window closures that didn't fire destroy notifications
         _ = validationRetryManager.validateWindowsForApplication(pid: pid, trigger: .focusChanged)
 
-        // If the focused window was just moved by its own application, skip immediate
-        // focus-driven frame reasserts (Sticky Resize restore, ActiveFit reveal/rest).
-        // Repositioning it right away can fight app-managed moves that are still settling.
+        // Skip focus-driven frame reasserts (Sticky Resize restore, ActiveFit reveal/rest) when the
+        // focused window was just moved by its own application: repositioning it right away can
+        // fight app-managed moves that are still settling. Skip them also while the application is
+        // in the background: focus moving among its own windows (as when it closes a panel on
+        // losing activation) makes none of them active, and its activation, which can arrive after
+        // its first focus change, runs them for it.
         if let focusedWindowId, windowController.isExternallyMovingRecently(windowId: focusedWindowId) {
             Logger.debug("Skipping focus-driven frame reasserts for window \(focusedWindowId); moved externally")
+        } else if pid != NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            Logger.debug("Skipping focus-driven frame reasserts for pid \(pid); not the frontmost application")
         } else {
             handleManualResizeFocusChange(pid: pid)
             handleActiveFitFocusChange(pid: pid)
