@@ -15,8 +15,9 @@ final class GeneralPreferencesViewController: NSViewController {
     private var launchAtLoginCheckbox: NSButton?
     private var updateCheckCheckbox: NSButton?
     private var highlightColorWell: NSColorWell?
-    private var resetHighlightColorButton: NSButton?
+    private var opacitySlider: NSSlider?
     private var opacityValueLabel: NSTextField?
+    private var resetAppearanceButton: NSButton?
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
 
@@ -123,28 +124,14 @@ final class GeneralPreferencesViewController: NSViewController {
         appearanceSeparator.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(appearanceSeparator)
 
-        let highlightColorLabel = NSTextField(labelWithString: "Highlight color:")
-        highlightColorLabel.font = NSFont.systemFont(ofSize: 13)
-        highlightColorLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(highlightColorLabel)
+        let highlightLabel = NSTextField(labelWithString: "Highlight:")
+        highlightLabel.font = NSFont.systemFont(ofSize: 13)
 
         let highlightColorWell = NSColorWell(style: .minimal)
         highlightColorWell.supportsAlpha = false
         highlightColorWell.target = self
         highlightColorWell.action = #selector(highlightColorChanged(_:))
-        highlightColorWell.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(highlightColorWell)
         self.highlightColorWell = highlightColorWell
-
-        let resetHighlightColorButton = NSButton(title: "Reset to Blue", target: self, action: #selector(resetHighlightColor))
-        resetHighlightColorButton.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(resetHighlightColorButton)
-        self.resetHighlightColorButton = resetHighlightColorButton
-
-        let opacityLabel = NSTextField(labelWithString: "Opacity:")
-        opacityLabel.font = NSFont.systemFont(ofSize: 13)
-        opacityLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacityLabel)
 
         let opacitySlider = NSSlider(
             value: OverlayAppearance.opacityScale,
@@ -156,16 +143,32 @@ final class GeneralPreferencesViewController: NSViewController {
         // A tick every 25% from 25% to 150%, so 100% (the default look) is a tick.
         opacitySlider.numberOfTickMarks = 6
         opacitySlider.isContinuous = true
-        opacitySlider.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacitySlider)
+        opacitySlider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        self.opacitySlider = opacitySlider
 
         let opacityValueLabel = NSTextField(labelWithString: "")
         opacityValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-        opacityValueLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacityValueLabel)
+        // Wide enough for "150%", so the reset button beside it holds still while dragging.
+        opacityValueLabel.widthAnchor.constraint(equalToConstant: 40).isActive = true
         self.opacityValueLabel = opacityValueLabel
 
-        let appearanceHintLabel = NSTextField(wrappingLabelWithString: "Applies to everything Zonogy draws on the desktop, such as placeholders, zone bars, and the destination indicator.")
+        // Last in the row, so hiding it while both settings are at their defaults moves nothing.
+        let resetAppearanceButton = NSButton(
+            image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset to blue and 100%")!,
+            target: self, action: #selector(resetAppearance))
+        resetAppearanceButton.isBordered = false
+        resetAppearanceButton.contentTintColor = .secondaryLabelColor
+        resetAppearanceButton.toolTip = "Reset to blue and 100%"
+        self.resetAppearanceButton = resetAppearanceButton
+
+        let highlightRow = NSStackView(views: [highlightLabel, highlightColorWell, opacitySlider, opacityValueLabel, resetAppearanceButton])
+        highlightRow.orientation = .horizontal
+        highlightRow.alignment = .centerY
+        highlightRow.spacing = 10
+        highlightRow.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(highlightRow)
+
+        let appearanceHintLabel = NSTextField(wrappingLabelWithString: "Used for placeholders, zone bars, destination indicators, and more.")
         appearanceHintLabel.font = NSFont.systemFont(ofSize: 12)
         appearanceHintLabel.textColor = .secondaryLabelColor
         appearanceHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -226,24 +229,10 @@ final class GeneralPreferencesViewController: NSViewController {
             appearanceSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             appearanceSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            highlightColorWell.topAnchor.constraint(equalTo: appearanceSeparator.bottomAnchor, constant: 14),
-            highlightColorWell.leadingAnchor.constraint(equalTo: highlightColorLabel.trailingAnchor, constant: 8),
-            highlightColorLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            highlightColorLabel.centerYAnchor.constraint(equalTo: highlightColorWell.centerYAnchor),
+            highlightRow.topAnchor.constraint(equalTo: appearanceSeparator.bottomAnchor, constant: 14),
+            highlightRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            resetHighlightColorButton.leadingAnchor.constraint(equalTo: highlightColorWell.trailingAnchor, constant: 12),
-            resetHighlightColorButton.centerYAnchor.constraint(equalTo: highlightColorWell.centerYAnchor),
-
-            opacitySlider.topAnchor.constraint(equalTo: highlightColorWell.bottomAnchor, constant: 12),
-            opacitySlider.leadingAnchor.constraint(equalTo: highlightColorWell.leadingAnchor),
-            opacitySlider.widthAnchor.constraint(equalToConstant: 220),
-            opacityLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            opacityLabel.centerYAnchor.constraint(equalTo: opacitySlider.centerYAnchor),
-
-            opacityValueLabel.leadingAnchor.constraint(equalTo: opacitySlider.trailingAnchor, constant: 8),
-            opacityValueLabel.centerYAnchor.constraint(equalTo: opacitySlider.centerYAnchor),
-
-            appearanceHintLabel.topAnchor.constraint(equalTo: opacitySlider.bottomAnchor, constant: 8),
+            appearanceHintLabel.topAnchor.constraint(equalTo: highlightRow.bottomAnchor, constant: 8),
             appearanceHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             appearanceHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
@@ -273,8 +262,7 @@ final class GeneralPreferencesViewController: NSViewController {
         syncScreenRecordingStatus()
         syncLaunchAtLoginCheckbox()
         syncUpdateCheckCheckbox()
-        syncHighlightColorControls()
-        syncOpacityValueLabel()
+        syncAppearanceControls()
         syncDockMenusCheckbox()
     }
 
@@ -327,27 +315,27 @@ final class GeneralPreferencesViewController: NSViewController {
 
     @objc private func highlightColorChanged(_ sender: NSColorWell) {
         OverlayAppearance.setCustomHighlightColor(sender.color)
-        resetHighlightColorButton?.isEnabled = true
-    }
-
-    @objc private func resetHighlightColor() {
-        OverlayAppearance.setCustomHighlightColor(nil)
-        syncHighlightColorControls()
-    }
-
-    private func syncHighlightColorControls() {
-        highlightColorWell?.color = OverlayAppearance.highlightColor
-        resetHighlightColorButton?.isEnabled = OverlayAppearance.customHighlightColor != nil
+        syncAppearanceControls()
     }
 
     /// Stores 5% steps so the percentage reads cleanly; the slider itself moves freely.
     @objc private func opacityChanged(_ sender: NSSlider) {
         OverlayAppearance.setOpacityScale((sender.doubleValue * 20).rounded() / 20)
-        syncOpacityValueLabel()
+        syncAppearanceControls()
     }
 
-    private func syncOpacityValueLabel() {
+    @objc private func resetAppearance() {
+        OverlayAppearance.setCustomHighlightColor(nil)
+        OverlayAppearance.setOpacityScale(1)
+        opacitySlider?.doubleValue = OverlayAppearance.opacityScale
+        syncAppearanceControls()
+    }
+
+    /// Everything but the slider's position, which follows the pointer while dragged.
+    private func syncAppearanceControls() {
+        highlightColorWell?.color = OverlayAppearance.highlightColor
         opacityValueLabel?.stringValue = "\(Int((OverlayAppearance.opacityScale * 100).rounded()))%"
+        resetAppearanceButton?.isHidden = OverlayAppearance.customHighlightColor == nil && OverlayAppearance.opacityScale == 1
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {
