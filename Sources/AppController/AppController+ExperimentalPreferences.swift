@@ -20,4 +20,14 @@ extension AppController {
         Logger.debug("Experimental: disable minimize and restore animations=\(enabled)")
         instantMinimizeController.setEnabled(enabled)
     }
+
+    internal func setInstantMinimizeKeepAfterQuitFromSettings(_ keep: Bool) {
+        ExperimentalPreferencesStore.saveInstantMinimizeKeepAfterQuit(keep)
+        Logger.debug("Experimental: keep animations disabled after quitting=\(keep)")
+    }
+
+    internal func shutdownInstantMinimize() {
+        instantMinimizeController.shutdown(
+            keepingActivePatch: ExperimentalPreferencesStore.loadInstantMinimizeKeepAfterQuit())
+    }
 }

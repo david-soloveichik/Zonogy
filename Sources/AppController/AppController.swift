@@ -597,7 +597,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     @objc private func handleApplicationWillTerminate() {
-        instantMinimizeController.shutdown()
+        shutdownInstantMinimize()
         LogFile.drain()
     }
 

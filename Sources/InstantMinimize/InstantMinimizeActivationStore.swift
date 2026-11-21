@@ -1,4 +1,4 @@
-/// Remembers verified Dock activations so Zonogy can resume a surviving patch after a crash.
+/// Remembers verified Dock activations so Zonogy can resume a patch that survived a crash or a quit.
 import Foundation
 
 struct InstantMinimizeActivation: Codable, Equatable {

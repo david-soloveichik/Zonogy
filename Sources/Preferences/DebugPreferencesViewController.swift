@@ -260,22 +260,10 @@ final class DebugPreferencesViewController: NSViewController {
         return label
     }
 
-    /// A hint-styled bulleted list, one item per line, with wrapped lines indented under the text.
+    /// A hint-sized bulleted list in the primary text color.
     private func makeBulletListLabel(_ items: [String]) -> NSTextField {
-        let indent: CGFloat = 12
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.tabStops = [NSTextTab(textAlignment: .left, location: indent)]
-        paragraph.headIndent = indent
-        paragraph.paragraphSpacing = 4
         let label = makeHintLabel("")
-        label.attributedStringValue = NSAttributedString(
-            string: items.map { "•\t\($0)" }.joined(separator: "\n"),
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.labelColor,
-                .paragraphStyle: paragraph,
-            ]
-        )
+        label.attributedStringValue = .bulletList(items, font: .systemFont(ofSize: 12), color: .labelColor)
         return label
     }
 

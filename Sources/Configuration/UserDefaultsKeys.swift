@@ -30,6 +30,7 @@ enum UserDefaultsKeys {
 
     // MARK: - Experimental
     static let instantMinimizeEnabled = "Zonogy.experimental.instantMinimizeEnabled"
+    static let instantMinimizeKeepAfterQuit = "Zonogy.experimental.instantMinimizeKeepAfterQuit"
     static let instantMinimizeActivation = "Zonogy.experimental.instantMinimizeActivation"
 
     // MARK: - Debug

@@ -458,11 +458,11 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 
 ## Disabling Minimize / Restore Animation System-wide (Experimental feature)
 
-Zonogy can patch the Dock process to disable minimize and restore animations across all applications. This is controlled by the "Disable minimize and restore animations" toggle in "Experimental" Preferences tab. It requires a compatible Apple Silicon macOS 27 configuration with System Integrity Protection (SIP) partially disabled, using the same setup as yabai. The tab links to [yabai’s SIP instructions](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection). Administrator approval is required to enable the feature. The preference is remembered between launches.
+Zonogy can patch the Dock process to disable minimize and restore animations across all applications. This is controlled by the "Disable minimize and restore animations system-wide" toggle in "Experimental" Preferences tab. It requires a compatible Apple Silicon macOS 27 configuration with System Integrity Protection (SIP) partially disabled, using the same setup as yabai. The tab links to [yabai’s SIP instructions](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection). Administrator approval is required to enable the feature. The preference is remembered between launches.
 
-Turning the toggle off or quitting Zonogy restarts the current user's Dock to restore animations. Dock restarts during use reapply the feature. (If activation fails, Zonogy restarts Dock to prevent incomplete patching; automatic attempts stop after a failure to avoid a restart loop.) Toggle feature off and on to retry.
+Turning the toggle off restarts the current user's Dock to restore animations, as does quitting Zonogy unless the "Keep animations disabled after quitting (until Dock restarts)" sub-option (off by default) is on. Dock restarts during use reapply the feature. (If activation fails, Zonogy restarts Dock to prevent incomplete patching; automatic attempts stop after a failure to avoid a restart loop.) Toggle feature off and on to retry.
 
-Note that a Zonogy crash leaves the effect active until Dock next restarts. On relaunch, Zonogy recognizes a previous patch if the same Dock process is still running, restores the enabled checkbox and "Active" status.
+Quitting with that sub-option on, like a Zonogy crash, leaves the effect active until Dock next restarts. On relaunch, Zonogy recognizes a previous patch if the same Dock process is still running, and restores the enabled checkbox and "Active" status without patching Dock again.
 
 ## Developer Tools
 
