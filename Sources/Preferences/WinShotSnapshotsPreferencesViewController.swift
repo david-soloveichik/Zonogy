@@ -11,11 +11,9 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     private var settleDelayTextField: NSTextField?
     private var settleDelayStepper: NSStepper?
     private var settleDelaySuffixLabel: NSTextField?
-    private var settleDelayHintLabel: NSTextField?
     private var maxSnapshotsLabel: NSTextField?
     private var maxSnapshotsTextField: NSTextField?
     private var maxSnapshotsStepper: NSStepper?
-    private var maxSnapshotsHintLabel: NSTextField?
 
     private static func title(for mode: WinShotAutoSaveMode) -> String {
         switch mode {
@@ -39,7 +37,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     }
 
     private static var featureHint: String {
-        "A snapshot records which windows are in which zones on a display, so you can bring that arrangement back later. Restore snapshots with \(KeyboardShortcutPreferences.shared.keyPhrase(for: .showWinShotChooser)) (settable in Shortcuts). Thumbnails need Screen Recording permission (see General)."
+        "A snapshot records which windows are in which zones on a display. Restore snapshots with \(KeyboardShortcutPreferences.shared.keyPhrase(for: .showWinShotChooser)) (settable in Shortcuts). Thumbnails need Screen Recording permission (see General)."
     }
 
     override func loadView() {
@@ -127,15 +125,6 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         containerView.addSubview(settleDelaySuffixLabel)
         self.settleDelaySuffixLabel = settleDelaySuffixLabel
 
-        let settleDelayHintLabel = NSTextField(
-            wrappingLabelWithString: "How long an arrangement must persist before it's saved (\(WinShotPreferencesStore.minOccupancySettleDelaySeconds)–\(WinShotPreferencesStore.maxOccupancySettleDelaySeconds) seconds)."
-        )
-        settleDelayHintLabel.font = NSFont.systemFont(ofSize: 12)
-        settleDelayHintLabel.textColor = .secondaryLabelColor
-        settleDelayHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(settleDelayHintLabel)
-        self.settleDelayHintLabel = settleDelayHintLabel
-
         let maxFormatter = NumberFormatter()
         maxFormatter.numberStyle = .none
         maxFormatter.minimum = NSNumber(value: WinShotPreferencesStore.minSnapshotsStored)
@@ -170,15 +159,6 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         containerView.addSubview(maxSnapshotsStepper)
         self.maxSnapshotsStepper = maxSnapshotsStepper
 
-        let maxSnapshotsHintLabel = NSTextField(
-            wrappingLabelWithString: "Beyond this, the oldest snapshot on that display is dropped (\(WinShotPreferencesStore.minSnapshotsStored)–\(WinShotPreferencesStore.maxSnapshotsStored))."
-        )
-        maxSnapshotsHintLabel.font = NSFont.systemFont(ofSize: 12)
-        maxSnapshotsHintLabel.textColor = .secondaryLabelColor
-        maxSnapshotsHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(maxSnapshotsHintLabel)
-        self.maxSnapshotsHintLabel = maxSnapshotsHintLabel
-
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
@@ -212,11 +192,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
             settleDelaySuffixLabel.firstBaselineAnchor.constraint(equalTo: settleDelayLabel.firstBaselineAnchor),
             settleDelaySuffixLabel.leadingAnchor.constraint(equalTo: settleDelayStepper.trailingAnchor, constant: 8),
 
-            settleDelayHintLabel.topAnchor.constraint(equalTo: settleDelayLabel.bottomAnchor, constant: 6),
-            settleDelayHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 60),
-            settleDelayHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            maxSnapshotsLabel.topAnchor.constraint(equalTo: settleDelayHintLabel.bottomAnchor, constant: 18),
+            maxSnapshotsLabel.topAnchor.constraint(equalTo: settleDelayLabel.bottomAnchor, constant: 20),
             maxSnapshotsLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
 
             maxSnapshotsTextField.firstBaselineAnchor.constraint(equalTo: maxSnapshotsLabel.firstBaselineAnchor),
@@ -225,10 +201,6 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
 
             maxSnapshotsStepper.centerYAnchor.constraint(equalTo: maxSnapshotsTextField.centerYAnchor),
             maxSnapshotsStepper.leadingAnchor.constraint(equalTo: maxSnapshotsTextField.trailingAnchor, constant: 8),
-
-            maxSnapshotsHintLabel.topAnchor.constraint(equalTo: maxSnapshotsLabel.bottomAnchor, constant: 6),
-            maxSnapshotsHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 60),
-            maxSnapshotsHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
         ])
 
         self.view = containerView
@@ -311,7 +283,6 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         settleDelayStepper?.isEnabled = settleEnabled
         settleDelayLabel?.textColor = settleEnabled ? .labelColor : .secondaryLabelColor
         settleDelaySuffixLabel?.textColor = settleEnabled ? .labelColor : .secondaryLabelColor
-        settleDelayHintLabel?.textColor = settleEnabled ? .secondaryLabelColor : .tertiaryLabelColor
 
         let maxSnapshotsStored = AppController.shared.winShotMaxSnapshotsStoredInSettings
         maxSnapshotsTextField?.integerValue = maxSnapshotsStored
@@ -319,6 +290,5 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         maxSnapshotsTextField?.isEnabled = winShotEnabled
         maxSnapshotsStepper?.isEnabled = winShotEnabled
         maxSnapshotsLabel?.textColor = winShotEnabled ? .labelColor : .secondaryLabelColor
-        maxSnapshotsHintLabel?.textColor = winShotEnabled ? .secondaryLabelColor : .tertiaryLabelColor
     }
 }

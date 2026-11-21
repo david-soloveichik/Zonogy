@@ -13,9 +13,7 @@ final class GeneralPreferencesViewController: NSViewController {
     private var screenRecordingStatusIcon: NSImageView?
     private var screenRecordingStatusLabel: NSTextField?
     private var launchAtLoginCheckbox: NSButton?
-    private var launchAtLoginHintLabel: NSTextField?
     private var updateCheckCheckbox: NSButton?
-    private var updateCheckHintLabel: NSTextField?
     private var highlightColorWell: NSColorWell?
     private var resetHighlightColorButton: NSButton?
     private var opacityValueLabel: NSTextField?
@@ -114,24 +112,10 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(launchAtLoginCheckbox)
         self.launchAtLoginCheckbox = launchAtLoginCheckbox
 
-        let launchAtLoginHintLabel = NSTextField(wrappingLabelWithString: "Automatically start Zonogy when you log in to your Mac.")
-        launchAtLoginHintLabel.font = NSFont.systemFont(ofSize: 12)
-        launchAtLoginHintLabel.textColor = .secondaryLabelColor
-        launchAtLoginHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(launchAtLoginHintLabel)
-        self.launchAtLoginHintLabel = launchAtLoginHintLabel
-
         let updateCheckCheckbox = NSButton(checkboxWithTitle: "Automatically check for updates", target: self, action: #selector(updateCheckToggled(_:)))
         updateCheckCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(updateCheckCheckbox)
         self.updateCheckCheckbox = updateCheckCheckbox
-
-        let updateCheckHintLabel = NSTextField(wrappingLabelWithString: "Once a day, Zonogy checks GitHub for a newer release.")
-        updateCheckHintLabel.font = NSFont.systemFont(ofSize: 12)
-        updateCheckHintLabel.textColor = .secondaryLabelColor
-        updateCheckHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(updateCheckHintLabel)
-        self.updateCheckHintLabel = updateCheckHintLabel
 
         // Overlay appearance: the highlight color and opacity of everything Zonogy draws on the desktop.
         let appearanceSeparator = NSBox()
@@ -235,18 +219,10 @@ final class GeneralPreferencesViewController: NSViewController {
             launchAtLoginCheckbox.topAnchor.constraint(equalTo: screenRecordingStatusView.bottomAnchor, constant: 18),
             launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            launchAtLoginHintLabel.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 6),
-            launchAtLoginHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            launchAtLoginHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            updateCheckCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
+            updateCheckCheckbox.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 10),
             updateCheckCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            updateCheckHintLabel.topAnchor.constraint(equalTo: updateCheckCheckbox.bottomAnchor, constant: 6),
-            updateCheckHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            updateCheckHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            appearanceSeparator.topAnchor.constraint(equalTo: updateCheckHintLabel.bottomAnchor, constant: 20),
+            appearanceSeparator.topAnchor.constraint(equalTo: updateCheckCheckbox.bottomAnchor, constant: 20),
             appearanceSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             appearanceSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
@@ -409,7 +385,7 @@ final class GeneralPreferencesViewController: NSViewController {
             accessibilityStatusView?.layer?.cornerRadius = 6
             accessibilityStatusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Required")
             accessibilityStatusIcon?.contentTintColor = .systemOrange
-            accessibilityStatusLabel?.stringValue = "Accessibility permission required for window management"
+            accessibilityStatusLabel?.stringValue = "Accessibility permission required"
             accessibilityStatusLabel?.textColor = .labelColor
         }
     }
@@ -422,14 +398,14 @@ final class GeneralPreferencesViewController: NSViewController {
             screenRecordingStatusView?.layer?.cornerRadius = 6
             screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Granted")
             screenRecordingStatusIcon?.contentTintColor = .systemGreen
-            screenRecordingStatusLabel?.stringValue = "Screen Recording permission granted (only used for WinShot snapshots feature)"
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission granted (for WinShot Snapshots)"
             screenRecordingStatusLabel?.textColor = .labelColor
         } else {
             screenRecordingStatusView?.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.15).cgColor
             screenRecordingStatusView?.layer?.cornerRadius = 6
             screenRecordingStatusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Required")
             screenRecordingStatusIcon?.contentTintColor = .systemOrange
-            screenRecordingStatusLabel?.stringValue = "Screen Recording permission not granted (only used for WinShot snapshots feature)"
+            screenRecordingStatusLabel?.stringValue = "Screen Recording permission not granted (for WinShot Snapshots)"
             screenRecordingStatusLabel?.textColor = .labelColor
         }
     }

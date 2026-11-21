@@ -44,7 +44,7 @@ final class TargetingSheetViewController: NSViewController {
         let title = NSTextField(labelWithString: "Replacing focused window")
         title.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
         let subtitle = Self.makeSecondaryLabel(
-            "For some actions, replacing the window you're currently using may feel more natural than opening an additional one in the destination zone. With an option below enabled, your choice replaces the focused window instead of opening into the destination zone.",
+            "For some actions, replacing the focused window may feel more natural than opening another one in the destination zone.",
             width: Self.contentWidth
         )
         let header = NSStackView(views: [title, subtitle])
@@ -74,18 +74,17 @@ final class TargetingSheetViewController: NSViewController {
         launcherShortcutCheckbox.state =
             AppController.shared.isLauncherShortcutTargetsZoneWithActiveWindowEnabledInSettings ? .on : .off
         let launcherShortcutHint = Self.makeHintLabel(
-            "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original destination. When off, the first press uses the original destination."
+            "The first shortcut press opens the Launcher on the focused window's zone; press again to toggle back to the original destination."
         )
 
         dockMenusCheckbox = NSButton(checkboxWithTitle: "DockMenus replaces focused window", target: nil, action: nil)
         dockMenusCheckbox.state = AppController.shared.isDockMenusTargetsZoneWithActiveWindowEnabledInSettings ? .on : .off
-        let dockMenusHint = Self.makeHintLabel("Windows from DockMenus replace the focused window in its zone.")
 
         let stack = NSStackView(views: [
             header,
             Self.makeSetting(cmdTabRow, hint: cmdTabModeHintLabel),
             Self.makeSetting(launcherShortcutCheckbox, hint: launcherShortcutHint),
-            Self.makeSetting(dockMenusCheckbox, hint: dockMenusHint),
+            dockMenusCheckbox,
             makeButtonRow(),
         ])
         stack.orientation = .vertical

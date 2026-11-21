@@ -38,7 +38,7 @@ final class LauncherPreferencesViewController: NSViewController, NSTableViewData
 
     private func setupExplanationLabel(in container: NSView) {
         explanationLabel = NSTextField(wrappingLabelWithString:
-            "The Launcher automatically includes apps from /Applications, /System/Applications, and ~/Applications. Use the list below to add additional items.")
+            "The Launcher automatically includes apps from /Applications, /System/Applications, and ~/Applications.")
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false
         explanationLabel.font = NSFont.systemFont(ofSize: 11)
         explanationLabel.textColor = .secondaryLabelColor
