@@ -65,10 +65,8 @@ final class ExperimentalPreferencesViewController: NSViewController {
             page.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             page.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             page.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-            page.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -20),
         ])
         view = container
-        preferredContentSize = NSSize(width: 580, height: 540)
         NotificationCenter.default.addObserver(self, selector: #selector(syncControls),
                                                name: .instantMinimizeStatusChanged, object: nil)
         syncControls()
@@ -117,5 +115,7 @@ final class ExperimentalPreferencesViewController: NSViewController {
         instantMinimizeStatusDetail?.stringValue = controller.status
         instantMinimizeStatusDetail?.isHidden = !controller.hasError && (!controller.isEnabled || controller.isActive)
         instantMinimizeStatusDetail?.textColor = controller.hasError ? .labelColor : .secondaryLabelColor
+        // The status detail comes and goes with the feature's state.
+        fitPreferredContentSizeToContent()
     }
 }

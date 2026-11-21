@@ -14,15 +14,15 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 ## Automatic Snapshots
 
-Preferences offers an auto-save mode with three settings, each a superset of the one before it:
+The "Auto-save" setting in Preferences offers three choices, each a superset of the one before it:
 
-- **Off**: snapshots are created only with the Control-Cmd-/ shortcut (default).
-- **On Clear/Reset Zones**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
-- **On every zone occupancy change**: everything the previous mode does, plus continuous background capture as described below.
+- **never**: snapshots are created only with the Control-Cmd-/ shortcut (default).
+- **before Clear/Reset or restore**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
+- **after every change**: everything the previous choice does, plus continuous background capture as described below.
 
 ### Auto-save on zone occupancy change
 
-In this mode each display's arrangement is saved automatically once it has stayed put for a configurable settle delay (default 3 seconds). A **zone occupancy change** is any change to which window occupies which zone (including moves and swaps between zones), and which tiling zones are present (so adding or removing a zone counts, even an empty one). Resizing zones, or changing only which window is active, is not an occupancy change. As with manual saves, an automatic capture whose occupancy signature matches an existing snapshot replaces it.
+With "after every change" chosen, each display's arrangement is saved automatically once it has stayed put for a configurable settle delay (default 3 seconds). A **zone occupancy change** is any change to which window occupies which zone (including moves and swaps between zones), and which tiling zones are present (so adding or removing a zone counts, even an empty one). Resizing zones, or changing only which window is active, is not an occupancy change. As with manual saves, an automatic capture whose occupancy signature matches an existing snapshot replaces it.
 
 Tracking is per display, and the settle delay restarts on each occupancy change so only the arrangement that ultimately settles is captured. Displays in a full-screen Space are not tracked. A display entering native full screen captures its arrangement first, so the arrangement from before full screen is saved.
 

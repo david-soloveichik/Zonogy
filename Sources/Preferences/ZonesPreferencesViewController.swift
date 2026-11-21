@@ -183,10 +183,10 @@ final class ZonesPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 585)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()
+        fitPreferredContentSizeToContent()
     }
 
     private func zoneLayoutStyleSelected(_ style: ZoneLayoutStyle) {

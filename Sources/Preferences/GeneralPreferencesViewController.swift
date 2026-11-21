@@ -262,12 +262,12 @@ final class GeneralPreferencesViewController: NSViewController {
             dockMenusDragHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusDragHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
+            versionLabel.topAnchor.constraint(equalTo: dockMenusDragHintLabel.bottomAnchor, constant: 24),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 580)
+        fitPreferredContentSizeToContent()
         lastKnownAccessibilityState = AXIsProcessTrusted()
         syncAccessibilityStatus()
         syncScreenRecordingStatus()
