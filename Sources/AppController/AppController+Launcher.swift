@@ -856,7 +856,6 @@ extension AppController: LauncherControllerDelegate {
         windowPlacementManager.placeWindow(
             managed,
             into: destination,
-            centerFloatingWindow: true,
             reason: "launcher-selection",
             forceRetargetAfterFill: false,
             afterPlacementAction: afterPlacementAction
@@ -892,7 +891,6 @@ extension AppController: LauncherControllerDelegate {
         windowPlacementManager.placeWindow(
             managed,
             into: .tiled(zoneKey),
-            centerFloatingWindow: true,
             reason: "dockmenu-drag-placement",
             forceRetargetAfterFill: true,
             afterPlacementAction: {

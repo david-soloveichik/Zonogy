@@ -175,10 +175,10 @@ While the Launcher is open in app-list mode and Option is held, each application
 
 - **Hover:** Selects item (same visual as keyboard selection)
 - **Click:** Activates item immediately (launch app, focus window)
-- **Drag app row:** Starts the same zone-targeting drag as dragging that app from DockMenus. If the app has a preferred managed window, that window is what gets dragged. Otherwise dropping onto a tiling zone, floating indicator, or add-zone indicator retargets there and launches/activates the app.
+- **Drag app row:** Starts the same zone-targeting drag as dragging that app from DockMenus. If the app has a preferred managed window, that window is what gets dragged. Otherwise dropping onto a tiling zone, floating indicator, floating window, or add-zone indicator retargets there and launches/activates the app.
 - **Option-drag app row (new window):** Same dynamic Option behavior as Dock-icon drags (see [SPECIFICATION-DOCKMENUS.md](SPECIFICATION-DOCKMENUS.md)). While the user drags an app row, holding Option toggles the drag preview to show a "+" affordance and the app name; releasing Option restores the default preview. Whether the drop creates a new window or completes the default action is decided by Option state at the moment the mouse is released.
 - **Drag window row:** Starts the same drag-and-drop behavior as dragging that window row from DockMenus.
-- **Drag file/folder row:** Starts a launchable-item drag using the same destination semantics as Zonogy's external file/URL drops. Empty tiling zones, the floating indicator, and the add-zone indicator are valid without modifiers; occupied tiling zones only become valid drop targets while Control-Command is held.
+- **Drag file/folder row:** Starts a launchable-item drag that opens the dropped item like Zonogy's external file/URL drops. Empty tiling zones, the floating indicator and floating window, and the add-zone indicator are valid without modifiers; occupied tiling zones only become valid drop targets while Control-Command is held.
 - **Escape during a drag:** Cancels any in-flight row drag.
 - **Window-list `Menu Bar` row:** Click-only; never draggable.
 - **Drill-down chevron:** Hover brightens icon; click shows press animation before drilling into window list. Dragging begins only from the row surface outside the chevron.

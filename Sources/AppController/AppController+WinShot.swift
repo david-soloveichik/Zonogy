@@ -451,20 +451,12 @@ extension AppController {
         // Step 11: FLOATING ZONE ASSIGNMENT - Assign and position the floating zone window.
         // Unminimization already happened in Step 6 (parallel with tiled windows).
         if let floatingItem = floatingWorkItem {
-            let hasStoredFrame = floatingItem.targetFrame != nil
             assignWindowToFloatingZone(
                 floatingItem.managed,
                 on: screenId,
-                centerWindow: !hasStoredFrame,
+                placement: floatingItem.targetFrame.map { .frame($0) } ?? .standard,
                 reason: "winshot-restore"
             )
-
-            if let targetFrame = floatingItem.targetFrame {
-                windowController.moveWindow(floatingItem.managed, to: targetFrame, on: floatingItem.descriptor)
-                // Override any stale seed from assign (which used pre-restore actualFrame)
-                // so the remembered floating size matches the restored snapshot frame.
-                floatingZoneCoordinator.rememberSize(for: floatingItem.managed.windowId, size: targetFrame.size)
-            }
 
             scheduleFloatingZoneProtection(windowId: floatingItem.managed.windowId)
         }

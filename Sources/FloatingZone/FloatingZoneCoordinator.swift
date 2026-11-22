@@ -1,5 +1,20 @@
 import AppKit
 
+/// Where a window placed into a floating zone goes.
+enum FloatingPlacement: Equatable {
+    /// While the zone is explicitly targeted and another window occupies it, that occupant's frame,
+    /// which the incoming window takes over; otherwise centered at the window's own floating size.
+    case standard
+    /// A window dropped into the zone, which counts as explicitly targeting it: the occupant's frame
+    /// when occupied, otherwise centered.
+    case dropped
+    /// The window keeps its current frame (a drag conversion, or a window already in place).
+    case currentFrame
+    /// This frame, in the destination display's screen-local coordinates (a snapshot restore, a
+    /// drag revert, or a swap that already took the occupant out of the zone).
+    case frame(CGRect)
+}
+
 /// Defines the operations the floating-zone coordinator can call back into.
 protocol FloatingZoneCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
@@ -24,6 +39,7 @@ protocol FloatingZoneCoordinatorHost: AnyObject {
     func detectScreenId(for window: ManagedWindow) -> CGDirectDisplayID?
     func screenIdForAccessibilityFrame(_ frame: CGRect) -> CGDirectDisplayID?
     func shouldProtectFloatingZoneOccupant(windowId: Int) -> Bool
+    var isMouseGestureInProgress: Bool { get }
     func scheduleFloatingZoneProtection(windowId: Int)
     func clearFloatingZoneProtection(windowId: Int)
     func floatingOccupantEvicted(windowId: Int)
@@ -40,15 +56,47 @@ final class FloatingZoneCoordinator {
 
     weak var host: FloatingZoneCoordinatorHost?
     private let displacedWindowCoordinator: DisplacedWindowCoordinator
-    private(set) var occupants: [CGDirectDisplayID: Int] = [:]
+    private(set) var occupants: [CGDirectDisplayID: Int] = [:] {
+        didSet {
+            // A drop arrival hold belongs to an occupancy: it ends when its window leaves the
+            // floating zones and does not return with a later placement.
+            dropArrivalHoldDeadlines = dropArrivalHoldDeadlines.filter { occupants.values.contains($0.key) }
+        }
+    }
     /// Per-window remembered floating-zone size. Updated whenever the user resizes a window while
-    /// it is a floating-zone occupant, and cleared only when the window is destroyed. Applied on
-    /// subsequent placements into any floating zone so a window returns to its last floating size.
+    /// it is a floating-zone occupant or the window takes a frame in a floating zone (an
+    /// occupant's or a restored one), and cleared only when the window is destroyed. Applied on
+    /// subsequent placements into an empty floating zone so a window returns to its last floating size.
     private var rememberedSizesByWindowId: [Int: CGSize] = [:]
+    /// Occupants whose occlusion- and focus-driven minimization waits, until the given deadline,
+    /// for the window a drop into their floating zone opens.
+    private var dropArrivalHoldDeadlines: [Int: Date] = [:]
 
     init(host: FloatingZoneCoordinatorHost, displacedWindowCoordinator: DisplacedWindowCoordinator) {
         self.host = host
         self.displacedWindowCoordinator = displacedWindowCoordinator
+    }
+
+    /// After a drop into `screenId`'s floating zone, holds the occlusion- and focus-driven
+    /// minimization of its occupant for `duration`: the window the drop opens, which its
+    /// application can take a moment to build (often activating its other windows first), then
+    /// still finds the occupant to replace and takes over its frame.
+    func holdOcclusionMinimizationForDrop(on screenId: CGDirectDisplayID, duration: TimeInterval) {
+        guard let occupantId = occupants[screenId] else {
+            return
+        }
+        dropArrivalHoldDeadlines[occupantId] = Date().addingTimeInterval(duration)
+    }
+
+    private func isHeldForDropArrival(_ windowId: Int) -> Bool {
+        guard let deadline = dropArrivalHoldDeadlines[windowId] else {
+            return false
+        }
+        if Date() >= deadline {
+            dropArrivalHoldDeadlines.removeValue(forKey: windowId)
+            return false
+        }
+        return true
     }
 
     func rememberSize(for windowId: Int, size: CGSize) {
@@ -89,7 +137,7 @@ final class FloatingZoneCoordinator {
     func assign(
         _ managed: ManagedWindow,
         to screenId: CGDirectDisplayID,
-        centerWindow: Bool = true,
+        placement: FloatingPlacement = .standard,
         activate: Bool = true,
         reason: String,
         displacement: DisplacementStrategy = .synchronous
@@ -105,6 +153,28 @@ final class FloatingZoneCoordinator {
             host.clearFloatingZoneProtection(windowId: managed.windowId)
             occupants.removeValue(forKey: existingScreenId)
         }
+
+        // Resolved before the replacement below evicts the occupant, whose frame the incoming
+        // window may take over.
+        let descriptor = host.descriptor(for: screenId)
+        let target: (frame: CGRect, isTaken: Bool)? = {
+            switch placement {
+            case .standard, .dropped:
+                return descriptor.map {
+                    standardPlacement(
+                        for: managed,
+                        on: screenId,
+                        descriptor: $0,
+                        keepingOccupantFrame: placement == .dropped || isExplicitlyTargeted(screenId),
+                        queryingApplication: true
+                    )
+                }
+            case .frame(let frame):
+                return (frame, true)
+            case .currentFrame:
+                return nil
+            }
+        }()
 
         let displacedMinimizeReason = "\(reason)-displaced"
         let finalizeDisplaced: (ManagedWindow) -> Void = { displaced in
@@ -145,11 +215,9 @@ final class FloatingZoneCoordinator {
                 host.setManagedWindow(managed, screenId: screenId, zoneIndex: nil)
 
                 var committedSize: CGSize?
-                if centerWindow,
-                   let descriptor = host.descriptor(for: screenId) {
-                    let frame = placementFrame(for: managed, on: descriptor)
-                    host.windowController.showWindow(managed, at: frame, on: descriptor, raise: activate)
-                    committedSize = frame.size
+                if let target, let descriptor {
+                    host.windowController.showWindow(managed, at: target.frame, on: descriptor, raise: activate)
+                    committedSize = target.frame.size
                 } else {
                     let actual = managed.actualFrame.size
                     if actual.width > 0, actual.height > 0 {
@@ -157,10 +225,12 @@ final class FloatingZoneCoordinator {
                     }
                 }
 
-                // Seed the remembered size on first placement so subsequent re-entries
-                // (after tiling-zone excursions) restore this floating-zone size instead
-                // of the window's post-excursion actualFrame.
-                if let committedSize, rememberedSize(for: managed.windowId) == nil {
+                // A taken frame (an occupant's or an explicit one) becomes the window's floating
+                // size. Otherwise the size is seeded on first placement only, so subsequent
+                // re-entries (after tiling-zone excursions) restore this floating-zone size
+                // instead of the window's post-excursion actualFrame.
+                if let committedSize,
+                   target?.isTaken == true || rememberedSize(for: managed.windowId) == nil {
                     rememberSize(for: managed.windowId, size: committedSize)
                 }
             },
@@ -268,32 +338,45 @@ final class FloatingZoneCoordinator {
 
     /// Prepare host/delegate state right before deferred minimization executes.
     /// For occlusion-driven floating-zone minimization, we only proceed if the window is
-    /// still the floating occupant, and still occluded, at flush time.
-    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
-        guard let host else { return false }
+    /// still the floating occupant, and still occluded, once any mouse gesture and drop hold
+    /// are over.
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> DeferredMinimizationVerdict {
+        guard let host else { return .skip }
 
         guard isOcclusionBasedFloatingMinimizationReason(reason) else {
-            return true
+            return .minimize
         }
 
         guard let screenId = occupants.first(where: { $0.value == windowId })?.key else {
             Logger.debug(
                 "Floating zone deferred minimization skipped for window \(windowId): no longer floating occupant (reason: \(reason))"
             )
-            return false
+            return .skip
+        }
+
+        // The gesture may be dragging a tiled window, brought to the front by its click, into this
+        // floating zone: the floating window stays a drop destination until the drop is resolved,
+        // and the window a drop into it opens still finds it to replace.
+        if host.isMouseGestureInProgress || isHeldForDropArrival(windowId) {
+            return .postpone
         }
 
         guard isFloatingZoneOccupantOccluded(on: screenId, occupantWindowId: windowId) else {
             Logger.debug(
                 "Floating zone deferred minimization skipped for window \(windowId): not occluded (reason: \(reason))"
             )
-            return false
+            return .skip
+        }
+        // The occlusion check asks applications and can take a while: a gesture begun meanwhile
+        // postpones too.
+        if host.isMouseGestureInProgress {
+            return .postpone
         }
 
         // The occupant is leaving the zone system, so it takes the same path as any other
         // minimized window: the slot is released and the floating-zone emptying retarget applies.
         host.removeWindowFromAllZones(windowId: windowId, reason: reason, retarget: true, logIfUnassigned: true)
-        return true
+        return .minimize
     }
 
     /// How the dropped window entered the floating drag, for resolving the move rule's origin.
@@ -443,9 +526,11 @@ final class FloatingZoneCoordinator {
             occupants[originScreenId] = displacedWindow.windowId
             host.setManagedWindow(displacedWindow, screenId: originScreenId, zoneIndex: nil)
 
+            // The origin zone emptied as the dragged window left it, so the swap partner is
+            // centered there as in any empty floating zone.
             if let descriptor = host.descriptor(for: originScreenId) {
-                let placementFrame = placementFrame(for: displacedWindow, on: descriptor)
-                host.windowController.showWindow(displacedWindow, at: placementFrame, on: descriptor, raise: false)
+                let frame = centeredFrame(for: displacedWindow, on: descriptor)
+                host.windowController.showWindow(displacedWindow, at: frame, on: descriptor, raise: false)
                 if raiseDisplaced {
                     // No activation follows, and the window may sit below this display's tiles.
                     host.windowController.raiseWithoutActivating(displacedWindow)
@@ -474,9 +559,64 @@ final class FloatingZoneCoordinator {
         return nil
     }
 
-    /// `queryingApplication: false` sizes a window without a remembered size from the frame Zonogy
-    /// last observed rather than asking its application (for pre-positioning).
-    private func placementFrame(
+    /// Where `.standard` and `.dropped` put `managed` in `screenId`'s floating zone: the occupant's
+    /// frame when `keepingOccupantFrame` and another window occupies the zone (`isTaken`), else
+    /// centered at the window's floating size. `queryingApplication: false` reads both from
+    /// Zonogy's records rather than asking the applications (for pre-positioning).
+    private func standardPlacement(
+        for managed: ManagedWindow,
+        on screenId: CGDirectDisplayID,
+        descriptor: ScreenDescriptor,
+        keepingOccupantFrame: Bool,
+        queryingApplication: Bool
+    ) -> (frame: CGRect, isTaken: Bool) {
+        if keepingOccupantFrame,
+           let frame = occupantFrame(on: screenId, excluding: managed.windowId, queryingApplication: queryingApplication) {
+            return (frame, true)
+        }
+        return (centeredFrame(for: managed, on: descriptor, queryingApplication: queryingApplication), false)
+    }
+
+    /// Whether `screenId`'s floating zone is explicitly targeted: the user pointed at it, so the window
+    /// it receives takes its occupant's place and frame. An implicit target merely catches windows not
+    /// aimed anywhere, which keep their own size.
+    private func isExplicitlyTargeted(_ screenId: CGDirectDisplayID) -> Bool {
+        guard let host else {
+            return false
+        }
+        return host.targetedZoneManager.targetedFloatingScreenId == screenId
+            && host.targetedZoneManager.isFloatingTargetExplicit
+    }
+
+    /// The frame a window taking over `screenId`'s floating zone from its occupant gets: the
+    /// occupant's frame, in the display's screen-local coordinates. Nil when the zone is empty or
+    /// holds only `windowId`, or the frame cannot be read. `queryingApplication: false` reads it
+    /// from Zonogy's records instead of asking the occupant's application.
+    func occupantFrame(
+        on screenId: CGDirectDisplayID,
+        excluding windowId: Int,
+        queryingApplication: Bool = true
+    ) -> CGRect? {
+        guard let host,
+              let occupantId = occupants[screenId], occupantId != windowId,
+              let occupant = host.windowController.window(withId: occupantId),
+              let descriptor = host.descriptor(for: screenId) else {
+            return nil
+        }
+        let frame = queryingApplication
+            ? host.windowController.actualFrameInAccessibilityCoordinates(for: occupant)
+            : occupant.cachedFrame
+        guard let frame, frame.width > 0, frame.height > 0 else {
+            return nil
+        }
+        return descriptor.accessibilityToScreen(frame)
+    }
+
+    /// The frame of a window placed into an empty floating zone: centered, sized to the first
+    /// available of its remembered floating size, its current size, or 55% of the display, within
+    /// limits. `queryingApplication: false` sizes a window without a remembered size from the frame
+    /// Zonogy last observed rather than asking its application (for pre-positioning).
+    private func centeredFrame(
         for managed: ManagedWindow,
         on descriptor: ScreenDescriptor,
         queryingApplication: Bool = true
@@ -518,7 +658,13 @@ final class FloatingZoneCoordinator {
     /// from Zonogy's records. Used for pre-positioning minimized windows before unminimizing.
     func computePlacementFrame(for managed: ManagedWindow, on screenId: CGDirectDisplayID) -> CGRect? {
         guard let descriptor = host?.descriptor(for: screenId) else { return nil }
-        return placementFrame(for: managed, on: descriptor, queryingApplication: false)
+        return standardPlacement(
+            for: managed,
+            on: screenId,
+            descriptor: descriptor,
+            keepingOccupantFrame: isExplicitlyTargeted(screenId),
+            queryingApplication: false
+        ).frame
     }
 
     func hasAvailableTiledZone() -> Bool {

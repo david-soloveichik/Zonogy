@@ -152,8 +152,7 @@ extension AppController {
             )
             return true
         case .floatingZone(let screenId):
-            targetFloatingZoneForDrop(on: screenId, reason: reason)
-            openExternalDropItems(items)
+            openExternalDropItems(items, inFloatingZoneOn: screenId, reason: reason)
             return true
         case .addZone(let pill):
             if let zone = addZone(on: pill.screenId, side: pill.side, forDrop: true) {
@@ -251,6 +250,7 @@ extension AppController {
         windowPlacementManager.placeWindow(
             managed,
             into: .floating(screenId: screenId),
+            floatingPlacement: .dropped,
             reason: reason,
             forceRetargetAfterFill: true
         )

@@ -11,10 +11,20 @@ struct DragSession {
     var hoveredZoneKey: ZoneKey?
     var hoveredAddZonePill: AddZonePillKey?
     var hoveredFloatingScreenId: CGDirectDisplayID?
+    /// Each floating window the drag can drop onto, by display (accessibility coordinates):
+    /// refreshed on every drag update (floating windows can come, go, or move mid-drag) and
+    /// whenever zones change, so the overlays, the hover, and the drop all agree.
+    var floatingWindowFrames: [CGDirectDisplayID: CGRect]
     let originatedFromFloating: Bool
     let isCursorDriven: Bool  // true for DockMenu drags (no actual window frame updates)
     let zoneDropPolicy: CursorDrivenZoneDropPolicy
     let beganAt: Date
+
+    /// The destination whose overlay is highlighted: the hovered floating zone (its window or its
+    /// indicator), else the hovered tiling zone.
+    var hoveredDestination: TargetedZoneManager.TargetedDestination? {
+        hoveredFloatingScreenId.map { .floating(screenId: $0) } ?? hoveredZoneKey.map { .tiled($0) }
+    }
 }
 
 enum DisplacedWindowDisposition {
@@ -79,6 +89,7 @@ protocol DragDropCoordinatorDelegate: AnyObject {
     func addZoneIndicatorHitAreas() -> [AddZonePillKey: CGRect]
     func updateAddZoneIndicatorHighlight(pill: AddZonePillKey?)
     func floatingIndicatorHitAreas() -> [CGDirectDisplayID: CGRect]
+    func floatingWindowDropAreas() -> [CGDirectDisplayID: CGRect]
     func updateFloatingIndicatorHighlight(screenId: CGDirectDisplayID?)
     @discardableResult
     func addZone(on screenId: CGDirectDisplayID, side: ZoneSide?, forDrop: Bool) -> Zone?
@@ -157,13 +168,14 @@ class DragDropCoordinator {
             hoveredZoneKey: nil,
             hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
+            floatingWindowFrames: [:],
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: false,
             zoneDropPolicy: .allZones,
             beganAt: Date()
         )
         Logger.debug("Drag session began for window \(windowId)")
-        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        // The first update reads the floating windows and draws the overlays.
         recordDragUpdate(windowId: windowId, frame: frame)
     }
 
@@ -191,6 +203,7 @@ class DragDropCoordinator {
             hoveredZoneKey: nil,
             hoveredAddZonePill: nil,
             hoveredFloatingScreenId: nil,
+            floatingWindowFrames: [:],
             originatedFromFloating: originatedFromFloating,
             isCursorDriven: true,
             zoneDropPolicy: zoneDropPolicy,
@@ -201,7 +214,7 @@ class DragDropCoordinator {
         } else {
             Logger.debug("Cursor-driven drag session began (no window)")
         }
-        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        // The first update reads the floating windows and draws the overlays.
         updateCursorDrivenDragSession()
     }
 
@@ -248,7 +261,10 @@ class DragDropCoordinator {
         let target: CursorDrivenDropTarget
         switch EdgePillDragPolicy.dropDecision(
             hoveredAddZonePill: session.hoveredAddZonePill ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
-            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
+            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(
+                cursorPoint: cursorPoint,
+                floatingWindowFrames: session.floatingWindowFrames
+            ),
             hoveredZoneKey: session.hoveredZoneKey ?? filteredCursorDrivenZoneTarget(
                 resolveDropTarget(for: cursorSyntheticFrame(), cursorPoint: cursorPoint),
                 policy: session.zoneDropPolicy
@@ -349,7 +365,10 @@ class DragDropCoordinator {
 
         switch EdgePillDragPolicy.dropDecision(
             hoveredAddZonePill: session.hoveredAddZonePill ?? resolveAddZoneDropTarget(cursorPoint: cursorPoint),
-            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(cursorPoint: cursorPoint),
+            hoveredFloatingScreenId: session.hoveredFloatingScreenId ?? resolveFloatingDropTarget(
+                cursorPoint: cursorPoint,
+                floatingWindowFrames: session.floatingWindowFrames
+            ),
             hoveredZoneKey: session.hoveredZoneKey ?? resolveDropTarget(for: finalFrame, cursorPoint: cursorPoint)
         ) {
         case .addZone(let pill):
@@ -416,9 +435,10 @@ class DragDropCoordinator {
         dragSession?.originZoneKey = nil
     }
 
-    /// Zones changed mid-drag (the display under the cursor was cleared or reset): redraw the
-    /// overlays over the current zones. A hovered zone that no longer exists is forgotten, so
-    /// the next drag update or the drop resolves the target from the cursor instead.
+    /// Zones changed mid-drag (the display under the cursor was cleared or reset, which also
+    /// empties its floating zone): redraw the overlays over the current zones and floating
+    /// windows. A hovered destination that no longer exists is forgotten, so the next drag update
+    /// or the drop resolves the target from the cursor instead.
     func zonesDidChange() {
         guard var session = dragSession else {
             return
@@ -426,10 +446,20 @@ class DragDropCoordinator {
         if let key = session.hoveredZoneKey,
            delegate?.zoneController(for: key.screenId)?.zone(at: key.index) == nil {
             session.hoveredZoneKey = nil
-            dragSession = session
         }
+        session.floatingWindowFrames = delegate?.floatingWindowDropAreas() ?? [:]
+        // Re-resolved from the cursor: a cleared display loses its floating window but keeps its
+        // indicator.
+        if session.hoveredFloatingScreenId != nil {
+            session.hoveredFloatingScreenId = resolveFloatingDropTarget(
+                cursorPoint: currentCursorAccessibilityPoint(),
+                floatingWindowFrames: session.floatingWindowFrames
+            )
+            delegate?.updateFloatingIndicatorHighlight(screenId: session.hoveredFloatingScreenId)
+        }
+        dragSession = session
         dragOverlayManager.present(over: zoneOverlayDescriptors())
-        dragOverlayManager.updateHighlight(to: session.hoveredZoneKey)
+        dragOverlayManager.updateHighlight(to: session.hoveredDestination)
     }
 
     // MARK: - Private Methods
@@ -447,12 +477,24 @@ class DragDropCoordinator {
                 let cocoaFrame = descriptor.screenToCocoa(zone.frame)
                 descriptors.append(
                     ZoneOverlayDescriptor(
-                        key: ZoneKey(screenId: screenId, index: zone.index),
+                        key: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
                         cocoaFrame: cocoaFrame,
                         isEmpty: zone.isEmpty
                     )
                 )
             }
+        }
+        // Last, so the floating windows' overlays are drawn above the tiling zones' overlays (in a
+        // stable order, so an unchanged set of destinations reads as unchanged).
+        let floatingWindowFrames = (dragSession?.floatingWindowFrames ?? [:]).sorted { $0.key < $1.key }
+        for (screenId, frame) in floatingWindowFrames {
+            descriptors.append(
+                .floatingWindow(
+                    on: screenId,
+                    accessibilityFrame: frame,
+                    primaryScreenBounds: delegate.windowController.primaryScreenBounds
+                )
+            )
         }
         return descriptors
     }
@@ -497,22 +539,20 @@ class DragDropCoordinator {
         return nil
     }
 
-    private func resolveFloatingDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
+    private func resolveFloatingDropTarget(
+        cursorPoint: CGPoint?,
+        floatingWindowFrames: [CGDirectDisplayID: CGRect]
+    ) -> CGDirectDisplayID? {
         guard let cursorPoint,
               let delegate = delegate else {
             return nil
         }
-
-        let hitAreas = delegate.floatingIndicatorHitAreas()
-        if let targeted = delegate.targetedZoneManager.targetedFloatingScreenId,
-           let targetedFrame = hitAreas[targeted], targetedFrame.contains(cursorPoint) {
-            return targeted
-        }
-
-        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
-            return screenId
-        }
-        return nil
+        return EdgePillDragPolicy.floatingTarget(
+            at: cursorPoint,
+            indicatorHitAreas: delegate.floatingIndicatorHitAreas(),
+            targetedScreenId: delegate.targetedZoneManager.targetedFloatingScreenId,
+            floatingWindowFrames: floatingWindowFrames
+        )
     }
 
     private func recordDragUpdate(windowId: Int?, frame: CGRect) {
@@ -530,9 +570,12 @@ class DragDropCoordinator {
             return
         }
         session.latestFrame = frame
+        session.floatingWindowFrames = delegate?.floatingWindowDropAreas() ?? [:]
         let cursorPoint = currentCursorAccessibilityPoint()
         let addZonePill = resolveAddZoneDropTarget(cursorPoint: cursorPoint)
-        let floatingScreenId = addZonePill == nil ? resolveFloatingDropTarget(cursorPoint: cursorPoint) : nil
+        let floatingScreenId = addZonePill == nil
+            ? resolveFloatingDropTarget(cursorPoint: cursorPoint, floatingWindowFrames: session.floatingWindowFrames)
+            : nil
         var targetKey = EdgePillDragPolicy.effectiveZoneHover(
             hoveredZoneKey: filteredCursorDrivenZoneTarget(
                 resolveDropTarget(for: frame, cursorPoint: cursorPoint),
@@ -541,8 +584,9 @@ class DragDropCoordinator {
             hoveredAddZonePill: addZonePill,
             hoveredFloatingScreenId: floatingScreenId
         )
-        // gesture-modifier floating drags skip empty zones as drop targets
-        if session.originatedFromFloating, let key = targetKey {
+        // Control-Command drags of a floating window skip empty zones, where they just reposition
+        // the window (a row drag of a floating window does not).
+        if session.originatedFromFloating, !session.isCursorDriven, let key = targetKey {
             if let context = delegate?.screenContexts[key.screenId],
                let zone = context.zoneController.zone(at: key.index),
                zone.isEmpty {
@@ -579,7 +623,9 @@ class DragDropCoordinator {
         session.hoveredAddZonePill = addZonePill
         session.hoveredFloatingScreenId = floatingScreenId
         dragSession = session
-        dragOverlayManager.updateHighlight(to: targetKey)
+        // A no-op unless the destinations changed since the overlays were drawn.
+        dragOverlayManager.present(over: zoneOverlayDescriptors())
+        dragOverlayManager.updateHighlight(to: session.hoveredDestination)
         delegate?.updateAddZoneIndicatorHighlight(pill: addZonePill)
         delegate?.updateFloatingIndicatorHighlight(screenId: floatingScreenId)
     }

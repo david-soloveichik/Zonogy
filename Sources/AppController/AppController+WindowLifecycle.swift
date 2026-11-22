@@ -384,7 +384,6 @@ extension AppController {
         windowPlacementManager.placeWindow(
             occupant,
             into: .tiled(zoneKey(for: screenId, index: zoneIndex)),
-            centerFloatingWindow: true,
             reason: "placeholder-activated-promotion",
             forceRetargetAfterFill: false
         )
@@ -792,12 +791,16 @@ extension AppController {
             return
         }
 
-        let isFloating = isWindowInFloatingZone(windowId)
-
-        if isFloating && !areGestureModifiersHeld {
+        if isWindowInFloatingZone(windowId) {
             let floatingScreenId = managed.screenDisplayId ?? detectScreenId(for: managed)
-            floatingDragHandler.beginDrag(windowId: windowId, originScreenId: floatingScreenId)
-            Logger.debug("Floating floating zone drag began for window \(windowId)")
+            if areGestureModifiersHeld {
+                // As when Control-Command is pressed mid-drag: the window leaves its floating zone
+                // for the zone drag, and returns to it if the drag is cancelled.
+                promoteFloatingDragToZone(windowId: windowId, frame: frame, originScreenId: floatingScreenId)
+            } else {
+                floatingDragHandler.beginDrag(windowId: windowId, originScreenId: floatingScreenId)
+                Logger.debug("Floating floating zone drag began for window \(windowId)")
+            }
             return
         }
 
@@ -810,8 +813,7 @@ extension AppController {
             windowId: windowId,
             frame: frame,
             originZoneKey: originZoneKey,
-            originScreenId: originScreenId,
-            originatedFromFloating: isFloating
+            originScreenId: originScreenId
         )
     }
 
@@ -888,7 +890,7 @@ extension AppController {
                 if !isWindowInFloatingZone(windowId) {
                     // Mid-drag promotion cleared the floating zone; reassign to origin first.
                     let originScreenId = result.preferredScreenId ?? activeScreenId()
-                    assignWindowToFloatingZone(managed, on: originScreenId, centerWindow: false, reason: "cancelled-floating-drag-revert")
+                    assignWindowToFloatingZone(managed, on: originScreenId, placement: .currentFrame, reason: "cancelled-floating-drag-revert")
                 }
                 finalizeFloatingDrop(
                     windowId: windowId,
@@ -1020,22 +1022,24 @@ extension AppController {
         from origin: TargetedZoneManager.TargetedDestination?,
         on screenId: CGDirectDisplayID
     ) {
-        let preMoveTarget = targetedZoneManager.targetedDestination
-        let vacatedTilingZone = origin?.tiledKey
-        // Clear both sides: zone's record and window's record of the assignment
-        if let vacatedTilingZone,
-           let originContext = screenContexts[vacatedTilingZone.screenId] {
-            originContext.zoneController.removeWindow(windowId: managed.windowId)
+        // A window dragged out of a tiling zone moves as the move shortcut moves it: it swaps with
+        // an occupant (taking over its frame), as when dropped onto an occupied tiling zone.
+        if origin?.tiledKey != nil {
+            moveWindow(managed.windowId, to: .floating(screenId: screenId), reason: "drag-to-floating-zone")
+            return
         }
+        // Any other drag (a floating window's, or one without a source zone) replaces the
+        // occupant, which minimizes.
+        let preMoveTarget = targetedZoneManager.targetedDestination
         clearManagedWindowZone(managed)
-        assignWindowToFloatingZone(managed, on: screenId, centerWindow: true, reason: "drag-to-floating-zone")
+        assignWindowToFloatingZone(managed, on: screenId, placement: .dropped, reason: "drag-to-floating-zone")
         targetedZoneManager.retargetAfterMovingWindow(
             from: origin,
             to: .floating(screenId: screenId),
             preMoveTarget: preMoveTarget,
             reason: "drag-to-floating-zone"
         )
-        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: vacatedTilingZone)
+        syncWindowsToZones(recentlyPlacedInFloatingZone: managed.windowId, explicitlyVacatedZone: nil)
     }
 
     internal func promoteFloatingDragToZone(windowId: Int, frame: CGRect, originScreenId: CGDirectDisplayID?) {
@@ -1099,7 +1103,7 @@ extension AppController {
             on: destinationScreenId,
             // Mid-drag conversion should preserve the live dragged frame; recentering
             // here causes the window to visibly jump under the cursor.
-            centerWindow: false,
+            placement: .currentFrame,
             reason: "control-command-drag-to-floating"
         )
         // Sync so the vacated zone's placeholder appears immediately, without promoting a
@@ -1269,7 +1273,7 @@ extension AppController {
         windowPlacementManager.placeWindow(
             window,
             into: destination,
-            centerFloatingWindow: false,
+            floatingPlacement: .currentFrame,
             reason: "deferred-prune-restore"
         )
         return true
@@ -1395,17 +1399,11 @@ extension AppController {
 
     internal func resolveFloatingDropTarget(cursorPoint: CGPoint?) -> CGDirectDisplayID? {
         guard let cursorPoint else { return nil }
-
-        let hitAreas = floatingIndicatorTracker.hitAreas
-        if let targeted = targetedFloatingScreenId,
-           let targetedFrame = hitAreas[targeted], targetedFrame.contains(cursorPoint) {
-            return targeted
-        }
-
-        for (screenId, frame) in hitAreas where frame.contains(cursorPoint) {
-            return screenId
-        }
-        return nil
+        return EdgePillDragPolicy.floatingTarget(
+            at: cursorPoint,
+            indicatorHitAreas: floatingIndicatorTracker.hitAreas,
+            targetedScreenId: targetedFloatingScreenId
+        )
     }
 
     // MARK: - Empty-zone auto-promotion for floating drags
@@ -1434,7 +1432,7 @@ extension AppController {
                 let cocoaFrame = descriptor.screenToCocoa(zone.frame)
                 descriptors.append(
                     ZoneOverlayDescriptor(
-                        key: ZoneKey(screenId: screenId, index: zone.index),
+                        key: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
                         cocoaFrame: cocoaFrame,
                         isEmpty: zone.isEmpty
                     )
@@ -1449,7 +1447,7 @@ extension AppController {
     }
 
     internal func updateFloatingDragOverlayHighlight(zoneKey: ZoneKey?) {
-        floatingDragOverlayManager.updateHighlight(to: zoneKey)
+        floatingDragOverlayManager.updateHighlight(to: zoneKey.map { .tiled($0) })
     }
 
     internal func finalizeFloatingDropIntoEmptyZone(windowId: Int, zoneKey: ZoneKey) {
@@ -1606,7 +1604,7 @@ extension AppController {
         assignWindowToFloatingZone(
             managed,
             on: screenId,
-            centerWindow: false,
+            placement: .currentFrame,
             reason: "control-command-release"
         )
         floatingDragHandler.beginDrag(windowId: windowId, originScreenId: screenId)
@@ -1642,21 +1640,15 @@ extension AppController {
         // count-limited and time-bounded, so it cannot linger if no event ever arrives.
         suppressNextEvents(for: [displacedId], events: [.deminiaturized], reason: "floating-drag-revert")
         unminimizeWithPrePositioning(displaced, reason: "floating-drag-revert")
-        // Restored passively: focus stays with the window being dragged (or just dropped).
+        // Restored passively at its pre-drag frame: focus stays with the window being dragged
+        // (or just dropped).
         assignWindowToFloatingZone(
             displaced,
             on: context.floatingScreenId,
-            centerWindow: false,
+            placement: context.displacedWindowFrame.map { .frame($0) } ?? .currentFrame,
             activate: false,
             reason: "floating-drag-revert"
         )
-        if let frame = context.displacedWindowFrame,
-           let descriptor = descriptor(for: context.floatingScreenId) {
-            windowController.showWindow(displaced, at: frame, on: descriptor, raise: false)
-            // Override any stale seed from assign (which used pre-revert actualFrame)
-            // so the remembered floating size matches the restored pre-drag frame.
-            floatingZoneCoordinator.rememberSize(for: displaced.windowId, size: frame.size)
-        }
     }
 
     /// Returns the origin zone the window was rebooked into, or nil when the origin was

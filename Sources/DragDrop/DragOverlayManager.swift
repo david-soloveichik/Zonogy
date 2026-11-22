@@ -1,15 +1,39 @@
 import AppKit
 
-/// Manages translucent zone overlays shown during window drag operations.
-struct ZoneOverlayDescriptor {
-    let key: ZoneKey
+/// Manages translucent overlays over drop destinations (tiling zones and floating windows) shown
+/// during drag operations.
+struct ZoneOverlayDescriptor: Equatable {
+    let key: TargetedZoneManager.TargetedDestination
     let cocoaFrame: CGRect
     let isEmpty: Bool
+
+    /// The overlay over a floating window, a drop destination for its floating zone.
+    static func floatingWindow(
+        on screenId: CGDirectDisplayID,
+        accessibilityFrame: CGRect,
+        primaryScreenBounds: CGRect
+    ) -> ZoneOverlayDescriptor {
+        ZoneOverlayDescriptor(
+            key: .floating(screenId: screenId),
+            cocoaFrame: CoordinateConversion.accessibilityToCocoa(
+                accessibilityFrame: accessibilityFrame,
+                primaryScreenBounds: primaryScreenBounds
+            ),
+            isEmpty: false
+        )
+    }
 }
 
 protocol DragOverlayExternalDropDelegate: AnyObject {
-    func dragOverlayManager(_ manager: DragOverlayManager, shouldAcceptExternalDropFor key: ZoneKey) -> Bool
-    func dragOverlayManager(_ manager: DragOverlayManager, didReceiveExternalDrop items: [ExternalDropItem], for key: ZoneKey)
+    func dragOverlayManager(
+        _ manager: DragOverlayManager,
+        shouldAcceptExternalDropFor key: TargetedZoneManager.TargetedDestination
+    ) -> Bool
+    func dragOverlayManager(
+        _ manager: DragOverlayManager,
+        didReceiveExternalDrop items: [ExternalDropItem],
+        for key: TargetedZoneManager.TargetedDestination
+    )
 }
 
 final class DragOverlayManager {
@@ -67,14 +91,14 @@ final class DragOverlayManager {
     }
 
     private final class OverlayView: NSView {
-        let key: ZoneKey
+        let key: TargetedZoneManager.TargetedDestination
         weak var manager: DragOverlayManager?
 
         override var isFlipped: Bool {
             true
         }
 
-        init(frame frameRect: NSRect, key: ZoneKey, manager: DragOverlayManager) {
+        init(frame frameRect: NSRect, key: TargetedZoneManager.TargetedDestination, manager: DragOverlayManager) {
             self.key = key
             self.manager = manager
             super.init(frame: frameRect)
@@ -155,7 +179,8 @@ final class DragOverlayManager {
 
     private let interactiveExternalDrop: Bool
     private let windowLevel: NSWindow.Level
-    private var overlays: [ZoneKey: OverlayHandle] = [:]
+    private var overlays: [TargetedZoneManager.TargetedDestination: OverlayHandle] = [:]
+    private var presentedDescriptors: [ZoneOverlayDescriptor] = []
 
     init(
         externalDropDelegate: DragOverlayExternalDropDelegate? = nil,
@@ -166,7 +191,13 @@ final class DragOverlayManager {
         self.windowLevel = windowLevel
     }
 
+    /// Shows an overlay per descriptor, later descriptors drawn above earlier ones. Presenting the
+    /// overlays already shown changes nothing, so a drag can present on every update.
     func present(over descriptors: [ZoneOverlayDescriptor]) {
+        guard descriptors != presentedDescriptors else {
+            return
+        }
+        presentedDescriptors = descriptors
         var pendingRemoval = Set(overlays.keys)
 
         for descriptor in descriptors {
@@ -205,7 +236,7 @@ final class DragOverlayManager {
         }
     }
 
-    func updateHighlight(to highlightedKey: ZoneKey?) {
+    func updateHighlight(to highlightedKey: TargetedZoneManager.TargetedDestination?) {
         for (key, handle) in overlays {
             applyColors(handle: handle, highlighted: key == highlightedKey)
         }
@@ -219,6 +250,7 @@ final class DragOverlayManager {
             handle.window.close()
         }
         overlays.removeAll()
+        presentedDescriptors = []
     }
 
     private func applyColors(handle: OverlayHandle, highlighted: Bool) {
@@ -227,7 +259,7 @@ final class DragOverlayManager {
         handle.view.borderColor = OverlayAppearance.highlight(highlighted ? 0.55 : 0.28)
     }
 
-    fileprivate func canAcceptExternalDrop(from draggingInfo: NSDraggingInfo, for key: ZoneKey) -> Bool {
+    fileprivate func canAcceptExternalDrop(from draggingInfo: NSDraggingInfo, for key: TargetedZoneManager.TargetedDestination) -> Bool {
         guard interactiveExternalDrop,
               ExternalDropParser.canAccept(draggingInfo),
               externalDropDelegate?.dragOverlayManager(self, shouldAcceptExternalDropFor: key) == true else {
@@ -236,7 +268,7 @@ final class DragOverlayManager {
         return true
     }
 
-    fileprivate func handleExternalDrop(from draggingInfo: NSDraggingInfo, for key: ZoneKey) -> Bool {
+    fileprivate func handleExternalDrop(from draggingInfo: NSDraggingInfo, for key: TargetedZoneManager.TargetedDestination) -> Bool {
         guard interactiveExternalDrop,
               externalDropDelegate?.dragOverlayManager(self, shouldAcceptExternalDropFor: key) == true,
               let payload = ExternalDropParser.payload(from: draggingInfo) else {

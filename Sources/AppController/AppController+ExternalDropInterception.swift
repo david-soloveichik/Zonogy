@@ -1,7 +1,7 @@
 import AppKit
 
-/// Bridges gesture-modifier external drags over tiling windows and placeholders into zone placeholder behavior,
-/// and passes Shift external drags through the placeholders.
+/// Bridges gesture-modifier external drags over tiling windows, placeholders, and floating windows
+/// into zone drop behavior, and passes Shift external drags through the placeholders.
 extension AppController {
     var isManagedWindowDragInProgress: Bool {
         dragDropCoordinator.isDragging || floatingDragHandler.isActive
@@ -15,6 +15,11 @@ extension AppController {
         guard resolveAddZoneDropTarget(cursorPoint: cursorPoint) == nil,
               resolveFloatingDropTarget(cursorPoint: cursorPoint) == nil else {
             return false
+        }
+
+        // A floating window takes precedence over the tiled windows beneath it.
+        if floatingWindowDropScreenId(containing: cursorPoint) != nil {
+            return true
         }
 
         if let (managed, _) = tiledManagedWindowUnderCursor(cursorPoint: cursorPoint),
@@ -36,10 +41,15 @@ extension AppController {
         return !isScreenPausedForFullScreen(emptyZoneKey.screenId)
     }
 
-    func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey? {
+    func resolveInterceptedExternalDropDestination(cursorPoint: CGPoint) -> TargetedZoneManager.TargetedDestination? {
         guard resolveAddZoneDropTarget(cursorPoint: cursorPoint) == nil,
               resolveFloatingDropTarget(cursorPoint: cursorPoint) == nil else {
             return nil
+        }
+
+        // A floating window takes precedence over the tiling zone beneath it.
+        if let screenId = floatingWindowDropScreenId(containing: cursorPoint) {
+            return .floating(screenId: screenId)
         }
 
         guard let screenId = screenId(containingAccessibilityPoint: cursorPoint),
@@ -54,13 +64,14 @@ extension AppController {
         for zone in context.zoneController.allZones {
             let accessibilityFrame = descriptor.screenToAccessibility(zone.frame)
             if accessibilityFrame.contains(cursorPoint) {
-                return ZoneKey(screenId: screenId, index: zone.index)
+                return .tiled(ZoneKey(screenId: screenId, index: zone.index))
             }
         }
 
         return nil
     }
 
+    /// The tiling zones' overlays for an external drag over them.
     func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor] {
         var descriptors: [ZoneOverlayDescriptor] = []
 
@@ -76,7 +87,7 @@ extension AppController {
                     : zone.frame
                 descriptors.append(
                     ZoneOverlayDescriptor(
-                        key: ZoneKey(screenId: screenId, index: zone.index),
+                        key: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
                         cocoaFrame: descriptor.screenToCocoa(overlayFrame),
                         isEmpty: zone.isEmpty
                     )
@@ -86,32 +97,64 @@ extension AppController {
 
         return descriptors
     }
+
+    /// The overlays for an intercepted gesture-modifier external drag: the tiling zones', then the
+    /// floating windows' (drawn above), since the modifiers make floating windows destinations too.
+    func interceptedExternalDropOverlayDescriptors() -> [ZoneOverlayDescriptor] {
+        externalDropOverlayDescriptors() + floatingWindowDropAreas().sorted { $0.key < $1.key }.map {
+            ZoneOverlayDescriptor.floatingWindow(
+                on: $0.key,
+                accessibilityFrame: $0.value,
+                primaryScreenBounds: primaryScreenBounds
+            )
+        }
+    }
+
+    /// The display whose floating window contains `cursorPoint`.
+    func floatingWindowDropScreenId(containing cursorPoint: CGPoint) -> CGDirectDisplayID? {
+        floatingWindowDropAreas().first(where: { $0.value.contains(cursorPoint) })?.key
+    }
 }
 
 extension AppController {
-    func dragOverlayManager(_ manager: DragOverlayManager, shouldAcceptExternalDropFor key: ZoneKey) -> Bool {
+    func dragOverlayManager(
+        _ manager: DragOverlayManager,
+        shouldAcceptExternalDropFor key: TargetedZoneManager.TargetedDestination
+    ) -> Bool {
         guard shouldApplyGestureModifierExternalDrag(),
               !isManagedWindowDragInProgress,
               ExternalDropParser.canAccept(NSPasteboard(name: .drag)),
               let cursorPoint = currentCursorAccessibilityPoint(),
-              resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint) == key else {
+              resolveInterceptedExternalDropDestination(cursorPoint: cursorPoint) == key else {
             return false
         }
 
         return true
     }
 
-    func dragOverlayManager(_ manager: DragOverlayManager, didReceiveExternalDrop items: [ExternalDropItem], for key: ZoneKey) {
+    func dragOverlayManager(
+        _ manager: DragOverlayManager,
+        didReceiveExternalDrop items: [ExternalDropItem],
+        for key: TargetedZoneManager.TargetedDestination
+    ) {
         let screenIndex = screenContextStore.loggingIndex(for: key.screenId)
-        Logger.debug(
-            "External zone drop accepted for zone \(key.index) on screen \(screenIndex) with \(items.count) item(s)"
-        )
-        if let context = screenContexts[key.screenId],
-           let zone = context.zoneController.zone(at: key.index),
-           zone.isEmpty {
-            placeholderReceivedExternalDrop(screenId: key.screenId, zoneIndex: key.index, items: items)
-        } else {
-            occupiedZoneReceivedExternalDrop(screenId: key.screenId, zoneIndex: key.index, items: items)
+        switch key {
+        case .floating(let screenId):
+            // The floating window stays until the opened item's window replaces it, taking over
+            // its frame.
+            Logger.debug("External drop accepted for the floating window on screen \(screenIndex) with \(items.count) item(s)")
+            openExternalDropItems(items, inFloatingZoneOn: screenId, reason: "floating-window-drop")
+        case .tiled(let key):
+            Logger.debug(
+                "External zone drop accepted for zone \(key.index) on screen \(screenIndex) with \(items.count) item(s)"
+            )
+            if let context = screenContexts[key.screenId],
+               let zone = context.zoneController.zone(at: key.index),
+               zone.isEmpty {
+                placeholderReceivedExternalDrop(screenId: key.screenId, zoneIndex: key.index, items: items)
+            } else {
+                occupiedZoneReceivedExternalDrop(screenId: key.screenId, zoneIndex: key.index, items: items)
+            }
         }
     }
 }

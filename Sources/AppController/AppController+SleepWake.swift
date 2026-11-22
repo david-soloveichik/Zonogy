@@ -241,6 +241,7 @@ extension AppController {
         validationRetryManager.cancelAllValidationRetries()
         cancelFocusedWindowCheckRetry()
         cancelUnmanagedWindowEdgeDrag(reason: reason)
+        externalZoneDropInterceptor.abandonGesture()
         winShotChooserController.cancelThumbnailDrag(reason: reason)
         dropAllPendingWinShotOpensAfterFullScreenExit(reason: reason)
         windowsLeavingFullScreenToMinimize.removeAll()

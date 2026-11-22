@@ -78,13 +78,26 @@ extension AppController {
 
     /// Targets a floating zone dropped onto (a pointing gesture): explicit until the arriving
     /// window fills it, and confirmed with the bar's flash even when the zone was already targeted,
-    /// which fires no change event of its own.
+    /// which fires no change event of its own. The occupant stays until that window replaces it,
+    /// taking over its frame (see `holdFloatingOccupantForDrop`).
     internal func targetFloatingZoneForDrop(on screenId: CGDirectDisplayID, reason: String) {
         let wasAlreadyTargeted = targetedZoneManager.targetedDestination == .floating(screenId: screenId)
         targetedZoneManager.setFloatingTarget(on: screenId, reason: reason, explicit: true)
+        holdFloatingOccupantForDrop(on: screenId)
         if wasAlreadyTargeted {
             pulseFloatingTargetFeedback(for: screenId)
         }
+    }
+
+    /// Holds the occlusion minimization of `screenId`'s floating occupant, so the window a drop into
+    /// that floating zone opens still finds it to replace, taking over its frame. The hold lasts the
+    /// WinShot settle delay, a deliberate reuse: like the implicit floating target follow undo, it
+    /// covers an application building a window.
+    internal func holdFloatingOccupantForDrop(on screenId: CGDirectDisplayID) {
+        floatingZoneCoordinator.holdOcclusionMinimizationForDrop(
+            on: screenId,
+            duration: TimeInterval(WinShotPreferencesStore.loadSettleDelaySeconds())
+        )
     }
 
     internal func zoneKey(for screenId: CGDirectDisplayID, index: Int) -> ZoneKey {

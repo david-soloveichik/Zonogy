@@ -54,7 +54,7 @@ protocol WindowPlacementManagerDelegate: AnyObject {
     func assignWindowToFloatingZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
-        centerWindow: Bool,
+        placement: FloatingPlacement,
         activate: Bool,
         reason: String,
         displacement: DisplacementStrategy
@@ -200,7 +200,6 @@ class WindowPlacementManager {
         placeWindow(
             managed,
             into: targetedDestination,
-            centerFloatingWindow: true,
             reason: baseReason,
             forceRetargetAfterFill: false,
             logIfUnassignedOnRemoval: false,
@@ -288,7 +287,6 @@ class WindowPlacementManager {
         placeWindow(
             managed,
             into: .tiled(zoneKey),
-            centerFloatingWindow: true,
             reason: reason,
             forceRetargetAfterFill: false,
             displacement: displacement
@@ -300,7 +298,7 @@ class WindowPlacementManager {
     /// - Parameters:
     ///   - managed: The window being placed.
     ///   - destination: The destination zone to place into (can be tiled or floating).
-    ///   - centerFloatingWindow: If placing into a floating zone, whether to apply the initial centering/resizing.
+    ///   - floatingPlacement: If placing into a floating zone, where the window goes there.
     ///   - reason: Base reason label for this placement operation (used for greppable logs). Sub-actions derive
     ///     their own reason labels from this, e.g. `"<reason>-displaced"` and `"<reason>-filled"`.
     ///   - forceRetargetAfterFill: Pretend the destination was the pre-move target, so the placement always
@@ -320,7 +318,7 @@ class WindowPlacementManager {
     func placeWindow(
         _ managed: ManagedWindow,
         into destination: TargetedZoneManager.TargetedDestination,
-        centerFloatingWindow: Bool = true,
+        floatingPlacement: FloatingPlacement = .standard,
         reason: String,
         forceRetargetAfterFill: Bool = false,
         retargetAfterFill: Bool = true,
@@ -354,7 +352,8 @@ class WindowPlacementManager {
         // anything: the target, and the zone the window holds. The placement then retargets per
         // that one rule — a fill is a move with no origin, forcing (chooser drops) pretends the
         // destination was the pre-move target, and re-placing a zone's own occupant (origin ==
-        // destination, e.g. re-centering the floating occupant) is not a move and never retargets.
+        // destination, e.g. the floating occupant dropped onto itself) is not a move and never
+        // retargets.
         let preMoveTarget = delegate.targetedZoneManager.targetedDestination
         let origin = managed.zoneDestination
 
@@ -387,7 +386,8 @@ class WindowPlacementManager {
             delegate.assignWindowToFloatingZone(
                 managed,
                 on: screenId,
-                centerWindow: centerFloatingWindow,
+                // A window placed into the floating zone it already holds stays where it is.
+                placement: origin == destination ? .currentFrame : floatingPlacement,
                 activate: activate,
                 reason: reason,
                 displacement: displacement

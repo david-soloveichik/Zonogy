@@ -17,7 +17,7 @@ protocol TargetedZoneManagerDelegate: AnyObject {
 }
 
 class TargetedZoneManager {
-    enum TargetedDestination: Equatable {
+    enum TargetedDestination: Hashable {
         case tiled(ZoneKey)
         case floating(screenId: CGDirectDisplayID)
 
