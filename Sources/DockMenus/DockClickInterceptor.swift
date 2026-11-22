@@ -56,6 +56,10 @@ final class DockClickInterceptor {
     /// accessibility check is transiently unavailable.
     var isPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)?
 
+    /// Called after the release ending an intercepted gesture is handled and swallowed: no event
+    /// monitor sees that mouse-up, so whatever waits for it must be told.
+    var onSwallowedRelease: (() -> Void)?
+
     /// The frame to intercept clicks within (Accessibility coordinates: origin at top-left of primary
     /// screen). Mirrored for the press tap's thread, which reads it on every left mouse-down.
     @ThreadSafe private var interceptFrame: CGRect? = nil
@@ -279,6 +283,7 @@ final class DockClickInterceptor {
         case .ignored:
             break
         }
+        onSwallowedRelease?()
         return .swallow
     }
 

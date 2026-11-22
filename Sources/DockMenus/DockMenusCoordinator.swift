@@ -77,6 +77,14 @@ final class DockMenusCoordinator {
         }
     }
 
+    /// Forwarded to the click interceptor: called after it swallows the release that ends a Dock
+    /// click or drag it intercepted, a mouse-up no event monitor sees.
+    var onSwallowedDockRelease: (() -> Void)? {
+        didSet {
+            clickInterceptor.onSwallowedRelease = onSwallowedDockRelease
+        }
+    }
+
     // Cached for Cocoa<->Accessibility conversion (accessibility coordinates originate at the
     // primary display's top-left); refreshed via updatePrimaryScreenBounds on topology changes.
     private var primaryScreenBounds: CGRect
