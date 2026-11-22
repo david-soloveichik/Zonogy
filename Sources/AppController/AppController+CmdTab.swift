@@ -221,11 +221,11 @@ extension AppController: CmdTabKeyInterceptorDelegate {
     }
 
     /// Windows the user just minimized, for CmdTab's initial selection to skip. The lifetime
-    /// deliberately reuses the WinShot occupancy settle delay: both express how long until the
+    /// deliberately reuses the WinShot settle delay: both express how long until the
     /// screen has settled for the user.
     private func cmdTabJustMinimizedSkipWindowIds() -> Set<Int> {
         recentUserMinimizeTracker.activeSkipWindowIds(
-            settleDelay: TimeInterval(WinShotPreferencesStore.loadOccupancySettleDelaySeconds())
+            settleDelay: TimeInterval(WinShotPreferencesStore.loadSettleDelaySeconds())
         )
     }
     func cmdTabKeyInterceptor(_ interceptor: CmdTabKeyInterceptor, cycle direction: CmdTabKeyInterceptor.Direction) {

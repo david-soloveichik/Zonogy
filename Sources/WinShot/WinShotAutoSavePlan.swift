@@ -1,25 +1,25 @@
-/// Pure decision logic for the occupancy-change auto-save scheduler.
+/// Pure decision logic for the WinShot auto-save scheduler.
 ///
-/// Given the previously tracked per-screen occupancy signatures and the current ones, decides which
-/// screens need their settle timer (re)started (signature changed or screen newly appeared) and
+/// Given the previously tracked per-screen arrangement states and the current ones, decides which
+/// screens need their settle timer (re)started (arrangement changed or screen newly appeared) and
 /// which pending timers should be cancelled (screen no longer present). This is the deterministic
-/// core covered by `--self-test`; the timer mechanics live in `WinShotOccupancyAutoSaveScheduler`.
+/// core covered by `--self-test`; the timer mechanics live in `WinShotAutoSaveScheduler`.
 import CoreGraphics
 
-enum WinShotOccupancyAutoSavePlan {
+enum WinShotAutoSavePlan {
     struct Decision: Equatable {
-        /// Screens whose occupancy changed since last sync — (re)arm their settle timer.
+        /// Screens whose arrangement changed since the last evaluation — (re)arm their settle timer.
         let screensToArm: Set<CGDirectDisplayID>
         /// Screens no longer present — cancel any pending settle timer and stop tracking them.
         let screensToCancel: Set<CGDirectDisplayID>
     }
 
     static func decide(
-        previous: [CGDirectDisplayID: WinShotSnapshotOccupancySignature],
-        current: [CGDirectDisplayID: WinShotSnapshotOccupancySignature]
+        previous: [CGDirectDisplayID: WinShotArrangementState],
+        current: [CGDirectDisplayID: WinShotArrangementState]
     ) -> Decision {
         var screensToArm = Set<CGDirectDisplayID>()
-        for (screenId, signature) in current where previous[screenId] != signature {
+        for (screenId, state) in current where previous[screenId] != state {
             screensToArm.insert(screenId)
         }
 

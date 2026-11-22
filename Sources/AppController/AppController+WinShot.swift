@@ -18,12 +18,12 @@ extension AppController {
     }
 
     /// True when arrangements should be auto-saved once they persist for the settle delay.
-    internal var isWinShotOccupancyChangeAutoSaveEnabled: Bool {
-        isWinShotEnabled && winShotAutoSaveMode == .onEveryOccupancyChange
+    internal var isWinShotChangeTrackingEnabled: Bool {
+        isWinShotEnabled && winShotAutoSaveMode == .onEveryChange
     }
 
-    internal var winShotOccupancySettleDelaySeconds: Int {
-        WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
+    internal var winShotSettleDelaySeconds: Int {
+        WinShotPreferencesStore.loadSettleDelaySeconds()
     }
 
     internal var winShotMaxSnapshotsStoredInSettings: Int {
@@ -33,24 +33,24 @@ extension AppController {
     internal func setWinShotEnabledFromSettings(_ enabled: Bool) {
         Logger.debug("WinShot: settings updated enabled=\(enabled)")
         WinShotPreferencesStore.saveEnabled(enabled)
-        // Enabling/disabling WinShot can turn occupancy tracking on or off.
-        evaluateWinShotOccupancyAutoSave()
+        // Enabling/disabling WinShot can turn change tracking on or off.
+        evaluateWinShotAutoSave()
     }
 
     internal func setWinShotAutoSaveModeFromSettings(_ mode: WinShotAutoSaveMode) {
         Logger.debug("WinShot: settings updated autoSaveMode=\(mode.rawValue)")
         WinShotPreferencesStore.saveAutoSaveMode(mode)
-        // Re-arm or tear down occupancy tracking to match the new mode immediately.
-        evaluateWinShotOccupancyAutoSave()
+        // Re-arm or tear down change tracking to match the new mode immediately.
+        evaluateWinShotAutoSave()
     }
 
-    internal func setWinShotOccupancySettleDelayFromSettings(_ seconds: Int) {
-        let normalized = WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(seconds)
-        Logger.debug("WinShot: settings updated occupancySettleDelaySeconds=\(normalized)")
-        WinShotPreferencesStore.saveOccupancySettleDelaySeconds(normalized)
+    internal func setWinShotSettleDelayFromSettings(_ seconds: Int) {
+        let normalized = WinShotPreferencesStore.normalizedSettleDelaySeconds(seconds)
+        Logger.debug("WinShot: settings updated settleDelaySeconds=\(normalized)")
+        WinShotPreferencesStore.saveSettleDelaySeconds(normalized)
         // Restart pending settle countdowns so the new delay takes effect right away.
-        winShotOccupancyAutoSaveScheduler.reset()
-        evaluateWinShotOccupancyAutoSave()
+        winShotAutoSaveScheduler.reset()
+        evaluateWinShotAutoSave()
     }
 
     internal func setWinShotMaxSnapshotsStoredFromSettings(_ value: Int) {
@@ -99,7 +99,7 @@ extension AppController {
     }
 
     /// Create a WinShot snapshot for the specified screen if eligible.
-    /// Pass `refreshChooser: false` for silent background captures (e.g. occupancy-settled) that
+    /// Pass `refreshChooser: false` for silent background captures (e.g. arrangement-settled) that
     /// should not visibly update an already-open chooser.
     @discardableResult
     internal func createWinShotSnapshot(
@@ -198,7 +198,7 @@ extension AppController {
             return
         }
 
-        // In occupancy-change mode, capture the current arrangement now so it's in the chooser from the
+        // With change tracking on, capture the current arrangement now so it's in the chooser from the
         // start. (Background settle captures keep running but don't refresh an already-open chooser.)
         captureWinShotSnapshotForChooserOpenIfNeeded(on: screenId)
 
@@ -513,10 +513,10 @@ extension AppController {
 
         Logger.debug("WinShot: Snapshot restoration complete")
 
-        // The floating-zone occupant is assigned after the sync above, so that sync's occupancy
+        // The floating-zone occupant is assigned after the sync above, so that sync's auto-save
         // evaluation only saw the transient pre-floating arrangement. Re-evaluate now that the final
         // arrangement is in place, so the settle timer arms for it rather than the mid-restore state.
-        evaluateWinShotOccupancyAutoSave()
+        evaluateWinShotAutoSave()
     }
 
     /// Prepare a zone restoration work item (does all prep work, returns nil if window not found)

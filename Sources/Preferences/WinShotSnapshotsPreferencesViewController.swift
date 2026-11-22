@@ -19,7 +19,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         switch mode {
         case .off: return "never"
         case .onClearReset: return "before Clear/Reset or restore"
-        case .onEveryOccupancyChange: return "after every change"
+        case .onEveryChange: return "after every change"
         }
     }
 
@@ -62,7 +62,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         self.autoSavePopup = autoSavePopup
 
         let settleDelay = makeNumberInput(
-            range: WinShotPreferencesStore.minOccupancySettleDelaySeconds...WinShotPreferencesStore.maxOccupancySettleDelaySeconds,
+            range: WinShotPreferencesStore.minSettleDelaySeconds...WinShotPreferencesStore.maxSettleDelaySeconds,
             fieldAction: #selector(settleDelayFieldSubmitted(_:)),
             stepperAction: #selector(settleDelayStepperChanged(_:))
         )
@@ -205,7 +205,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     }
 
     private func applySettleDelay(_ rawValue: Int) {
-        AppController.shared.setWinShotOccupancySettleDelayFromSettings(rawValue)
+        AppController.shared.setWinShotSettleDelayFromSettings(rawValue)
         syncControls()
     }
 
@@ -223,8 +223,8 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         let mode = AppController.shared.winShotAutoSaveMode
         autoSavePopup?.selectItem(withTag: mode.rawValue)
         // The duration finishes the sentence only for the mode it applies to.
-        settleDelayClause?.isHidden = mode != .onEveryOccupancyChange
-        let settleDelay = AppController.shared.winShotOccupancySettleDelaySeconds
+        settleDelayClause?.isHidden = mode != .onEveryChange
+        let settleDelay = AppController.shared.winShotSettleDelaySeconds
         settleDelayField?.integerValue = settleDelay
         settleDelayStepper?.integerValue = settleDelay
 

@@ -471,8 +471,8 @@ extension AppController {
         launcherController.refreshZoneDerivedDataIfActive()
         cmdTabController.refreshZoneDerivedDataIfActive()
 
-        // Occupancy is now settled for this pass: feed it to the WinShot auto-save settle timer.
-        evaluateWinShotOccupancyAutoSave()
+        // The arrangement is now settled for this pass: feed it to WinShot auto-save.
+        evaluateWinShotAutoSave()
     }
 
     /// Vacates every zone, tiled or floating, whose occupant is minimized. The window's minimize

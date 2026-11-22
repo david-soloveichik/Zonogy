@@ -15,7 +15,7 @@ enum WinShotPreferencesStoreTests {
 
         let defaults = UserDefaults.standard
         let modeKey = UserDefaultsKeys.winShotAutoSaveMode
-        let delayKey = UserDefaultsKeys.winShotOccupancySettleDelaySeconds
+        let delayKey = UserDefaultsKeys.winShotSettleDelaySeconds
         let previousMode = defaults.object(forKey: modeKey)
         let previousDelay = defaults.object(forKey: delayKey)
         defer {
@@ -38,9 +38,9 @@ enum WinShotPreferencesStoreTests {
             "auto-save mode should default to off when unset"
         )
 
-        WinShotPreferencesStore.saveAutoSaveMode(.onEveryOccupancyChange)
+        WinShotPreferencesStore.saveAutoSaveMode(.onEveryChange)
         assert(
-            WinShotPreferencesStore.loadAutoSaveMode() == .onEveryOccupancyChange,
+            WinShotPreferencesStore.loadAutoSaveMode() == .onEveryChange,
             "saved auto-save mode should be read back"
         )
 
@@ -59,30 +59,30 @@ enum WinShotPreferencesStoreTests {
         // MARK: Settle delay
         defaults.removeObject(forKey: delayKey)
         assert(
-            WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
-                == WinShotPreferencesStore.defaultOccupancySettleDelaySeconds,
+            WinShotPreferencesStore.loadSettleDelaySeconds()
+                == WinShotPreferencesStore.defaultSettleDelaySeconds,
             "settle delay should default when unset"
         )
 
         assert(
-            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(0)
-                == WinShotPreferencesStore.minOccupancySettleDelaySeconds,
+            WinShotPreferencesStore.normalizedSettleDelaySeconds(0)
+                == WinShotPreferencesStore.minSettleDelaySeconds,
             "settle delay below minimum should clamp to min"
         )
         assert(
-            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(9999)
-                == WinShotPreferencesStore.maxOccupancySettleDelaySeconds,
+            WinShotPreferencesStore.normalizedSettleDelaySeconds(9999)
+                == WinShotPreferencesStore.maxSettleDelaySeconds,
             "settle delay above maximum should clamp to max"
         )
         assert(
-            WinShotPreferencesStore.normalizedOccupancySettleDelaySeconds(7) == 7,
+            WinShotPreferencesStore.normalizedSettleDelaySeconds(7) == 7,
             "in-range settle delay should be preserved"
         )
 
-        WinShotPreferencesStore.saveOccupancySettleDelaySeconds(9999)
+        WinShotPreferencesStore.saveSettleDelaySeconds(9999)
         assert(
-            WinShotPreferencesStore.loadOccupancySettleDelaySeconds()
-                == WinShotPreferencesStore.maxOccupancySettleDelaySeconds,
+            WinShotPreferencesStore.loadSettleDelaySeconds()
+                == WinShotPreferencesStore.maxSettleDelaySeconds,
             "saved settle delay should be normalized on read-back"
         )
 

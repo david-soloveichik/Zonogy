@@ -609,6 +609,9 @@ extension AppController {
             // window into the overlap computation so handles update immediately.
             refreshResizeHandles(frontmostWindowIdOverride: windowId)
         }
+        // The resize may have changed the arrangement WinShot records (the floating window's
+        // frame, or a tiled window's Sticky Resize size).
+        defer { evaluateWinShotAutoSave() }
 
         guard let managed = windowController.window(withId: windowId) else {
             manualResizeDetachedWindowIds.remove(windowId)
@@ -845,6 +848,9 @@ extension AppController {
         if shouldSuppressManualMoveHandling(windowId: windowId, event: "move-end") {
             return
         }
+        // However the drag resolves, it may have changed the arrangement WinShot records (the
+        // floating window's frame, or occupancy without a zone sync).
+        defer { evaluateWinShotAutoSave() }
         if finishFloatingDragIfActive(windowId: windowId, finalFrame: finalFrame) {
             return
         }
@@ -925,6 +931,8 @@ extension AppController {
             windowId: windowId,
             accessibilityFrame: frame
         )
+        // The move may have changed the arrangement WinShot records (the floating window's frame).
+        evaluateWinShotAutoSave()
     }
 
     /// Terminally tears down every piece of an in-flight manual gesture for `windowId`: the

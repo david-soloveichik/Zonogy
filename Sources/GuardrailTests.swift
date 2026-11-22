@@ -249,7 +249,7 @@ enum GuardrailTests {
         if !WinShotPreferencesStoreTests.run() {
             allPassed = false
         }
-        if !WinShotOccupancyAutoSavePlanTests.run() {
+        if !WinShotAutoSavePlanTests.run() {
             allPassed = false
         }
         if !WinShotLastActivePolicyTests.run() {

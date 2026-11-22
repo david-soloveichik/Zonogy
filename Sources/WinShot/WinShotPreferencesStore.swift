@@ -9,8 +9,8 @@ enum WinShotAutoSaveMode: Int, CaseIterable {
     /// Capture the current arrangement right before Clear/Reset Zones (and before a chooser switch).
     case onClearReset = 1
     /// Everything `onClearReset` does, plus auto-save any arrangement that persists for the
-    /// configured settle delay (see `loadOccupancySettleDelaySeconds`).
-    case onEveryOccupancyChange = 2
+    /// configured settle delay (see `loadSettleDelaySeconds`).
+    case onEveryChange = 2
 }
 
 enum WinShotPreferencesStore {
@@ -18,9 +18,9 @@ enum WinShotPreferencesStore {
     static let maxSnapshotsStored = 20
     static let defaultSnapshotsStored = 10
 
-    static let minOccupancySettleDelaySeconds = 1
-    static let maxOccupancySettleDelaySeconds = 60
-    static let defaultOccupancySettleDelaySeconds = 3
+    static let minSettleDelaySeconds = 1
+    static let maxSettleDelaySeconds = 60
+    static let defaultSettleDelaySeconds = 3
 
     /// Auto-save is opt-in; it defaults to off.
     static let defaultAutoSaveMode: WinShotAutoSaveMode = .off
@@ -46,26 +46,26 @@ enum WinShotPreferencesStore {
         UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.winShotAutoSaveMode)
     }
 
-    /// How long (seconds) an arrangement must persist before `onEveryOccupancyChange` auto-saves it.
+    /// How long (seconds) an arrangement must persist before `onEveryChange` auto-saves it.
     /// This is also the delay used to capture each settled arrangement as a backup.
-    static func loadOccupancySettleDelaySeconds() -> Int {
-        guard UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds) != nil else {
-            return defaultOccupancySettleDelaySeconds
+    static func loadSettleDelaySeconds() -> Int {
+        guard UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotSettleDelaySeconds) != nil else {
+            return defaultSettleDelaySeconds
         }
-        return normalizedOccupancySettleDelaySeconds(
-            UserDefaults.standard.integer(forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds)
+        return normalizedSettleDelaySeconds(
+            UserDefaults.standard.integer(forKey: UserDefaultsKeys.winShotSettleDelaySeconds)
         )
     }
 
-    static func saveOccupancySettleDelaySeconds(_ seconds: Int) {
+    static func saveSettleDelaySeconds(_ seconds: Int) {
         UserDefaults.standard.set(
-            normalizedOccupancySettleDelaySeconds(seconds),
-            forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds
+            normalizedSettleDelaySeconds(seconds),
+            forKey: UserDefaultsKeys.winShotSettleDelaySeconds
         )
     }
 
-    static func normalizedOccupancySettleDelaySeconds(_ value: Int) -> Int {
-        min(max(value, minOccupancySettleDelaySeconds), maxOccupancySettleDelaySeconds)
+    static func normalizedSettleDelaySeconds(_ value: Int) -> Int {
+        min(max(value, minSettleDelaySeconds), maxSettleDelaySeconds)
     }
 
     static func loadMaxSnapshotsStored() -> Int {

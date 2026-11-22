@@ -20,11 +20,11 @@ The "Auto-save" setting in Preferences offers three choices, each a superset of 
 - **before Clear/Reset or restore**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
 - **after every change**: everything the previous choice does, plus continuous background capture as described below.
 
-### Auto-save on zone occupancy change
+### Auto-save after every change
 
-With "after every change" chosen, each display's arrangement is saved automatically once it has stayed put for a configurable settle delay (default 3 seconds). A **zone occupancy change** is any change to which window occupies which zone (including moves and swaps between zones), and which tiling zones are present (so adding or removing a zone counts, even an empty one). Resizing zones, or changing only which window is active, is not an occupancy change. As with manual saves, an automatic capture whose occupancy signature matches an existing snapshot replaces it.
+With "after every change" chosen, each display's arrangement is saved automatically once it has stayed put for a configurable settle delay (default 3 seconds). Any change to the arrangement counts: which window occupies which zone (including moves and swaps between zones), which tiling zones are present (so adding or removing a zone counts, even an empty one), the size or position of a zone or of the floating window, and, with Sticky Resize on, the size of a tiled window. Changing only which window is active does not count. As with manual saves, an automatic capture replaces the snapshot with the same occupancy signature, so a change that only moves or resizes something updates that arrangement's snapshot rather than adding another.
 
-Tracking is per display, and the settle delay restarts on each occupancy change so only the arrangement that ultimately settles is captured. Displays in a full-screen Space are not tracked. A display entering native full screen captures its arrangement first, so the arrangement from before full screen is saved.
+Tracking is per display, and the settle delay restarts on each change so only the arrangement that ultimately settles is captured. Displays in a full-screen Space are not tracked. A display entering native full screen captures its arrangement first, so the arrangement from before full screen is saved.
 
 Opening the chooser captures the current arrangement immediately, and a snapshot that settles while the chooser is open is saved without disturbing it.
 
