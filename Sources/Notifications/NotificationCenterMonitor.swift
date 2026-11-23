@@ -1,4 +1,5 @@
-/// Detects the notifications Notification Center shows on screen, with their frames and applications.
+/// Detects the notifications Notification Center shows on screen, with their frames and applications,
+/// and presses one on request.
 import AppKit
 import ApplicationServices
 
@@ -14,10 +15,11 @@ import ApplicationServices
 /// AXLayoutChanged, or AXUIElementDestroyed on its application element whenever a notification
 /// appears, replaces another, moves, or leaves, so each of them triggers a rescan.
 ///
-/// All Accessibility work runs on a private serial queue: Notification Center can take a tenth of a
-/// second to answer while it builds a banner's window, and the main thread must not wait on it. The
-/// observer's callback, on the main run loop, only hands the event to that queue; changes come back
-/// through `MainRunLoop`, which also delivers them while a modal alert runs.
+/// All Accessibility work, pressing a notification included, runs on a private serial queue:
+/// Notification Center can take a tenth of a second to answer while it builds a banner's window, and
+/// the main thread must not wait on it. The observer's callback, on the main run loop, only hands the
+/// event to that queue; changes come back through `MainRunLoop`, which also delivers them while a
+/// modal alert runs.
 ///
 /// The observer is bound to Notification Center's process and goes silently inert if that process
 /// exits, so the monitor watches for the exit (NSWorkspace does not report agents like it), reports
@@ -31,6 +33,13 @@ final class NotificationCenterMonitor {
         let pids: [pid_t]
         /// In accessibility coordinates (origin at the primary display's top-left).
         let frame: CGRect
+        /// Notification Center's element for the notification as of the scan, for pressing it.
+        let element: AXUIElement
+
+        /// The name of the running application that posted the notification, if any.
+        var applicationName: String? {
+            pids.first.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+        }
     }
 
     private static let bundleIdentifier = "com.apple.notificationcenterui"
@@ -77,6 +86,22 @@ final class NotificationCenterMonitor {
     func start() {
         queue.async { [weak self] in
             self?.bind(attemptsLeft: Self.bindAttempts)
+        }
+    }
+
+    /// Performs the notification's press action, which acts like a click on it, if Notification
+    /// Center still shows it, through its element as of the latest scan. Returns at once;
+    /// Notification Center may take a while to answer.
+    func press(_ notification: ShownNotification) {
+        queue.async { [weak self] in
+            guard let current = self?.scanned.first(where: { $0.identifier == notification.identifier }) else {
+                Logger.debug("NotificationCenterMonitor: the notification to press is no longer shown")
+                return
+            }
+            let status = AXCall.performAction(current.element, kAXPressAction as CFString)
+            if status != .success {
+                Logger.debug("NotificationCenterMonitor: pressing a notification failed (AX error \(status.rawValue))")
+            }
         }
     }
 
@@ -178,8 +203,7 @@ final class NotificationCenterMonitor {
         // Logged when notifications come or go, not on every frame of their animations.
         if found.map(\.identifier) != scanned.map(\.identifier) {
             let summary = found.map { notification in
-                let name = notification.pids.first.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
-                return "\(name ?? "unknown app") at \(notification.frame)"
+                "\(notification.applicationName ?? "unknown app") at \(notification.frame)"
             }.joined(separator: "; ")
             Logger.debug("NotificationCenterMonitor: \(found.count) notification(s) shown\(found.isEmpty ? "" : ": \(summary)")")
         }
@@ -204,7 +228,7 @@ final class NotificationCenterMonitor {
         if let subrole = values[0] as? String, Self.notificationSubroles.contains(subrole) {
             if let identifier = values[1] as? String, let frame = Self.frame(position: values[3], size: values[4]) {
                 let pids = Self.pids(forDescription: values[2] as? String ?? "")
-                found.append(ShownNotification(identifier: identifier, pids: pids, frame: frame))
+                found.append(ShownNotification(identifier: identifier, pids: pids, frame: frame, element: element))
             }
             return
         }

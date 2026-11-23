@@ -637,14 +637,10 @@ class DragDropCoordinator {
         guard let delegate = delegate else {
             return nil
         }
-        let cocoaLocation = NSEvent.mouseLocation
-        let cocoaPoint = CGPoint(x: cocoaLocation.x, y: cocoaLocation.y)
-        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
-        let accessibilityFrame = CoordinateConversion.cocoaToAccessibility(
-            cocoaFrame: cocoaFrame,
+        return CoordinateConversion.cocoaToAccessibility(
+            point: NSEvent.mouseLocation,
             primaryScreenBounds: delegate.windowController.primaryScreenBounds
         )
-        return accessibilityFrame.origin
     }
 
     private func handleDropCancellation(session: DragSession) {

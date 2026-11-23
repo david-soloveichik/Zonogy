@@ -224,7 +224,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     // MARK: - Drag Cancellation
 
     func dockMenusCoordinatorDidCancelDrag(_ coordinator: DockMenusCoordinator) {
-        Logger.debug("DockMenus: drag cancelled by user (Escape)")
+        Logger.debug("DockMenus: drag cancelled")
         dragDropCoordinator.tearDownDragSession()
     }
 

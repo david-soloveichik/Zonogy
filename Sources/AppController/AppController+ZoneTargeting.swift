@@ -327,11 +327,10 @@ extension AppController {
     /// Returns true if the click location (in accessibility coordinates) falls on a visible
     /// window belonging to our own process.
     private func clickLandsOnOwnWindow(at accessibilityLocation: CGPoint) -> Bool {
-        let axRect = CGRect(origin: accessibilityLocation, size: .zero)
         let cocoaPoint = CoordinateConversion.accessibilityToCocoa(
-            accessibilityFrame: axRect,
+            point: accessibilityLocation,
             primaryScreenBounds: primaryScreenBounds
-        ).origin
+        )
 
         for window in NSApp.windows {
             guard window.isVisible, !window.isMiniaturized else {

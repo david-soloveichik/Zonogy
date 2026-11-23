@@ -339,6 +339,12 @@ Holding Shift during an external drag makes placeholders let the drag pass throu
 
 **Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
 
+### Clicking and Dragging Notifications
+
+Zonogy intercepts clicks on macOS notifications, so that a window unminimized by the click appears directly in the targeted zone (see **Unminimize after a notification click** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
+
+A notification can also be dragged onto a zone, like a Dock icon. Dropping it targets that zone and opens the notification as clicking it would.
+
 ### Minimize Active Window
 
 Pressing Cmd-M minimizes the currently active/key window. This overrides any app-specific behavior for this shortcut to ensure consistent window minimization across all applications. **Exception**: When the Launcher is visible, Cmd-M (or Cmd-W) removes the targeted zone instead; see SPECIFICATION-LAUNCHER.md. (The big picture of this behavior is that we can use Cmd-M for two purposes: to minimize a window and to remove a zone.)

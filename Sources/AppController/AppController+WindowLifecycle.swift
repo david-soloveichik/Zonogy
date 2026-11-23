@@ -1380,13 +1380,10 @@ extension AppController {
     }
 
     internal func currentCursorAccessibilityPoint() -> CGPoint? {
-        let cocoaLocation = NSEvent.mouseLocation
-        let cocoaPoint = CGPoint(x: cocoaLocation.x, y: cocoaLocation.y)
-        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
-        return CoordinateConversion.cocoaToAccessibility(
-            cocoaFrame: cocoaFrame,
+        CoordinateConversion.cocoaToAccessibility(
+            point: NSEvent.mouseLocation,
             primaryScreenBounds: windowController.primaryScreenBounds
-        ).origin
+        )
     }
 
     internal func resolveAddZoneDropTarget(cursorPoint: CGPoint?) -> AddZonePillKey? {

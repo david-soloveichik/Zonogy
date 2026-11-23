@@ -73,7 +73,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
     internal let notificationCenterMonitor = NotificationCenterMonitor()
-    internal let notificationClickInterceptor = NotificationClickInterceptor()
+    internal let notificationGestureInterceptor = NotificationGestureInterceptor()
+    internal lazy var notificationDragController = makeNotificationDragController()
     internal lazy var externalZoneDropInterceptor = ExternalZoneDropInterceptor(host: self)
     // Cached primary-display identity/bounds. Refreshed on every screen-topology change from the
     // screen-context store (the single source of truth) via refreshCachedPrimaryScreenBounds().
@@ -544,7 +545,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         zoneNavigationInterceptor.start(delegate: self)
         syncEventTapGates()
         startDockMenusIfConfigured()
-        startNotificationPressPrePositioning()
+        startNotificationGestures()
         startUpdateChecker()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")

@@ -99,14 +99,9 @@ extension AppController {
         cursorPointAX: CGPoint?,
         reason: String
     ) -> Bool {
-        let target = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
-        guard applyCursorDrivenLaunchTarget(target, reason: reason) else {
-            Logger.debug("Cursor-driven drop: app drag cancelled for \(appURL.lastPathComponent)")
-            return false
+        performCursorDrivenLaunchTargetDrop(cursorPointAX: cursorPointAX, reason: reason) {
+            performDefaultLauncherAction(for: appURL)
         }
-
-        performDefaultLauncherAction(for: appURL)
-        return true
     }
 
     /// Resolves an Option-drag drop into a "new window of `appURL`" action.
@@ -119,13 +114,25 @@ extension AppController {
         cursorPointAX: CGPoint?,
         reason: String
     ) -> Bool {
+        performCursorDrivenLaunchTargetDrop(cursorPointAX: cursorPointAX, reason: reason) {
+            openNewWindow(forAppURL: appURL, reason: reason)
+        }
+    }
+
+    /// Ends a launch-target drag: targets the drop destination, then runs `open`, whose window flows
+    /// into the targeted zone via Zonogy's normal placement. Without a destination nothing opens.
+    @discardableResult
+    internal func performCursorDrivenLaunchTargetDrop(
+        cursorPointAX: CGPoint?,
+        reason: String,
+        open: () -> Void
+    ) -> Bool {
         let target = dragDropCoordinator.endCursorDrivenDragSession(cursorPointAX: cursorPointAX)
         guard applyCursorDrivenLaunchTarget(target, reason: reason) else {
-            Logger.debug("Cursor-driven drop: new-window drag cancelled for \(appURL.lastPathComponent)")
+            Logger.debug("Cursor-driven drop: \(reason) cancelled")
             return false
         }
-
-        openNewWindow(forAppURL: appURL, reason: reason)
+        open()
         return true
     }
 
