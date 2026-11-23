@@ -65,6 +65,7 @@ extension AppController {
     /// disconnected display leaving full-screen first.
     private func isAwaitingMinimization(_ window: ManagedWindow) -> Bool {
         deferredMinimizationCoordinator.isPending(windowId: window.windowId)
+            || windowsAwaitingRestoreMinimize.contains(window.windowId)
             || windowsLeavingFullScreenToMinimize.contains(CGWindowID(window.backing.cgWindowId))
     }
 }

@@ -409,26 +409,39 @@ extension AppController {
             windowController.moveWindow(workItem.managed, to: workItem.targetFrame, on: workItem.descriptor)
         }
 
-        // Step 9: MINIMIZE PHASE - Minimize windows not in snapshot AFTER unminimizing tiled windows.
-        // We must remove these windows before sync so placeholder creation sees the final empty zones.
+        // Step 9: REMOVAL PHASE - Remove windows not in the snapshot from all zones (and any floating
+        // zone) before sync, so that zones which are empty in the snapshot end up truly empty and
+        // placeholder creation sees them. The windows are minimized in Step 12, once the restored
+        // active window's application is frontmost: an application that is frontmost when its
+        // focused window is minimized brings its next window forward, even one on another display.
+        // Until then, recovery passes leave them unplaced (e.g. the one that follows a restore opened
+        // after a full-screen exit, in the same turn).
+        let removedWindowIds = Set(windowsToMinimize.map(\.windowId))
         for window in windowsToMinimize {
-            minimizeWindowProgrammatically(window, reason: "winshot-restore")
-            // Explicitly remove the window from all zones (and any floating zone)
-            // so that zones which are empty in the snapshot end up truly empty,
-            // allowing placeholders to be restored correctly.
             removeWindowFromAllZones(windowId: window.windowId, reason: "winshot-restore", retarget: false)
         }
-
-        // Step 9b: Verify minimization took effect. Some apps like Word seem to sometimes auto-activate
-        // sibling windows when one is minimized, which can cancel a rapid-fire minimize.
-        for window in windowsToMinimize {
-            scheduleMinimizeVerification(
-                windowId: window.windowId,
-                emptiedZoneKey: nil,
-                minimizeReason: "winshot-restore",
-                cleanupReason: "winshot-restore",
-                manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
-            )
+        windowsAwaitingRestoreMinimize.formUnion(removedWindowIds)
+        let minimizeRemovedWindows = { [weak self] in
+            guard let self else { return }
+            self.windowsAwaitingRestoreMinimize.subtract(removedWindowIds)
+            // A window gone or placed again since its removal stays as it is.
+            let windows = windowsToMinimize
+                .compactMap { self.windowController.window(withId: $0.windowId) }
+                .filter { $0.zoneIndex == nil && !$0.isInFloatingZone }
+            for window in windows {
+                self.minimizeWindowProgrammatically(window, reason: "winshot-restore")
+            }
+            // Verify minimization took effect. Some apps like Word seem to sometimes auto-activate
+            // sibling windows when one is minimized, which can cancel a rapid-fire minimize.
+            for window in windows {
+                self.scheduleMinimizeVerification(
+                    windowId: window.windowId,
+                    emptiedZoneKey: nil,
+                    minimizeReason: "winshot-restore",
+                    cleanupReason: "winshot-restore",
+                    manualResizeState: ManualResizeCleanupState(wasDetached: false, rememberedSize: nil)
+                )
+            }
         }
 
         // Step 10: Sync and refresh based on final tiling occupancy.
@@ -438,25 +451,28 @@ extension AppController {
         // Step 11: FLOATING ZONE ASSIGNMENT - Assign and position the floating zone window.
         // Unminimization already happened in Step 6 (parallel with tiled windows).
         if let floatingItem = floatingWorkItem {
+            // When it is the restored active window, Step 12 activates it: activating it here too
+            // would make Step 12's minimize wait for this activation's raise.
             assignWindowToFloatingZone(
                 floatingItem.managed,
                 on: screenId,
                 placement: floatingItem.targetFrame.map { .frame($0) } ?? .standard,
+                activate: floatingItem.managed.windowId != restoredActiveWindowId,
                 reason: "winshot-restore"
             )
 
             scheduleFloatingZoneProtection(windowId: floatingItem.managed.windowId)
         }
 
-        // Step 12: Activate the previously active window
+        // Step 12: Activate the previously active window, then minimize the windows removed in Step 9.
         // Use the floating zone activation workaround if the active window is in the floating zone.
         snapshot.logDebugDetails(context: "restoring")
         if let activeWindowId = restoredActiveWindowId,
            let activeWindow = windowController.window(withId: activeWindowId) {
             if floatingWorkItem?.managed.windowId == activeWindowId {
-                activateFloatingZoneWindow(activeWindow, reason: "winshot-restore")
+                activateFloatingZoneWindow(activeWindow, reason: "winshot-restore", afterActivation: minimizeRemovedWindows)
             } else {
-                activateWindow(activeWindow)
+                activateWindow(activeWindow, afterActivation: minimizeRemovedWindows)
                 if let screenId = activeWindow.screenDisplayId ?? detectScreenId(for: activeWindow),
                    let zoneIndex = activeWindow.zoneIndex {
                     _ = applyRememberedStickyResizeFrameIfAvailable(
@@ -467,6 +483,8 @@ extension AppController {
                     )
                 }
             }
+        } else {
+            minimizeRemovedWindows()
         }
 
         // Step 13: Update targeting after restore
@@ -780,10 +798,10 @@ extension AppController {
         return nil
     }
 
-    private func activateWindow(_ managed: ManagedWindow) {
+    private func activateWindow(_ managed: ManagedWindow, afterActivation: @escaping () -> Void) {
         // Record activity immediately for reliable recency tracking (don't rely on AX notification)
         recordActiveWindowForHistory(windowId: managed.windowId, reason: "winshot-activate")
-        raiseWindow(managed)
+        raiseWindow(managed, afterActivation: afterActivation)
     }
 }
 

@@ -383,6 +383,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Windows from a disconnected display that were asked to leave native full-screen, by CGWindowID;
     /// each is minimized once it has (see AppController+DisplayRemoval.swift).
     internal var windowsLeavingFullScreenToMinimize: Set<CGWindowID> = []
+    /// Windows a WinShot restore removed from their zones and minimizes once it has activated the
+    /// restored active window (see AppController+WinShot.swift).
+    internal var windowsAwaitingRestoreMinimize: Set<Int> = []
     /// How long Zonogy waits for a window it asked to leave full-screen (a chosen arrangement, or the
     /// minimize of a disconnected display's window) before giving up.
     internal let fullScreenExitTimeout: TimeInterval = 3.0

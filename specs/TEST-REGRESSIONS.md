@@ -59,7 +59,7 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
   - Think about: Recapture should only place unzoned candidates that the same recapture pass revalidated as live with a WindowServer frame.
 
 - Bug report: Restoring a WinShot snapshot with an empty tiling zone can leave that zone without its placeholder because restore sync ran before removing windows that should be absent.
-  - Think about: WinShot restore must remove/minimize non-snapshot windows before its sync pass so placeholder reconciliation sees the final occupancy state.
+  - Think about: WinShot restore must remove non-snapshot windows from their zones before its sync pass (minimizing them can come later) so placeholder reconciliation sees the final occupancy state.
 
 - Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
   - Think about: Preserve a real post-open grace window so focus-based dismissals (e.g. macOS auto-focusing another window after a close/minimize) cannot race the panel open.

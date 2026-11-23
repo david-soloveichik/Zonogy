@@ -1490,11 +1490,18 @@ extension AppController {
 // MARK: - Window activation
 
 extension AppController {
-    /// Raises the window to front and activates the application owning it.
-    internal func raiseWindow(_ managed: ManagedWindow) {
+    /// Raises the window to front and activates the application owning it (for `afterActivation`,
+    /// see `scheduleWindowRaise`).
+    internal func raiseWindow(_ managed: ManagedWindow, afterActivation: (() -> Void)? = nil) {
         let element = managed.backing.element
         let pid = managed.backing.pid
-        scheduleWindowRaise(pid: pid, element: element, cgWindowId: managed.backing.cgWindowId, reason: "raise-window")
+        scheduleWindowRaise(
+            pid: pid,
+            element: element,
+            cgWindowId: managed.backing.cgWindowId,
+            reason: "raise-window",
+            afterActivation: afterActivation
+        )
     }
 }
 

@@ -50,11 +50,11 @@ When a display is disconnected, its snapshots move to the neighboring display: t
 - With auto-save snapshots enabled, switching to a prior snapshot first saves the current arrangement of the display it opens on. (This should be logically equivalent to first Clear/Reset Zones, and then restore.)
 - Restores the saved zone count and frames, fitted to the display's current visible bounds, so the zone proportions carry over when an arrangement opens on another display (or the visible bounds changed since the capture). The floating window keeps its size, centered at the same relative position and nudged to stay within the visible bounds (shrunk only if it is larger than them).
 - Unminimizes all windows (tiled and floating) in parallel first, so users see new windows appear immediately.
-- Current windows not in the snapshot are minimized afterward.
+- Activates the previously active window.
+- Current windows not in the snapshot are minimized right after that activation. Subtle reason for this order: an application that is frontmost when its focused window is minimized brings its next window forward, even one on another display, where it can cover that display's floating window.
 - Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Restores any saved Sticky Resize remembered sizes for the snapshot's windows (scaled along with their zones), so manually resized windows return to their custom sizes when reactivated.
-- Activates the previously active window.
 - **Targeting after restore:**
   - If the current target is on the restored display, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled).
   - If the current target is on another display, leave targeting unchanged.

@@ -243,6 +243,11 @@ extension AppController {
     }
 
     func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String) {
+        activateFloatingZoneWindow(managed, reason: reason, afterActivation: nil)
+    }
+
+    /// For `afterActivation`, see `scheduleWindowRaise`.
+    func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String, afterActivation: (() -> Void)?) {
         let logPrefix = "Floating zone activation"
         let pid = managed.backing.pid
         let element = managed.backing.element
@@ -257,6 +262,7 @@ extension AppController {
             cgWindowId: managed.backing.cgWindowId,
             logPrefix: logPrefix,
             reason: reason,
+            afterActivation: afterActivation,
             afterRaise: { [weak self] in
                 // Extend protection after the async activation to cover any subsequent focus events.
                 self?.extendFloatingZoneProtection(windowId: windowId)
