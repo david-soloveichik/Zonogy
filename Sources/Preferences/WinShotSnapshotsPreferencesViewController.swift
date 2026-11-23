@@ -1,18 +1,14 @@
 /// View controller for the WinShot Snapshots preferences tab, whose settings read as sentences with inline controls.
 import AppKit
 
-final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextFieldDelegate {
+final class WinShotSnapshotsPreferencesViewController: NSViewController {
     private var winShotCheckbox: NSButton?
     private var screenRecordingBadge: PreferenceStatusBadge?
     private var winShotHintLabel: NSTextField?
     private var autoSaveSentence: NSStackView?
     private var autoSavePopup: NSPopUpButton?
-    private var settleDelayClause: NSStackView?
-    private var settleDelayField: NSTextField?
-    private var settleDelayStepper: NSStepper?
     private var maxSnapshotsSentence: NSStackView?
-    private var maxSnapshotsField: NSTextField?
-    private var maxSnapshotsStepper: NSStepper?
+    private var maxSnapshotsInput: NumberStepperInput?
 
     /// Lowercase, since each choice continues the sentence "Auto-save …".
     private static func title(for mode: WinShotAutoSaveMode) -> String {
@@ -60,29 +56,20 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
             autoSavePopup.lastItem?.tag = mode.rawValue
         }
         self.autoSavePopup = autoSavePopup
-
-        let settleDelay = makeNumberInput(
-            range: WinShotPreferencesStore.minSettleDelaySeconds...WinShotPreferencesStore.maxSettleDelaySeconds,
-            fieldAction: #selector(settleDelayFieldSubmitted(_:)),
-            stepperAction: #selector(settleDelayStepperChanged(_:))
-        )
-        settleDelayField = settleDelay.field
-        settleDelayStepper = settleDelay.stepper
-        let settleDelayClause = Self.makeSentence(
-            [Self.makeWords("once it lasts"), settleDelay.field, settleDelay.stepper, Self.makeWords("seconds")])
-        self.settleDelayClause = settleDelayClause
-        let autoSaveSentence = Self.makeSentence([Self.makeWords("Auto-save"), autoSavePopup, settleDelayClause])
+        let autoSaveSentence = Self.makeSentence([Self.makeWords("Auto-save"), autoSavePopup])
         self.autoSaveSentence = autoSaveSentence
 
-        let maxSnapshots = makeNumberInput(
-            range: WinShotPreferencesStore.minSnapshotsStored...WinShotPreferencesStore.maxSnapshotsStored,
-            fieldAction: #selector(maxSnapshotsFieldSubmitted(_:)),
-            stepperAction: #selector(maxSnapshotsStepperChanged(_:))
-        )
-        maxSnapshotsField = maxSnapshots.field
-        maxSnapshotsStepper = maxSnapshots.stepper
-        let maxSnapshotsSentence = Self.makeSentence(
-            [Self.makeWords("Keep up to"), maxSnapshots.field, maxSnapshots.stepper, Self.makeWords("snapshots per display")])
+        let maxSnapshotsInput = NumberStepperInput(
+            range: WinShotPreferencesStore.minSnapshotsStored...WinShotPreferencesStore.maxSnapshotsStored
+        ) { [weak self] value in
+            AppController.shared.setWinShotMaxSnapshotsStoredFromSettings(value)
+            self?.syncControls()
+        }
+        self.maxSnapshotsInput = maxSnapshotsInput
+        let maxSnapshotsSentence = Self.makeSentence([
+            Self.makeWords("Keep up to"), maxSnapshotsInput.field, maxSnapshotsInput.stepper,
+            Self.makeWords("snapshots per display"),
+        ])
         self.maxSnapshotsSentence = maxSnapshotsSentence
 
         let settings = NSStackView(views: [winShotHintLabel, autoSaveSentence, maxSnapshotsSentence])
@@ -134,35 +121,6 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         return row
     }
 
-    /// A number field and its stepper, both limited to `range`.
-    private func makeNumberInput(range: ClosedRange<Int>, fieldAction: Selector, stepperAction: Selector)
-        -> (field: NSTextField, stepper: NSStepper)
-    {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .none
-        formatter.minimum = NSNumber(value: range.lowerBound)
-        formatter.maximum = NSNumber(value: range.upperBound)
-        formatter.allowsFloats = false
-
-        let field = NSTextField(string: "")
-        field.alignment = .right
-        field.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-        field.formatter = formatter
-        field.delegate = self
-        field.target = self
-        field.action = fieldAction
-        field.widthAnchor.constraint(equalToConstant: 44).isActive = true
-
-        let stepper = NSStepper()
-        stepper.minValue = Double(range.lowerBound)
-        stepper.maxValue = Double(range.upperBound)
-        stepper.increment = 1
-        stepper.valueWraps = false
-        stepper.target = self
-        stepper.action = stepperAction
-        return (field, stepper)
-    }
-
     // MARK: - Actions
 
     @objc private func winShotToggled(_ sender: NSButton) {
@@ -177,60 +135,14 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
         syncControls()
     }
 
-    @objc private func settleDelayStepperChanged(_ sender: NSStepper) {
-        applySettleDelay(Int(sender.intValue))
-    }
-
-    @objc private func settleDelayFieldSubmitted(_ sender: NSTextField) {
-        applySettleDelay(sender.integerValue)
-    }
-
-    @objc private func maxSnapshotsStepperChanged(_ sender: NSStepper) {
-        applyMaxSnapshotsStored(Int(sender.intValue))
-    }
-
-    @objc private func maxSnapshotsFieldSubmitted(_ sender: NSTextField) {
-        applyMaxSnapshotsStored(sender.integerValue)
-    }
-
-    func controlTextDidEndEditing(_ obj: Notification) {
-        guard let textField = obj.object as? NSTextField else {
-            return
-        }
-        if textField == maxSnapshotsField {
-            applyMaxSnapshotsStored(textField.integerValue)
-        } else if textField == settleDelayField {
-            applySettleDelay(textField.integerValue)
-        }
-    }
-
-    private func applySettleDelay(_ rawValue: Int) {
-        AppController.shared.setWinShotSettleDelayFromSettings(rawValue)
-        syncControls()
-    }
-
-    private func applyMaxSnapshotsStored(_ rawValue: Int) {
-        AppController.shared.setWinShotMaxSnapshotsStoredFromSettings(rawValue)
-        syncControls()
-    }
-
     private func syncControls() {
         let winShotEnabled = AppController.shared.isWinShotEnabled
         winShotCheckbox?.state = winShotEnabled ? .on : .off
         screenRecordingBadge?.isHidden = CGPreflightScreenCaptureAccess()
         winShotHintLabel?.stringValue = Self.featureHint
 
-        let mode = AppController.shared.winShotAutoSaveMode
-        autoSavePopup?.selectItem(withTag: mode.rawValue)
-        // The duration finishes the sentence only for the mode it applies to.
-        settleDelayClause?.isHidden = mode != .onEveryChange
-        let settleDelay = AppController.shared.winShotSettleDelaySeconds
-        settleDelayField?.integerValue = settleDelay
-        settleDelayStepper?.integerValue = settleDelay
-
-        let maxSnapshotsStored = AppController.shared.winShotMaxSnapshotsStoredInSettings
-        maxSnapshotsField?.integerValue = maxSnapshotsStored
-        maxSnapshotsStepper?.integerValue = maxSnapshotsStored
+        autoSavePopup?.selectItem(withTag: AppController.shared.winShotAutoSaveMode.rawValue)
+        maxSnapshotsInput?.show(AppController.shared.winShotMaxSnapshotsStoredInSettings)
 
         for sentence in [autoSaveSentence, maxSnapshotsSentence].compactMap({ $0 }) {
             Self.setEnabled(winShotEnabled, in: sentence)
@@ -242,9 +154,7 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController, NSTextF
     /// Dims a sentence's words and disables its controls together.
     private static func setEnabled(_ enabled: Bool, in sentence: NSStackView) {
         for part in sentence.arrangedSubviews {
-            if let clause = part as? NSStackView {
-                setEnabled(enabled, in: clause)
-            } else if let words = part as? NSTextField, !words.isEditable {
+            if let words = part as? NSTextField, !words.isEditable {
                 words.textColor = enabled ? .labelColor : .secondaryLabelColor
             } else if let control = part as? NSControl {
                 control.isEnabled = enabled

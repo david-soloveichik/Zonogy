@@ -22,10 +22,6 @@ extension AppController {
         isWinShotEnabled && winShotAutoSaveMode == .onEveryChange
     }
 
-    internal var winShotSettleDelaySeconds: Int {
-        WinShotPreferencesStore.loadSettleDelaySeconds()
-    }
-
     internal var winShotMaxSnapshotsStoredInSettings: Int {
         WinShotPreferencesStore.loadMaxSnapshotsStored()
     }
@@ -41,15 +37,6 @@ extension AppController {
         Logger.debug("WinShot: settings updated autoSaveMode=\(mode.rawValue)")
         WinShotPreferencesStore.saveAutoSaveMode(mode)
         // Re-arm or tear down change tracking to match the new mode immediately.
-        evaluateWinShotAutoSave()
-    }
-
-    internal func setWinShotSettleDelayFromSettings(_ seconds: Int) {
-        let normalized = WinShotPreferencesStore.normalizedSettleDelaySeconds(seconds)
-        Logger.debug("WinShot: settings updated settleDelaySeconds=\(normalized)")
-        WinShotPreferencesStore.saveSettleDelaySeconds(normalized)
-        // Restart pending settle countdowns so the new delay takes effect right away.
-        winShotAutoSaveScheduler.reset()
         evaluateWinShotAutoSave()
     }
 

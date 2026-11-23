@@ -2,7 +2,7 @@
 
 import AppKit
 
-/// Pure mark bookkeeping (guardrail-tested). A window stays marked for the settle delay after
+/// Pure mark bookkeeping (guardrail-tested). A window stays marked for the skip duration after
 /// its minimize, and additionally for as long as the modifier keys held during its own minimize
 /// remain held (its "dismissal gesture", e.g. Cmd staying down from Cmd-M through Cmd-Tab).
 /// Gesture lifetimes are independent per window.
@@ -43,11 +43,11 @@ struct RecentUserMinimizeMarks {
     }
 
     /// Windows CmdTab's initial selection should skip right now: every window minimized within
-    /// the settle delay, plus every window whose dismissal gesture is still held. Expired
+    /// the skip duration, plus every window whose dismissal gesture is still held. Expired
     /// non-gesture marks are pruned as a side effect.
-    mutating func activeSkipWindowIds(now: Date, settleDelay: TimeInterval) -> Set<Int> {
+    mutating func activeSkipWindowIds(now: Date, skipDuration: TimeInterval) -> Set<Int> {
         markTimesByWindowId = markTimesByWindowId.filter { _, time in
-            now.timeIntervalSince(time) <= settleDelay
+            now.timeIntervalSince(time) <= skipDuration
         }
         return Set(markTimesByWindowId.keys).union(gestureWindowIds)
     }
@@ -84,12 +84,12 @@ final class RecentUserMinimizeTracker {
         stopMonitorIfGestureOver()
     }
 
-    func activeSkipWindowIds(settleDelay: TimeInterval) -> Set<Int> {
+    func activeSkipWindowIds(skipDuration: TimeInterval) -> Set<Int> {
         // Self-heal releases the monitors can miss (sleep, screen lock, secure input): prune
         // gestures against the modifiers actually held right now.
         marks.modifiersChanged(to: NSEvent.modifierFlags.intersection(Self.relevantModifiers))
         stopMonitorIfGestureOver()
-        return marks.activeSkipWindowIds(now: Date(), settleDelay: settleDelay)
+        return marks.activeSkipWindowIds(now: Date(), skipDuration: skipDuration)
     }
 
     private func startMonitorIfNeeded() {

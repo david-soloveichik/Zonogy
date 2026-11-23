@@ -33,7 +33,7 @@ extension AppController {
 
         winShotAutoSaveScheduler.reconcile(
             currentStates: currentStates,
-            delay: TimeInterval(winShotSettleDelaySeconds),
+            delay: SecondsPreference.settleDelay.loadDuration(),
             onSettle: { [weak self] screenId, armedState in
                 self?.captureWinShotSnapshotOnSettle(on: screenId, armedOccupancy: armedState.occupancy)
             }

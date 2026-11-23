@@ -1,6 +1,6 @@
 import Foundation
 
-/// Guardrail tests for WinShot preferences (auto-save mode, settle delay, snapshot-limit clamping).
+/// Guardrail tests for WinShot preferences (auto-save mode, snapshot-limit clamping).
 enum WinShotPreferencesStoreTests {
     @discardableResult
     static func run() -> Bool {
@@ -15,19 +15,12 @@ enum WinShotPreferencesStoreTests {
 
         let defaults = UserDefaults.standard
         let modeKey = UserDefaultsKeys.winShotAutoSaveMode
-        let delayKey = UserDefaultsKeys.winShotSettleDelaySeconds
         let previousMode = defaults.object(forKey: modeKey)
-        let previousDelay = defaults.object(forKey: delayKey)
         defer {
             if let previousMode {
                 defaults.set(previousMode, forKey: modeKey)
             } else {
                 defaults.removeObject(forKey: modeKey)
-            }
-            if let previousDelay {
-                defaults.set(previousDelay, forKey: delayKey)
-            } else {
-                defaults.removeObject(forKey: delayKey)
             }
         }
 
@@ -54,36 +47,6 @@ enum WinShotPreferencesStoreTests {
         assert(
             WinShotPreferencesStore.loadAutoSaveMode() == .off,
             "unrecognized raw mode should fall back to the default"
-        )
-
-        // MARK: Settle delay
-        defaults.removeObject(forKey: delayKey)
-        assert(
-            WinShotPreferencesStore.loadSettleDelaySeconds()
-                == WinShotPreferencesStore.defaultSettleDelaySeconds,
-            "settle delay should default when unset"
-        )
-
-        assert(
-            WinShotPreferencesStore.normalizedSettleDelaySeconds(0)
-                == WinShotPreferencesStore.minSettleDelaySeconds,
-            "settle delay below minimum should clamp to min"
-        )
-        assert(
-            WinShotPreferencesStore.normalizedSettleDelaySeconds(9999)
-                == WinShotPreferencesStore.maxSettleDelaySeconds,
-            "settle delay above maximum should clamp to max"
-        )
-        assert(
-            WinShotPreferencesStore.normalizedSettleDelaySeconds(7) == 7,
-            "in-range settle delay should be preserved"
-        )
-
-        WinShotPreferencesStore.saveSettleDelaySeconds(9999)
-        assert(
-            WinShotPreferencesStore.loadSettleDelaySeconds()
-                == WinShotPreferencesStore.maxSettleDelaySeconds,
-            "saved settle delay should be normalized on read-back"
         )
 
         // MARK: Max snapshots clamping

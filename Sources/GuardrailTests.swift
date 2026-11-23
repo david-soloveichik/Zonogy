@@ -180,6 +180,9 @@ enum GuardrailTests {
         if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }
+        if !SecondsPreferenceTests.run() {
+            allPassed = false
+        }
         if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }

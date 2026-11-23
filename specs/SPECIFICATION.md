@@ -175,7 +175,7 @@ Focus changes do not retarget zones, with the exception of an implicitly targete
 
 An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) Only an explicit floating target colors its bar and flashes.
 
-Opening a document in an application that already has a window shown typically brings that window to the front first, moving an implicit floating target to its display, so the document's window would open there too. To prevent this, when an application coming to the front moves an implicit floating target to another display, its next window opened or unminimized within the WinShot settle delay (3 seconds by default) goes to the previous floating zone. This does not happen when something shows the user went to the new display explicitly:
+Opening a document in an application that already has a window shown typically brings that window to the front first, moving an implicit floating target to its display, so the document's window would open there too. To prevent this, when an application coming to the front moves an implicit floating target to another display, its next window opened or unminimized within the settle delay (see **Settle Delay**) goes to the previous floating zone. This does not happen when something shows the user went to the new display explicitly:
 
 - A key or mouse button was pressed after the application came to the front, such as Cmd-N after switching to it.
 - The pointer was on the new display when the target moved there. (Clicking the application's window there brings it to the front just as opening a document does.)
@@ -444,6 +444,14 @@ Zonogy draws its desktop overlays (placeholders, target indicators, add-zone and
 A reset button, shown while either setting differs from its default, restores both.
 
 Selection highlights in Zonogy's own panels (Launcher, CmdTab, DockMenus, WinShot chooser) follow the macOS accent color instead.
+
+## Settle Delay
+
+Preferences → General sets the settle delay ("Treat changes as intentional after N seconds", default 2 seconds). Zonogy treats a change as temporary until it has lasted this long. In particular, the worry is apps temporarily bringing forward a window other than the one you want, such as an existing window when you open a document.
+
+- **WinShot auto-save:** with "after every change", an arrangement is saved only once it has lasted this long (see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
+- **Implicit targeting:** when an application coming to the front moves an implicit floating target to another display, its next window opened within this time still goes to the previous floating zone (see **Implicit and explicit floating targets**).
+- **Drops into a floating zone:** when a drop into an occupied floating zone opens a window, the application may first bring forward an existing tiled window over the floating window, which would minimize it. So that minimization waits this long after a drop, letting the new window replace the floating window. (If we just remembered the frame without a timer, we wouldn't know whether to reuse the frame or recenter.)
 
 ## Menu Bar Menu
 

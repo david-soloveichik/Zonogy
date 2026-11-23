@@ -16,13 +16,13 @@ enum RecentUserMinimizeMarksTests {
         let start = Date(timeIntervalSinceReferenceDate: 1000)
         func at(_ seconds: TimeInterval) -> Date { start.addingTimeInterval(seconds) }
 
-        // Timestamp mechanism: active within the settle delay, expired after it.
+        // Timestamp mechanism: active within the skip duration, expired after it.
         do {
             var marks = RecentUserMinimizeMarks()
             marks.recordMinimize(windowId: 1, heldModifiers: [], now: at(0))
             assert(!marks.hasActiveGesture, "modifier-less minimize should not start a gesture")
-            assert(marks.activeSkipWindowIds(now: at(2), settleDelay: 3) == [1], "mark should be active within the delay")
-            assert(marks.activeSkipWindowIds(now: at(4), settleDelay: 3).isEmpty, "mark should expire after the delay")
+            assert(marks.activeSkipWindowIds(now: at(2), skipDuration: 3) == [1], "mark should be active within the delay")
+            assert(marks.activeSkipWindowIds(now: at(4), skipDuration: 3).isEmpty, "mark should expire after the delay")
         }
 
         // Gesture mechanism: outlives the delay while modifiers stay held, then only timestamps count.
@@ -31,15 +31,15 @@ enum RecentUserMinimizeMarksTests {
             marks.recordMinimize(windowId: 1, heldModifiers: [.command], now: at(0))
             assert(marks.hasActiveGesture, "minimize with modifiers held should start a gesture")
             assert(
-                marks.activeSkipWindowIds(now: at(10), settleDelay: 3) == [1],
-                "gesture should keep the mark active past the settle delay"
+                marks.activeSkipWindowIds(now: at(10), skipDuration: 3) == [1],
+                "gesture should keep the mark active past the skip duration"
             )
             marks.modifiersChanged(to: [.command, .shift])
             assert(marks.hasActiveGesture, "adding modifiers should not end the gesture")
             marks.modifiersChanged(to: [.shift])
             assert(!marks.hasActiveGesture, "releasing a required modifier should end the gesture")
             assert(
-                marks.activeSkipWindowIds(now: at(10), settleDelay: 3).isEmpty,
+                marks.activeSkipWindowIds(now: at(10), skipDuration: 3).isEmpty,
                 "after the gesture ends, an expired mark should be inactive"
             )
         }
@@ -58,7 +58,7 @@ enum RecentUserMinimizeMarksTests {
             marks.recordMinimize(windowId: 1, heldModifiers: [.command], now: at(0))
             marks.recordMinimize(windowId: 2, heldModifiers: [.command], now: at(1))
             assert(
-                marks.activeSkipWindowIds(now: at(10), settleDelay: 3) == [1, 2],
+                marks.activeSkipWindowIds(now: at(10), skipDuration: 3) == [1, 2],
                 "both gesture minimizes should stay active while held"
             )
         }
@@ -70,7 +70,7 @@ enum RecentUserMinimizeMarksTests {
             marks.recordMinimize(windowId: 2, heldModifiers: [.command], now: at(1))
             marks.modifiersChanged(to: [])
             assert(
-                marks.activeSkipWindowIds(now: at(2), settleDelay: 3) == [1, 2],
+                marks.activeSkipWindowIds(now: at(2), skipDuration: 3) == [1, 2],
                 "recent marks should stay active on timestamps after release"
             )
         }
@@ -84,7 +84,7 @@ enum RecentUserMinimizeMarksTests {
             marks.modifiersChanged(to: [.command])
             assert(marks.gestureWindowIds == [1], "releasing Control should end only the Control-Command gesture")
             assert(
-                marks.activeSkipWindowIds(now: at(10), settleDelay: 3) == [1],
+                marks.activeSkipWindowIds(now: at(10), skipDuration: 3) == [1],
                 "the Command-only mark should stay skipped while Command is held"
             )
             marks.modifiersChanged(to: [])
@@ -101,7 +101,7 @@ enum RecentUserMinimizeMarksTests {
             marks.recordMinimize(windowId: 1, heldModifiers: [.command], now: at(0.3))
             assert(!marks.hasActiveGesture, "the delayed re-record must not restart the gesture")
             assert(
-                marks.activeSkipWindowIds(now: at(3.2), settleDelay: 3) == [1],
+                marks.activeSkipWindowIds(now: at(3.2), skipDuration: 3) == [1],
                 "the re-record should refresh the mark's timestamp"
             )
         }
@@ -122,12 +122,12 @@ enum RecentUserMinimizeMarksTests {
             marks.recordMinimize(windowId: 2, heldModifiers: [.command], now: at(0))
             marks.clearMark(windowId: 1)
             assert(
-                marks.activeSkipWindowIds(now: at(1), settleDelay: 3) == [2],
+                marks.activeSkipWindowIds(now: at(1), skipDuration: 3) == [2],
                 "clearMark should drop the window from both mechanisms"
             )
             marks.removeAll()
             assert(!marks.hasActiveGesture, "removeAll should end all gestures")
-            assert(marks.activeSkipWindowIds(now: at(1), settleDelay: 3).isEmpty, "removeAll should drop every mark")
+            assert(marks.activeSkipWindowIds(now: at(1), skipDuration: 3).isEmpty, "removeAll should drop every mark")
         }
 
         if allPassed {

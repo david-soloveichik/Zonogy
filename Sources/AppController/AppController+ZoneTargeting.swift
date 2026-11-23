@@ -91,12 +91,11 @@ extension AppController {
 
     /// Holds the occlusion minimization of `screenId`'s floating occupant, so the window a drop into
     /// that floating zone opens still finds it to replace, taking over its frame. The hold lasts the
-    /// WinShot settle delay, a deliberate reuse: like the implicit floating target follow undo, it
-    /// covers an application building a window.
+    /// settle delay, which covers an application building a window.
     internal func holdFloatingOccupantForDrop(on screenId: CGDirectDisplayID) {
         floatingZoneCoordinator.holdOcclusionMinimizationForDrop(
             on: screenId,
-            duration: TimeInterval(WinShotPreferencesStore.loadSettleDelaySeconds())
+            duration: SecondsPreference.settleDelay.loadDuration()
         )
     }
 

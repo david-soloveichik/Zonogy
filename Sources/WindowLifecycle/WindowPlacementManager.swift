@@ -147,11 +147,9 @@ class WindowPlacementManager {
         }
 
         delegate.targetedZoneManager.ensureTargetedZone(reason: "placing-window")
-        // The undo window deliberately reuses the WinShot settle delay: both express how
-        // long until the display has settled for the user.
         delegate.targetedZoneManager.undoFollow(
             forWindowOf: managed.backing.pid,
-            within: TimeInterval(WinShotPreferencesStore.loadSettleDelaySeconds()),
+            within: SecondsPreference.settleDelay.loadDuration(),
             secondsSinceLastPress: LastUserPress.secondsAgo()
         )
         let targetedDestination = delegate.targetedZoneManager.targetedDestination
