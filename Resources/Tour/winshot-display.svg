@@ -29,30 +29,32 @@
 <clipPath id="screens"><rect x="50" y="54" width="860" height="538" rx="8"/><rect x="974" y="54" width="576" height="360" rx="8"/></clipPath>
 </defs>
 <style>
-@keyframes cur{0.000%{transform:translate(260px,484px) scale(1)}19.767%{transform:translate(260px,484px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}27.907%{transform:translate(460px,302.5px) scale(1)}31.395%{transform:translate(460px,302.5px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}46.512%{transform:translate(1262px,234px) scale(1)}80.233%{transform:translate(1262px,234px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}89.535%{transform:translate(260px,484px) scale(1)}100.000%{transform:translate(260px,484px) scale(1)}}
-.cur{animation:cur 8.6s linear infinite;transform:translate(460px,302.5px) scale(1)}
-@keyframes press{0.000%{transform:scale(1)}29.419%{transform:scale(1)}30.233%{transform:scale(0.86)}48.837%{transform:scale(0.86)}50.000%{transform:scale(1)}100.000%{transform:scale(1)}}
-.press{animation:press 8.6s linear infinite;transform:scale(1);transform-origin:0px 0px}
-@keyframes rp0{0.000%{opacity:0;transform:scale(0.3)}29.767%{opacity:0;transform:scale(0.3)}29.779%{opacity:0.9;transform:scale(0.3);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}35.000%{opacity:0;transform:scale(1.5)}35.012%{opacity:0;transform:scale(0.3)}100.000%{opacity:0;transform:scale(0.3)}}
-.rp0{animation:rp0 8.6s linear infinite;opacity:0;transform:scale(0.3);transform-origin:460px 302.5px}
-@keyframes held{0.000%{opacity:0}30.000%{opacity:0}31.163%{opacity:1}48.837%{opacity:1}50.233%{opacity:0}100.000%{opacity:0}}
-.held{animation:held 8.6s linear infinite;opacity:0}
-@keyframes ch{0.000%{opacity:0;transform:scale(0.97)}9.302%{opacity:0;transform:scale(0.97);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}11.047%{opacity:1;transform:scale(1)}48.837%{opacity:1;transform:scale(1)}50.233%{opacity:0;transform:scale(1)}100.000%{opacity:0;transform:scale(1)}}
-.ch{animation:ch 8.6s linear infinite;opacity:1;transform:scale(1);transform-origin:480px 323px}
-@keyframes carrymv{0.000%{transform:translate(0px,0px) scale(1)}31.395%{transform:translate(0px,0px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}46.512%{transform:translate(802px,-68.5px) scale(1)}50.581%{transform:translate(802px,-68.5px) scale(1)}50.593%{transform:translate(0px,0px) scale(1)}100.000%{transform:translate(0px,0px) scale(1)}}
-.carrymv{animation:carrymv 8.6s linear infinite;transform:translate(0px,0px) scale(1)}
-@keyframes carry{0.000%{opacity:0}30.233%{opacity:0}31.163%{opacity:1}48.837%{opacity:1}50.233%{opacity:0}100.000%{opacity:0}}
-.carry{animation:carry 8.6s linear infinite;opacity:0}
-@keyframes hot1{0.000%{opacity:0}30.814%{opacity:0}31.977%{opacity:1}36.814%{opacity:1}37.977%{opacity:0}100.000%{opacity:0}}
-.hot1{animation:hot1 8.6s linear infinite;opacity:0}
-@keyframes hot2{0.000%{opacity:0}38.209%{opacity:0}39.372%{opacity:1}49.419%{opacity:1}51.744%{opacity:0}100.000%{opacity:0}}
-.hot2{animation:hot2 8.6s linear infinite;opacity:0}
-@keyframes was{0.000%{opacity:1}49.419%{opacity:1}51.163%{opacity:0}83.721%{opacity:0}88.372%{opacity:1}100.000%{opacity:1}}
-.was{animation:was 8.6s linear infinite;opacity:1}
-@keyframes opened{0.000%{opacity:0}50.000%{opacity:0}53.488%{opacity:1}83.721%{opacity:1}88.372%{opacity:0}100.000%{opacity:0}}
-.opened{animation:opened 8.6s linear infinite;opacity:0}
-@keyframes cap0{0.000%{opacity:0}16.279%{opacity:0}18.605%{opacity:1}76.744%{opacity:1}79.070%{opacity:0}100.000%{opacity:0}}
-.cap0{animation:cap0 8.6s linear infinite;opacity:1}
+@keyframes cur{0.000%{transform:translate(260px,484px) scale(1)}21.709%{transform:translate(260px,484px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}28.108%{transform:translate(460px,302.5px) scale(1)}31.444%{transform:translate(460px,302.5px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}43.327%{transform:translate(1262px,234px) scale(1)}80.347%{transform:translate(1262px,234px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}87.660%{transform:translate(260px,484px) scale(1)}100.000%{transform:translate(260px,484px) scale(1)}}
+.cur{animation:cur 10.94s linear infinite;transform:translate(460px,302.5px) scale(1)}
+@keyframes press{0.000%{transform:scale(1)}29.890%{transform:scale(1)}30.530%{transform:scale(0.86)}46.069%{transform:scale(0.86)}46.984%{transform:scale(1)}100.000%{transform:scale(1)}}
+.press{animation:press 10.94s linear infinite;transform:scale(1);transform-origin:0px 0px}
+@keyframes rp0{0.000%{opacity:0;transform:scale(0.3)}30.165%{opacity:0;transform:scale(0.3)}30.174%{opacity:0.9;transform:scale(0.3);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}34.278%{opacity:0;transform:scale(1.5)}34.287%{opacity:0;transform:scale(0.3)}100.000%{opacity:0;transform:scale(0.3)}}
+.rp0{animation:rp0 10.94s linear infinite;opacity:0;transform:scale(0.3);transform-origin:460px 302.5px}
+@keyframes held{0.000%{opacity:0}30.347%{opacity:0}31.261%{opacity:1}46.069%{opacity:1}47.166%{opacity:0}100.000%{opacity:0}}
+.held{animation:held 10.94s linear infinite;opacity:0}
+@keyframes ch{0.000%{opacity:0;transform:scale(0.97)}10.969%{opacity:0;transform:scale(0.97);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}12.340%{opacity:1;transform:scale(1)}46.069%{opacity:1;transform:scale(1)}47.166%{opacity:0;transform:scale(1)}100.000%{opacity:0;transform:scale(1)}}
+.ch{animation:ch 10.94s linear infinite;opacity:1;transform:scale(1);transform-origin:480px 323px}
+@keyframes carrymv{0.000%{transform:translate(0px,0px) scale(1)}31.444%{transform:translate(0px,0px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}43.327%{transform:translate(802px,-68.5px) scale(1)}47.441%{transform:translate(802px,-68.5px) scale(1)}47.450%{transform:translate(0px,0px) scale(1)}100.000%{transform:translate(0px,0px) scale(1)}}
+.carrymv{animation:carrymv 10.94s linear infinite;transform:translate(0px,0px) scale(1)}
+@keyframes carry{0.000%{opacity:0}30.530%{opacity:0}31.261%{opacity:1}46.069%{opacity:1}47.166%{opacity:0}100.000%{opacity:0}}
+.carry{animation:carry 10.94s linear infinite;opacity:0}
+@keyframes hot1{0.000%{opacity:0}30.987%{opacity:0}31.901%{opacity:1}35.704%{opacity:1}36.618%{opacity:0}100.000%{opacity:0}}
+.hot1{animation:hot1 10.94s linear infinite;opacity:0}
+@keyframes hot2{0.000%{opacity:0}36.801%{opacity:0}37.715%{opacity:1}46.527%{opacity:1}48.355%{opacity:0}100.000%{opacity:0}}
+.hot2{animation:hot2 10.94s linear infinite;opacity:0}
+@keyframes was{0.000%{opacity:1}46.527%{opacity:1}47.898%{opacity:0}83.090%{opacity:0}86.746%{opacity:1}100.000%{opacity:1}}
+.was{animation:was 10.94s linear infinite;opacity:1}
+@keyframes opened{0.000%{opacity:0}46.984%{opacity:0}49.726%{opacity:1}83.090%{opacity:1}86.746%{opacity:0}100.000%{opacity:0}}
+.opened{animation:opened 10.94s linear infinite;opacity:0}
+@keyframes cap0{0.000%{opacity:0}18.510%{opacity:0}20.338%{opacity:1}77.148%{opacity:1}78.976%{opacity:0}100.000%{opacity:0}}
+.cap0{animation:cap0 10.94s linear infinite;opacity:1}
+@keyframes pg0{0.000%{transform:scaleX(0)}100.000%{transform:scaleX(1)}}
+.pg0{animation:pg0 10.94s linear infinite;transform:scaleX(0);transform-origin:761.74px 688.35px}
 </style>
 <rect x="0" y="0" width="1600" height="712" fill="url(#stage)"/>
 <defs><linearGradient id="neck" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a2d34"/><stop offset=".5" stop-color="#4b4f58"/><stop offset="1" stop-color="#2a2d34"/></linearGradient><linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5f69"/><stop offset="1" stop-color="#2a2d34"/></linearGradient><filter id="footShadow" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="4"/></filter></defs>
@@ -594,4 +596,5 @@
 <g class="cur"><circle class="held" r="13" fill="#4a9eff" fill-opacity=".28" stroke="#4a9eff" stroke-width="2.2"/><g class="press"><path d="M0 0V20l4.8-4.4 3.6 8 3.2-1.4-3.5-7.8h6.3z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" filter="url(#cshadow)"/></g></g>
 </g>
 <text class="cap0" x="800" y="664" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="500" fill="#e6eaf2">Drag a snapshot to another display to open its arrangement there</text>
+<rect x="761.74" y="688.35" width="76.52" height="5.22" rx="2.61" fill="#fff" fill-opacity=".16"/><g class="pg0"><rect x="761.74" y="688.35" width="76.52" height="5.22" rx="2.61" fill="#e6eaf2" fill-opacity=".8"/></g>
 </svg>

@@ -156,8 +156,9 @@ def build():
         *(chooser(f"ch{i}", S, order, gaps, 1) for i, (order, gaps) in enumerate(SESSIONS, 1)),
     ]
     if TOUR:  # no pointer and no keys: the chooser is worked from the keyboard, and the tour's text names the keys
-        return document((W, H), TITLE, "scripts/activefit-winshot-animation.py", (S,), TL.style(), screen,
-                        captions(CAPTIONS, W, CAPTION_Y), fluid=True)
+        under = captions(CAPTIONS, W, CAPTION_Y) + "\n" + tour_common.progress(TL, CAPTIONS, W, CAPTION_Y)
+        return document((W, H), TITLE, "scripts/activefit-winshot-animation.py", (S,), TL.style(tour_common.PAUSES),
+                        screen, under, fluid=True)
     screen += [ripple("rpB", CLICK_B), ripple("rpP", REST), f'<g class="cur"><g class="press">{CURSOR}</g></g>']
     return document((W, H), TITLE, "scripts/activefit-winshot-animation.py", (S,), TL.style(), screen,
                     keycaps(KEYS, W / 2, KEYS_Y) + "\n" + captions(CAPTIONS, W, CAPTION_Y))

@@ -19,7 +19,7 @@ from tour_common import (CONTENT_OPACITY, LEFT, RESTART_COVER, RIGHT, TAP, botto
                          destination_indicator, inactive_lights, navigation_circle, new_zone_bar, panel, shown,
                          top_half, window, write_scene)
 
-DUR = 10.6  # loop length, seconds
+DUR = 10.6  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 1.9  # frame shown where CSS animations don't run: the keys held, the circle on the top-right zone
 TITLE = (
     "Acting on a zone with the keyboard in Zonogy. While the modifier keys are held and the circle is on a zone, "

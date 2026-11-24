@@ -43,7 +43,7 @@ final class TourPageView: NSView {
             let view = makeView(for: block)
             stack.addArrangedSubview(view)
             switch block {
-            case .button, .toggle, .illustration:
+            case .button, .toggle:
                 break  // These keep their own width.
             case .paragraph, .points, .tryIt, .permissions:
                 view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -60,7 +60,7 @@ final class TourPageView: NSView {
     private func makeView(for block: TourPage.Block) -> NSView {
         switch block {
         case .paragraph(let text):
-            return Self.makeLabel(NSAttributedString(string: text, attributes: [.font: Self.bodyFont]), width: Self.contentWidth)
+            return Self.makeLabel(Self.styled(text, font: Self.bodyFont), width: Self.contentWidth)
         case .points(let points):
             let list = NSStackView(views: points.map(Self.makeLabel(for:)))
             list.orientation = .vertical
@@ -85,8 +85,6 @@ final class TourPageView: NSView {
             button.tag = buttonActions.count
             buttonActions.append(action)
             return button
-        case .illustration(let makeIllustration):
-            return makeIllustration()
         }
     }
 
@@ -104,9 +102,32 @@ final class TourPageView: NSView {
     /// `lead` in bold, then `text`.
     fileprivate static func leadIn(_ lead: String, to text: String, color: NSColor = .labelColor) -> NSAttributedString {
         let line = NSMutableAttributedString(
-            string: lead, attributes: [.font: NSFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold), .foregroundColor: color])
-        line.append(NSAttributedString(string: " " + text, attributes: [.font: bodyFont]))
+            attributedString: styled(lead, font: NSFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold), color: color))
+        line.append(styled(" " + text, font: bodyFont))
         return line
+    }
+
+    /// `text` in `font` and `color`, with the keys marked in it (see TourPage.keys) in the accent color, so they
+    /// stand out from the words around them.
+    private static func styled(_ text: String, font: NSFont, color: NSColor = .labelColor) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        var run = "", inKeys = false
+        func endRun() {
+            result.append(NSAttributedString(string: run, attributes: [
+                .font: font, .foregroundColor: inKeys ? NSColor.controlAccentColor : color,
+            ]))
+            run = ""
+        }
+        for character in text {
+            if character == TourPage.keysStart || character == TourPage.keysEnd {
+                endRun()
+                inKeys = character == TourPage.keysStart
+            } else {
+                run.append(character)
+            }
+        }
+        endRun()
+        return result
     }
 
     fileprivate static func makeLabel(_ text: NSAttributedString, width: CGFloat) -> NSTextField {

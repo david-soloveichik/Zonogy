@@ -28,39 +28,45 @@
 <clipPath id="screens"><rect x="30" y="26" width="860" height="500" rx="8"/></clipPath>
 </defs>
 <style>
-@keyframes kadd{0.000%{transform:translateY(0px)}11.765%{transform:translateY(0px)}12.353%{transform:translateY(2px)}14.706%{transform:translateY(2px)}15.294%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
-.kadd{animation:kadd 10.2s linear infinite;transform:translateY(0px)}
-@keyframes kaddhi{0.000%{opacity:0}11.765%{opacity:0}12.353%{opacity:1}14.706%{opacity:1}15.294%{opacity:0}100.000%{opacity:0}}
-.kaddhi{animation:kaddhi 10.2s linear infinite;opacity:0}
-@keyframes kmin{0.000%{transform:translateY(0px)}45.098%{transform:translateY(0px)}45.686%{transform:translateY(2px)}48.039%{transform:translateY(2px)}48.627%{transform:translateY(0px)}72.549%{transform:translateY(0px)}73.137%{transform:translateY(2px)}75.490%{transform:translateY(2px)}76.078%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
-.kmin{animation:kmin 10.2s linear infinite;transform:translateY(0px)}
-@keyframes kminhi{0.000%{opacity:0}45.098%{opacity:0}45.686%{opacity:1}48.039%{opacity:1}48.627%{opacity:0}72.549%{opacity:0}73.137%{opacity:1}75.490%{opacity:1}76.078%{opacity:0}100.000%{opacity:0}}
-.kminhi{animation:kminhi 10.2s linear infinite;opacity:0}
-@keyframes split{0.000%{transform:scaleY(1)}12.255%{transform:scaleY(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}16.176%{transform:scaleY(0.4902)}73.529%{transform:scaleY(0.4902);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}77.451%{transform:scaleY(1)}100.000%{transform:scaleY(1)}}
-.split{animation:split 10.2s linear infinite;transform:scaleY(0.4902);transform-origin:0px 52px}
+@keyframes kadd{0.000%{transform:translateY(0px)}12.500%{transform:translateY(0px)}12.941%{transform:translateY(2px)}14.706%{transform:translateY(2px)}15.147%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+.kadd{animation:kadd 13.6s linear infinite;transform:translateY(0px)}
+@keyframes kaddhi{0.000%{opacity:0}12.500%{opacity:0}12.941%{opacity:1}14.706%{opacity:1}15.147%{opacity:0}100.000%{opacity:0}}
+.kaddhi{animation:kaddhi 13.6s linear infinite;opacity:0}
+@keyframes kmin{0.000%{transform:translateY(0px)}43.934%{transform:translateY(0px)}44.375%{transform:translateY(2px)}46.140%{transform:translateY(2px)}46.581%{transform:translateY(0px)}71.691%{transform:translateY(0px)}72.132%{transform:translateY(2px)}73.897%{transform:translateY(2px)}74.338%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+.kmin{animation:kmin 13.6s linear infinite;transform:translateY(0px)}
+@keyframes kminhi{0.000%{opacity:0}43.934%{opacity:0}44.375%{opacity:1}46.140%{opacity:1}46.581%{opacity:0}71.691%{opacity:0}72.132%{opacity:1}73.897%{opacity:1}74.338%{opacity:0}100.000%{opacity:0}}
+.kminhi{animation:kminhi 13.6s linear infinite;opacity:0}
+@keyframes split{0.000%{transform:scaleY(1)}12.868%{transform:scaleY(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}15.809%{transform:scaleY(0.4902)}72.426%{transform:scaleY(0.4902);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}75.368%{transform:scaleY(1)}100.000%{transform:scaleY(1)}}
+.split{animation:split 13.6s linear infinite;transform:scaleY(0.4902);transform-origin:0px 52px}
 .split rect{vector-effect:non-scaling-stroke}
-@keyframes nzbar{0.000%{opacity:1}12.255%{opacity:1}14.216%{opacity:0}75.490%{opacity:0}77.451%{opacity:1}100.000%{opacity:1}}
-.nzbar{animation:nzbar 10.2s linear infinite;opacity:0}
-@keyframes empty{0.000%{opacity:0}13.725%{opacity:0}15.686%{opacity:1}73.039%{opacity:1}75.000%{opacity:0}100.000%{opacity:0}}
-.empty{animation:empty 10.2s linear infinite;opacity:1}
-@keyframes tgt{0.000%{opacity:1}28.922%{opacity:1}30.392%{opacity:0}45.588%{opacity:0}47.059%{opacity:1}100.000%{opacity:1}}
-.tgt{animation:tgt 10.2s linear infinite;opacity:1}
-@keyframes lc{0.000%{opacity:0;transform:scale(0.96)}15.686%{opacity:0;transform:scale(0.96);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}18.137%{opacity:1;transform:scale(1)}26.471%{opacity:1;transform:scale(1)}28.431%{opacity:0;transform:scale(0.98)}100.000%{opacity:0;transform:scale(0.98)}}
-.lc{animation:lc 10.2s linear infinite;opacity:1;transform:scale(1);transform-origin:672px 361.5px}
-@keyframes lc2{0.000%{opacity:0;transform:scale(0.96)}47.059%{opacity:0;transform:scale(0.96);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}49.510%{opacity:1;transform:scale(1)}72.549%{opacity:1;transform:scale(1)}74.510%{opacity:0;transform:scale(0.98)}100.000%{opacity:0;transform:scale(0.98)}}
-.lc2{animation:lc2 10.2s linear infinite;opacity:0;transform:scale(0.96);transform-origin:672px 361.5px}
-@keyframes openedmv{0.000%{transform:translate(-90px,-30px) scale(0.05)}26.961%{transform:translate(-90px,-30px) scale(0.05);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}32.353%{transform:translate(0px,0px) scale(1)}46.275%{transform:translate(0px,0px) scale(1)}46.284%{transform:translate(-90px,-30px) scale(0.05)}100.000%{transform:translate(-90px,-30px) scale(0.05)}}
-.openedmv{animation:openedmv 10.2s linear infinite;transform:translate(-90px,-30px) scale(0.05);transform-origin:672px 361.5px}
-@keyframes openedfd{0.000%{opacity:0}26.961%{opacity:0}28.235%{opacity:1}45.098%{opacity:1}46.275%{opacity:0}100.000%{opacity:0}}
-.openedfd{animation:openedfd 10.2s linear infinite;opacity:0}
-@keyframes roff{0.000%{opacity:0}27.451%{opacity:0}28.431%{opacity:1}75.490%{opacity:1}76.471%{opacity:0}100.000%{opacity:0}}
-.roff{animation:roff 10.2s linear infinite;opacity:0}
-@keyframes cap0{0.000%{opacity:0}2.941%{opacity:0}4.902%{opacity:1}36.275%{opacity:1}38.235%{opacity:0}100.000%{opacity:0}}
-.cap0{animation:cap0 10.2s linear infinite;opacity:1}
-@keyframes cap1{0.000%{opacity:0}39.216%{opacity:0}41.176%{opacity:1}66.667%{opacity:1}68.627%{opacity:0}100.000%{opacity:0}}
-.cap1{animation:cap1 10.2s linear infinite;opacity:0}
-@keyframes cap2{0.000%{opacity:0}69.608%{opacity:0}71.569%{opacity:1}95.098%{opacity:1}97.059%{opacity:0}100.000%{opacity:0}}
-.cap2{animation:cap2 10.2s linear infinite;opacity:0}
+@keyframes nzbar{0.000%{opacity:1}12.868%{opacity:1}14.338%{opacity:0}73.897%{opacity:0}75.368%{opacity:1}100.000%{opacity:1}}
+.nzbar{animation:nzbar 13.6s linear infinite;opacity:0}
+@keyframes empty{0.000%{opacity:0}13.971%{opacity:0}15.441%{opacity:1}72.059%{opacity:1}73.529%{opacity:0}100.000%{opacity:0}}
+.empty{animation:empty 13.6s linear infinite;opacity:1}
+@keyframes tgt{0.000%{opacity:1}28.493%{opacity:1}29.596%{opacity:0}44.301%{opacity:0}45.404%{opacity:1}100.000%{opacity:1}}
+.tgt{animation:tgt 13.6s linear infinite;opacity:1}
+@keyframes lc{0.000%{opacity:0;transform:scale(0.96)}15.441%{opacity:0;transform:scale(0.96);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}17.279%{opacity:1;transform:scale(1)}26.654%{opacity:1;transform:scale(1)}28.125%{opacity:0;transform:scale(0.98)}100.000%{opacity:0;transform:scale(0.98)}}
+.lc{animation:lc 13.6s linear infinite;opacity:1;transform:scale(1);transform-origin:672px 361.5px}
+@keyframes lc2{0.000%{opacity:0;transform:scale(0.96)}45.404%{opacity:0;transform:scale(0.96);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}47.243%{opacity:1;transform:scale(1)}71.691%{opacity:1;transform:scale(1)}73.162%{opacity:0;transform:scale(0.98)}100.000%{opacity:0;transform:scale(0.98)}}
+.lc2{animation:lc2 13.6s linear infinite;opacity:0;transform:scale(0.96);transform-origin:672px 361.5px}
+@keyframes openedmv{0.000%{transform:translate(-90px,-30px) scale(0.05)}27.022%{transform:translate(-90px,-30px) scale(0.05);animation-timing-function:cubic-bezier(0.2,0.8,0.25,1)}31.066%{transform:translate(0px,0px) scale(1)}44.816%{transform:translate(0px,0px) scale(1)}44.824%{transform:translate(-90px,-30px) scale(0.05)}100.000%{transform:translate(-90px,-30px) scale(0.05)}}
+.openedmv{animation:openedmv 13.6s linear infinite;transform:translate(-90px,-30px) scale(0.05);transform-origin:672px 361.5px}
+@keyframes openedfd{0.000%{opacity:0}27.022%{opacity:0}27.978%{opacity:1}43.934%{opacity:1}44.816%{opacity:0}100.000%{opacity:0}}
+.openedfd{animation:openedfd 13.6s linear infinite;opacity:0}
+@keyframes roff{0.000%{opacity:0}27.390%{opacity:0}28.125%{opacity:1}73.897%{opacity:1}74.632%{opacity:0}100.000%{opacity:0}}
+.roff{animation:roff 13.6s linear infinite;opacity:0}
+@keyframes cap0{0.000%{opacity:0}3.309%{opacity:0}4.779%{opacity:1}35.478%{opacity:1}36.949%{opacity:0}100.000%{opacity:0}}
+.cap0{animation:cap0 13.6s linear infinite;opacity:1}
+@keyframes cap1{0.000%{opacity:0}38.051%{opacity:0}39.522%{opacity:1}66.544%{opacity:1}68.015%{opacity:0}100.000%{opacity:0}}
+.cap1{animation:cap1 13.6s linear infinite;opacity:0}
+@keyframes cap2{0.000%{opacity:0}69.118%{opacity:0}70.588%{opacity:1}95.221%{opacity:1}96.691%{opacity:0}100.000%{opacity:0}}
+.cap2{animation:cap2 13.6s linear infinite;opacity:0}
+@keyframes pg0{0.000%{transform:scaleX(0)}38.051%{transform:scaleX(1)}100.000%{transform:scaleX(1)}}
+.pg0{animation:pg0 13.6s linear infinite;transform:scaleX(0);transform-origin:388px 634px}
+@keyframes pg1{0.000%{transform:scaleX(0)}38.051%{transform:scaleX(0)}69.118%{transform:scaleX(1)}100.000%{transform:scaleX(1)}}
+.pg1{animation:pg1 13.6s linear infinite;transform:scaleX(0);transform-origin:438px 634px}
+@keyframes pg2{0.000%{transform:scaleX(0)}69.118%{transform:scaleX(0)}100.000%{transform:scaleX(1)}}
+.pg2{animation:pg2 13.6s linear infinite;transform:scaleX(0);transform-origin:488px 634px}
 </style>
 <rect x="0" y="0" width="920" height="646" fill="url(#stage)"/>
 <rect x="16" y="12" width="888" height="528" rx="20" fill="url(#rim)" filter="url(#dshadow)"/>
@@ -243,7 +249,10 @@
 <rect x="465" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
 <g class="kmin"><rect x="465" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kminhi"><rect x="465" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="505" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{minimize}</text></g>
 </g>
-<text class="cap0" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Add a zone: it opens empty, with the Launcher in it</text>
-<text class="cap1" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize a window: its zone stays, with the Launcher open</text>
-<text class="cap2" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize again to remove the zone</text>
+<text class="cap0" x="460" y="620" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Add a zone: it opens empty, with the Launcher in it</text>
+<text class="cap1" x="460" y="620" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize a window: its zone stays, with the Launcher open</text>
+<text class="cap2" x="460" y="620" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize again to remove the zone</text>
+<rect x="388" y="634" width="44" height="3" rx="1.5" fill="#fff" fill-opacity=".16"/><g class="pg0"><rect x="388" y="634" width="44" height="3" rx="1.5" fill="#e6eaf2" fill-opacity=".8"/></g>
+<rect x="438" y="634" width="44" height="3" rx="1.5" fill="#fff" fill-opacity=".16"/><g class="pg1"><rect x="438" y="634" width="44" height="3" rx="1.5" fill="#e6eaf2" fill-opacity=".8"/></g>
+<rect x="488" y="634" width="44" height="3" rx="1.5" fill="#fff" fill-opacity=".16"/><g class="pg2"><rect x="488" y="634" width="44" height="3" rx="1.5" fill="#e6eaf2" fill-opacity=".8"/></g>
 </svg>

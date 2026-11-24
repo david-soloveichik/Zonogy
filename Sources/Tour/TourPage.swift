@@ -18,14 +18,26 @@ struct TourPage {
         /// A checkbox for a setting: `isOn` reads it when the page is shown, and `set` stores a change.
         case toggle(title: String, isOn: () -> Bool, set: (Bool) -> Void)
         case button(title: String, action: () -> Void)
-        /// A picture made of views, such as keycaps on a pictogram, at its own size.
-        case illustration(() -> NSView)
     }
 
     let title: String
     /// The animated picture above the text: the name of a file in Resources/Tour, without its extension.
     var scene: String?
     let blocks: [Block]
+
+    /// Marks `keys` in a page's text, which sets them apart from the words around them (see TourPageView).
+    static func keys(_ keys: String) -> String {
+        "\(keysStart)\(keys)\(keysEnd)"
+    }
+
+    /// An action's shortcut in a page's text: its keys, marked, or the action by name while it has none.
+    static func shortcutKeys(_ action: KeyboardShortcutPreferences.ShortcutAction) -> String {
+        let shortcuts = KeyboardShortcutPreferences.shared
+        return shortcuts.shortcut(for: action).map { keys($0.displayString) } ?? shortcuts.keyPhrase(for: action)
+    }
+
+    /// The private-use characters around marked keys. They are never shown.
+    static let keysStart: Character = "\u{E000}", keysEnd: Character = "\u{E001}"
 
     /// Whether the page asks for Accessibility, which the pages after it need.
     var asksForAccessibility: Bool {

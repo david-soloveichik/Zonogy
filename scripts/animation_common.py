@@ -729,24 +729,24 @@ class Timeline:
     def __init__(self, dur, still):
         self.dur, self.still, self.css = dur, still, []
 
-    def track(self, cls, points, origin=None):
-        """Animate class `cls` through [(time, declarations[, easing to the next point])], holding the ends."""
+    def track(self, cls, points, origin=None, clock=False):
+        """Animate class `cls` through [(time, declarations[, easing to the next point])], holding the ends. A
+        `clock` track shows time passing, such as a progress bar: it runs through the still frame, where it shows
+        its first point, and its changes are not motion when pauses are stretched (see style)."""
         pts = [p if len(p) == 3 else (*p, None) for p in points]
         if pts[0][0] > 0:
             pts.insert(0, (0.0, pts[0][1], None))
         if pts[-1][0] < self.dur:
             pts.append((self.dur, pts[-1][1], None))
-        timing = lambda e: f";animation-timing-function:cubic-bezier({','.join(n(v) for v in e)})" if e else ""
-        frames = "".join(f"{100 * t / self.dur:.3f}%{{{d}{timing(e)}}}" for t, d, e in pts)
-        self.css.append(f"@keyframes {cls}{{{frames}}}")
+        still = pts[0][1]
         for (t0, d0, _), (t1, d1, _) in zip(pts, pts[1:]):
-            if t0 <= self.still < t1:
+            if t0 <= self.still < t1 and not clock:
                 assert d0 == d1, f"{cls} is moving at the still frame"
                 still = d0
-        rule = f"animation:{cls} {n(self.dur)}s linear infinite;{still}"
-        if origin:
-            rule += f";transform-origin:{n(origin[0])}px {n(origin[1])}px"
-        self.css.append(f".{cls}{{{rule}}}")
+        self.css.append((cls, pts, still, origin, clock))  # written out by style(), which sees every track
+
+    def has_track(self, cls):
+        return any(isinstance(rule, tuple) and rule[0] == cls for rule in self.css)
 
     def key_presses(self, cls, spans):
         """The keycap of class `cls` (see keycaps) sinks and lights up over each (down, up) span."""
@@ -764,5 +764,34 @@ class Timeline:
             self.track(f"cap{i}", [(shown, opacity(0)), (shown + .2, opacity(1)), (fading, opacity(1)),
                                    (fading + .2, opacity(0))])
 
-    def style(self):
-        return "<style>\n" + "\n".join(self.css) + "\n</style>"
+    def style(self, pauses=1):
+        """The CSS. With `pauses` above 1, every stretch of the loop in which nothing moves lasts that many times
+        longer, giving a viewer time to take in each step; motions keep their speed."""
+        warp = self.warp(pauses)
+        dur = warp(self.dur)
+        timing = lambda e: f";animation-timing-function:cubic-bezier({','.join(n(v) for v in e)})" if e else ""
+        rules = []
+        for rule in self.css:
+            if isinstance(rule, str):
+                rules.append(rule)
+                continue
+            cls, pts, still, origin, _ = rule
+            frames = "".join(f"{100 * warp(t) / dur:.3f}%{{{d}{timing(e)}}}" for t, d, e in pts)
+            css = f"animation:{cls} {n(dur)}s linear infinite;{still}"
+            if origin:
+                css += f";transform-origin:{n(origin[0])}px {n(origin[1])}px"
+            rules += [f"@keyframes {cls}{{{frames}}}", f".{cls}{{{css}}}"]
+        return "<style>\n" + "\n".join(rules) + "\n</style>"
+
+    def warp(self, pauses):
+        """Scene time to playing time: unchanged while anything moves, `pauses` times longer while nothing does."""
+        if pauses == 1:
+            return lambda t: t
+        moving = []  # the stretches of the loop in which some track changes, merged
+        for t0, t1 in sorted((t0, t1) for rule in self.css if isinstance(rule, tuple) and not rule[4]
+                             for (t0, d0, _), (t1, d1, _) in zip(rule[1], rule[1][1:]) if d0 != d1):
+            if moving and t0 <= moving[-1][1]:
+                moving[-1][1] = max(moving[-1][1], t1)
+            else:
+                moving.append([t0, t1])
+        return lambda t: t + (pauses - 1) * (t - sum(max(0, min(t, t1) - t0) for t0, t1 in moving))

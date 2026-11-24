@@ -15,7 +15,7 @@ from animation_common import EIO, Timeline, launcher, opacity, placeholder, resi
 from tour_common import (CONTENT_OPACITY, LEFT, NEW_ZONE_BARS, RIGHT, Pointer, bottom_half, destination_indicator,
                          label, new_zone_bar, panel, shown, top_half, window, write_scene)
 
-DUR = 9.2  # loop length, seconds
+DUR = 9.2  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 5.3  # frame shown where CSS animations don't run: the new zone, empty, with the Launcher open in it
 TITLE = (
     "Zones in Zonogy. A bar on each side edge of the display adds a tiling zone there. A new zone is empty: it "

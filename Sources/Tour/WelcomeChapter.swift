@@ -4,9 +4,8 @@ import AppKit
 
 extension TourPage {
     static func welcomeChapter() -> [TourPage] {
-        let shortcuts = KeyboardShortcutPreferences.shared
-        let gestureKeys = ModifierCombinationPreferences.mouseGestures.modifiers.displayString
-        let minimize = shortcuts.keyPhrase(for: .minimizeActiveWindow)
+        let gestureKeys = keys(ModifierCombinationPreferences.mouseGestures.modifiers.displayString)
+        let minimize = shortcutKeys(.minimizeActiveWindow)
 
         return [
             TourPage(title: "Permissions", blocks: [
@@ -32,9 +31,9 @@ extension TourPage {
             ]),
             TourPage(title: "Finding windows", scene: "finding", blocks: [
                 .points([
-                    Point(lead: "Launcher (\(shortcuts.keyPhrase(for: .showLauncher))):", text: "type to find any app or window. Tab lists an app's windows."),
-                    Point(lead: "CmdTab (\(shortcuts.keyPhrase(for: .showCmdTab))):", text: "switches between windows, not apps, most recent first."),
-                    Point(lead: "Dock:", text: "click an icon for the app's main or most recently used window, or hover to choose among its windows. Hold Shift for the normal Dock, for example to rearrange icons."),
+                    Point(lead: "Launcher (\(shortcutKeys(.showLauncher))):", text: "type to find any app or window. \(keys("Tab")) lists an app's windows."),
+                    Point(lead: "CmdTab (\(shortcutKeys(.showCmdTab))):", text: "switches between windows, not apps, most recent first."),
+                    Point(lead: "Dock:", text: "click an icon for the app's main or most recently used window, or hover to choose among its windows. Hold \(keys("Shift")) for the normal Dock, for example to rearrange icons."),
                 ]),
                 .tryIt("Hover over a running app's Dock icon."),
             ]),

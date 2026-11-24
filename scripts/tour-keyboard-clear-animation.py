@@ -16,7 +16,7 @@ from animation_common import Timeline, launcher, opacity, placeholder
 from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, TAP, bottom_half, destination_indicator, new_zone_bar,
                          panel, shown, top_half, window, write_scene)
 
-DUR = 9.4  # loop length, seconds
+DUR = 9.4  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 3.0  # frame shown where CSS animations don't run: the zones cleared, the Launcher open in the left one
 TITLE = (
     "Clearing a display with the keyboard in Zonogy. A shortcut minimizes every window on the display, and its zones "

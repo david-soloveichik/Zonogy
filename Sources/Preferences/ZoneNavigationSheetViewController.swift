@@ -85,8 +85,8 @@ final class ZoneNavigationSheetViewController: ModifierCombinationSheetViewContr
                 (arrowsDiagram, "Step to the next zone in that direction. The Floating Zone Bar is the bottom stop."),
             ]),
             (.jumps, "Jump keys", [
-                (zoneDiagram, ZoneJumpKeysDiagramView.caption),
-                (displayDiagram, DisplayJumpKeysDiagramView.caption),
+                (zoneDiagram, "Jump to that zone, adding it if it isn't there yet. The key on the bar is the floating zone."),
+                (displayDiagram, "Jump to that display."),
             ]),
         ]
         // One band height across every pictogram, so all the captions start on the same line.

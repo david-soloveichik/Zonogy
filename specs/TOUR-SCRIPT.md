@@ -14,9 +14,9 @@ carried into the sources; pages and captions are then re-checked to still fit.
   - A plain paragraph is a paragraph of body text.
   - `- **Lead** text` is a bullet. The bold part is set in bold in the app.
   - `> Try it: ...` is the tinted "Try it" line. The words "Try it:" are added by the app.
-  - `[Button: ...]`, `[Checkbox: ...]`, `[Banners: ...]` and `[Pictograms: ...]` are controls and pictures. Only a button's or checkbox's title can be edited here.
+  - `[Button: ...]`, `[Checkbox: ...]` and `[Banners: ...]` are controls. Only a button's or checkbox's title can be edited here.
   - Lines under `Scene captions` are text drawn inside the animation above the page: `Caption:` lines appear one after another under the picture, `Label:` lines point at parts of it, and `Keycap:` lines are the keycaps drawn under the display for keys the user can change (keys that cannot change, such as the arrows, are not listed). Each is a token: the cap shows the current keys, or the token's words while that shortcut is unset.
-- Keep the `{tokens}`. The app replaces each with the user's current binding.
+- Keep the `{tokens}`. The app replaces each with the user's current binding. Keys the text names directly are in backticks, such as `⌘W`. The app sets both in the accent color, so they stand out.
 
 | Token | Stands for | Default |
 |---|---|---|
@@ -34,20 +34,18 @@ carried into the sources; pages and captions are then re-checked to still fit.
 | `{add key}` | the key of Add Zone | = |
 | `{remove key}` | the key of Remove Zone | - |
 | `{minimize key}` | the key of Minimize Focused Window | M |
-| `{jump top-right}` | the jump key for the top-right zone | S |
 | `{save snapshot}` | Save WinShot Snapshot | ⌃⌘/ |
 | `{chooser hold}` | the modifiers of Show WinShot Switcher | ⌃⌘ |
 | `{chooser tap}` | the key of Show WinShot Switcher | ⇥ |
 
 ## What limits the wording
 
-- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 516, 526, 529, 544, 552, 274, 76; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 512, 252, 428. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
+- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 516, 526, 529, 544, 552, 274, 76; Keyboard 555, 529, 529, 581, 583; WinShot Snapshots 512, 252, 428. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
 - **Captions** sit on one line under the picture. The longest now is 70 characters; much longer will not fit.
 - **Labels** are placed by hand around the picture. Keep them about as short as they are.
-- **Shared text.** Three things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
+- **Shared text.** Two things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
   - The banner text is also shown in Preferences > General.
   - "Enable WinShot" is also the checkbox title in Preferences > Snapshots.
-  - The two pictogram captions on the Jump keys page are also shown in Preferences > Shortcuts > Zone Navigation.
 
 ---
 
@@ -106,9 +104,9 @@ Scene captions (`finding`):
 - Caption: CmdTab switches between windows, most recent first
 - Caption: Or hover over a Dock icon and pick one of its windows
 
-- **Launcher ({launcher}):** type to find any app or window. Tab lists an app's windows.
+- **Launcher ({launcher}):** type to find any app or window. `Tab` lists an app's windows.
 - **CmdTab ({cmdtab}):** switches between windows, not apps, most recent first.
-- **Dock:** click an icon for the app's main or most recently used window, or hover to choose among its windows. Hold Shift for the normal Dock, for example to rearrange icons.
+- **Dock:** click an icon for the app's main or most recently used window, or hover to choose among its windows. Hold `Shift` for the normal Dock, for example to rearrange icons.
 
 > Try it: Hover over a running app's Dock icon.
 
@@ -164,7 +162,7 @@ Scene captions (`keyboard-zones`):
 
 Press {add zone} to add a zone. It opens empty, with the Launcher in it.
 
-Press {minimize} to minimize the focused window. Its zone stays, with the Launcher open; press {minimize} again to remove the zone. The same goes for ⌘W, which closes the window.
+Press {minimize} to minimize the focused window. Its zone stays, with the Launcher open; press {minimize} again to remove the zone. The same goes for `⌘W`, which closes the window.
 
 > Try it: Press {add zone}, pick a window in the Launcher, then press {minimize} twice.
 
@@ -200,6 +198,8 @@ Scene captions (`keyboard-stepping`):
 
 Hold {navigation keys} and press an arrow key. A circle marks a zone, and each arrow steps it to the next zone in that direction.
 
+Jump keys take the circle straight to a zone or display (Preferences > Shortcuts).
+
 Release {navigation keys} to focus this zone's window, or to make this zone the destination if it is empty.
 
 > Try it: Hold {navigation keys}, press an arrow or two, then release.
@@ -213,25 +213,13 @@ Scene captions (`keyboard-acting`):
 - Caption: With the circle on a zone, the move key brings your window into it
 - Caption: The add key adds a zone there, ready to fill
 
-While still holding {navigation keys}, these keys act on the circle's zone (esc cancels):
+While still holding {navigation keys}, these keys act on the circle's zone (`esc` cancels):
 
 - **{move key}** moves the focused window into this zone.
 - **{launcher key}** makes this zone the destination and opens the Launcher.
 - **{add key}, {remove key}, {minimize key}** add a zone, remove this zone, and minimize its window.
 
 > Try it: Hold {navigation keys}, step to another zone, and press {move key}.
-
-### 6. Jump keys
-
-Jump keys take the circle straight to a zone or a display.
-
-[Pictograms: the current jump keys, drawn on a display's zones and on the displays]
-- Pictogram caption: Jump to that zone, adding it if it isn't there yet. The key on the bar is the floating zone.
-- Pictogram caption: Jump to that display.
-
-Change these keys, or the keys to hold, in Preferences > Shortcuts > Zone Navigation.
-
-> Try it: Hold {navigation keys} and press {jump top-right}, then release.
 
 ---
 

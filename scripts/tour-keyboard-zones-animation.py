@@ -17,7 +17,7 @@ from tour_common import (CONTENT_OPACITY, LEFT, RIGHT, TAP, arriving, arriving_w
                          destination_indicator, inactive_lights, new_zone_bar, panel, shown, top_half, window,
                          write_scene)
 
-DUR = 10.2  # loop length, seconds
+DUR = 10.2  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 2.2  # frame shown where CSS animations don't run: the new zone, empty, with the Launcher open in it
 TITLE = (
     "Adding and removing zones with the keyboard in Zonogy. A shortcut adds a zone, which opens empty, with the "

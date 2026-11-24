@@ -18,7 +18,7 @@ from animation_common import (EIO, EOUT, Timeline, at, n, opacity, overlays, res
 from tour_common import (BAR_X, CONTENT_OPACITY, LEFT, RESTART_COVER, RIGHT, Pointer, bottom_half, new_zone_bar,
                          shown, top_half, write_scene)
 
-DUR = 11.0  # loop length, seconds
+DUR = 11.0  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 3.3  # frame shown where CSS animations don't run: the two windows, swapped
 TITLE = (
     "Moving and resizing in Zonogy. Dragging a window onto another zone moves it there, and the window in that "

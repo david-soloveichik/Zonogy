@@ -15,9 +15,9 @@ from animation_common import (EIO, EOUT, GAP, MAIN_DISPLAY, MARGIN, SIDE_DISPLAY
                               WIDE_CAPTION_Y, ZBLUE, Timeline, at, captions, center, chooser, chooser_layout,
                               columns, dock, dock_origin, document, full_window, menubar, n, opacity, rect, scale,
                               thumbnail_defs, wallpapers, zone_frames)
-from tour_common import CONTENT_OPACITY, Pointer, shown
+from tour_common import CONTENT_OPACITY, PAUSES, Pointer, progress, shown
 
-DUR = 8.6  # loop length, seconds
+DUR = 8.6  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 2.5  # frame shown where CSS animations don't run: the chooser open, the pointer on a thumbnail
 TITLE = (
     "Opening a WinShot snapshot on another display. Dragging a snapshot's thumbnail from the chooser onto another "
@@ -91,9 +91,10 @@ def build(path):
         f'y="{n(THUMBNAIL[1])}"/></g></g>',
         pointer.svg(),
     ]
+    under = captions(CAPTIONS, WIDE[0], WIDE_CAPTION_Y) + "\n" + progress(tl, CAPTIONS, WIDE[0], WIDE_CAPTION_Y)
     with open(path, "w") as f:
-        f.write(document(WIDE, TITLE, "scripts/tour-winshot-display-animation.py", (S1, S2), tl.style(), screens,
-                         captions(CAPTIONS, WIDE[0], WIDE_CAPTION_Y), stands=((S2, SIDE_STAND_FLOOR),), fluid=True))
+        f.write(document(WIDE, TITLE, "scripts/tour-winshot-display-animation.py", (S1, S2), tl.style(PAUSES), screens,
+                         under, stands=((S2, SIDE_STAND_FLOOR),), fluid=True))
 
 
 if __name__ == "__main__":

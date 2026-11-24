@@ -17,7 +17,7 @@ from tour_common import (FLOATING, LEFT, REPLY, RESTART_COVER, RIGHT, Pointer, a
                          destination_indicator, label, mail_selection, new_zone_bar, reply_button, shown, top_half,
                          window, write_scene)
 
-DUR = 10.6  # loop length, seconds
+DUR = 10.6  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = .8  # frame shown where CSS animations don't run: the opening arrangement, the top zone glowing
 TITLE = (
     "The destination zone in Zonogy. One empty zone is the destination, marked by a glow: replying to an email "

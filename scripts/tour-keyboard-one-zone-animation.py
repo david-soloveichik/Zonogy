@@ -15,7 +15,7 @@ from animation_common import EIO, Timeline, n, opacity
 from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, TAP, bottom_half, inactive_lights, new_zone_bar,
                          top_half, window, write_scene)
 
-DUR = 7.0  # loop length, seconds
+DUR = 7.0  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 4.2  # frame shown where CSS animations don't run: the focused window filling the display
 TITLE = (
     "Keeping one zone with the keyboard in Zonogy. A shortcut keeps only the focused window's zone: the window "

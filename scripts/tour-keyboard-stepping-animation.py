@@ -17,7 +17,7 @@ from animation_common import ZBLUE, Timeline, launcher, opacity, placeholder, re
 from tour_common import (LEFT, RIGHT, TAP, bottom_half, circle_runs, destination_indicator, inactive_lights,
                          navigation_circle, new_zone_bar, panel, top_half, window, write_scene)
 
-DUR = 10.0  # loop length, seconds
+DUR = 10.0  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 2.8  # frame shown where CSS animations don't run: the keys held, the circle on the empty zone
 TITLE = (
     "Stepping between zones with the keyboard in Zonogy. While the modifier keys are held, each arrow key moves "

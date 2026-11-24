@@ -13,7 +13,7 @@ from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MAIL_ROW_H, Z
 
 W, H = 920, 600  # kept low: the tour's window is as tall as its tallest page
 S = ((W - 860) / 2, 12 + FRAME, 860, 500)  # the display's screen
-CAPTION_Y = S[1] + S[3] + FRAME + 38
+CAPTION_Y = S[1] + S[3] + FRAME + 34  # leaves room under the captions for the step segments
 CONTENT_OPACITY = .5  # window content stays subtle
 
 _top, _h, _cw, (_left, _right) = columns(S, dock_origin(S)[1] - GAP)
@@ -212,6 +212,31 @@ class Pointer:
 RESTART_COVER = .15  # how long a restarting scene stays covered (see write_scene)
 KEY_ROW = 46  # the height a row of keycaps adds under the display (see write_scene)
 TAP = .3  # how long a tapped key shows pressed: long enough not to be missed
+PAUSES = 1.5  # how much longer a scene plays wherever nothing moves (see Timeline.style); times below are before it
+
+
+def progress(tl, caption_texts, width, caption_y, restart=None):
+    """Step segments under the captions, one for each, so a viewer sees how long the scene is and how far it has
+    played: each fills while its step plays, from its caption's appearance (the first from the loop's start) to
+    the next one's, the last until the loop ends or, in a scene that restarts covered (see write_scene), until
+    the cover, under which they empty. Sized, like the captions, to the canvas `width`."""
+    k = width / W
+    seg, gap, h = 44 * k, 6 * k, 3 * k
+    x0, y = width / 2 - (len(caption_texts) * (seg + gap) - gap) / 2, caption_y + 14 * k
+    starts = [0] + [shown for _, shown, _ in caption_texts[1:]]
+    ends = starts[1:] + [tl.dur if restart is None else restart]
+    empty, full = "transform:scaleX(0)", "transform:scaleX(1)"
+    s = []
+    for i, (start, end) in enumerate(zip(starts, ends)):
+        x = x0 + i * (seg + gap)
+        points = [(start, empty), (end, full)]
+        if restart is not None:
+            opening = restart + RESTART_COVER / 2
+            points += [(opening, full), (opening + .001, empty)]
+        tl.track(f"pg{i}", points, origin=(x, y), clock=True)
+        s.append(rect(x, y, seg, h, h / 2, fill="#fff", fill_opacity=".16") + f'<g class="pg{i}">'
+                 + rect(x, y, seg, h, h / 2, fill="#e6eaf2", fill_opacity=".8") + "</g>")
+    return "\n".join(s)
 
 
 def write_scene(path, title, generator, tl, content, caption_texts, restart_at=None, keys=None):
@@ -229,14 +254,15 @@ def write_scene(path, title, generator, tl, content, caption_texts, restart_at=N
     tl.captions(caption_texts)
     base = [wallpapers((S,)), menubar(S), dock(S), floating_zone_bar()]
     height = H + (KEY_ROW if keys else 0)
-    over = captions(caption_texts, W, CAPTION_Y + (KEY_ROW if keys else 0))
+    caption_y = CAPTION_Y + (KEY_ROW if keys else 0)
+    over = captions(caption_texts, W, caption_y) + "\n" + progress(tl, caption_texts, W, caption_y, restart_at)
     if keys:
         over = keycaps(keys, W / 2, S[1] + S[3] + FRAME + 14) + "\n" + over
         # A cap the scene never presses stays unlit.
-        tl.css += [f".{cls}hi{{opacity:0}}" for _, _, cls in keys if f"@keyframes {cls}hi{{" not in "".join(tl.css)]
+        tl.css += [f".{cls}hi{{opacity:0}}" for _, _, cls in keys if not tl.has_track(cls + "hi")]
     if restart_at is not None:
         tl.track("curtain", [(restart_at - .35, opacity(0)), (restart_at, opacity(1)),
                              (restart_at + RESTART_COVER, opacity(1)), (restart_at + RESTART_COVER + .35, opacity(0))])
         over += "\n" + rect(0, 0, W, height, fill="url(#stage)", **{"class": "curtain"})
     with open(path, "w") as f:
-        f.write(document((W, height), title, generator, (S,), tl.style(), base + list(content), over, fluid=True))
+        f.write(document((W, height), title, generator, (S,), tl.style(PAUSES), base + list(content), over, fluid=True))

@@ -5,10 +5,11 @@ import AppKit
 extension TourPage {
     static func winShotChapter() -> [TourPage] {
         let shortcuts = KeyboardShortcutPreferences.shared
-        let save = shortcuts.keyPhrase(for: .saveWinShotSnapshot)
+        let save = shortcutKeys(.saveWinShotSnapshot)
         // The chooser is worked like Command-Tab: its shortcut's modifiers are held while its key is tapped.
         let chooser = shortcuts.shortcut(for: .showWinShotChooser).map { shortcut in
-            (hold: String(shortcut.displayString.dropLast(shortcut.keyDisplayString.count)), tap: shortcut.keyDisplayString)
+            (hold: keys(String(shortcut.displayString.dropLast(shortcut.keyDisplayString.count))),
+             tap: keys(shortcut.keyDisplayString))
         }
         let openChooser = chooser.map { "Hold \($0.hold) and tap \($0.tap)" }
             ?? "Use \(shortcuts.keyPhrase(for: .showWinShotChooser))"

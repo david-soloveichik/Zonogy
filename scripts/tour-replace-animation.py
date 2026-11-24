@@ -19,7 +19,7 @@ from tour_common import (LEFT, REPLY, RESTART_COVER, RIGHT, Pointer, arriving, a
                          destination_indicator, hidden, mail_selection, new_zone_bar, reply_button, shown, top_half,
                          window, write_scene)
 
-DUR = 10.9  # loop length, seconds
+DUR = 10.9  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 2.7  # frame shown where CSS animations don't run: the bottom-right zone, occupied, as the destination
 TITLE = (
     "Making an occupied zone the destination in Zonogy. With every zone full, holding the modifier keys and "

@@ -17,7 +17,7 @@ from animation_common import (DM_ROW_H, EIO, EOUT, LW, ROW_H, ZBLUE, Timeline, b
 from tour_common import (LEFT, RESTART_COVER, RIGHT, S, Pointer, arriving, arriving_window, bottom_half,
                          destination_indicator, new_zone_bar, panel, top_half, window, write_scene)
 
-DUR = 10.4  # loop length, seconds
+DUR = 10.4  # loop length, seconds, before PAUSES lengthens its still stretches
 T_STILL = 1.3  # frame shown where CSS animations don't run: CmdTab open in the empty zone
 TITLE = (
     "Finding windows in Zonogy. CmdTab lists windows, most recent first, and the one chosen fills the empty "
