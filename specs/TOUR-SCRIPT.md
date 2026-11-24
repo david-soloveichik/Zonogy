@@ -40,7 +40,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 ## What limits the wording
 
-- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 366, 206, 500, 558, 570, 552, 274, 114; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 528, 342, 488. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
+- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 366, 206, 500, 558, 570, 552, 274, 114; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 528, 326, 488. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
 - **Captions** sit on one line under the picture. The longest now is 70 characters; much longer will not fit.
 - **Labels** are placed by hand around the picture. Keep them about as short as they are.
 - **Shared text.** Four things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
@@ -259,7 +259,7 @@ Save the arrangement on the active display with {save snapshot}, or with Save Sn
 Zonogy can also save for you. Preferences > Snapshots offers two automatic modes:
 
 - **Before Clear/Reset Zones or restoring a snapshot:** saves the arrangement you are about to lose.
-- **On every zone occupancy change:** saves each arrangement once it has lasted a few seconds.
+- **After every change:** saves each arrangement once it has lasted a few seconds.
 
 Saving an arrangement that already has a snapshot replaces it. A snapshot goes when one of its windows closes, and the oldest go once a display has more than the limit set in Preferences.
 

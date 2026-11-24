@@ -27,7 +27,7 @@ extension TourPage {
                 .paragraph("Zonogy can also save for you. Preferences > Snapshots offers two automatic modes:"),
                 .points([
                     Point(lead: "Before Clear/Reset Zones or restoring a snapshot:", text: "saves the arrangement you are about to lose."),
-                    Point(lead: "On every zone occupancy change:", text: "saves each arrangement once it has lasted a few seconds."),
+                    Point(lead: "After every change:", text: "saves each arrangement once it has lasted a few seconds."),
                 ]),
                 .paragraph("Saving an arrangement that already has a snapshot replaces it. A snapshot goes when one of its windows closes, and the oldest go once a display has more than the limit set in Preferences."),
                 .permissions(.screenRecording),
