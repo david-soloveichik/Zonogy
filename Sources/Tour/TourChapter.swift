@@ -15,6 +15,13 @@ enum TourChapter: String, CaseIterable {
         }
     }
 
+    /// The chapter after this one, which Continue opens from this one's last page.
+    var next: TourChapter? {
+        let chapters = Self.allCases
+        let index = chapters.firstIndex(of: self)! + 1
+        return index < chapters.count ? chapters[index] : nil
+    }
+
     /// The chapter's pages. Their text names shortcuts by their current bindings, so they are written
     /// anew each time the chapter opens.
     func pages() -> [TourPage] {

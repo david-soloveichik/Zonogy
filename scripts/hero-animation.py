@@ -9,7 +9,6 @@ lights up under the pointer), onto the secondary display's zone, replacing the w
 main display's zone crossfades back to its first window, so the loop restarts where it began.
 
 Usage: python3 scripts/hero-animation.py docs/images/hero-animation.svg
-       python3 scripts/hero-animation.py Resources/Tour/welcome.svg --fluid   (the Welcome chapter's first scene)
 """
 import sys
 
@@ -229,7 +228,7 @@ def motion():
     TL.css.append("@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}.caret{animation:blink 1s step-end infinite}")
 
 
-def build(fluid=False):
+def build():
     motion()
     screens = [
         wallpapers((S1, S2)), menubar(S1), menubar(S2),
@@ -246,9 +245,9 @@ def build(fluid=False):
         f'<g class="curx"><g class="cury">{drag_pill(DM_ROWS[1] * .75)}<g class="press">{CURSOR}</g></g></g>',
     ]
     return document((W, H), TITLE, "scripts/hero-animation.py", (S1, S2), TL.style(), screens,
-                    captions(CAPTIONS, W, CAPTION_Y), stands=((S2, STAND_FLOOR),), fluid=fluid)
+                    captions(CAPTIONS, W, CAPTION_Y), stands=((S2, STAND_FLOOR),))
 
 
 if __name__ == "__main__":
     with open(sys.argv[1], "w") as f:
-        f.write(build(fluid="--fluid" in sys.argv))
+        f.write(build())

@@ -1,5 +1,5 @@
-/// The tour's Welcome chapter: what Zonogy is, its permissions, zones, the destination, finding and moving
-/// windows, the macOS settings that suit it, and where to go next, the other chapters among them.
+/// The tour's Welcome chapter: Zonogy's permissions, zones, the destination, finding and moving windows, the
+/// macOS settings that suit it, and where to go next, the other chapters among them.
 import AppKit
 
 extension TourPage {
@@ -9,10 +9,6 @@ extension TourPage {
         let minimize = shortcuts.keyPhrase(for: .minimizeActiveWindow)
 
         return [
-            TourPage(title: "Welcome to Zonogy", scene: "welcome", blocks: [
-                .paragraph("Zonogy keeps your windows in zones: areas of the display that persist even when empty. The next window opens in the destination zone."),
-                .paragraph("Zonogy replaces Spaces and Stage Manager, so turn Stage Manager off."),
-            ]),
             TourPage(title: "Permissions", blocks: [
                 .permissions(.all),
                 .points([

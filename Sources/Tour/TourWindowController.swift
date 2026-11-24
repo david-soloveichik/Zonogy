@@ -1,8 +1,8 @@
 /// The window that shows the tour: a strip of its chapters along the top, and the chosen chapter's pages, read
-/// front to back with Back and Continue. The Welcome chapter opens by itself on the first launch, and again
-/// after the restart that follows granting Accessibility from its Permissions page; after that, the menu
-/// bar's Help menu reopens the tour where it was left. Like Preferences the window floats, so the user can
-/// try things on the windows beside it.
+/// front to back with Back and Continue, which goes on into the next chapter. The Welcome chapter opens by
+/// itself on the first launch, and again after the restart that follows granting Accessibility from its
+/// Permissions page; after that, the menu bar's Help menu reopens the tour where it was left. Like Preferences
+/// the window floats, so the user can try things on the windows beside it.
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
@@ -166,10 +166,15 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         chapterStrip.show(
             chapter, pageTitles: pages.map(\.title), page: index,
             canOpenChapter: canOpenChapter, canOpenPage: canOpenPage)
-        let isLast = index == pages.count - 1
         backButton.isEnabled = index > 0
-        continueButton.title = isLast ? "Done" : "Continue"
-        continueButton.isEnabled = isLast || canOpenPage(index + 1)
+        // A chapter's last page continues into the next chapter; only the tour's last page is Done.
+        continueButton.title = isAtTourEnd ? "Done" : "Continue"
+        continueButton.isEnabled = index < pages.count - 1
+            ? canOpenPage(index + 1) : chapter.next.map(canOpenChapter) ?? true
+    }
+
+    private var isAtTourEnd: Bool {
+        pageIndex == pages.count - 1 && chapter.next == nil
     }
 
     /// Until Accessibility is granted there is nothing of Zonogy's to try, so only the Welcome chapter opens.
@@ -194,10 +199,12 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func goForward() {
-        if pageIndex == pages.count - 1 {
-            window?.close()
-        } else {
+        if pageIndex < pages.count - 1 {
             showPage(pageIndex + 1)
+        } else if let next = chapter.next {
+            show(next)
+        } else {
+            window?.close()
         }
     }
 
@@ -208,7 +215,7 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         switch (Int(event.keyCode), modifiers) {
         case (kVK_LeftArrow, []) where backButton.isEnabled:
             goBack()
-        case (kVK_RightArrow, []) where continueButton.isEnabled && pageIndex < pages.count - 1:
+        case (kVK_RightArrow, []) where continueButton.isEnabled && !isAtTourEnd:
             goForward()
         case (kVK_ANSI_W, .command):
             window?.performClose(nil)

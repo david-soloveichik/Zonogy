@@ -40,11 +40,10 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 ## What limits the wording
 
-- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 366, 206, 500, 558, 570, 552, 274, 114; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 528, 326, 488. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
+- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 500, 558, 570, 552, 274, 114; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 528, 326, 488. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
 - **Captions** sit on one line under the picture. The longest now is 70 characters; much longer will not fit.
 - **Labels** are placed by hand around the picture. Keep them about as short as they are.
-- **Shared text.** Four things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
-  - The captions of the Welcome page's scene are the README hero animation's captions.
+- **Shared text.** Three things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
   - The banner text is also shown in Preferences > General.
   - "Enable WinShot" is also the checkbox title in Preferences > Snapshots.
   - The two pictogram captions on the Jump keys page are also shown in Preferences > Shortcuts > Zone Navigation.
@@ -53,17 +52,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 ## Chapter: Welcome
 
-### 1. Welcome to Zonogy
-
-Scene captions (`welcome`, shared with the README):
-- Caption: Minimizing a window opens the Launcher in that zone to fill it
-- Caption: Or hover over a Dock icon and drag a specific window
-
-Zonogy keeps your windows in zones: areas of the display that persist even when empty. The next window opens in the destination zone.
-
-Zonogy replaces Spaces and Stage Manager, so turn Stage Manager off.
-
-### 2. Permissions
+### 1. Permissions
 
 [Banners: Accessibility, Screen Recording]
 
@@ -72,7 +61,7 @@ Zonogy replaces Spaces and Stage Manager, so turn Stage Manager off.
 
 Zonogy restarts once Accessibility is granted, and this tour continues.
 
-### 3. Zones
+### 2. Zones
 
 Scene captions (`zones`):
 - Label: New Zone Bar
@@ -85,7 +74,7 @@ An empty zone shows a placeholder that holds the space for a window. Click a New
 
 > Try it: Click a New Zone Bar, then × on the new zone. A full display shows no bar.
 
-### 4. The destination zone
+### 3. The destination zone
 
 Scene captions (`destination`):
 - Label: Reply
@@ -99,7 +88,7 @@ Once that zone is filled, the destination moves to another empty zone. When ever
 
 > Try it: Minimize a window with {minimize}, then open a new window in any app, such as an email reply.
 
-### 5. Finding windows
+### 4. Finding windows
 
 Scene captions (`finding`):
 - Caption: CmdTab switches between windows, most recent first
@@ -113,7 +102,7 @@ Minimized windows are out of sight but one step away.
 
 > Try it: Hover over a running app's Dock icon.
 
-### 6. Moving and resizing
+### 5. Moving and resizing
 
 Scene captions (`moving`):
 - Caption: Drag a window onto another zone: the two windows swap
@@ -128,7 +117,7 @@ With ActiveFit, a window too big for its zone slides fully into view while you u
 
 > Try it: Drag a window onto another zone.
 
-### 7. Finish setting up
+### 6. Finish setting up
 
 These settings in System Settings > Desktop & Dock make Zonogy work better.
 
@@ -144,7 +133,7 @@ More suggestions, such as remapping Caps Lock, are in the README.
 
 [Button: Open Additional Suggestions…]
 
-### 8. More to discover
+### 7. More to discover
 
 - **{gesture keys}-click a zone** to make it the destination, even if occupied.
 - **Drag a Dock icon, file, or link** onto an empty zone or a New Zone Bar to open it there.
@@ -291,7 +280,7 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 
 - Window title: Zonogy Tour
 - Strip along the top: every chapter's name, with a dot for each of the current chapter's pages after its name (hovering over a dot shows its page's title)
-- Buttons: Back, Continue (Done on a chapter's last page)
+- Buttons: Back, Continue (on a chapter's last page, Continue opens the next chapter; the last chapter ends with Done)
 
 ### Where the tour is opened from
 
@@ -308,7 +297,6 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 
 ### Scene descriptions (read by VoiceOver, never shown)
 
-- `welcome` (shared with the README): Zonogy on two displays. Each display keeps its own tiling zones. Minimizing a window, on either display, leaves its zone empty with the Launcher open there to pick a window for it. Dragging a specific window from the menu over its Dock icon onto any zone, on either display, replaces the window there.
 - `zones`: Zones in Zonogy. A bar on each side edge of the display adds a tiling zone there. A new zone is empty: it shows a placeholder, with the Launcher open in it to pick a window for it. Clicking the placeholder's close button removes the zone. Dragging an app from the Dock onto a bar opens its window in a new zone on that side.
 - `destination`: The destination zone in Zonogy. One empty zone is the destination, marked by a glow: replying to an email in Mail opens the reply there. The destination then moves to another empty zone, where the next reply opens. When every zone is full, a new window floats above the tiles.
 - `finding`: Finding windows in Zonogy. CmdTab lists windows, most recent first, and the one chosen fills the empty destination zone. Hovering over a Dock icon lists that app's windows, and the one clicked fills the zone.
