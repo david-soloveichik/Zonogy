@@ -266,7 +266,7 @@ final class GeneralPreferencesViewController: NSViewController {
     /// What the settle delay is for, in its More Info popover.
     private static func makeSettleDelayInfoView() -> NSView {
         let width: CGFloat = 380
-        let label = NSTextField(wrappingLabelWithString: "This counters apps temporarily bringing forward a window other than the one you want, such as an existing window when you open a document.")
+        let label = NSTextField(wrappingLabelWithString: "Apps sometimes briefly bring another window forward first, such as an existing window before the document you opened. The delay keeps Zonogy from reacting to it.")
         label.font = NSFont.systemFont(ofSize: 12)
         label.preferredMaxLayoutWidth = width
         label.translatesAutoresizingMaskIntoConstraints = false
