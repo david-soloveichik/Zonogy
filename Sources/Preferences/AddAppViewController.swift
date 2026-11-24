@@ -36,7 +36,7 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
 
     private func setupExplanationLabel(in container: NSView) {
         explanationLabel = NSTextField(wrappingLabelWithString:
-            "Select a running app to add an exception for, or type a bundle identifier. Only apps eligible for Zonogy management are listed.")
+            "Select a running app to add an exception for, or type a bundle identifier, which can end in a * wildcard. Only apps eligible for Zonogy management are listed.")
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false
         explanationLabel.font = NSFont.systemFont(ofSize: 11)
         explanationLabel.textColor = .secondaryLabelColor

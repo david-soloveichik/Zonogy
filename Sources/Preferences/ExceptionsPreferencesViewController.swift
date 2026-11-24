@@ -41,12 +41,8 @@ final class ExceptionsPreferencesViewController: NSViewController, NSTableViewDa
 
     private func setupExplanationLabel(in container: NSView) {
         let explanationText = """
-        Zonogy manages windows that have: a standard window role, a zoom button, \
-        height ≥ 250px, and are movable. Use this list to create exceptions for \
-        specific apps that need different management, different mouse-gesture \
-        behavior, or should be ignored entirely. An entry ending in * covers every app \
-        whose bundle identifier starts with the text before it; an app covered by \
-        several entries follows the most specific one.
+        Zonogy normally manages windows that have: a standard window role, a zoom button, \
+        height ≥ 250px, and are movable. Exceptions for specific apps:
         """
         explanationLabel = NSTextField(wrappingLabelWithString: explanationText)
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false

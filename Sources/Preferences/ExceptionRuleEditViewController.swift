@@ -65,6 +65,12 @@ final class ExceptionRuleEditViewController: NSViewController, NSTextFieldDelega
         bundleIdRow.spacing = 6
         container.addSubview(bundleIdRow)
 
+        let wildcardNote = NSTextField(labelWithString: "Can end in a * wildcard.")
+        wildcardNote.translatesAutoresizingMaskIntoConstraints = false
+        wildcardNote.font = NSFont.systemFont(ofSize: 11)
+        wildcardNote.textColor = .secondaryLabelColor
+        container.addSubview(wildcardNote)
+
         NSLayoutConstraint.activate([
             iconView.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
@@ -77,10 +83,13 @@ final class ExceptionRuleEditViewController: NSViewController, NSTextFieldDelega
             bundleIdRow.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 4),
             bundleIdRow.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
             bundleIdRow.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+
+            wildcardNote.topAnchor.constraint(equalTo: bundleIdRow.bottomAnchor, constant: 4),
+            wildcardNote.leadingAnchor.constraint(equalTo: bundleIdRow.leadingAnchor),
         ])
 
-        // Everything below the bundle identifier stacks in full-width rows
-        var previousBottom = bundleIdRow.bottomAnchor
+        // Everything below the bundle identifier and its note stacks in full-width rows
+        var previousBottom = wildcardNote.bottomAnchor
         func addRow(_ row: NSView, spacing: CGFloat) {
             row.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(row)
