@@ -26,4 +26,12 @@ struct TourPage {
     /// The animated picture above the text: the name of a file in Resources/Tour, without its extension.
     var scene: String?
     let blocks: [Block]
+
+    /// Whether the page asks for Accessibility, which the pages after it need.
+    var asksForAccessibility: Bool {
+        blocks.contains {
+            guard case .permissions(let permissions) = $0 else { return false }
+            return permissions.contains(.accessibility)
+        }
+    }
 }

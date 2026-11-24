@@ -9,7 +9,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 - Change wording freely. You can also delete, add, split, merge, or reorder paragraphs, bullets, and pages.
 - Keep each block's marker, so the edit can be traced back to the sources:
-  - `## Chapter: Welcome` starts a chapter. Its name labels the chapter's icon in the window's toolbar.
+  - `## Chapter: Welcome` starts a chapter. Its name appears in the strip along the top of the window.
   - `### 3. Zones` is a page; the text after the number is the page's title.
   - A plain paragraph is a paragraph of body text.
   - `- **Lead** text` is a bullet. The bold part is set in bold in the app.
@@ -290,9 +290,8 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 ### The tour window
 
 - Window title: Zonogy Tour
-- Toolbar: one icon per chapter, labeled with the chapter's name
+- Strip along the top: every chapter's name, with a dot for each of the current chapter's pages after its name (hovering over a dot shows its page's title)
 - Buttons: Back, Continue (Done on a chapter's last page)
-- Page position: 3 of 8
 
 ### Where the tour is opened from
 

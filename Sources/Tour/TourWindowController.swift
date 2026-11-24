@@ -1,21 +1,18 @@
-/// The window that shows the tour: its chapters in the toolbar, and the chosen chapter's pages, read front to
-/// back with Back and Continue. The Welcome chapter opens by itself on the first launch, and again after the
-/// restart that follows granting Accessibility from its Permissions page; after that, the menu bar's Help
-/// menu reopens the tour where it was left. Like Preferences the window floats, so the user can try things
-/// on the windows beside it.
+/// The window that shows the tour: a strip of its chapters along the top, and the chosen chapter's pages, read
+/// front to back with Back and Continue. The Welcome chapter opens by itself on the first launch, and again
+/// after the restart that follows granting Accessibility from its Permissions page; after that, the menu
+/// bar's Help menu reopens the tour where it was left. Like Preferences the window floats, so the user can
+/// try things on the windows beside it.
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
-final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation {
+final class TourWindowController: NSWindowController, NSWindowDelegate {
     static let shared = TourWindowController()
 
     /// Stable tag so other subsystems can recognize the tour's window (see `OwnContentWindows`) without
     /// forcing this singleton to instantiate.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("ZonogyTour")
-
-    /// The toolbar's items, one per chapter, each named by its chapter's raw value.
-    private static let chapterItemIdentifiers = TourChapter.allCases.map { NSToolbarItem.Identifier($0.rawValue) }
 
     private var chapter = TourChapter.welcome
     private var pages: [TourPage] = []
@@ -23,9 +20,9 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
     /// Whether Accessibility was granted when the tour was last shown.
     private var isTrusted = false
     private var pageView: TourPageView?
+    private let chapterStrip = TourChapterStrip()
     private let pageContainer = NSView()
     private var pageContainerHeight: NSLayoutConstraint!
-    private let positionLabel = NSTextField(labelWithString: "")
     private var backButton: NSButton!
     private var continueButton: NSButton!
 
@@ -41,13 +38,9 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window.isReleasedWhenClosed = false
         // The tour is often in the way of what it describes, so any part of it drags it aside.
         window.isMovableByWindowBackground = true
-        window.toolbarStyle = .preference
 
         super.init(window: window)
         window.delegate = self
-        let toolbar = NSToolbar(identifier: "ZonogyTour")
-        toolbar.delegate = self
-        window.toolbar = toolbar
         setupContent()
     }
 
@@ -58,22 +51,33 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private func setupContent() {
         guard let contentView = window?.contentView else { return }
 
-        positionLabel.font = NSFont.systemFont(ofSize: 12)
-        positionLabel.textColor = .secondaryLabelColor
+        chapterStrip.onChooseChapter = { [weak self] in self?.show($0) }
+        chapterStrip.onChoosePage = { [weak self] in self?.showPage($0) }
+        // Sets the strip apart from the page below it.
+        let stripSeparator = NSBox()
+        stripSeparator.boxType = .separator
         backButton = NSButton(title: "Back", target: self, action: #selector(goBack))
         backButton.bezelStyle = .rounded
         continueButton = NSButton(title: "Continue", target: self, action: #selector(goForward))
         continueButton.bezelStyle = .rounded
         continueButton.keyEquivalent = "\r"
 
-        for view in [pageContainer, positionLabel, backButton!, continueButton!] {
+        for view in [chapterStrip, stripSeparator, pageContainer, backButton!, continueButton!] {
             view.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(view)
         }
         pageContainerHeight = pageContainer.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
-            pageContainer.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+            chapterStrip.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            chapterStrip.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            chapterStrip.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
+
+            stripSeparator.topAnchor.constraint(equalTo: chapterStrip.bottomAnchor, constant: 12),
+            stripSeparator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            stripSeparator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+
+            pageContainer.topAnchor.constraint(equalTo: stripSeparator.bottomAnchor, constant: 20),
             pageContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             pageContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             pageContainer.widthAnchor.constraint(equalToConstant: TourPageView.contentWidth),
@@ -87,9 +91,6 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
             backButton.trailingAnchor.constraint(equalTo: continueButton.leadingAnchor, constant: -8),
             backButton.centerYAnchor.constraint(equalTo: continueButton.centerYAnchor),
             backButton.widthAnchor.constraint(equalTo: continueButton.widthAnchor),
-
-            positionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            positionLabel.centerYAnchor.constraint(equalTo: continueButton.centerYAnchor),
         ])
     }
 
@@ -117,8 +118,8 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
     func show(_ chapter: TourChapter, at page: Int = 0) {
         TourProgressStore.hasBeenShown = true
         guard let window else { return }
-        // Until Accessibility is granted there is nothing of Zonogy's to try, so the toolbar offers only the
-        // Welcome chapter, and the tour does not float: it would cover System Settings, where it is granted.
+        // Until Accessibility is granted the tour does not float: it would cover System Settings, where it is
+        // granted.
         isTrusted = AXIsProcessTrusted()
         window.level = isTrusted ? .floating : .normal
 
@@ -132,7 +133,6 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
         }
 
         self.chapter = chapter
-        window.toolbar?.selectedItemIdentifier = NSToolbarItem.Identifier(chapter.rawValue)
         pages = chapter.pages()
         showPage(max(0, min(page, pages.count - 1)))
         window.makeKeyAndOrderFront(nil)
@@ -163,15 +163,24 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
         }
         view.permissionBanners?.startPolling()
 
+        chapterStrip.show(
+            chapter, pageTitles: pages.map(\.title), page: index,
+            canOpenChapter: canOpenChapter, canOpenPage: canOpenPage)
         let isLast = index == pages.count - 1
-        positionLabel.stringValue = "\(index + 1) of \(pages.count)"
         backButton.isEnabled = index > 0
         continueButton.title = isLast ? "Done" : "Continue"
-        // The pages after the one asking for Accessibility describe Zonogy at work, so they wait for it.
-        // Granting it restarts Zonogy on the next page, so the button never needs enabling while this
-        // page shows.
-        let asksForAccessibility = view.permissionBanners?.permissions.contains(.accessibility) ?? false
-        continueButton.isEnabled = !asksForAccessibility || isTrusted
+        continueButton.isEnabled = isLast || canOpenPage(index + 1)
+    }
+
+    /// Until Accessibility is granted there is nothing of Zonogy's to try, so only the Welcome chapter opens.
+    private func canOpenChapter(_ chapter: TourChapter) -> Bool {
+        isTrusted || chapter == .welcome
+    }
+
+    /// The pages after one asking for Accessibility describe Zonogy at work, so they wait for it. Granting it
+    /// restarts Zonogy, so what opens never changes while the tour shows.
+    private func canOpenPage(_ index: Int) -> Bool {
+        isTrusted || !pages[..<index].contains(where: \.asksForAccessibility)
     }
 
     private func removePage() {
@@ -206,43 +215,6 @@ final class TourWindowController: NSWindowController, NSWindowDelegate, NSToolba
         default:
             super.keyDown(with: event)
         }
-    }
-
-    // MARK: - Toolbar
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        Self.chapterItemIdentifiers
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        Self.chapterItemIdentifiers
-    }
-
-    /// The chapter showing is the selected item.
-    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        Self.chapterItemIdentifiers
-    }
-
-    func toolbar(
-        _ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        guard let chapter = TourChapter(rawValue: itemIdentifier.rawValue) else { return nil }
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = chapter.title
-        item.image = NSImage(systemSymbolName: chapter.symbolName, accessibilityDescription: nil)
-        item.target = self
-        item.action = #selector(chooseChapter(_:))
-        return item
-    }
-
-    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
-        isTrusted || item.itemIdentifier.rawValue == TourChapter.welcome.rawValue
-    }
-
-    /// A chapter opens at its first page.
-    @objc private func chooseChapter(_ item: NSToolbarItem) {
-        TourChapter(rawValue: item.itemIdentifier.rawValue).map { show($0) }
     }
 
     // MARK: - NSWindowDelegate

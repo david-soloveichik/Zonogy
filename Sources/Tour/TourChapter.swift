@@ -1,4 +1,4 @@
-/// The tour's chapters, each a run of pages, listed in the tour window's toolbar. The Welcome chapter
+/// The tour's chapters, each a run of pages, listed along the top of the tour window. The Welcome chapter
 /// introduces Zonogy on first launch; each of the others covers one topic.
 import Foundation
 
@@ -12,15 +12,6 @@ enum TourChapter: String, CaseIterable {
         case .welcome: return "Welcome"
         case .keyboard: return "Keyboard"
         case .winShot: return "WinShot Snapshots"
-        }
-    }
-
-    /// The SF Symbol that stands for the chapter in the toolbar.
-    var symbolName: String {
-        switch self {
-        case .welcome: return "hand.wave"
-        case .keyboard: return "keyboard"
-        case .winShot: return "camera"  // as on the Snapshots tab of Preferences
         }
     }
 
