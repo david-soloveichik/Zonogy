@@ -207,8 +207,8 @@
 <g class="nzbar"><rect x="883.5" y="192.67" width="5" height="166.67" rx="2.5" fill="#fff" fill-opacity=".6" stroke="#fff" stroke-opacity=".75" stroke-width=".8"/></g>
 </g>
 <g class="keys">
-<rect x="412" y="557" width="96" height="34" rx="7" fill="#0b0e15"/>
-<g class="kone"><rect x="412" y="554" width="96" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="konehi"><rect x="412" y="554" width="96" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">one zone</text></g>
+<rect x="420" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kone"><rect x="420" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="konehi"><rect x="420" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{one zone}</text></g>
 </g>
 <text class="cap0" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Keep only the focused window's zone</text>
 <text class="cap1" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">It fills the display, and the other windows are minimized</text>

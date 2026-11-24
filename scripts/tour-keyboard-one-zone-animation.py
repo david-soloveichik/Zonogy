@@ -25,7 +25,7 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Keep only the focused window's zone", .3, 2.6),
     ("It fills the display, and the other windows are minimized", 2.9, 5.6),
 )
-KEYS = (("one zone", 96, "kone"),)
+KEYS = (("{one zone}", 80, "kone"),)
 
 TOP, BOTTOM = top_half(RIGHT), bottom_half(RIGHT)
 PRESS = 1.6  # the one-zone shortcut

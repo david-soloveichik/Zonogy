@@ -629,7 +629,7 @@ def keycaps(keys, center_x, y):
     total = sum(w for _, w, _ in keys) + 10 * (len(keys) - 1)
     x, s = center_x - total / 2, ['<g class="keys">']
     for label, w, cls in keys:
-        size = 18 if len(label) == 1 else 14
+        size = 18 if len(label) == 1 else 14  # as the tour sizes keys it puts in place of a token
         s += [rect(x, y + 3, w, 34, 7, fill="#0b0e15"),
               f'<g class="{cls}">' + rect(x, y, w, 34, 7, fill="#20263a", stroke="#3b4357")
               + f'<g class="{cls}hi">' + rect(x, y, w, 34, 7, fill=ZBLUE, fill_opacity=".6") + "</g>"

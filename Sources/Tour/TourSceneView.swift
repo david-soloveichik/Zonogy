@@ -1,6 +1,6 @@
-/// Plays one of the tour's scenes: an animated SVG from Resources/Tour, drawn by scripts/tour-*.py.
-/// A scene animates with CSS keyframes, which takes a web view to play. It is only a picture: scripting is
-/// off, and the view takes no clicks or scrolling.
+/// Plays one of the tour's scenes: an animated SVG from Resources/Tour, drawn by scripts/tour-*.py, with its
+/// keycaps showing the current shortcuts (see TourKeycaps). A scene animates with CSS keyframes, which takes
+/// a web view to play. It is only a picture: scripting is off, and the view takes no clicks or scrolling.
 import AppKit
 import WebKit
 
@@ -47,7 +47,8 @@ final class TourSceneView: NSView, WKNavigationDelegate {
     /// The web view is made once the scene is on screen, so a page that is only being measured costs none.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard window != nil, webView == nil, let path else { return }
+        guard window != nil, webView == nil, let path,
+              let scene = try? String(contentsOfFile: path, encoding: .utf8) else { return }
 
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
@@ -59,8 +60,9 @@ final class TourSceneView: NSView, WKNavigationDelegate {
         addSubview(webView)
         self.webView = webView
 
-        let url = URL(fileURLWithPath: path)
-        webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        webView.load(
+            Data(TourKeycaps.fill(scene).utf8), mimeType: "image/svg+xml", characterEncodingName: "UTF-8",
+            baseURL: URL(fileURLWithPath: path))
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

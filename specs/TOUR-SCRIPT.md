@@ -15,7 +15,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
   - `- **Lead** text` is a bullet. The bold part is set in bold in the app.
   - `> Try it: ...` is the tinted "Try it" line. The words "Try it:" are added by the app.
   - `[Button: ...]`, `[Checkbox: ...]`, `[Banners: ...]` and `[Pictograms: ...]` are controls and pictures. Only a button's or checkbox's title can be edited here.
-  - Lines under `Scene captions` are text drawn inside the animation above the page: `Caption:` lines appear one after another under the picture, `Label:` lines point at parts of it, and `Keycap:` lines are the words on keycaps drawn under the display (keys the user can change say what they do instead of naming a key).
+  - Lines under `Scene captions` are text drawn inside the animation above the page: `Caption:` lines appear one after another under the picture, `Label:` lines point at parts of it, and `Keycap:` lines are the keycaps drawn under the display for keys the user can change (keys that cannot change, such as the arrows, are not listed). Each is a token: the cap shows the current keys, or the token's words while that shortcut is unset.
 - Keep the `{tokens}`. The app replaces each with the user's current binding.
 
 | Token | Stands for | Default |
@@ -158,8 +158,8 @@ More chapters are at the top of this window. Every shortcut is in Preferences > 
 ### 1. Adding and removing zones
 
 Scene captions (`keyboard-zones`):
-- Keycap: add zone
-- Keycap: minimize
+- Keycap: {add zone}
+- Keycap: {minimize}
 - Caption: Add a zone: it opens empty, with the Launcher in it
 - Caption: Minimize a window: its zone stays, with the Launcher open
 - Caption: Minimize again to remove the zone
@@ -173,7 +173,7 @@ Press {minimize} to minimize the focused window, as usual. Its zone stays, with 
 ### 2. One zone
 
 Scene captions (`keyboard-one-zone`):
-- Keycap: one zone
+- Keycap: {one zone}
 - Caption: Keep only the focused window's zone
 - Caption: It fills the display, and the other windows are minimized
 
@@ -184,7 +184,7 @@ Press {one zone} to keep only the focused window's zone. The window fills the di
 ### 3. Clearing the display
 
 Scene captions (`keyboard-clear`):
-- Keycap: clear
+- Keycap: {clear}
 - Caption: Clear the display: every window is minimized, and the zones stay
 - Caption: Clear it again to go back to one zone
 
@@ -195,7 +195,7 @@ Press {clear} to clear the display: every window on it is minimized, and its zon
 ### 4. Stepping between zones
 
 Scene captions (`keyboard-stepping`):
-- Keycap: hold
+- Keycap: {navigation keys}
 - Caption: Hold the modifier keys and press arrows: a circle steps between zones
 - Caption: Release on an empty zone to make it the destination, with the Launcher
 - Caption: Release on a window's zone to focus that window
@@ -209,9 +209,9 @@ Release {navigation keys} to focus this zone's window, or to make this zone the 
 ### 5. Acting on this zone
 
 Scene captions (`keyboard-acting`):
-- Keycap: hold
-- Keycap: move
-- Keycap: add
+- Keycap: {navigation keys}
+- Keycap: {move key}
+- Keycap: {add key}
 - Caption: With the circle on a zone, the move key brings your window into it
 - Caption: The add key adds a zone there, ready to fill
 

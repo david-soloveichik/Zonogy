@@ -29,7 +29,7 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Release on an empty zone to make it the destination, with the Launcher", 3.4, 5.8),
     ("Release on a window's zone to focus that window", 6.0, 9.2),
 )
-KEYS = (("hold", 76, "khold"), ("←", 40, "kleft"), ("↑", 40, "kup"), ("↓", 40, "kdown"), ("→", 40, "kright"))
+KEYS = (("{navigation keys}", 80, "khold"), ("←", 40, "kleft"), ("↑", 40, "kup"), ("↓", 40, "kdown"), ("→", 40, "kright"))
 
 WINDOW, EMPTY = top_half(RIGHT), bottom_half(RIGHT)  # the right column: a window over the empty zone
 ROWS = (("green", 96, 52), ("amber", 116, 62), ("teal", 86, 48), ("pink", 104, 56))  # the Launcher's rows

@@ -28,7 +28,7 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Minimize a window: its zone stays, with the Launcher open", 4.0, 6.8),
     ("Minimize again to remove the zone", 7.1, 9.7),
 )
-KEYS = (("add zone", 96, "kadd"), ("↩", 40, "kret"), ("minimize", 96, "kmin"))
+KEYS = (("{add zone}", 80, "kadd"), ("↩", 40, "kret"), ("{minimize}", 80, "kmin"))
 
 ADDED = bottom_half(RIGHT)  # the zone the shortcut adds, and the second minimize removes
 ROWS = (("orange", 96, 52), ("green", 116, 62), ("amber", 86, 48), ("pink", 104, 56))  # the Launcher's; Return opens the first

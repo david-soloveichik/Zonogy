@@ -2,8 +2,9 @@
 display with two columns of zones, Zonogy's edge bars, labels, the pointer, and the file each scene writes.
 The drawing itself is in animation_common.py.
 
-A tour plays a scene in a web view above a page's text. A scene's captions and labels name no keys:
-shortcuts are the user's to change, so only the page's text, which the app writes, mentions them.
+A tour plays a scene in a web view above a page's text. Shortcuts are the user's to change, so a scene's
+captions and labels name no keys, and a keycap for keys the user can change carries a token of
+specs/TOUR-SCRIPT.md, such as {add zone}, which the app replaces with the current keys.
 """
 from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, ZBLUE, at, bar, captions, center, columns,
                               dock, dock_origin, document, ease_progress, full_window, keycaps, menubar, n, opacity,
@@ -201,8 +202,9 @@ def write_scene(path, title, generator, tl, content, caption_texts, restart_at=N
     captions under the display.
 
     A scene about the keyboard gives `keys`: (label, width, class) caps drawn in a row between the display
-    and the captions (see keycaps), on a canvas KEY_ROW taller. Only keys that are not the user's to change
-    carry their glyph; the others say what they do.
+    and the captions (see keycaps), on a canvas KEY_ROW taller. A key that is not the user's to change
+    carries its glyph; any other carries a token (see above), on a cap wide enough for the keys it may stand
+    for.
 
     A scene that cannot end as it began gives `restart_at`: the whole picture fades to the stage's color, is
     covered from then for RESTART_COVER seconds, and fades back. The scene returns to its opening state while

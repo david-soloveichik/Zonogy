@@ -242,12 +242,12 @@
 </g></g>
 </g>
 <g class="keys">
-<rect x="334" y="557" width="96" height="34" rx="7" fill="#0b0e15"/>
-<g class="kadd"><rect x="334" y="554" width="96" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kaddhi"><rect x="334" y="554" width="96" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="382" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">add zone</text></g>
+<rect x="350" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kadd"><rect x="350" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kaddhi"><rect x="350" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="390" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{add zone}</text></g>
 <rect x="440" y="557" width="40" height="34" rx="7" fill="#0b0e15"/>
 <g class="kret"><rect x="440" y="554" width="40" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="krethi"><rect x="440" y="554" width="40" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="500" fill="#e6eaf2">↩</text></g>
-<rect x="490" y="557" width="96" height="34" rx="7" fill="#0b0e15"/>
-<g class="kmin"><rect x="490" y="554" width="96" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kminhi"><rect x="490" y="554" width="96" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="538" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">minimize</text></g>
+<rect x="490" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kmin"><rect x="490" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kminhi"><rect x="490" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="530" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{minimize}</text></g>
 </g>
 <text class="cap0" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Add a zone: it opens empty, with the Launcher in it</text>
 <text class="cap1" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize a window: its zone stays, with the Launcher open</text>

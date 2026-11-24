@@ -30,8 +30,8 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("With the circle on a zone, the move key brings your window into it", .5, 4.0),
     ("The add key adds a zone there, ready to fill", 4.4, 9.0),
 )
-KEYS = (("hold", 76, "khold"), ("←", 40, "kleft"), ("↑", 40, "kup"), ("↓", 40, "kdown"), ("→", 40, "kright"),
-        ("move", 76, "kmove"), ("add", 64, "kadd"))
+KEYS = (("{navigation keys}", 80, "khold"), ("←", 40, "kleft"), ("↑", 40, "kup"), ("↓", 40, "kdown"), ("→", 40, "kright"),
+        ("{move key}", 56, "kmove"), ("{add key}", 56, "kadd"))
 
 TOP, BOTTOM = top_half(RIGHT), bottom_half(RIGHT)
 ADDED = bottom_half(LEFT)  # the zone the add key creates

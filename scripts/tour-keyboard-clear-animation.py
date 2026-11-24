@@ -26,7 +26,7 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Clear the display: every window is minimized, and the zones stay", .3, 4.0),
     ("Clear it again to go back to one zone", 4.3, 7.9),
 )
-KEYS = (("clear", 72, "kclear"),)
+KEYS = (("{clear}", 80, "kclear"),)
 
 TOP, BOTTOM = top_half(RIGHT), bottom_half(RIGHT)
 ROWS = (("purple", 96, 52), ("blue", 116, 62), ("orange", 86, 48), ("green", 104, 56))  # the Launcher's: the windows just minimized first

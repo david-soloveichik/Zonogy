@@ -261,8 +261,8 @@
 </g>
 </g>
 <g class="keys">
-<rect x="424" y="557" width="72" height="34" rx="7" fill="#0b0e15"/>
-<g class="kclear"><rect x="424" y="554" width="72" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kclearhi"><rect x="424" y="554" width="72" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">clear</text></g>
+<rect x="420" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kclear"><rect x="420" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kclearhi"><rect x="420" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{clear}</text></g>
 </g>
 <text class="cap0" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Clear the display: every window is minimized, and the zones stay</text>
 <text class="cap1" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Clear it again to go back to one zone</text>
