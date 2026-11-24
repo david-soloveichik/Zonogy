@@ -124,7 +124,7 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 ## Installation
 
 1. Download `Zonogy-<version>.dmg` from the [latest release](https://github.com/david-soloveichik/Zonogy/releases/latest), open it, and drag Zonogy into Applications. The app is signed and notarized.
-2. On first launch, Zonogy opens Preferences to walk you through granting Accessibility (necessary) and Screen Recording Permissions (optional for WinShot snapshots).
+2. On first launch, Zonogy opens a tour that walks you through granting Accessibility (necessary) and Screen Recording Permissions (optional for WinShot snapshots), then introduces the main features. Reopen it any time from Help > Zonogy Tour... in the menu bar menu.
 3. Zonogy checks for new versions automatically (unless turned off). To update, replace the app with the freshly downloaded version; permissions carry over.
 
 ## Requirements

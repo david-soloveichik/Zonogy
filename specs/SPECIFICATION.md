@@ -281,6 +281,8 @@ If an ActiveFit window in reveal mode would overlap a zone resize bar, the bars 
 
 If the front-most managed window on a display would overlap a zone resize bar, the bars adapt so they do not interfere with that active window: each bar is shortened (or hidden if fully covered) so it stays outside the front-most window. Ignore small overlaps (e.g., window shadows) when computing these intersections. Recompute these bar adjustments immediately when the active/front-most window changes (including app activation) and after a resize drag completes.
 
+Bars also stay outside Zonogy's own Preferences and tour windows in the same way, no matter the active application.
+
 When the floating zone is occupied on a display, hide the zone resize bars that the floating zone window would overlap. Bars that do not intersect the floating window remain visible. (During an active resize drag, the dragged bar is never hidden by this rule.)
 
 When an unmanaged window has focus on a display, hide all zone resize bars on that display to avoid overlapping the unmanaged window. (Hide-all rather than per-bar avoidance: it would go stale as the unmanaged window moves or resizes, and we avoid AX move/resize subscriptions for unmanaged apps.)
@@ -457,8 +459,9 @@ Preferences → General sets the settle delay ("Treat changes as intentional aft
 
 Zonogy runs from a menu bar icon, and that menu is where the app's own commands live: the running version, then "Check for Updates..." (see **Software Updates**), "Preferences...", "Clear All Snapshots" and "Save Snapshot" (see **WinShot Snapshots**), a "Help" submenu, and "Quit Zonogy".
 
-The Help submenu holds the repository link and two ways to send feedback, one public and one private:
+The Help submenu holds the tour, the repository link, and two ways to send feedback, one public and one private:
 
+- **Zonogy Tour...** opens the tour, which walks through granting permissions and Zonogy's main features. It also opens by itself on first launch.
 - **GitHub** opens the Zonogy repository in the default browser.
 - **Feedback on GitHub...** opens a new issue on the repository.
 - **Feedback by Email...** opens the default email app with a new message to the maintainer and a prefilled "Zonogy Feedback" subject.
