@@ -64,7 +64,7 @@ extension WindowController {
         }
 
         if let bundleId = application.bundleIdentifier,
-           ignoredBundleIdentifiers.contains(bundleId) {
+           applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
             Logger.debug("Skipping capture for ignored bundle \(bundleId)")
             return nil
         }
@@ -190,7 +190,7 @@ extension WindowController {
 
         let bundleIdentifier = application.bundleIdentifier
         if let bundleId = bundleIdentifier,
-           ignoredBundleIdentifiers.contains(bundleId) {
+           applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
             return CaptureResult(windows: [], needsRetry: false)
         }
 

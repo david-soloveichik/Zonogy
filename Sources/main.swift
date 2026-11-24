@@ -25,8 +25,9 @@ app.setActivationPolicy(.accessory)
 // Initialize the AppController singleton
 let appController = AppController.shared
 
-// If Accessibility permissions are not granted, show Preferences (General tab)
-if !AXIsProcessTrusted() {
+// The first launch opens the tour's Welcome chapter, which covers granting permissions. On later launches,
+// if Accessibility permissions are not granted, show Preferences (General tab)
+if !TourWindowController.showAtLaunchIfNeeded(), !AXIsProcessTrusted() {
     Logger.debug("Accessibility permission not granted - showing Preferences")
     PreferencesWindowController.shared.showWindow()
 }

@@ -5,20 +5,14 @@ import Foundation
 struct ExceptionsPreferencesEntry {
     var rule: ApplicationExceptionRule
     var isIgnored: Bool
-    private(set) var persistsRuleWithoutMeaningfulSettings: Bool
 
     var bundleIdentifier: String {
         rule.bundleIdentifier
     }
 
-    init(
-        rule: ApplicationExceptionRule,
-        isIgnored: Bool = false,
-        persistsRuleWithoutMeaningfulSettings: Bool = true
-    ) {
+    init(rule: ApplicationExceptionRule, isIgnored: Bool = false) {
         self.rule = rule
         self.isIgnored = isIgnored
-        self.persistsRuleWithoutMeaningfulSettings = persistsRuleWithoutMeaningfulSettings
     }
 
     var summary: String {
@@ -33,11 +27,11 @@ struct ExceptionsPreferencesEntry {
         return parts.isEmpty ? "(none)" : parts.joined(separator: ", ")
     }
 
+    /// The rule config.json keeps for this entry. An ignored entry needs one only for the settings it
+    /// has, as the ignored list records the entry itself. Any other entry keeps its rule even when
+    /// empty: the entry still takes precedence over broader patterns.
     var persistedRule: ApplicationExceptionRule? {
-        if rule.hasMeaningfulExceptionSettings || persistsRuleWithoutMeaningfulSettings {
-            return rule
-        }
-        return nil
+        isIgnored && !rule.hasMeaningfulExceptionSettings ? nil : rule
     }
 
     static func sortedForDisplay(_ entries: [ExceptionsPreferencesEntry]) -> [ExceptionsPreferencesEntry] {
@@ -50,21 +44,13 @@ struct ExceptionsPreferencesEntry {
     ) -> [ExceptionsPreferencesEntry] {
         let ignoredSet = Set(ignoredBundleIdentifiers)
         var entries = rules.map {
-            ExceptionsPreferencesEntry(
-                rule: $0,
-                isIgnored: ignoredSet.contains($0.bundleIdentifier),
-                persistsRuleWithoutMeaningfulSettings: true
-            )
+            ExceptionsPreferencesEntry(rule: $0, isIgnored: ignoredSet.contains($0.bundleIdentifier))
         }
 
         let existingBundleIdentifiers = Set(rules.map(\.bundleIdentifier))
         for bundleIdentifier in ignoredBundleIdentifiers where !existingBundleIdentifiers.contains(bundleIdentifier) {
             entries.append(
-                ExceptionsPreferencesEntry(
-                    rule: ApplicationExceptionRule(bundleIdentifier: bundleIdentifier),
-                    isIgnored: true,
-                    persistsRuleWithoutMeaningfulSettings: false
-                )
+                ExceptionsPreferencesEntry(rule: ApplicationExceptionRule(bundleIdentifier: bundleIdentifier), isIgnored: true)
             )
         }
 

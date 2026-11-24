@@ -30,6 +30,12 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController {
         let titleLabel = NSTextField(labelWithString: "WinShot Snapshots")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
 
+        let tourButton = NSButton(title: "WinShot Tour…", target: self, action: #selector(showTour))
+        tourButton.bezelStyle = .rounded
+        tourButton.controlSize = .small
+        tourButton.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(tourButton)
+
         let winShotCheckbox = NSButton(checkboxWithTitle: "Enable WinShot", target: self, action: #selector(winShotToggled(_:)))
         self.winShotCheckbox = winShotCheckbox
         // Shown only while the permission is missing, in the warning style of General's permission status.
@@ -90,6 +96,9 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController {
             page.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             page.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
             winShotHintLabel.trailingAnchor.constraint(equalTo: page.trailingAnchor),
+
+            tourButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            tourButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
         ])
 
         self.view = containerView
@@ -122,6 +131,10 @@ final class WinShotSnapshotsPreferencesViewController: NSViewController {
     }
 
     // MARK: - Actions
+
+    @objc private func showTour() {
+        TourWindowController.shared.show(.winShot)
+    }
 
     @objc private func winShotToggled(_ sender: NSButton) {
         let enabled = sender.state == .on

@@ -1,20 +1,30 @@
-/// View controller for editing a single app's exception rules. Each exception's title ends with the
-/// gray short name that stands for it in the Exceptions table.
+/// View controller for editing a single Exceptions entry: its bundle identifier (which may be a
+/// pattern) and its exception rules. Each exception's title ends with the gray short name that stands
+/// for it in the Exceptions table. The sheet's height fits its content.
 
 import AppKit
 
-final class ExceptionRuleEditViewController: NSViewController {
+final class ExceptionRuleEditViewController: NSViewController, NSTextFieldDelegate {
+
+    private static let width: CGFloat = 450
 
     private let originalEntry: ExceptionsPreferencesEntry
+    /// The other entries' bundle identifiers, which this entry can't take.
+    private let otherBundleIdentifiers: Set<String>
     var onSave: ((ExceptionsPreferencesEntry) -> Void)?
 
+    private var iconView: NSImageView!
+    private var bundleIdField: NSTextField!
+    private var duplicateWarning: ConflictWarningView!
     private var ignoreApplicationCheckbox: NSButton!
     private var optionCheckboxes: [(option: ExceptionOption, checkbox: NSButton)] = []
     private var excludedTitlesLabel: NSTextField!
     private var excludedTitlesField: NSTextField!
+    private var saveButton: NSButton!
 
-    init(entry: ExceptionsPreferencesEntry) {
+    init(entry: ExceptionsPreferencesEntry, otherBundleIdentifiers: Set<String>) {
         self.originalEntry = entry
+        self.otherBundleIdentifiers = otherBundleIdentifiers
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -23,8 +33,9 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: 550))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 550))
         containerView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.widthAnchor.constraint(equalToConstant: Self.width).isActive = true
 
         setupUI(in: containerView)
         populateFields()
@@ -33,31 +44,26 @@ final class ExceptionRuleEditViewController: NSViewController {
     }
 
     private func setupUI(in container: NSView) {
-        // App icon
-        let icon: NSImage
-        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: originalEntry.bundleIdentifier) {
-            icon = NSWorkspace.shared.icon(forFile: appURL.path)
-        } else {
-            icon = NSImage(systemSymbolName: "app", accessibilityDescription: "App") ?? NSImage()
-        }
-        icon.size = NSSize(width: 32, height: 32)
-
-        let iconView = NSImageView(image: icon)
+        // The icon follows the bundle identifier as it's edited (see updateBundleIdentifierState)
+        iconView = NSImageView()
         iconView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(iconView)
 
-        // Bundle ID label (read-only)
         let bundleIdLabel = NSTextField(labelWithString: "Bundle Identifier:")
         bundleIdLabel.translatesAutoresizingMaskIntoConstraints = false
         bundleIdLabel.font = NSFont.boldSystemFont(ofSize: 12)
         container.addSubview(bundleIdLabel)
 
-        let bundleIdValue = NSTextField(labelWithString: originalEntry.bundleIdentifier)
-        bundleIdValue.translatesAutoresizingMaskIntoConstraints = false
-        bundleIdValue.font = NSFont.systemFont(ofSize: 12)
-        bundleIdValue.textColor = .secondaryLabelColor
-        bundleIdValue.lineBreakMode = .byTruncatingMiddle
-        container.addSubview(bundleIdValue)
+        bundleIdField = NSTextField(string: originalEntry.bundleIdentifier)
+        bundleIdField.font = NSFont.systemFont(ofSize: 12)
+        bundleIdField.placeholderString = "e.g., com.adobe.PremierePro*"
+        bundleIdField.delegate = self
+        duplicateWarning = ConflictWarningView(text: "Another entry already has this bundle identifier")
+        let bundleIdRow = NSStackView(views: [bundleIdField, duplicateWarning])
+        bundleIdRow.translatesAutoresizingMaskIntoConstraints = false
+        bundleIdRow.distribution = .fill
+        bundleIdRow.spacing = 6
+        container.addSubview(bundleIdRow)
 
         NSLayoutConstraint.activate([
             iconView.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
@@ -68,13 +74,13 @@ final class ExceptionRuleEditViewController: NSViewController {
             bundleIdLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
             bundleIdLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
 
-            bundleIdValue.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 2),
-            bundleIdValue.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            bundleIdValue.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            bundleIdRow.topAnchor.constraint(equalTo: bundleIdLabel.bottomAnchor, constant: 4),
+            bundleIdRow.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
+            bundleIdRow.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
 
-        // Everything below the icon stacks in full-width rows
-        var previousBottom = iconView.bottomAnchor
+        // Everything below the bundle identifier stacks in full-width rows
+        var previousBottom = bundleIdRow.bottomAnchor
         func addRow(_ row: NSView, spacing: CGFloat) {
             row.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(row)
@@ -126,13 +132,14 @@ final class ExceptionRuleEditViewController: NSViewController {
         cancelButton.keyEquivalent = "\u{1B}" // Escape
         container.addSubview(cancelButton)
 
-        let saveButton = NSButton(title: "Save", target: self, action: #selector(saveAction))
+        saveButton = NSButton(title: "Save", target: self, action: #selector(saveAction))
         saveButton.translatesAutoresizingMaskIntoConstraints = false
         saveButton.keyEquivalent = "\r" // Enter
         saveButton.bezelColor = .controlAccentColor
         container.addSubview(saveButton)
 
         NSLayoutConstraint.activate([
+            saveButton.topAnchor.constraint(equalTo: previousBottom, constant: 20),
             saveButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
             saveButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
 
@@ -173,6 +180,25 @@ final class ExceptionRuleEditViewController: NSViewController {
         }
 
         updateExceptionControlsEnabledState()
+        updateBundleIdentifierState()
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        updateBundleIdentifierState()
+    }
+
+    private var editedBundleIdentifier: String {
+        bundleIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Shows the icon for the edited bundle identifier, and allows saving it only when it's neither
+    /// empty nor another entry's.
+    private func updateBundleIdentifierState() {
+        let bundleIdentifier = editedBundleIdentifier
+        iconView.image = ExceptionAppIcon.image(forBundleIdentifier: bundleIdentifier, size: 32)
+        let isTaken = otherBundleIdentifiers.contains(bundleIdentifier)
+        duplicateWarning.isHidden = !isTaken
+        saveButton.isEnabled = !bundleIdentifier.isEmpty && !isTaken
     }
 
     @objc private func ignoreApplicationChanged() {
@@ -199,6 +225,7 @@ final class ExceptionRuleEditViewController: NSViewController {
     @objc private func saveAction() {
         // Unchecked settings are stored as nil to keep the JSON clean
         var updatedRule = originalEntry.rule
+        updatedRule.bundleIdentifier = editedBundleIdentifier
         for (option, checkbox) in optionCheckboxes {
             updatedRule[keyPath: option.setting] = checkbox.state == .on ? true : nil
         }
@@ -208,11 +235,7 @@ final class ExceptionRuleEditViewController: NSViewController {
             excludedTitlesText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
         onSave?(
-            ExceptionsPreferencesEntry(
-                rule: updatedRule,
-                isIgnored: ignoreApplicationCheckbox.state == .on,
-                persistsRuleWithoutMeaningfulSettings: originalEntry.persistsRuleWithoutMeaningfulSettings
-            )
+            ExceptionsPreferencesEntry(rule: updatedRule, isIgnored: ignoreApplicationCheckbox.state == .on)
         )
         view.window?.sheetParent?.endSheet(view.window!, returnCode: .OK)
     }

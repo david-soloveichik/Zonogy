@@ -5,6 +5,7 @@ import AppKit
 protocol MenuBarManagerDelegate: AnyObject {
     func menuBarManagerDidRequestQuit()
     func menuBarManagerDidRequestPreferences()
+    func menuBarManagerDidRequestTour()
     func menuBarManagerDidRequestSaveSnapshot()
     func menuBarManagerDidRequestClearAllSnapshots()
     func menuBarManagerDidRequestCheckForUpdates()
@@ -73,6 +74,8 @@ class MenuBarManager: NSObject {
 
         // Feedback comes in two flavors: public on the issue tracker, or private by email.
         let helpMenu = NSMenu()
+        addItem(to: helpMenu, title: "Zonogy Tour...", action: #selector(handleTour))
+        helpMenu.addItem(NSMenuItem.separator())
         addItem(to: helpMenu, title: "GitHub", action: #selector(handleOpenGitHub))
         addItem(to: helpMenu, title: "Feedback on GitHub...", action: #selector(handleFeedbackOnGitHub))
         addItem(to: helpMenu, title: "Feedback by Email...", action: #selector(handleFeedbackByEmail))
@@ -104,32 +107,15 @@ class MenuBarManager: NSObject {
     }
 
     private func createIconImage() -> NSImage? {
-        // Try to locate the SVG icon file
-        let iconFileName = "icon_menubar.svg"
-
-        // Search in multiple locations
-        let searchPaths = [
-            // Resources directory relative to working directory (for development)
-            "Resources/\(iconFileName)",
-            // Resources directory relative to executable (for deployed binary)
-            (ProcessInfo.processInfo.arguments[0] as NSString).deletingLastPathComponent + "/../Resources/\(iconFileName)",
-            // Same directory as executable
-            (ProcessInfo.processInfo.arguments[0] as NSString).deletingLastPathComponent + "/\(iconFileName)"
-        ]
-
-        for path in searchPaths {
-            let expandedPath = (path as NSString).standardizingPath
-            if FileManager.default.fileExists(atPath: expandedPath),
-               let image = NSImage(contentsOfFile: expandedPath) {
-                Logger.debug("Loaded icon from: \(expandedPath)")
-                // Make it a template image so it adapts to dark/light mode
-                image.isTemplate = true
-                return image
-            }
+        guard let path = BundledResource.path("icon_menubar.svg"),
+              let image = NSImage(contentsOfFile: path) else {
+            Logger.error("Failed to load the menu bar icon")
+            return nil
         }
-
-        Logger.error("Failed to load SVG icon from any search path")
-        return nil
+        Logger.debug("Loaded icon from: \(path)")
+        // Make it a template image so it adapts to dark/light mode
+        image.isTemplate = true
+        return image
     }
 
     /// Updates the dimming state of the menu bar icon.
@@ -145,6 +131,11 @@ class MenuBarManager: NSObject {
     @objc private func handlePreferences() {
         Logger.debug("Preferences requested from menu bar")
         delegate?.menuBarManagerDidRequestPreferences()
+    }
+
+    @objc private func handleTour() {
+        Logger.debug("Tour requested from menu bar")
+        delegate?.menuBarManagerDidRequestTour()
     }
 
     @objc private func handleCheckForUpdates() {

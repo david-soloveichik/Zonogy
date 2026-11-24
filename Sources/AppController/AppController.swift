@@ -255,6 +255,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal var launcherShortcutTargetsZoneWithActiveWindowEnabled: Bool
     internal var dockMenusCoordinator: DockMenusCoordinator?
     internal var pendingScreenChangeWorkItem: DispatchWorkItem?
+    /// The resize-bar refresh that follows a change to one of Zonogy's own content windows.
+    private var pendingOwnContentWindowRefreshWorkItem: DispatchWorkItem?
     internal var pendingScreenChangeReason: String?
     /// True when the pending screen-topology refresh includes a wake trigger.
     internal var pendingScreenChangeIncludesWake: Bool = false
@@ -446,7 +448,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.primaryScreenBounds = contextStore.primaryScreenBounds
 
         self.windowController = WindowController(
-            ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
             nativeTabHandlingDisabled: DebugPreferencesStore.loadDisableNativeTabHandling(),
             primaryScreenBounds: contextStore.primaryScreenBounds,
             applicationExceptionPolicy: configuration.applicationExceptionPolicy
@@ -482,21 +483,19 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
             object: nil
         )
 
-        // Recompute resize-bar suppression when our Preferences window gains/loses key status.
-        // Activation notifications only fire on app switches; these catch intra-Zonogy focus
-        // moves (e.g. the Launcher opening over Preferences) so suppression never lingers.
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
-            name: NSWindow.didBecomeKeyNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handlePreferencesWindowKeyStateChange(_:)),
-            name: NSWindow.didResignKeyNotification,
-            object: nil
-        )
+        // Zone resize bars keep clear of our content windows (Preferences, the tour), so
+        // refresh them when one of those, or a sheet on it, appears or closes (its occlusion
+        // state changes), moves, or ends a sheet. None of these depends on Zonogy being active.
+        for name in [
+            NSWindow.didChangeOcclusionStateNotification, NSWindow.didMoveNotification, NSWindow.didEndSheetNotification,
+        ] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleOwnContentWindowChange(_:)),
+                name: name,
+                object: nil
+            )
+        }
 
         // Quitting exits moments after its last lines are logged; let the log file write them first.
         NotificationCenter.default.addObserver(
@@ -575,29 +574,28 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
     }
 
-    /// Reloads all configuration from config.json: ignoredBundleIdentifiers, applicationExceptionPolicy,
-    /// deriveBundleIdFromPathForProcesses, and refreshes the launcher app cache.
+    /// Reloads all configuration from config.json (exceptions, ignored apps, and
+    /// deriveBundleIdFromPathForProcesses) and refreshes the launcher app cache.
     internal func reloadConfiguration() {
         let newConfig = Configuration.load()
         self.configuration = newConfig
-        self.windowController.ignoredBundleIdentifiers = newConfig.ignoredBundleIdentifiers
         self.windowController.applicationExceptionPolicy = newConfig.applicationExceptionPolicy
-        Logger.debug("Reloaded configuration: \(newConfig.ignoredBundleIdentifiers.count) ignored bundles, \(newConfig.deriveBundleIdFromPathForProcesses.count) bundle-derived processes")
+        Logger.debug("Reloaded configuration")
         reloadLauncherItems()
     }
 
-    @objc private func handlePreferencesWindowKeyStateChange(_ notification: Notification) {
-        guard (notification.object as? NSWindow)?.identifier == PreferencesWindowController.windowIdentifier else {
+    /// Refreshes the resize bars once the change has settled: a dragged window reports every step
+    /// of its move, and showing or closing a window posts several of these notifications.
+    @objc private func handleOwnContentWindowChange(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, OwnContentWindows.contains(window) else {
             return
         }
-        // Defer to the next runloop tick so the key-window transition has settled before we
-        // recompute. Mid-transition (e.g. a Launcher/CmdTab panel taking key over Preferences)
-        // `NSApp.keyWindow` can momentarily be nil; recomputing then would read the stale
-        // mainWindow fallback and keep suppression, and the panel's own key notification is
-        // filtered out here. Reading after the tick sees the true new key window.
-        DispatchQueue.main.async { [weak self] in
-            self?.runFocusedWindowCheck()
+        pendingOwnContentWindowRefreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshResizeHandles()
         }
+        pendingOwnContentWindowRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
     }
 
     @objc private func handleApplicationWillTerminate() {

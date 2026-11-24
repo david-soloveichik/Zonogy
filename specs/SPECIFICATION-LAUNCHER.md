@@ -91,7 +91,7 @@ When no items match the search query, display a friendly empty state message rat
 
 ### Applications
 
-All applications known to the OS are included, except those listed in `ignoredBundleIdentifiers` (see main spec's Configuration section):
+All applications known to the OS are included, except ignored ones (see `ignoredBundleIdentifiers` in the main spec's Configuration section):
 
 - **Discovery modes:** Directory scanning of standard application locations (default) or Spotlight database (configurable)
 - **Explicit apps:** Apps in non-standard locations (e.g., Finder.app in `/System/Library/CoreServices/`) are included via an explicit list in the code
@@ -285,7 +285,7 @@ The Launcher watches `NSWorkspace.runningApplications`, as Zonogy does to notice
 The launcher window should be configured as:
 
 - `styleMask: [.borderless]`
-- `level: .floating`
+- `level: .popUpMenu`, above zone overlays and the Dock
 - `backgroundColor: .clear`
 - Non-activating where possible to avoid interfering with window focus until selection
 

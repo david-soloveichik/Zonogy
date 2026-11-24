@@ -414,6 +414,9 @@ extension AppController {
             return nil
         }()
         let windowOverlapAllowance: CGFloat = zoneMargin
+        // Zonogy's own content windows float over the bars' display, so the bars keep clear of
+        // them. During a resize drag nothing clips the dragged bar.
+        let ownWindowCocoaFrames = zoneResizeDragInProgress ? [] : OwnContentWindows.visibleFrames
 
         for (screenId, context) in screenContexts {
             let screenLabel = screenContextStore.logDescription(for: screenId)
@@ -492,13 +495,16 @@ extension AppController {
                 ]
             }()
 
+            let ownWindowFrames = ownWindowCocoaFrames.map(context.descriptor.cocoaToScreen)
+
             var logLines: [String] = [
                 "ResizeBars refresh on \(screenLabel): " +
                 "frontmost=\(formatFrontmostForLog(onScreenContext: frontmostManagedWindowOnScreen, global: frontmostManagedWindow, globalNoneReason: frontmostNoneReason, screenId: screenId)); " +
                 "floating=\(formatAvoidFrameForLog(floatingZoneContext?.avoidFrame)); " +
                 "activeFit=\(formatActiveFitForLog(activeFitContext)); " +
                 "pinned=\(pinnedModeActive ? "yes" : "no"); " +
-                "managedAvoid=\(formatManagedContextsForLog(managedContexts))"
+                "managedAvoid=\(formatManagedContextsForLog(managedContexts)); " +
+                "ownWindows=[\(ownWindowFrames.map(formatRectForLog).joined(separator: ", "))]"
             ]
 
             let separators = context.zoneController.separators()
@@ -515,6 +521,7 @@ extension AppController {
                     activeFitContext: activeFitContext,
                     managedContexts: managedContexts,
                     floatingZoneContext: floatingZoneContext,
+                    ownWindowFrames: ownWindowFrames,
                     pinnedContext: pinnedContext
                 ) else {
                     logLines.append(

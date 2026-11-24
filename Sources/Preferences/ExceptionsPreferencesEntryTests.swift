@@ -45,23 +45,14 @@ enum ExceptionsPreferencesEntryTests {
 
         do {
             let entries = [
-                ExceptionsPreferencesEntry(
-                    rule: ApplicationExceptionRule(bundleIdentifier: "com.example.empty"),
-                    isIgnored: false,
-                    persistsRuleWithoutMeaningfulSettings: true
-                ),
-                ExceptionsPreferencesEntry(
-                    rule: ApplicationExceptionRule(bundleIdentifier: "com.example.ignored"),
-                    isIgnored: true,
-                    persistsRuleWithoutMeaningfulSettings: false
-                ),
+                ExceptionsPreferencesEntry(rule: ApplicationExceptionRule(bundleIdentifier: "com.example.empty")),
+                ExceptionsPreferencesEntry(rule: ApplicationExceptionRule(bundleIdentifier: "com.example.ignored"), isIgnored: true),
                 ExceptionsPreferencesEntry(
                     rule: ApplicationExceptionRule(
                         bundleIdentifier: "com.example.both",
                         ignoreHeightRequirement: true
                     ),
-                    isIgnored: true,
-                    persistsRuleWithoutMeaningfulSettings: false
+                    isIgnored: true
                 ),
             ]
 
@@ -72,8 +63,30 @@ enum ExceptionsPreferencesEntryTests {
             )
             assert(
                 persisted.rules.map(\.bundleIdentifier) == ["com.example.empty", "com.example.both"],
-                "persistence should keep existing empty rules but avoid creating ignored-only placeholder rules"
+                "persistence should keep a non-ignored entry's empty rule but create none for an ignored entry"
             )
+        }
+
+        do {
+            // Un-ignoring an ignore-only entry under an ignored pattern keeps it, as an empty rule that
+            // still takes precedence over the pattern
+            var entries = ExceptionsPreferencesEntry.buildEntries(
+                rules: [],
+                ignoredBundleIdentifiers: ["com.example.*", "com.example.editor"]
+            )
+            if let row = entries.firstIndex(where: { $0.bundleIdentifier == "com.example.editor" }) {
+                entries[row].isIgnored = false
+            }
+            let persisted = ExceptionsPreferencesEntry.splitForPersistence(entries)
+            assert(persisted.ignoredBundleIdentifiers == ["com.example.*"], "only the pattern should stay ignored")
+            assert(persisted.rules.map(\.bundleIdentifier) == ["com.example.editor"], "the un-ignored entry should persist as an empty rule")
+
+            let policy = ApplicationExceptionPolicy(
+                rules: persisted.rules,
+                ignoredBundleIdentifiers: persisted.ignoredBundleIdentifiers
+            )
+            assert(!policy.ignoresApplication(forBundleIdentifier: "com.example.editor"), "the un-ignored app should no longer be ignored")
+            assert(policy.ignoresApplication(forBundleIdentifier: "com.example.other"), "the pattern should still ignore other apps")
         }
 
         do {
@@ -83,8 +96,7 @@ enum ExceptionsPreferencesEntryTests {
                     hasMainWindow: true,
                     excludedWindowTitles: ["Preferences"]
                 ),
-                isIgnored: true,
-                persistsRuleWithoutMeaningfulSettings: false
+                isIgnored: true
             ).summary
 
             assert(summary == "ignored, preferMain, excl:1", "summary should surface ignored state first")

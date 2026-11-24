@@ -9,6 +9,8 @@ enum AppLinks {
 
     /// Repository home, opened from the menu bar's Help submenu.
     static let repository = URL(string: "https://github.com/\(repositorySlug)")!
+    /// The README's Additional Suggestions, linked from the tour's Finish setting up page.
+    static let additionalSuggestions = URL(string: "https://github.com/\(repositorySlug)#additional-suggestions")!
     /// New issue form, for feedback the user is happy to file in public.
     static let feedbackIssue = URL(string: "https://github.com/\(repositorySlug)/issues/new")!
     /// Release page offered by the update check.
@@ -17,6 +19,9 @@ enum AppLinks {
     static let latestReleaseAPI = URL(string: "https://api.github.com/repos/\(repositorySlug)/releases/latest")!
     /// New message to the maintainer, for feedback the user would rather keep private.
     static let feedbackEmail = URL(string: "mailto:vulpine-minds-0d@icloud.com?subject=Zonogy%20Feedback")!
+
+    /// System Settings' Desktop & Dock pane, where the tour's recommended settings are.
+    static let desktopAndDockSettings = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension")!
 
     /// SIP setup shared by yabai's scripting addition and Zonogy's instant minimize feature.
     static let yabaiSIPInstructions = URL(string: "https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection")!

@@ -13,6 +13,9 @@ final class LauncherAppCache {
     static let shared = LauncherAppCache()
 
     private var items: [LaunchItem] = []
+    /// The URL of every application the last scan found, ignored ones included, by bundle identifier.
+    /// Preferences → Exceptions matches its bundle identifier patterns against these.
+    private(set) var installedApplications: [String: URL] = [:]
     private var iconCache: [URL: NSImage] = [:]
     private var isLoaded = false
     private let appProvider = DefaultAppProvider()
@@ -32,16 +35,8 @@ final class LauncherAppCache {
             )
         }
 
-        let ignoredBundleIds = Configuration.load().ignoredBundleIdentifiers
-        let apps = await appProvider.discoverApplications(skipIcons: true)
-        let filteredApps = filterIgnoredApps(apps, ignoredBundleIds: ignoredBundleIds)
-        let configEntries = LauncherConfigurationStore.loadEntries()
-        let combined = merge(apps: filteredApps, configEntries: configEntries)
-
-        items = combined.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-        isLoaded = true
-
-        Logger.debug("LauncherAppCache: Preloaded \(items.count) items (filtered \(apps.count - filteredApps.count) ignored)")
+        let ignoredCount = await loadItems()
+        Logger.debug("LauncherAppCache: Preloaded \(items.count) items (filtered \(ignoredCount) ignored)")
     }
 
     /// Reloads the application list and clears the icon cache.
@@ -57,15 +52,7 @@ final class LauncherAppCache {
         }
 
         iconCache.removeAll()
-
-        let ignoredBundleIds = Configuration.load().ignoredBundleIdentifiers
-        let apps = await appProvider.discoverApplications(skipIcons: true)
-        let filteredApps = filterIgnoredApps(apps, ignoredBundleIds: ignoredBundleIds)
-        let configEntries = LauncherConfigurationStore.loadEntries()
-        let combined = merge(apps: filteredApps, configEntries: configEntries)
-
-        items = combined.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-        isLoaded = true
+        await loadItems()
 
         NotificationCenter.default.post(name: .launcherAppCacheDidReload, object: nil)
         Logger.debug("LauncherAppCache: Reloaded \(items.count) items, icon cache cleared")
@@ -96,6 +83,30 @@ final class LauncherAppCache {
 
     // MARK: - Private
 
+    /// Scans for applications and rebuilds the items, leaving out ignored apps.
+    /// Returns how many apps were left out.
+    @discardableResult
+    private func loadItems() async -> Int {
+        let exceptionPolicy = Configuration.load().applicationExceptionPolicy
+        let apps = await appProvider.discoverApplications(skipIcons: true)
+
+        var installed: [String: URL] = [:]
+        var shownApps: [LaunchItem] = []
+        for app in apps {
+            if let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: app.url) {
+                installed[bundleId] = installed[bundleId] ?? app.url
+                if exceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) { continue }
+            }
+            shownApps.append(app)
+        }
+        installedApplications = installed
+
+        let combined = merge(apps: shownApps, configEntries: LauncherConfigurationStore.loadEntries())
+        items = combined.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        isLoaded = true
+        return apps.count - shownApps.count
+    }
+
     private func merge(apps: [LaunchItem], configEntries: [LauncherConfigurationStore.Entry]) -> [LaunchItem] {
         var aliasByPath: [String: String] = [:]
         aliasByPath.reserveCapacity(configEntries.count)
@@ -125,14 +136,5 @@ final class LauncherAppCache {
 
     private func normalizedPath(for url: URL) -> String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
-    }
-
-    private func filterIgnoredApps(_ apps: [LaunchItem], ignoredBundleIds: Set<String>) -> [LaunchItem] {
-        guard !ignoredBundleIds.isEmpty else { return apps }
-        return apps.filter { item in
-            guard item.kind == .application else { return true }
-            guard let bundleId = ApplicationIdentity.bundleIdentifier(forApplicationURL: item.url) else { return true }
-            return !ignoredBundleIds.contains(bundleId)
-        }
     }
 }

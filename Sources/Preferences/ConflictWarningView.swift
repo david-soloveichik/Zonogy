@@ -1,7 +1,8 @@
-/// The yellow warning triangle marking a shortcut conflict, wherever one is shown: beside a
-/// contested shortcut in the table, on the Zone Navigation card, and in the Zone Navigation
-/// editor's live check. One view so the three sites match, and so the explanation travels the same
-/// way everywhere — as the tooltip, and as what VoiceOver reads.
+/// The yellow warning triangle marking a conflict, wherever one is shown: beside a contested
+/// shortcut in the table, on the Zone Navigation card, in the Zone Navigation editor's live check,
+/// and beside an Exceptions bundle identifier that another entry already has. One view so the sites
+/// match, and so the explanation travels the same way everywhere — as the tooltip, and as what
+/// VoiceOver reads.
 import AppKit
 
 final class ConflictWarningView: NSImageView {

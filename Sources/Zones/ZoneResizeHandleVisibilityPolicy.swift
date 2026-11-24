@@ -75,7 +75,8 @@ struct ZoneResizeHandlePinnedContext {
 }
 
 /// Applies overlap rules from the specification for ActiveFit reveal windows, frontmost managed windows,
-/// pinned placeholder minimums, and floating-zone floating windows.
+/// pinned placeholder minimums, and floating-zone floating windows, and keeps separators clear of
+/// Zonogy's own content windows.
 enum ZoneResizeHandleVisibilityPolicy {
     private static func clipSeparatorFrame(
         _ frame: CGRect,
@@ -157,6 +158,7 @@ enum ZoneResizeHandleVisibilityPolicy {
         activeFitContext: ZoneResizeHandleAvoidanceContext?,
         managedContexts: [ZoneResizeHandleAvoidanceContext] = [],
         floatingZoneContext: ZoneResizeHandleFloatingZoneContext? = nil,
+        ownWindowFrames: [CGRect] = [],
         pinnedContext: ZoneResizeHandlePinnedContext? = nil
     ) -> CGRect? {
         var frame = separator.frame.standardized
@@ -197,6 +199,20 @@ enum ZoneResizeHandleVisibilityPolicy {
                 separator,
                 frame: frame,
                 context: managedContext,
+                minimumVisibleFrame: minimumVisibleFrame
+            ) else {
+                return nil
+            }
+            frame = adjusted
+        }
+
+        // Zonogy's own content windows (Preferences, the tour): every separator stays
+        // outside them, as it does outside a managed window.
+        for ownWindowFrame in ownWindowFrames {
+            guard let adjusted = clipSeparatorFrame(
+                frame,
+                avoiding: ownWindowFrame,
+                orientation: separator.orientation,
                 minimumVisibleFrame: minimumVisibleFrame
             ) else {
                 return nil
