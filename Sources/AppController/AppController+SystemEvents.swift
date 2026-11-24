@@ -105,8 +105,12 @@ extension AppController {
             }
             return windowController.focusedWindowIfTracked(pid: pid)
         }()
-        handleManualResizeActivationCandidate(pid: application?.processIdentifier)
-        handleActiveFitActivationCandidate(pid: application?.processIdentifier)
+        // A late activation report can arrive once one of the application's untracked windows is
+        // being dragged; its frame reasserts wait then, as on a focus change (see windowFocusChanged).
+        if !isUntrackedWindowDragActive(pid: application?.processIdentifier) {
+            handleManualResizeActivationCandidate(pid: application?.processIdentifier)
+            handleActiveFitActivationCandidate(pid: application?.processIdentifier)
+        }
         handleFloatingZoneActivationChange(focusedPid: application?.processIdentifier, reason: "workspace-activate")
         runFocusedWindowCheck()
 

@@ -254,11 +254,17 @@ extension AppController {
         // fight app-managed moves that are still settling. Skip them also while the application is
         // in the background: focus moving among its own windows (as when it closes a panel on
         // losing activation) makes none of them active, and its activation, which can arrive after
-        // its first focus change, runs them for it.
+        // its first focus change, runs them for it. Skip them too while a window of the application
+        // that Zonogy does not track is being dragged (a native tab, say): focus follows the drag over
+        // the application's windows, and a tab dropped into one of them is reported only after the
+        // release, at the frame that window had then; moving windows meanwhile could keep Zonogy from
+        // recognizing the merge.
         if let focusedWindowId, windowController.isExternallyMovingRecently(windowId: focusedWindowId) {
             Logger.debug("Skipping focus-driven frame reasserts for window \(focusedWindowId); moved externally")
         } else if pid != NSWorkspace.shared.frontmostApplication?.processIdentifier {
             Logger.debug("Skipping focus-driven frame reasserts for pid \(pid); not the frontmost application")
+        } else if isUntrackedWindowDragActive(pid: pid) {
+            Logger.debug("Skipping focus-driven frame reasserts for pid \(pid); one of its untracked windows is being dragged")
         } else {
             handleManualResizeFocusChange(pid: pid)
             handleActiveFitFocusChange(pid: pid)

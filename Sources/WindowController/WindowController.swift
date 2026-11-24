@@ -181,6 +181,12 @@ class WindowController {
         return true
     }
 
+    /// Drops the action waiting for the left mouse button's release, if any.
+    internal func discardLeftMouseUpAction() {
+        leftMouseUpAction = nil
+        updateMouseUpGlobalMonitorInstallation()
+    }
+
     private func installMouseUpGlobalMonitorIfNeeded() {
         guard mouseUpGlobalMonitor == nil else {
             return

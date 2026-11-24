@@ -71,6 +71,15 @@ extension AppController {
         return true
     }
 
+    /// True while a window of `pid` that Zonogy does not track (a native tab, say) is being dragged;
+    /// focus-driven frame reasserts wait meanwhile (see windowFocusChanged).
+    internal func isUntrackedWindowDragActive(pid: pid_t?) -> Bool {
+        guard let pid, let state = unmanagedWindowEdgeDragState else {
+            return false
+        }
+        return state.isActive && state.pid == pid
+    }
+
     internal func cancelUnmanagedWindowEdgeDrag(reason: String) {
         if unmanagedWindowEdgeDragState != nil {
             Logger.debug("Unmanaged edge drag: cancelled active drag (reason: \(reason))")
@@ -195,6 +204,9 @@ extension AppController {
                 "Unmanaged edge drag: activated for pid \(state.pid), " +
                 "CGWindowID \(state.cgWindowId.map(String.init) ?? "unknown")"
             )
+            // The held click now drags this window, so what it deferred to its release (ActiveFit's
+            // evaluation of the window it activated) no longer applies; see windowFocusChanged.
+            windowController.discardLeftMouseUpAction()
         }
         updateUnmanagedWindowEdgeHover(&state)
     }
