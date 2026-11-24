@@ -285,7 +285,7 @@ The Launcher watches `NSWorkspace.runningApplications`, as Zonogy does to notice
 The launcher window should be configured as:
 
 - `styleMask: [.borderless]`
-- `level: .floating`
+- `level: .popUpMenu`, above zone overlays and the Dock
 - `backgroundColor: .clear`
 - Non-activating where possible to avoid interfering with window focus until selection
 

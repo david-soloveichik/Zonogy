@@ -12,10 +12,10 @@ Usage: python3 scripts/tour-destination-animation.py Resources/Tour/destination.
 """
 import sys
 
-from animation_common import (MAIL_ROW_H, ZBLUE, Timeline, mail_button, mail_list_width, mail_row_center, n, opacity,
-                              placeholder, rect, toolbar_glyph)
-from tour_common import (FLOATING, LEFT, RESTART_COVER, RIGHT, Pointer, arriving, arriving_window, bottom_half,
-                         destination_indicator, label, new_zone_bar, shown, top_half, window, write_scene)
+from animation_common import MAIL_ROW_H, ZBLUE, Timeline, mail_row_center, n, opacity, placeholder, rect
+from tour_common import (FLOATING, LEFT, REPLY, RESTART_COVER, RIGHT, Pointer, arriving, arriving_window, bottom_half,
+                         destination_indicator, label, mail_selection, new_zone_bar, reply_button, shown, top_half,
+                         window, write_scene)
 
 DUR = 10.6  # loop length, seconds
 T_STILL = .8  # frame shown where CSS animations don't run: the opening arrangement, the top zone glowing
@@ -31,20 +31,12 @@ CAPTIONS = (  # (text, shown from, fading out at)
 )
 
 TOP, BOTTOM = top_half(RIGHT), bottom_half(RIGHT)  # the empty zones; the top one is the destination at first
-REPLY = mail_button(LEFT, "reply")
 FIRST, SECOND, THIRD = 2.1, 5.35, 7.75  # Reply clicks, each answering the next message in the list
 NEXT_MESSAGES = (4.55, 6.95)  # clicks on the second and third messages
 GROWN = .65  # from a Reply click until its window has opened
 RESTART = 9.7  # the picture is covered from here, and returns to its opening arrangement (see write_scene)
 OPENING = RESTART + RESTART_COVER / 2  # when it does, unseen
 REST = (LEFT[0] + 300, LEFT[1] + 300)  # pointer rest point, on the open message
-
-
-def reply_button():
-    """Mail's Reply button, drawn over its dimmed toolbar, and lit while the pointer is on it."""
-    x, y = REPLY
-    lit = '<g class="hover">' + rect(x - 14, y - 10, 28, 20, 6, fill=ZBLUE, fill_opacity=".3") + "</g>"
-    return lit + toolbar_glyph("reply", REPLY, "#1f2633", 1.9)
 
 
 def build(path):
@@ -82,12 +74,9 @@ def build(path):
     shown(tl, "replyname", .5, 1.5, .3, .3)
 
     x, y, w, h = BOTTOM
-    sel_x, sel_y = LEFT[0] + 8, LEFT[1] + 51
     content = [
         window(LEFT, "mail"),
-        '<g class="sel">' + rect(sel_x, sel_y, mail_list_width(LEFT[2]) - 4, MAIL_ROW_H - 2, 5, fill=ZBLUE,
-                                 fill_opacity=".3") + "</g>",
-        reply_button(),
+        mail_selection(), reply_button(),
         new_zone_bar("left"),
         placeholder("ph1", TOP, "t1"), f'<g class="t1">{destination_indicator(TOP)}</g>',
         placeholder("ph2", BOTTOM, "t2"), f'<g class="t2">{destination_indicator(BOTTOM)}</g>',

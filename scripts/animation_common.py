@@ -491,14 +491,21 @@ def resize_bar(x, top, height):
     return '<g class="rbar">' + rect(x - 2, top, 4, height, 2, fill="#fff", fill_opacity=".92") + "</g>"
 
 
+def destination_glow(z):
+    """The border that marks zone z as the destination, glowing in the highlight color: on an empty zone's
+    placeholder, or over the window in an occupied zone."""
+    x, y, w, h = z
+    return [rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
+            rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2")]
+
+
 def placeholder(cls, z, target_cls=None):
     """An empty zone's placeholder, drawn as the destination: its border glows in the highlight color. Given
     `target_cls`, its border is thin and white, as on a zone that is not the destination, and the glowing one
     is a group of that class, for a scene to show while the zone is the destination."""
     x, y, w, h = z
     cx = x + w / 2
-    glowing = [rect(x, y, w, h, 8, fill="none", stroke=ZBLUE, stroke_width="4", filter="url(#glow)"),
-               rect(x + 1, y + 1, w - 2, h - 2, 7, fill="none", stroke=ZBLUE, stroke_width="2")]
+    glowing = destination_glow(z)
     if target_cls:
         glowing = [rect(x + .75, y + .75, w - 1.5, h - 1.5, 7.25, fill="none", stroke="#fff", stroke_opacity=".45",
                         stroke_width="1.5"), f'<g class="{target_cls}">', *glowing, "</g>"]

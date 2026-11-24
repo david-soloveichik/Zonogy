@@ -1,7 +1,7 @@
 /// The keys on the keycaps of the tour's scenes. A scene's file carries a token of specs/TOUR-SCRIPT.md, such
 /// as "{add zone}", on each keycap for keys the user can change, and the tour puts the current keys in its
 /// place, or the token's words while that shortcut is unset.
-import Foundation
+import AppKit
 
 enum TourKeycaps {
     /// Each token a keycap can carry, with the keys it stands for now.
@@ -10,6 +10,7 @@ enum TourKeycaps {
         "minimize": { shortcut(.minimizeActiveWindow)?.displayString },
         "one zone": { shortcut(.collapseToOneZone)?.displayString },
         "clear": { shortcut(.clearOrResetZones)?.displayString },
+        "gesture click": { ModifierCombinationPreferences.mouseGestures.modifiers.displayString + "-click" },
         "navigation keys": { ModifierCombinationPreferences.zoneNavigation.modifiers.displayString },
         // An action inside the zone navigation gesture borrows the key of its shortcut.
         "move key": { shortcut(.moveFocusedWindowToTargetZone)?.keyDisplayString },
@@ -28,13 +29,17 @@ enum TourKeycaps {
     }
 
     /// Keys as their cap shows them. The scene sets a cap's text at 14 points and a single key at 18, as on
-    /// the arrows; keys longer than any default are set smaller, so they stay on their cap.
+    /// the arrows; keys wider than `room` at 14 points are set smaller, so they stay on their cap.
     private static func capText(_ keys: String) -> String {
         let escaped = keys.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
-        switch keys.count {
-        case 1: return #"<tspan font-size="18">\#(escaped)</tspan>"#
-        case 2...5: return escaped
-        default: return #"<tspan font-size="11">\#(escaped)</tspan>"#
+        if keys.count == 1 {
+            return #"<tspan font-size="18">\#(escaped)</tspan>"#
         }
+        let width = (keys as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 14, weight: .medium)]).width
+        return width <= room ? escaped : #"<tspan font-size="11">\#(escaped)</tspan>"#
     }
+
+    /// The width keys can take at 14 points on the narrowest cap that holds several of them (80 wide in the
+    /// scene, less a margin).
+    private static let room: CGFloat = 66
 }

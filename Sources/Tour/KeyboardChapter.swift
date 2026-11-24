@@ -21,7 +21,7 @@ extension TourPage {
         return [
             TourPage(title: "Adding and removing zones", scene: "keyboard-zones", blocks: [
                 .paragraph("Press \(addZone) to add a zone. It opens empty, with the Launcher in it."),
-                .paragraph("Press \(minimize) to minimize the focused window, as usual. Its zone stays, with the Launcher open; press \(minimize) again to remove the zone. The same goes for ⌘W, which closes the window."),
+                .paragraph("Press \(minimize) to minimize the focused window. Its zone stays, with the Launcher open; press \(minimize) again to remove the zone. The same goes for ⌘W, which closes the window."),
                 .tryIt("Press \(addZone), pick a window in the Launcher, then press \(minimize) twice."),
             ]),
             TourPage(title: "One zone", scene: "keyboard-one-zone", blocks: [
@@ -40,14 +40,14 @@ extension TourPage {
             TourPage(title: "Acting on this zone", scene: "keyboard-acting", blocks: [
                 .paragraph("While still holding \(hold), these keys act on the circle's zone (esc cancels):"),
                 .points([
-                    Point(lead: move, text: "moves the focused window into this zone, swapping if it is occupied."),
+                    Point(lead: move, text: "moves the focused window into this zone."),
                     Point(lead: key(.showLauncher), text: "makes this zone the destination and opens the Launcher."),
                     Point(lead: "\(key(.addZone)), \(key(.removeZone)), \(key(.minimizeActiveWindow))", text: "add a zone, remove this zone, and minimize its window."),
                 ]),
                 .tryIt("Hold \(hold), step to another zone, and press \(move)."),
             ]),
             TourPage(title: "Jump keys", blocks: [
-                .paragraph("Jump keys take the circle straight to a zone or a display, with no stepping."),
+                .paragraph("Jump keys take the circle straight to a zone or a display."),
                 .illustration(makeJumpKeysIllustration),
                 .paragraph("Change these keys, or the keys to hold, in Preferences > Shortcuts > Zone Navigation."),
                 .tryIt("Hold \(hold) and press \(topRightJump), then release."),

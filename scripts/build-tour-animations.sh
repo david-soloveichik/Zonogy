@@ -10,7 +10,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 mkdir -p Resources/Tour
 
 python3 scripts/activefit-winshot-animation.py Resources/Tour/winshot-switching.svg --tour
-for scene in zones destination finding moving keyboard-zones keyboard-one-zone keyboard-clear keyboard-stepping \
+for scene in zones destination replace finding moving keyboard-zones keyboard-one-zone keyboard-clear keyboard-stepping \
              keyboard-acting winshot-display; do
     python3 "scripts/tour-$scene-animation.py" "Resources/Tour/$scene.svg"
 done

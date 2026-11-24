@@ -6,9 +6,10 @@ A tour plays a scene in a web view above a page's text. Shortcuts are the user's
 captions and labels name no keys, and a keycap for keys the user can change carries a token of
 specs/TOUR-SCRIPT.md, such as {add zone}, which the app replaces with the current keys.
 """
-from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, ZBLUE, at, bar, captions, center, columns,
-                              dock, dock_origin, document, ease_progress, full_window, keycaps, menubar, n, opacity,
-                              rect, ripple, scale, wallpapers)
+from animation_common import (CURSOR, EIO, EOUT, FONT, FRAME, GAP, MAIL_ROW_H, ZBLUE, at, bar, captions, center,
+                              columns, dock, dock_origin, document, ease_progress, full_window, keycaps,
+                              mail_button, mail_list_width, menubar, n, opacity, rect, ripple, scale, toolbar_glyph,
+                              wallpapers)
 
 W, H = 920, 600  # kept low: the tour's window is as tall as its tallest page
 S = ((W - 860) / 2, 12 + FRAME, 860, 500)  # the display's screen
@@ -33,12 +34,27 @@ FLOATING = (center(S)[0] - 220, center(LEFT)[1] - 130, 440, 260)  # a window in 
 NEW_ZONE_BARS = {side: (x, S[1] + S[3] / 3, 5, S[3] / 3)  # on the display's side edges, a third of its height
                  for side, x in (("left", S[0] + 1.5), ("right", S[0] + S[2] - 6.5))}
 FLOATING_ZONE_BAR = (S[0] + S[2] / 3, S[1] + S[3] - 5, S[2] / 3, 4)  # on its bottom edge, under the Dock
+REPLY = mail_button(LEFT, "reply")  # Mail's Reply button, in the scenes with Mail in the left zone
 
 
 # ---------------------------------------------------------------- shapes
 
 def window(z, app):
     return full_window(z, app, CONTENT_OPACITY)
+
+
+def reply_button():
+    """Mail's Reply button, drawn over its dimmed toolbar, and lit (class "hover") while the pointer is on it."""
+    x, y = REPLY
+    lit = '<g class="hover">' + rect(x - 14, y - 10, 28, 20, 6, fill=ZBLUE, fill_opacity=".3") + "</g>"
+    return lit + toolbar_glyph("reply", REPLY, "#1f2633", 1.9)
+
+
+def mail_selection():
+    """The highlight (class "sel") on the message open in Mail, the first in its list."""
+    x, y = LEFT[0] + 8, LEFT[1] + 51
+    return ('<g class="sel">' + rect(x, y, mail_list_width(LEFT[2]) - 4, MAIL_ROW_H - 2, 5, fill=ZBLUE,
+                                     fill_opacity=".3") + "</g>")
 
 
 def new_zone_bar(side, cls=""):

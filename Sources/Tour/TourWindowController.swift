@@ -1,8 +1,8 @@
 /// The window that shows the tour: a strip of its chapters along the top, and the chosen chapter's pages, read
 /// front to back with Back and Continue, which goes on into the next chapter. The Welcome chapter opens by
 /// itself on the first launch, and again after the restart that follows granting Accessibility from its
-/// Permissions page; after that, the menu bar's Help menu reopens the tour where it was left. Like Preferences
-/// the window floats, so the user can try things on the windows beside it.
+/// Permissions page; after that, the menu bar's Help menu reopens the tour where it was left. The window floats,
+/// above Zonogy's own panels too, so the user can try things on the windows beside it.
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
@@ -13,6 +13,10 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
     /// Stable tag so other subsystems can recognize the tour's window (see `OwnContentWindows`) without
     /// forcing this singleton to instantiate.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("ZonogyTour")
+
+    /// Just above Zonogy's panels (the Launcher, CmdTab, Dock menus, the WinShot chooser), which the user
+    /// opens while following the tour.
+    private static let floatingLevel = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
 
     private var chapter = TourChapter.welcome
     private var pages: [TourPage] = []
@@ -121,7 +125,7 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         // Until Accessibility is granted the tour does not float: it would cover System Settings, where it is
         // granted.
         isTrusted = AXIsProcessTrusted()
-        window.level = isTrusted ? .floating : .normal
+        window.level = isTrusted ? Self.floatingLevel : .normal
 
         if !window.isVisible {
             // While open, the window keeps one size, that of the tour's tallest page, so its buttons stay

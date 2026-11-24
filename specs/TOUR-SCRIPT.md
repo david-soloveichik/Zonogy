@@ -27,6 +27,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 | `{launcher}` | Show Launcher | ⌃⌘Space |
 | `{cmdtab}` | CmdTab Window Switcher | ⌘⇥ |
 | `{gesture keys}` | the Mouse Gestures modifiers | ⌃⌘ |
+| `{gesture click}` | a click with the Mouse Gestures modifiers held | ⌃⌘-click |
 | `{navigation keys}` | the Zone Navigation modifiers | ⌃⌘ |
 | `{move key}` | the key of Move Focused Window to Destination | ↩ |
 | `{launcher key}` | the key of Show Launcher | Space |
@@ -40,7 +41,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 ## What limits the wording
 
-- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 500, 558, 570, 552, 274, 114; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 528, 326, 488. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
+- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 500, 542, 529, 544, 552, 274, 76; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 512, 268, 444. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
 - **Captions** sit on one line under the picture. The longest now is 70 characters; much longer will not fit.
 - **Labels** are placed by hand around the picture. Keep them about as short as they are.
 - **Shared text.** Three things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
@@ -82,19 +83,29 @@ Scene captions (`destination`):
 - Caption: The destination then moves to another empty zone
 - Caption: When every zone is full, new windows open in the floating zone
 
-The next window opens in the destination zone, marked by a glow, whatever app it comes from. Click an empty zone to make it the destination.
+The next window opens in the destination zone, marked by a glow. Click an empty zone to make it the destination.
 
-Once that zone is filled, the destination moves to another empty zone. When every zone is full, new windows float above the tiles.
+When every zone is full, new windows float above the tiles.
 
 > Try it: Minimize a window with {minimize}, then open a new window in any app, such as an email reply.
 
-### 4. Finding windows
+### 4. Any zone as the destination
+
+Scene captions (`replace`):
+- Keycap: {gesture click}
+- Caption: Hold the modifier keys and click a zone to make it the destination
+- Caption: The next window opens there, and the one it replaces is minimized
+- Caption: Do the same on Mail itself, and the reply takes Mail's place
+
+Hold {gesture keys} and click a zone to make it the destination, even if a window is in it. The next window replaces that window, which is minimized.
+
+> Try it: Hold {gesture keys} and click a window, then open a new window, such as an email reply.
+
+### 5. Finding windows
 
 Scene captions (`finding`):
 - Caption: CmdTab switches between windows, most recent first
 - Caption: Or hover over a Dock icon and pick one of its windows
-
-Minimized windows are out of sight but one step away.
 
 - **Launcher ({launcher}):** type to find any app or window. Tab lists an app's windows.
 - **CmdTab ({cmdtab}):** switches between windows, not apps, most recent first.
@@ -102,7 +113,7 @@ Minimized windows are out of sight but one step away.
 
 > Try it: Hover over a running app's Dock icon.
 
-### 5. Moving and resizing
+### 6. Moving and resizing
 
 Scene captions (`moving`):
 - Caption: Drag a window onto another zone: the two windows swap
@@ -111,13 +122,13 @@ Scene captions (`moving`):
 
 Drag a window onto another zone to move it there. A window already there swaps places.
 
-To resize zones, hover between two zones and drag the bar that appears. (Note: Dragging a window's own edge is temporary: the window returns to its zone when you switch windows.)
+To resize zones, hover between two zones and drag the bar that appears. Resizing a window by its own edge lasts only until you switch windows.
 
-With ActiveFit, a window too big for its zone slides fully into view while you use it.
+A window too big for its zone slides fully into view while you use it.
 
 > Try it: Drag a window onto another zone.
 
-### 6. Finish setting up
+### 7. Finish setting up
 
 These settings in System Settings > Desktop & Dock make Zonogy work better.
 
@@ -133,12 +144,11 @@ More suggestions, such as remapping Caps Lock, are in the README.
 
 [Button: Open Additional Suggestions…]
 
-### 7. More to discover
+### 8. More to discover
 
-- **{gesture keys}-click a zone** to make it the destination, even if occupied.
 - **Drag a Dock icon, file, or link** onto an empty zone or a New Zone Bar to open it there.
 
-More chapters are at the top of this window. Every shortcut is in Preferences > Shortcuts, and this tour is under Help in the Zonogy menu.
+Every shortcut is in Preferences > Shortcuts, and this tour is under Help in the Zonogy menu.
 
 ---
 
@@ -155,7 +165,7 @@ Scene captions (`keyboard-zones`):
 
 Press {add zone} to add a zone. It opens empty, with the Launcher in it.
 
-Press {minimize} to minimize the focused window, as usual. Its zone stays, with the Launcher open; press {minimize} again to remove the zone. The same goes for ⌘W, which closes the window.
+Press {minimize} to minimize the focused window. Its zone stays, with the Launcher open; press {minimize} again to remove the zone. The same goes for ⌘W, which closes the window.
 
 > Try it: Press {add zone}, pick a window in the Launcher, then press {minimize} twice.
 
@@ -206,7 +216,7 @@ Scene captions (`keyboard-acting`):
 
 While still holding {navigation keys}, these keys act on the circle's zone (esc cancels):
 
-- **{move key}** moves the focused window into this zone, swapping if it is occupied.
+- **{move key}** moves the focused window into this zone.
 - **{launcher key}** makes this zone the destination and opens the Launcher.
 - **{add key}, {remove key}, {minimize key}** add a zone, remove this zone, and minimize its window.
 
@@ -214,7 +224,7 @@ While still holding {navigation keys}, these keys act on the circle's zone (esc 
 
 ### 6. Jump keys
 
-Jump keys take the circle straight to a zone or a display, with no stepping.
+Jump keys take the circle straight to a zone or a display.
 
 [Pictograms: the current jump keys, drawn on a display's zones and on the displays]
 - Pictogram caption: Jump to that zone, adding it if it isn't there yet. The key on the bar is the floating zone.
@@ -237,7 +247,7 @@ Scene captions (`winshot-switching`):
 
 A snapshot records which windows are in which zones on a display. Switching to it brings the whole arrangement back: the zones, and the windows in them.
 
-Unlike a Space, a snapshot does not own its windows. The same window can be part of several snapshots, one for each task that uses it.
+The same window can be part of several snapshots.
 
 [Checkbox: Enable WinShot]
 
@@ -245,16 +255,14 @@ Unlike a Space, a snapshot does not own its windows. The same window can be part
 
 Save the arrangement on the active display with {save snapshot}, or with Save Snapshot in the Zonogy menu.
 
-Zonogy can also save for you. Preferences > Snapshots offers two automatic modes:
+Zonogy can also save automatically (Preferences > Snapshots):
 
 - **Before Clear/Reset Zones or restoring a snapshot:** saves the arrangement you are about to lose.
 - **After every change:** saves each arrangement once it has lasted a few seconds.
 
-Saving an arrangement that already has a snapshot replaces it. A snapshot goes when one of its windows closes, and the oldest go once a display has more than the limit set in Preferences.
-
 [Banners: Screen Recording]
 
-Thumbnails need Screen Recording. Without it, a thumbnail shows gray blocks in place of the windows.
+Without Screen Recording, thumbnails show gray blocks.
 
 > Try it: With WinShot on, press {save snapshot} to save this arrangement.
 
@@ -265,10 +273,8 @@ Scene captions (`winshot-display`):
 
 Hold {chooser hold} and tap {chooser tap} to open the chooser on the active display, and tap again to step through its snapshots, most recent first. Add Shift to step back. Release to restore the selected snapshot; Escape cancels.
 
-- **Timeline:** the wider the gap between two thumbnails, the more time passed between them.
 - **Click a thumbnail** to restore it at once, or its × to delete it.
-- **Drag a thumbnail to another display** to open the arrangement there, fitted to that display.
-- **Clear All Snapshots** is in the Zonogy menu.
+- **Drag a thumbnail to another display** to open the arrangement there.
 
 > Try it: Save two arrangements, then hold {chooser hold}, tap {chooser tap} twice, and release.
 
@@ -299,6 +305,7 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 
 - `zones`: Zones in Zonogy. A bar on each side edge of the display adds a tiling zone there. A new zone is empty: it shows a placeholder, with the Launcher open in it to pick a window for it. Clicking the placeholder's close button removes the zone. Dragging an app from the Dock onto a bar opens its window in a new zone on that side.
 - `destination`: The destination zone in Zonogy. One empty zone is the destination, marked by a glow: replying to an email in Mail opens the reply there. The destination then moves to another empty zone, where the next reply opens. When every zone is full, a new window floats above the tiles.
+- `replace`: Making an occupied zone the destination in Zonogy. With every zone full, holding the modifier keys and clicking a window makes its zone the destination, marked by a glow. Replying to an email in Mail then opens the reply there, and the window it replaces is minimized. Doing the same on Mail itself makes the next reply take Mail's place.
 - `finding`: Finding windows in Zonogy. CmdTab lists windows, most recent first, and the one chosen fills the empty destination zone. Hovering over a Dock icon lists that app's windows, and the one clicked fills the zone.
 - `moving`: Moving and resizing in Zonogy. Dragging a window onto another zone moves it there, and the window in that zone takes its place. Dragging the bar between two zones resizes them, and their windows follow. A window that can't shrink to its zone runs off the display's edge, and slides fully into view while it is in use.
 - `keyboard-zones`: Adding and removing zones with the keyboard in Zonogy. A shortcut adds a zone, which opens empty, with the Launcher in it. Minimizing a window leaves its zone in place, empty, with the Launcher open; minimizing again removes the zone.

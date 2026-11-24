@@ -22,12 +22,15 @@ extension TourPage {
                 .tryIt("Click a New Zone Bar, then × on the new zone. A full display shows no bar."),
             ]),
             TourPage(title: "The destination zone", scene: "destination", blocks: [
-                .paragraph("The next window opens in the destination zone, marked by a glow, whatever app it comes from. Click an empty zone to make it the destination."),
-                .paragraph("Once that zone is filled, the destination moves to another empty zone. When every zone is full, new windows float above the tiles."),
+                .paragraph("The next window opens in the destination zone, marked by a glow. Click an empty zone to make it the destination."),
+                .paragraph("When every zone is full, new windows float above the tiles."),
                 .tryIt("Minimize a window with \(minimize), then open a new window in any app, such as an email reply."),
             ]),
+            TourPage(title: "Any zone as the destination", scene: "replace", blocks: [
+                .paragraph("Hold \(gestureKeys) and click a zone to make it the destination, even if a window is in it. The next window replaces that window, which is minimized."),
+                .tryIt("Hold \(gestureKeys) and click a window, then open a new window, such as an email reply."),
+            ]),
             TourPage(title: "Finding windows", scene: "finding", blocks: [
-                .paragraph("Minimized windows are out of sight but one step away."),
                 .points([
                     Point(lead: "Launcher (\(shortcuts.keyPhrase(for: .showLauncher))):", text: "type to find any app or window. Tab lists an app's windows."),
                     Point(lead: "CmdTab (\(shortcuts.keyPhrase(for: .showCmdTab))):", text: "switches between windows, not apps, most recent first."),
@@ -37,8 +40,8 @@ extension TourPage {
             ]),
             TourPage(title: "Moving and resizing", scene: "moving", blocks: [
                 .paragraph("Drag a window onto another zone to move it there. A window already there swaps places."),
-                .paragraph("To resize zones, hover between two zones and drag the bar that appears. (Note: Dragging a window's own edge is temporary: the window returns to its zone when you switch windows.)"),
-                .paragraph("With ActiveFit, a window too big for its zone slides fully into view while you use it."),
+                .paragraph("To resize zones, hover between two zones and drag the bar that appears. Resizing a window by its own edge lasts only until you switch windows."),
+                .paragraph("A window too big for its zone slides fully into view while you use it."),
                 .tryIt("Drag a window onto another zone."),
             ]),
             TourPage(title: "Finish setting up", blocks: [
@@ -56,10 +59,9 @@ extension TourPage {
             ]),
             TourPage(title: "More to discover", blocks: [
                 .points([
-                    Point(lead: "\(gestureKeys)-click a zone", text: "to make it the destination, even if occupied."),
                     Point(lead: "Drag a Dock icon, file, or link", text: "onto an empty zone or a New Zone Bar to open it there."),
                 ]),
-                .paragraph("More chapters are at the top of this window. Every shortcut is in Preferences > Shortcuts, and this tour is under Help in the Zonogy menu."),
+                .paragraph("Every shortcut is in Preferences > Shortcuts, and this tour is under Help in the Zonogy menu."),
             ]),
         ]
     }
