@@ -10,7 +10,7 @@ struct Configuration {
         let deriveBundleIdFromPathForProcesses: [String]?
     }
 
-    let ignoredBundleIdentifiers: Set<String>
+    /// Per-app exceptions and ignored apps, Zonogy itself included.
     let applicationExceptionPolicy: ApplicationExceptionPolicy
     /// Process names (executable names) for which we derive the bundle ID by walking up
     /// the executable path to find a containing .app or .bundle directory.
@@ -20,22 +20,21 @@ struct Configuration {
     static func load(fileManager: FileManager = .default) -> Configuration {
         let config = loadUserConfig(fileManager: fileManager)
 
-        var ignoredBundles = Set(config?.ignoredBundleIdentifiers ?? [])
+        var ignoredBundles = config?.ignoredBundleIdentifiers ?? []
 
         // Always ignore Zonogy's own bundle identifier
         if let ownBundleId = Bundle.main.bundleIdentifier {
-            ignoredBundles.insert(ownBundleId)
+            ignoredBundles.append(ownBundleId)
             Logger.debug("Automatically ignoring own bundle identifier: \(ownBundleId)")
         }
 
         let exceptionRules = config?.bundleExceptions ?? []
-        let exceptionPolicy = ApplicationExceptionPolicy(rules: exceptionRules)
+        let exceptionPolicy = ApplicationExceptionPolicy(rules: exceptionRules, ignoredBundleIdentifiers: ignoredBundles)
 
         let deriveBundleProcesses = Set(config?.deriveBundleIdFromPathForProcesses ?? [])
 
         Logger.debug("Loaded configuration with \(ignoredBundles.count) ignored bundles, \(exceptionRules.count) exception rules, \(deriveBundleProcesses.count) bundle-derived processes")
         return Configuration(
-            ignoredBundleIdentifiers: ignoredBundles,
             applicationExceptionPolicy: exceptionPolicy,
             deriveBundleIdFromPathForProcesses: deriveBundleProcesses
         )

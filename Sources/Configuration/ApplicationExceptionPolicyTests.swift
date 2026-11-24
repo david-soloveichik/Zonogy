@@ -1,6 +1,6 @@
 import Foundation
 
-/// Lightweight runtime assertions for ApplicationExceptionPolicy lookup and merge semantics.
+/// Lightweight runtime assertions for ApplicationExceptionPolicy lookup, bundle identifier patterns included.
 enum ApplicationExceptionPolicyTests {
     @discardableResult
     static func run() -> Bool {
@@ -11,54 +11,6 @@ enum ApplicationExceptionPolicyTests {
                 print("ApplicationExceptionPolicyTests: \(message)")
                 allPassed = false
             }
-        }
-
-        do {
-            let base = ApplicationExceptionRule(
-                bundleIdentifier: "com.example.app",
-                ignoreActivationPolicy: true,
-                ignoreZoomButtonRequirement: nil,
-                ignoreHeightRequirement: true,
-                disallowEmptyTitleWindows: nil,
-                hasMainWindow: true,
-                snapToZoneOnSelfResize: nil,
-                doNotResizeWidth: true,
-                disableMouseGestures: true,
-                treatAXUnknownFullWidthAsFullScreen: true,
-                requireActiveZoomButton: true,
-                manageNonStandardWindows: true,
-                excludedWindowTitles: ["Foo"]
-            )
-            let override = ApplicationExceptionRule(
-                bundleIdentifier: "com.example.app",
-                ignoreActivationPolicy: nil,
-                ignoreZoomButtonRequirement: false,
-                ignoreHeightRequirement: nil,
-                disallowEmptyTitleWindows: true,
-                hasMainWindow: nil,
-                snapToZoneOnSelfResize: true,
-                doNotResizeWidth: nil,
-                disableMouseGestures: nil,
-                treatAXUnknownFullWidthAsFullScreen: false,
-                requireActiveZoomButton: nil,
-                manageNonStandardWindows: false,
-                excludedWindowTitles: ["Bar"]
-            )
-            let merged = base.merged(with: override)
-
-            assert(merged.bundleIdentifier == "com.example.app", "merged rule should preserve bundle identifier")
-            assert(merged.ignoreActivationPolicy == true, "nil override should keep base value")
-            assert(merged.ignoreZoomButtonRequirement == false, "non-nil override should replace base value")
-            assert(merged.ignoreHeightRequirement == true, "nil override should keep base value")
-            assert(merged.disallowEmptyTitleWindows == true, "non-nil override should replace base value")
-            assert(merged.hasMainWindow == true, "nil override should keep base value")
-            assert(merged.snapToZoneOnSelfResize == true, "non-nil override should replace base value")
-            assert(merged.doNotResizeWidth == true, "nil override should keep base width-resize preference")
-            assert(merged.disableMouseGestures == true, "nil override should keep base mouse-gesture value")
-            assert(merged.treatAXUnknownFullWidthAsFullScreen == false, "non-nil override should replace base value")
-            assert(merged.requireActiveZoomButton == true, "nil override should keep base value")
-            assert(merged.manageNonStandardWindows == false, "non-nil override should replace base value")
-            assert(merged.excludedWindowTitles == ["Bar"], "non-nil override list should replace base list")
         }
 
         do {
@@ -99,6 +51,35 @@ enum ApplicationExceptionPolicyTests {
             assert(policy.doesNotResizeWidth(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default width-resize exception to false")
             assert(policy.managesNonStandardWindows(forBundleIdentifier: bundleG) == true, "should honor per-bundle non-standard window exception")
             assert(policy.managesNonStandardWindows(forBundleIdentifier: "com.unknown") == false, "unknown bundle should default non-standard window exception to false")
+        }
+
+        do {
+            // Patterns: each app follows only its most specific entry, whether it is ignored included
+            let policy = ApplicationExceptionPolicy(
+                rules: [
+                    ApplicationExceptionRule(bundleIdentifier: "com.adobe.*", hasMainWindow: true),
+                    ApplicationExceptionRule(bundleIdentifier: "com.adobe.PremierePro*", manageNonStandardWindows: true),
+                    ApplicationExceptionRule(bundleIdentifier: "com.adobe.PremierePro.26", doNotResizeWidth: true),
+                    ApplicationExceptionRule(bundleIdentifier: "com.adobe.illustrator", ignoreZoomButtonRequirement: true),
+                    ApplicationExceptionRule(bundleIdentifier: "com.ignored.kept", ignoreHeightRequirement: true),
+                ],
+                ignoredBundleIdentifiers: ["com.ignored.*", "com.adobe.illustrator"]
+            )
+
+            assert(policy.managesNonStandardWindows(forBundleIdentifier: "com.adobe.PremierePro.27"), "a pattern should match bundle identifiers that start with its prefix")
+            assert(!policy.hasMainWindow(forBundleIdentifier: "com.adobe.PremierePro.27"), "the longer pattern should win, without merging the shorter one's settings")
+            assert(policy.hasMainWindow(forBundleIdentifier: "com.adobe.Photoshop"), "the shorter pattern should still cover apps the longer one doesn't")
+            assert(!policy.hasMainWindow(forBundleIdentifier: "com.adobe"), "a pattern should not match a bundle identifier shorter than its prefix")
+            assert(
+                policy.doesNotResizeWidth(forBundleIdentifier: "com.adobe.PremierePro.26")
+                    && !policy.managesNonStandardWindows(forBundleIdentifier: "com.adobe.PremierePro.26"),
+                "an exact entry should win over patterns"
+            )
+            assert(policy.ignoresApplication(forBundleIdentifier: "com.ignored.other"), "an ignored pattern should ignore the apps it matches")
+            assert(!policy.ignoresApplication(forBundleIdentifier: "com.ignored.kept"), "a more specific entry should exempt an app from an ignored pattern")
+            assert(policy.ignoresHeightRequirement(forBundleIdentifier: "com.ignored.kept"), "the exempting entry's own settings should apply")
+            assert(policy.ignoresApplication(forBundleIdentifier: "com.adobe.illustrator"), "an exact entry can be both ignored and carry a rule")
+            assert(!policy.ignoresApplication(forBundleIdentifier: "com.adobe.Photoshop"), "a rule-only pattern should not ignore apps")
         }
 
         if allPassed {

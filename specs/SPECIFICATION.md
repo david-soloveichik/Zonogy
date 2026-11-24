@@ -570,7 +570,7 @@ Zonogy uses a single user-editable configuration file, seeded from bundled defau
 1. **Bundled defaults** – `Resources/defaults.json` is included in the app bundle and provides sensible defaults for common applications.
 2. **User config** – `~/Library/Application Support/Zonogy/config.json` is the active configuration file.
 
-On launch, if the user config file does not exist, it is created by copying the bundled defaults. The user config is the single source of truth—users edit it directly to customize behavior. On later launches, any default exception rule the user config has not received yet is added to it, unless the config already has a rule for that app. The config lists the apps whose default rules it has received in `offeredDefaultExceptions`, so a rule the user removes is not added back.
+On launch, if the user config file does not exist, it is created by copying the bundled defaults. The user config is the single source of truth—users edit it directly to customize behavior. On later launches, any default exception rule the user config has not received yet is added to it, unless the config already has a rule for that bundle identifier. The config lists the bundle identifiers whose default rules it has received in `offeredDefaultExceptions`, so a rule the user removes is not added back.
 
 ### File Schema
 
@@ -596,10 +596,10 @@ On launch, if the user config file does not exist, it is created by copying the 
 Fields:
 
 - `ignoredBundleIdentifiers` – optional array of bundle IDs that should be completely ignored by Zonogy. Windows belonging to these apps are never captured or managed.
-- In Preferences → Exceptions, each listed app exposes an **Ignore this application altogether** toggle backed by `ignoredBundleIdentifiers`. When enabled, all other exception controls for that app are disabled.
+- In Preferences → Exceptions, each entry (a bundle identifier with its exception rule) exposes an **Ignore this application altogether** toggle backed by `ignoredBundleIdentifiers`. When enabled, all other exception controls for that entry are disabled. An entry is added by choosing a running app or typing a bundle identifier, which stays editable. Its icon is that of the installed app it covers, or the number of apps when it covers several.
 - `deriveBundleIdFromPathForProcesses` – optional array of executable names (process names) for which Zonogy derives the bundle identifier by walking up the executable path to find a containing `.app` or `.bundle` directory and reading its `Info.plist`. Useful for Java apps (e.g., Minecraft) where the `java` process is launched from within a JRE bundle but macOS doesn't report a bundle identifier. The default configuration includes `"java"`.
 - `bundleExceptions` – optional array of per-application exception rules. Each object has:
-  - `bundleIdentifier` – the app's bundle identifier (e.g., `"com.apple.Dictionary"`).
+  - `bundleIdentifier` – the app's bundle identifier (e.g., `"com.apple.Dictionary"`), or a pattern (see below).
   - `ignoreActivationPolicy` – when `true`, Zonogy ignores the app's `NSApplication.activationPolicy` check and may manage helpers/accessory apps that are not `.regular`.
   - `ignoreZoomButtonRequirement` – when `true`, Zonogy does not require the app's windows to expose a zoom button.
   - `requireActiveZoomButton` – when `true`, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it. (Has no effect when `ignoreZoomButtonRequirement` is `true` and the window has no zoom button at all.)
@@ -612,5 +612,7 @@ Fields:
   - `disableMouseGestures` – when `true`, Zonogy does not consume that app's gesture-modifier (default Control-Command) click targeting or external-drag promotion/interception; the app receives those gestures normally instead.
   - `excludedWindowTitles` – array of window titles to exclude from management. Windows with titles exactly matching any string in this list will be ignored.
 - `offeredDefaultExceptions` – maintained by Zonogy (see **Configuration Loading** above).
+
+**Bundle identifier patterns:** In `ignoredBundleIdentifiers` and `bundleExceptions`, a bundle identifier ending in `*` covers every app whose bundle identifier starts with the text before the `*`, such as `com.adobe.PremierePro*` for every version of Premiere Pro. An app covered by several entries follows only the most specific one, both for whether it is ignored and for its exceptions: the entry with its own bundle identifier, else the longest pattern. This way an entry for one app can exempt it from a pattern.
 
 For every window considered, Zonogy logs which eligibility checks passed or failed (role, subrole, title, movability, zoom button, height ≥ 250px, and CGWindowID). These logs, combined with `bundleExceptions`, should be used to decide when a “weird” app needs a tailored exception. Unknown fields in `bundleExceptions` objects should be ignored so the schema can evolve without breaking existing configs.

@@ -375,7 +375,7 @@ extension WindowController {
         }
 
         if let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
-           ignoredBundleIdentifiers.contains(bundleId) {
+           applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
             return
         }
 

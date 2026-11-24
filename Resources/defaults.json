@@ -8,7 +8,7 @@
   ],
   "bundleExceptions": [
     {
-      "bundleIdentifier": "com.adobe.PremierePro.26",
+      "bundleIdentifier": "com.adobe.PremierePro*",
       "manageNonStandardWindows": true
     },
     {

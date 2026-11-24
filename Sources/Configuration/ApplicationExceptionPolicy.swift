@@ -4,7 +4,8 @@ import Foundation
 /// These rules allow specific bundle identifiers to opt out of default
 /// filtering behavior (for example, activation policy checks).
 struct ApplicationExceptionRule: Codable, Equatable {
-    let bundleIdentifier: String
+    /// A bundle identifier pattern (see `BundleIdentifierPattern`)
+    var bundleIdentifier: String
     var ignoreActivationPolicy: Bool?
     var ignoreZoomButtonRequirement: Bool?
     var ignoreHeightRequirement: Bool?
@@ -73,115 +74,103 @@ struct ApplicationExceptionRule: Codable, Equatable {
         if let excludedWindowTitles, !excludedWindowTitles.isEmpty { return true }
         return false
     }
-
-    /// Returns a new rule with this rule's values as defaults, overridden by non-nil values from `override`.
-    func merged(with override: ApplicationExceptionRule) -> ApplicationExceptionRule {
-        ApplicationExceptionRule(
-            bundleIdentifier: bundleIdentifier,
-            ignoreActivationPolicy: override.ignoreActivationPolicy ?? ignoreActivationPolicy,
-            ignoreZoomButtonRequirement: override.ignoreZoomButtonRequirement ?? ignoreZoomButtonRequirement,
-            ignoreHeightRequirement: override.ignoreHeightRequirement ?? ignoreHeightRequirement,
-            disallowEmptyTitleWindows: override.disallowEmptyTitleWindows ?? disallowEmptyTitleWindows,
-            hasMainWindow: override.hasMainWindow ?? hasMainWindow,
-            snapToZoneOnSelfResize: override.snapToZoneOnSelfResize ?? snapToZoneOnSelfResize,
-            doNotResizeWidth: override.doNotResizeWidth ?? doNotResizeWidth,
-            disableMouseGestures: override.disableMouseGestures ?? disableMouseGestures,
-            treatAXUnknownFullWidthAsFullScreen: override.treatAXUnknownFullWidthAsFullScreen ?? treatAXUnknownFullWidthAsFullScreen,
-            requireActiveZoomButton: override.requireActiveZoomButton ?? requireActiveZoomButton,
-            manageNonStandardWindows: override.manageNonStandardWindows ?? manageNonStandardWindows,
-            excludedWindowTitles: override.excludedWindowTitles ?? excludedWindowTitles
-        )
-    }
 }
 
-/// Aggregated lookup helper for application exception rules.
-/// Keeps the rest of the system decoupled from the underlying config shape.
+/// Aggregated lookup helper for Preferences → Exceptions: which apps are ignored, and each app's
+/// exception rule. Keeps the rest of the system decoupled from the underlying config shape.
+/// Entries are keyed by bundle identifier pattern, and an app follows only the most specific entry
+/// that matches it (see `BundleIdentifierPatternMap`), so an exact entry can exempt one app from a pattern.
 struct ApplicationExceptionPolicy {
-    private let rulesByBundleId: [String: ApplicationExceptionRule]
+    private struct Entry {
+        var isIgnored = false
+        var rule: ApplicationExceptionRule?
+    }
 
-    init(rules: [ApplicationExceptionRule] = []) {
-        var mapping: [String: ApplicationExceptionRule] = [:]
+    private let entries: BundleIdentifierPatternMap<Entry>
+
+    /// For a bundle identifier with several rules, the last one wins.
+    init(rules: [ApplicationExceptionRule] = [], ignoredBundleIdentifiers: [String] = []) {
+        var entriesByPattern: [String: Entry] = [:]
         for rule in rules {
-            mapping[rule.bundleIdentifier] = rule
+            entriesByPattern[rule.bundleIdentifier, default: Entry()].rule = rule
         }
-        self.rulesByBundleId = mapping
+        for bundleIdentifier in ignoredBundleIdentifiers {
+            entriesByPattern[bundleIdentifier, default: Entry()].isIgnored = true
+        }
+        self.entries = BundleIdentifierPatternMap(entriesByPattern)
     }
 
     static let empty = ApplicationExceptionPolicy()
 
-    func rule(forBundleIdentifier bundleIdentifier: String) -> ApplicationExceptionRule? {
-        rulesByBundleId[bundleIdentifier]
+    private func rule(forBundleIdentifier bundleIdentifier: String) -> ApplicationExceptionRule? {
+        entries[bundleIdentifier]?.rule
+    }
+
+    /// Returns true if Zonogy should never capture or manage this app's windows.
+    func ignoresApplication(forBundleIdentifier bundleIdentifier: String) -> Bool {
+        entries[bundleIdentifier]?.isIgnored ?? false
     }
 
     func ignoresActivationPolicy(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        guard let rule = rulesByBundleId[bundleIdentifier] else {
-            return false
-        }
-        return rule.ignoreActivationPolicy ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.ignoreActivationPolicy ?? false
     }
 
     func ignoresZoomButtonRequirement(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        guard let rule = rulesByBundleId[bundleIdentifier] else {
-            return false
-        }
-        return rule.ignoreZoomButtonRequirement ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.ignoreZoomButtonRequirement ?? false
     }
 
     func ignoresHeightRequirement(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        guard let rule = rulesByBundleId[bundleIdentifier] else {
-            return false
-        }
-        return rule.ignoreHeightRequirement ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.ignoreHeightRequirement ?? false
     }
 
     /// Returns true if the app prefers its "main window" (lowest CGWindowID) when multiple windows exist
     func hasMainWindow(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.hasMainWindow ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.hasMainWindow ?? false
     }
 
     /// Returns true if the app wants Zonogy to snap its window back to the zone
     /// immediately after a self-initiated resize (e.g., internal UI panels opening/closing).
     func snapsToZoneOnSelfResize(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.snapToZoneOnSelfResize ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.snapToZoneOnSelfResize ?? false
     }
 
     /// Returns true if Zonogy should preserve the window's current width when
     /// applying zone-aligned frames for this bundle.
     func doesNotResizeWidth(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.doNotResizeWidth ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.doNotResizeWidth ?? false
     }
 
     /// Returns true if Zonogy should not consume this app's gesture-modifier click/drag mouse gestures.
     func disablesMouseGestures(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.disableMouseGestures ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.disableMouseGestures ?? false
     }
 
     /// Returns true if windows with empty titles should be ignored for this bundle.
     /// By default, empty-title windows are managed; set this to opt out.
     func disallowsEmptyTitleWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.disallowEmptyTitleWindows ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.disallowEmptyTitleWindows ?? false
     }
 
     /// Returns true if the app opts into the `AXUnknown` full-width full-screen heuristic.
     /// By default, this heuristic is disabled since it can produce false positives during animations.
     func treatsAXUnknownFullWidthAsFullScreen(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.treatAXUnknownFullWidthAsFullScreen ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.treatAXUnknownFullWidthAsFullScreen ?? false
     }
 
     /// Returns true if the app requires the zoom button to be enabled (not grayed out)
     /// for Zonogy to manage its windows.
     func requiresActiveZoomButton(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.requireActiveZoomButton ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.requireActiveZoomButton ?? false
     }
 
     /// Returns true if Zonogy should manage this app's windows even when they report a
     /// non-standard accessibility role (e.g., `AXUnknown`) or subrole (e.g., `AXDialog`).
     func managesNonStandardWindows(forBundleIdentifier bundleIdentifier: String) -> Bool {
-        rulesByBundleId[bundleIdentifier]?.manageNonStandardWindows ?? false
+        rule(forBundleIdentifier: bundleIdentifier)?.manageNonStandardWindows ?? false
     }
 
     /// Returns the list of window titles to exclude from management for this bundle.
     func excludedWindowTitles(forBundleIdentifier bundleIdentifier: String) -> [String] {
-        rulesByBundleId[bundleIdentifier]?.excludedWindowTitles ?? []
+        rule(forBundleIdentifier: bundleIdentifier)?.excludedWindowTitles ?? []
     }
 }

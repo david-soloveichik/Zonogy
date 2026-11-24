@@ -13,7 +13,7 @@ extension WindowController {
         for app in NSWorkspace.shared.runningApplications where !app.isTerminated && app.processIdentifier != getpid() {
             let pid = app.processIdentifier
             if let bundleId = app.bundleIdentifier,
-               ignoredBundleIdentifiers.contains(bundleId) {
+               applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
                 Logger.debug("Skipping minimization for ignored bundle \(bundleId)")
                 continue
             }

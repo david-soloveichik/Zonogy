@@ -38,7 +38,7 @@ extension AppController {
             if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - not in visible bundle IDs") }
             return false
         }
-        if configuration.ignoredBundleIdentifiers.contains(bundleId) {
+        if configuration.applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
             if logRejection { Logger.debug("shouldManage: rejecting \(appDescription) - in ignored bundle identifiers") }
             return false
         }

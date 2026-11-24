@@ -1,24 +1,29 @@
-/// View controller for selecting a running app to add an exception for
+/// View controller for adding an exception: the user selects a running app, which fills in its bundle
+/// identifier, or types a bundle identifier (or pattern) directly.
 
 import AppKit
 
-final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
 
     /// Bundle IDs that already have exceptions (to exclude from list)
     var existingBundleIds: Set<String> = []
 
-    /// Called when user selects an app
-    var onAppSelected: ((String) -> Void)?
+    /// Called with the bundle identifier to add
+    var onAdd: ((String) -> Void)?
 
+    private var explanationLabel: NSTextField!
     private var tableView: NSTableView!
     private var scrollView: NSScrollView!
+    private var bundleIdField: NSTextField!
+    private var addButton: NSButton!
     private var runningApps: [(bundleId: String, name: String, icon: NSImage)] = []
 
     override func loadView() {
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 350))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 390))
 
         setupExplanationLabel(in: containerView)
-        setupTableView(in: containerView)
+        let bundleIdRow = setupBundleIdRow(in: containerView)
+        setupTableView(in: containerView, above: bundleIdRow)
         setupButtons(in: containerView)
 
         self.view = containerView
@@ -30,21 +35,46 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
     }
 
     private func setupExplanationLabel(in container: NSView) {
-        let label = NSTextField(wrappingLabelWithString:
-            "Select a running app to add an exception for. Only apps eligible for Zonogy management are shown.")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = NSFont.systemFont(ofSize: 11)
-        label.textColor = .secondaryLabelColor
-        container.addSubview(label)
+        explanationLabel = NSTextField(wrappingLabelWithString:
+            "Select a running app to add an exception for, or type a bundle identifier. Only apps eligible for Zonogy management are listed.")
+        explanationLabel.translatesAutoresizingMaskIntoConstraints = false
+        explanationLabel.font = NSFont.systemFont(ofSize: 11)
+        explanationLabel.textColor = .secondaryLabelColor
+        container.addSubview(explanationLabel)
 
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            explanationLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
+            explanationLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            explanationLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
     }
 
-    private func setupTableView(in container: NSView) {
+    /// The bundle identifier to add: filled in by selecting an app, or typed.
+    private func setupBundleIdRow(in container: NSView) -> NSView {
+        let label = NSTextField(labelWithString: "Bundle Identifier:")
+        label.font = NSFont.systemFont(ofSize: 12)
+
+        bundleIdField = NSTextField()
+        bundleIdField.font = NSFont.systemFont(ofSize: 12)
+        bundleIdField.placeholderString = "e.g., com.adobe.PremierePro*"
+        bundleIdField.delegate = self
+
+        let row = NSStackView(views: [label, bundleIdField])
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.alignment = .firstBaseline
+        row.distribution = .fill
+        row.spacing = 8
+        container.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            row.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            row.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -60),
+        ])
+        return row
+    }
+
+    private func setupTableView(in container: NSView, above bundleIdRow: NSView) {
         scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -57,7 +87,7 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.allowsMultipleSelection = false
         tableView.target = self
-        tableView.doubleAction = #selector(selectApp)
+        tableView.doubleAction = #selector(tableViewDoubleClicked)
 
         // App name column
         let nameColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
@@ -76,14 +106,11 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
         scrollView.documentView = tableView
         container.addSubview(scrollView)
 
-        // Get the explanation label's bottom anchor
-        guard let explanationLabel = container.subviews.first as? NSTextField else { return }
-
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: explanationLabel.bottomAnchor, constant: 12),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -60),
+            scrollView.bottomAnchor.constraint(equalTo: bundleIdRow.topAnchor, constant: -12),
         ])
     }
 
@@ -93,18 +120,19 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
         cancelButton.keyEquivalent = "\u{1B}" // Escape
         container.addSubview(cancelButton)
 
-        let selectButton = NSButton(title: "Add", target: self, action: #selector(selectApp))
-        selectButton.translatesAutoresizingMaskIntoConstraints = false
-        selectButton.keyEquivalent = "\r" // Enter
-        selectButton.bezelColor = .controlAccentColor
-        container.addSubview(selectButton)
+        addButton = NSButton(title: "Add", target: self, action: #selector(addAction))
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        addButton.keyEquivalent = "\r" // Enter
+        addButton.bezelColor = .controlAccentColor
+        addButton.isEnabled = false
+        container.addSubview(addButton)
 
         NSLayoutConstraint.activate([
-            selectButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
-            selectButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            addButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
+            addButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
 
             cancelButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -20),
-            cancelButton.trailingAnchor.constraint(equalTo: selectButton.leadingAnchor, constant: -12),
+            cancelButton.trailingAnchor.constraint(equalTo: addButton.leadingAnchor, constant: -12),
         ])
     }
 
@@ -138,13 +166,35 @@ final class AddAppViewController: NSViewController, NSTableViewDataSource, NSTab
         view.window?.sheetParent?.endSheet(view.window!, returnCode: .cancel)
     }
 
-    @objc private func selectApp() {
-        let selectedRow = tableView.selectedRow
-        guard selectedRow >= 0, selectedRow < runningApps.count else { return }
+    private var enteredBundleIdentifier: String {
+        bundleIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
-        let bundleId = runningApps[selectedRow].bundleId
-        onAppSelected?(bundleId)
+    @objc private func addAction() {
+        let bundleId = enteredBundleIdentifier
+        guard !bundleId.isEmpty else { return }
+
+        onAdd?(bundleId)
         view.window?.sheetParent?.endSheet(view.window!, returnCode: .OK)
+    }
+
+    /// Double-clicking an app adds it right away, even if its bundle identifier was edited meanwhile.
+    @objc private func tableViewDoubleClicked() {
+        let row = tableView.clickedRow
+        guard row >= 0 else { return }
+        bundleIdField.stringValue = runningApps[row].bundleId
+        addAction()
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        addButton.isEnabled = !enteredBundleIdentifier.isEmpty
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        let selectedRow = tableView.selectedRow
+        guard selectedRow >= 0 else { return }
+        bundleIdField.stringValue = runningApps[selectedRow].bundleId
+        addButton.isEnabled = true
     }
 
     // MARK: - NSTableViewDataSource

@@ -6,7 +6,7 @@ By default Zonogy manages a window only if it has a standard AX window role, exp
 
 ## The exceptions list
 
-Each row is one app, keyed by **bundle identifier** (e.g. `com.apple.Dictionary`). Add picks from the eligible running apps; double-click a row to edit. *Reveal Config File* icon (bottom on window) opens `~/Library/Application Support/Zonogy/config.json`; edits to that file take effect the next time you open Preferences.
+Each row is keyed by a **bundle identifier** (e.g. `com.apple.Dictionary`). A bundle identifier ending in `*` covers every app whose bundle identifier starts with the text before it, such as `com.adobe.PremierePro*` for every version of Premiere Pro; when it covers several installed apps, its icon shows how many. An app covered by several rows follows only the most specific one, so a row for one app can exempt it from a pattern. Add picks from the eligible running apps or takes a typed bundle identifier; double-click a row to edit it, bundle identifier included. *Reveal Config File* icon (bottom on window) opens `~/Library/Application Support/Zonogy/config.json`; edits to that file take effect the next time you open Preferences.
 
 <img src="images/exceptions-list.png" alt="Exceptions preferences tab" width="500" />
 

@@ -10,7 +10,7 @@ extension AppController {
     func captureFrontmostWindow() {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            let bundleId = frontmost.bundleIdentifier,
-           configuration.ignoredBundleIdentifiers.contains(bundleId) {
+           configuration.applicationExceptionPolicy.ignoresApplication(forBundleIdentifier: bundleId) {
             Logger.debug("Frontmost application \(bundleId) is configured to be ignored.")
             return
         }

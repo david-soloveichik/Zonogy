@@ -448,7 +448,6 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         self.primaryScreenBounds = contextStore.primaryScreenBounds
 
         self.windowController = WindowController(
-            ignoredBundleIdentifiers: configuration.ignoredBundleIdentifiers,
             nativeTabHandlingDisabled: DebugPreferencesStore.loadDisableNativeTabHandling(),
             primaryScreenBounds: contextStore.primaryScreenBounds,
             applicationExceptionPolicy: configuration.applicationExceptionPolicy
@@ -575,14 +574,13 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         }
     }
 
-    /// Reloads all configuration from config.json: ignoredBundleIdentifiers, applicationExceptionPolicy,
-    /// deriveBundleIdFromPathForProcesses, and refreshes the launcher app cache.
+    /// Reloads all configuration from config.json (exceptions, ignored apps, and
+    /// deriveBundleIdFromPathForProcesses) and refreshes the launcher app cache.
     internal func reloadConfiguration() {
         let newConfig = Configuration.load()
         self.configuration = newConfig
-        self.windowController.ignoredBundleIdentifiers = newConfig.ignoredBundleIdentifiers
         self.windowController.applicationExceptionPolicy = newConfig.applicationExceptionPolicy
-        Logger.debug("Reloaded configuration: \(newConfig.ignoredBundleIdentifiers.count) ignored bundles, \(newConfig.deriveBundleIdFromPathForProcesses.count) bundle-derived processes")
+        Logger.debug("Reloaded configuration")
         reloadLauncherItems()
     }
 
