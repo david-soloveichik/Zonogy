@@ -583,6 +583,7 @@ extension WindowController {
         }
         // One frame read serves the cache, the log line, and the drag pipeline. Without it (the
         // application is not answering) there is nothing to act on.
+        let previousFrame = managed.cachedFrame
         guard let accessibilityFrame = recordCachedFrame(for: managed) else {
             Logger.debug("External window \(managed.windowId) moved; frame unavailable, ignoring")
             return
@@ -596,7 +597,7 @@ extension WindowController {
         }
 
         Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame)")
-        if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
+        if ensureManualDragBegan(for: managed, frame: accessibilityFrame, previousFrame: previousFrame) {
             delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
         } else {
             // The application moved the window itself (not a Zonogy drag). Remember this so

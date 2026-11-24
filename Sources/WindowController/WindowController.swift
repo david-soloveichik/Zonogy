@@ -68,6 +68,8 @@ class WindowController {
     /// cleared on mouse-up.
     internal var manualDragBlockedUntilMouseUp = false
     internal var mouseUpMonitor: Any?
+    /// Installed while a mouse gesture is being tracked: catches the release in other
+    /// applications and, for a live drag, the pointer's moves (see `handleMouseDragged`).
     internal var mouseUpGlobalMonitor: Any?
     /// The action waiting for the left mouse button's release (see `performAtLeftMouseUpIfHeld`).
     internal var leftMouseUpAction: (() -> Void)?
@@ -184,8 +186,12 @@ class WindowController {
             return
         }
 
-        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
-            self?.handleMouseUp()
+        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .leftMouseDragged]) { [weak self] event in
+            if event.type == .leftMouseUp {
+                self?.handleMouseUp()
+            } else {
+                self?.handleMouseDragged()
+            }
         }
     }
 

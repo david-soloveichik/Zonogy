@@ -112,15 +112,20 @@ final class DragOverlayManager {
             fatalError("init(coder:) has not been implemented")
         }
 
+        // A drag reapplies the colors on every pointer move; only a change needs a redraw.
         var fillColor: NSColor = .clear {
             didSet {
-                needsDisplay = true
+                if fillColor != oldValue {
+                    needsDisplay = true
+                }
             }
         }
 
         var borderColor: NSColor = .clear {
             didSet {
-                needsDisplay = true
+                if borderColor != oldValue {
+                    needsDisplay = true
+                }
             }
         }
 
