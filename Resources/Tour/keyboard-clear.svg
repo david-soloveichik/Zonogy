@@ -28,9 +28,9 @@
 <clipPath id="screens"><rect x="30" y="26" width="860" height="500" rx="8"/></clipPath>
 </defs>
 <style>
-@keyframes kclear{0.000%{transform:translateY(0px)}15.957%{transform:translateY(0px)}16.596%{transform:translateY(2px)}17.447%{transform:translateY(2px)}18.085%{transform:translateY(0px)}52.128%{transform:translateY(0px)}52.766%{transform:translateY(2px)}53.617%{transform:translateY(2px)}54.255%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kclear{0.000%{transform:translateY(0px)}15.957%{transform:translateY(0px)}16.596%{transform:translateY(2px)}19.149%{transform:translateY(2px)}19.787%{transform:translateY(0px)}52.128%{transform:translateY(0px)}52.766%{transform:translateY(2px)}55.319%{transform:translateY(2px)}55.957%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kclear{animation:kclear 9.4s linear infinite;transform:translateY(0px)}
-@keyframes kclearhi{0.000%{opacity:0}15.957%{opacity:0}16.596%{opacity:1}17.447%{opacity:1}18.085%{opacity:0}52.128%{opacity:0}52.766%{opacity:1}53.617%{opacity:1}54.255%{opacity:0}100.000%{opacity:0}}
+@keyframes kclearhi{0.000%{opacity:0}15.957%{opacity:0}16.596%{opacity:1}19.149%{opacity:1}19.787%{opacity:0}52.128%{opacity:0}52.766%{opacity:1}55.319%{opacity:1}55.957%{opacity:0}100.000%{opacity:0}}
 .kclearhi{animation:kclearhi 9.4s linear infinite;opacity:0}
 @keyframes wins{0.000%{opacity:1}16.489%{opacity:1}18.085%{opacity:0}89.096%{opacity:0}89.106%{opacity:1}100.000%{opacity:1}}
 .wins{animation:wins 9.4s linear infinite;opacity:0}

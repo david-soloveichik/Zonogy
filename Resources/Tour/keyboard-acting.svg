@@ -32,21 +32,21 @@
 .khold{animation:khold 10.6s linear infinite;transform:translateY(2px)}
 @keyframes kholdhi{0.000%{opacity:0}8.491%{opacity:0}9.057%{opacity:1}25.472%{opacity:1}26.038%{opacity:0}43.396%{opacity:0}43.962%{opacity:1}73.585%{opacity:1}74.151%{opacity:0}100.000%{opacity:0}}
 .kholdhi{animation:kholdhi 10.6s linear infinite;opacity:1}
-@keyframes kright{0.000%{transform:translateY(0px)}12.264%{transform:translateY(0px)}12.830%{transform:translateY(2px)}13.585%{transform:translateY(2px)}14.151%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kright{0.000%{transform:translateY(0px)}12.264%{transform:translateY(0px)}12.830%{transform:translateY(2px)}15.094%{transform:translateY(2px)}15.660%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kright{animation:kright 10.6s linear infinite;transform:translateY(0px)}
-@keyframes krighthi{0.000%{opacity:0}12.264%{opacity:0}12.830%{opacity:1}13.585%{opacity:1}14.151%{opacity:0}100.000%{opacity:0}}
+@keyframes krighthi{0.000%{opacity:0}12.264%{opacity:0}12.830%{opacity:1}15.094%{opacity:1}15.660%{opacity:0}100.000%{opacity:0}}
 .krighthi{animation:krighthi 10.6s linear infinite;opacity:0}
-@keyframes kmove{0.000%{transform:translateY(0px)}21.698%{transform:translateY(0px)}22.264%{transform:translateY(2px)}23.019%{transform:translateY(2px)}23.585%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kmove{0.000%{transform:translateY(0px)}21.698%{transform:translateY(0px)}22.264%{transform:translateY(2px)}24.528%{transform:translateY(2px)}25.094%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kmove{animation:kmove 10.6s linear infinite;transform:translateY(0px)}
-@keyframes kmovehi{0.000%{opacity:0}21.698%{opacity:0}22.264%{opacity:1}23.019%{opacity:1}23.585%{opacity:0}100.000%{opacity:0}}
+@keyframes kmovehi{0.000%{opacity:0}21.698%{opacity:0}22.264%{opacity:1}24.528%{opacity:1}25.094%{opacity:0}100.000%{opacity:0}}
 .kmovehi{animation:kmovehi 10.6s linear infinite;opacity:0}
-@keyframes kleft{0.000%{transform:translateY(0px)}47.170%{transform:translateY(0px)}47.736%{transform:translateY(2px)}48.491%{transform:translateY(2px)}49.057%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kleft{0.000%{transform:translateY(0px)}47.170%{transform:translateY(0px)}47.736%{transform:translateY(2px)}50.000%{transform:translateY(2px)}50.566%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kleft{animation:kleft 10.6s linear infinite;transform:translateY(0px)}
-@keyframes klefthi{0.000%{opacity:0}47.170%{opacity:0}47.736%{opacity:1}48.491%{opacity:1}49.057%{opacity:0}100.000%{opacity:0}}
+@keyframes klefthi{0.000%{opacity:0}47.170%{opacity:0}47.736%{opacity:1}50.000%{opacity:1}50.566%{opacity:0}100.000%{opacity:0}}
 .klefthi{animation:klefthi 10.6s linear infinite;opacity:0}
-@keyframes kadd{0.000%{transform:translateY(0px)}56.604%{transform:translateY(0px)}57.170%{transform:translateY(2px)}57.925%{transform:translateY(2px)}58.491%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kadd{0.000%{transform:translateY(0px)}56.604%{transform:translateY(0px)}57.170%{transform:translateY(2px)}59.434%{transform:translateY(2px)}60.000%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kadd{animation:kadd 10.6s linear infinite;transform:translateY(0px)}
-@keyframes kaddhi{0.000%{opacity:0}56.604%{opacity:0}57.170%{opacity:1}57.925%{opacity:1}58.491%{opacity:0}100.000%{opacity:0}}
+@keyframes kaddhi{0.000%{opacity:0}56.604%{opacity:0}57.170%{opacity:1}59.434%{opacity:1}60.000%{opacity:0}100.000%{opacity:0}}
 .kaddhi{animation:kaddhi 10.6s linear infinite;opacity:0}
 @keyframes dot{0.000%{opacity:0;transform:translate(672px,152.5px) scale(1)}12.264%{opacity:0;transform:translate(672px,152.5px) scale(1)}13.396%{opacity:1;transform:translate(672px,152.5px) scale(1)}22.170%{opacity:1;transform:translate(672px,152.5px) scale(1)}23.585%{opacity:0;transform:translate(672px,152.5px) scale(1)}47.170%{opacity:0;transform:translate(248px,257px) scale(1)}48.302%{opacity:1;transform:translate(248px,257px) scale(1)}57.547%{opacity:1;transform:translate(248px,257px) scale(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}58.868%{opacity:1;transform:translate(248px,361.5px) scale(1)}73.585%{opacity:1;transform:translate(248px,361.5px) scale(1)}75.000%{opacity:0;transform:translate(248px,361.5px) scale(1)}100.000%{opacity:0;transform:translate(248px,361.5px) scale(1)}}
 .dot{animation:dot 10.6s linear infinite;opacity:1;transform:translate(672px,152.5px) scale(1)}

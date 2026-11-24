@@ -12,8 +12,8 @@ Usage: python3 scripts/tour-keyboard-one-zone-animation.py Resources/Tour/keyboa
 import sys
 
 from animation_common import EIO, Timeline, n, opacity
-from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, bottom_half, inactive_lights, new_zone_bar, top_half,
-                         window, write_scene)
+from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, TAP, bottom_half, inactive_lights, new_zone_bar,
+                         top_half, window, write_scene)
 
 DUR = 7.0  # loop length, seconds
 T_STILL = 4.2  # frame shown where CSS animations don't run: the focused window filling the display
@@ -36,7 +36,7 @@ OPENING = RESTART + RESTART_COVER / 2  # when it does, unseen
 
 def build(path):
     tl = Timeline(DUR, T_STILL)
-    tl.key_presses("kone", [(PRESS, PRESS + .14)])
+    tl.key_presses("kone", [(PRESS, PRESS + TAP)])
 
     # The other windows are minimized: they fade out in place.
     tl.track("others", [(PRESS + .05, opacity(1)), (PRESS + .2, opacity(0)), (OPENING, opacity(0)),

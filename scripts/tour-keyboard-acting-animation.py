@@ -2,8 +2,8 @@
 """Generates Resources/Tour/keyboard-acting.svg, the scene on the Keyboard chapter's Acting on this zone
 page.
 
-One loop, worked from the keyboard (the keys pressed show under the display; those the user can change say
-what they do instead of naming a key). Three windows fill three zones, and the left one is focused. With the
+One loop, worked from the keyboard (the keys pressed show under the display, as the user's current keys).
+Three windows fill three zones, and the left one is focused. With the
 modifier keys held, the right arrow puts the circle on the top-right zone, and the move key brings the focused
 window into that zone: the two windows swap. Holding again, the left arrow puts the circle on the left zone,
 and the add key adds a zone under it: the window there keeps the top, the new zone is empty and the
@@ -15,7 +15,7 @@ Usage: python3 scripts/tour-keyboard-acting-animation.py Resources/Tour/keyboard
 import sys
 
 from animation_common import EIO, Timeline, launcher, opacity, placeholder, resizable_window
-from tour_common import (CONTENT_OPACITY, LEFT, RESTART_COVER, RIGHT, bottom_half, circle_runs,
+from tour_common import (CONTENT_OPACITY, LEFT, RESTART_COVER, RIGHT, TAP, bottom_half, circle_runs,
                          destination_indicator, inactive_lights, navigation_circle, new_zone_bar, panel, shown,
                          top_half, window, write_scene)
 
@@ -38,7 +38,6 @@ ADDED = bottom_half(LEFT)  # the zone the add key creates
 ROWS = (("green", 96, 52), ("amber", 116, 62), ("teal", 86, 48), ("pink", 104, 56))  # the Launcher's rows
 HELD = ((.9, 2.7), (4.6, 7.8))  # the modifier keys, held for each gesture
 RIGHT_KEY, MOVE_KEY, LEFT_KEY, ADD_KEY = 1.3, 2.3, 5.0, 6.0
-TAP = .14
 RESTART = 9.6  # the picture is covered from here, and returns to its opening arrangement (see write_scene)
 OPENING = RESTART + RESTART_COVER / 2  # when it does, unseen
 

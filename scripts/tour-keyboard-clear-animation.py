@@ -13,8 +13,8 @@ Usage: python3 scripts/tour-keyboard-clear-animation.py Resources/Tour/keyboard-
 import sys
 
 from animation_common import Timeline, launcher, opacity, placeholder
-from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, bottom_half, destination_indicator, new_zone_bar, panel,
-                         shown, top_half, window, write_scene)
+from tour_common import (FULL, LEFT, RESTART_COVER, RIGHT, TAP, bottom_half, destination_indicator, new_zone_bar,
+                         panel, shown, top_half, window, write_scene)
 
 DUR = 9.4  # loop length, seconds
 T_STILL = 3.0  # frame shown where CSS animations don't run: the zones cleared, the Launcher open in the left one
@@ -37,7 +37,7 @@ OPENING = RESTART + RESTART_COVER / 2  # when it does, unseen
 
 def build(path):
     tl = Timeline(DUR, T_STILL)
-    tl.key_presses("kclear", [(CLEAR, CLEAR + .14), (RESET, RESET + .14)])
+    tl.key_presses("kclear", [(CLEAR, CLEAR + TAP), (RESET, RESET + TAP)])
     tl.track("wins", [(CLEAR + .05, opacity(1)), (CLEAR + .2, opacity(0)), (OPENING, opacity(0)),
                       (OPENING + .001, opacity(1))])
 

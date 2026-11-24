@@ -41,7 +41,7 @@ carried into the sources; pages and captions are then re-checked to still fit.
 
 ## What limits the wording
 
-- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 500, 542, 529, 544, 552, 274, 76; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 512, 268, 444. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
+- **Window height.** The window is as tall as the tour's tallest page, in any chapter. Heights now, in points: Welcome 206, 516, 526, 529, 544, 552, 274, 76; Keyboard 555, 529, 529, 555, 583, 256; WinShot Snapshots 512, 252, 428. The scene takes 378 of that on a one-display page, 407 on one with keycaps under the display, and 258 on a two-display page. A line of body text is about 16 points, and holds about 88 characters.
 - **Captions** sit on one line under the picture. The longest now is 70 characters; much longer will not fit.
 - **Labels** are placed by hand around the picture. Keep them about as short as they are.
 - **Shared text.** Three things here are also used elsewhere, so changing them changes that place too unless you say otherwise:
@@ -69,11 +69,10 @@ Scene captions (`zones`):
 - Label: Empty zone
 - Caption: Click a New Zone Bar to add a zone
 - Caption: Click × on an empty zone to remove it
-- Caption: Or drag an app from the Dock onto a bar: it opens in a new zone
 
 An empty zone shows a placeholder that holds the space for a window. Click a New Zone Bar at the side of the display to add a zone, and × on an empty zone to remove it.
 
-> Try it: Click a New Zone Bar, then × on the new zone. A full display shows no bar.
+> Try it: Click a New Zone Bar, then × on the new zone. A bar disappears once no more zones can be added on its side.
 
 ### 3. The destination zone
 
@@ -83,7 +82,7 @@ Scene captions (`destination`):
 - Caption: The destination then moves to another empty zone
 - Caption: When every zone is full, new windows open in the floating zone
 
-The next window opens in the destination zone, marked by a glow. Click an empty zone to make it the destination.
+The next window opens in the destination zone, marked by a glow.
 
 When every zone is full, new windows float above the tiles.
 
@@ -257,8 +256,8 @@ Save the arrangement on the active display with {save snapshot}, or with Save Sn
 
 Zonogy can also save automatically (Preferences > Snapshots):
 
-- **Before Clear/Reset Zones or restoring a snapshot:** saves the arrangement you are about to lose.
-- **After every change:** saves each arrangement once it has lasted a few seconds.
+- **Before Clear/Reset Zones or restoring a snapshot:** saves the previous arrangement.
+- **After every change:** saves the new arrangement.
 
 [Banners: Screen Recording]
 
@@ -271,9 +270,9 @@ Without Screen Recording, thumbnails show gray blocks.
 Scene captions (`winshot-display`):
 - Caption: Drag a snapshot to another display to open its arrangement there
 
-Hold {chooser hold} and tap {chooser tap} to open the chooser on the active display, and tap again to step through its snapshots, most recent first. Add Shift to step back. Release to restore the selected snapshot; Escape cancels.
+Hold {chooser hold} and tap {chooser tap} to open the chooser on the active display, and tap again to step through its snapshots, most recent first. Release to restore the selected snapshot.
 
-- **Click a thumbnail** to restore it at once, or its × to delete it.
+- **Click a thumbnail** to restore it, or its × to delete it.
 - **Drag a thumbnail to another display** to open the arrangement there.
 
 > Try it: Save two arrangements, then hold {chooser hold}, tap {chooser tap} twice, and release.
@@ -303,7 +302,7 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 
 ### Scene descriptions (read by VoiceOver, never shown)
 
-- `zones`: Zones in Zonogy. A bar on each side edge of the display adds a tiling zone there. A new zone is empty: it shows a placeholder, with the Launcher open in it to pick a window for it. Clicking the placeholder's close button removes the zone. Dragging an app from the Dock onto a bar opens its window in a new zone on that side.
+- `zones`: Zones in Zonogy. A bar on each side edge of the display adds a tiling zone there. A new zone is empty: it shows a placeholder, with the Launcher open in it to pick a window for it. Clicking the placeholder's close button removes the zone.
 - `destination`: The destination zone in Zonogy. One empty zone is the destination, marked by a glow: replying to an email in Mail opens the reply there. The destination then moves to another empty zone, where the next reply opens. When every zone is full, a new window floats above the tiles.
 - `replace`: Making an occupied zone the destination in Zonogy. With every zone full, holding the modifier keys and clicking a window makes its zone the destination, marked by a glow. Replying to an email in Mail then opens the reply there, and the window it replaces is minimized. Doing the same on Mail itself makes the next reply take Mail's place.
 - `finding`: Finding windows in Zonogy. CmdTab lists windows, most recent first, and the one chosen fills the empty destination zone. Hovering over a Dock icon lists that app's windows, and the one clicked fills the zone.

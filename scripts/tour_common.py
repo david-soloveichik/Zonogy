@@ -211,6 +211,7 @@ class Pointer:
 
 RESTART_COVER = .15  # how long a restarting scene stays covered (see write_scene)
 KEY_ROW = 46  # the height a row of keycaps adds under the display (see write_scene)
+TAP = .3  # how long a tapped key shows pressed: long enough not to be missed
 
 
 def write_scene(path, title, generator, tl, content, caption_texts, restart_at=None, keys=None):

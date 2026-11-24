@@ -28,17 +28,13 @@
 <clipPath id="screens"><rect x="30" y="26" width="860" height="500" rx="8"/></clipPath>
 </defs>
 <style>
-@keyframes kadd{0.000%{transform:translateY(0px)}11.765%{transform:translateY(0px)}12.353%{transform:translateY(2px)}13.137%{transform:translateY(2px)}13.725%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kadd{0.000%{transform:translateY(0px)}11.765%{transform:translateY(0px)}12.353%{transform:translateY(2px)}14.706%{transform:translateY(2px)}15.294%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kadd{animation:kadd 10.2s linear infinite;transform:translateY(0px)}
-@keyframes kaddhi{0.000%{opacity:0}11.765%{opacity:0}12.353%{opacity:1}13.137%{opacity:1}13.725%{opacity:0}100.000%{opacity:0}}
+@keyframes kaddhi{0.000%{opacity:0}11.765%{opacity:0}12.353%{opacity:1}14.706%{opacity:1}15.294%{opacity:0}100.000%{opacity:0}}
 .kaddhi{animation:kaddhi 10.2s linear infinite;opacity:0}
-@keyframes kret{0.000%{transform:translateY(0px)}26.471%{transform:translateY(0px)}27.059%{transform:translateY(2px)}27.843%{transform:translateY(2px)}28.431%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
-.kret{animation:kret 10.2s linear infinite;transform:translateY(0px)}
-@keyframes krethi{0.000%{opacity:0}26.471%{opacity:0}27.059%{opacity:1}27.843%{opacity:1}28.431%{opacity:0}100.000%{opacity:0}}
-.krethi{animation:krethi 10.2s linear infinite;opacity:0}
-@keyframes kmin{0.000%{transform:translateY(0px)}45.098%{transform:translateY(0px)}45.686%{transform:translateY(2px)}46.471%{transform:translateY(2px)}47.059%{transform:translateY(0px)}72.549%{transform:translateY(0px)}73.137%{transform:translateY(2px)}73.922%{transform:translateY(2px)}74.510%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
+@keyframes kmin{0.000%{transform:translateY(0px)}45.098%{transform:translateY(0px)}45.686%{transform:translateY(2px)}48.039%{transform:translateY(2px)}48.627%{transform:translateY(0px)}72.549%{transform:translateY(0px)}73.137%{transform:translateY(2px)}75.490%{transform:translateY(2px)}76.078%{transform:translateY(0px)}100.000%{transform:translateY(0px)}}
 .kmin{animation:kmin 10.2s linear infinite;transform:translateY(0px)}
-@keyframes kminhi{0.000%{opacity:0}45.098%{opacity:0}45.686%{opacity:1}46.471%{opacity:1}47.059%{opacity:0}72.549%{opacity:0}73.137%{opacity:1}73.922%{opacity:1}74.510%{opacity:0}100.000%{opacity:0}}
+@keyframes kminhi{0.000%{opacity:0}45.098%{opacity:0}45.686%{opacity:1}48.039%{opacity:1}48.627%{opacity:0}72.549%{opacity:0}73.137%{opacity:1}75.490%{opacity:1}76.078%{opacity:0}100.000%{opacity:0}}
 .kminhi{animation:kminhi 10.2s linear infinite;opacity:0}
 @keyframes split{0.000%{transform:scaleY(1)}12.255%{transform:scaleY(1);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}16.176%{transform:scaleY(0.4902)}73.529%{transform:scaleY(0.4902);animation-timing-function:cubic-bezier(0.45,0,0.25,1)}77.451%{transform:scaleY(1)}100.000%{transform:scaleY(1)}}
 .split{animation:split 10.2s linear infinite;transform:scaleY(0.4902);transform-origin:0px 52px}
@@ -242,12 +238,10 @@
 </g></g>
 </g>
 <g class="keys">
-<rect x="350" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
-<g class="kadd"><rect x="350" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kaddhi"><rect x="350" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="390" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{add zone}</text></g>
-<rect x="440" y="557" width="40" height="34" rx="7" fill="#0b0e15"/>
-<g class="kret"><rect x="440" y="554" width="40" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="krethi"><rect x="440" y="554" width="40" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="460" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="500" fill="#e6eaf2">↩</text></g>
-<rect x="490" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
-<g class="kmin"><rect x="490" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kminhi"><rect x="490" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="530" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{minimize}</text></g>
+<rect x="375" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kadd"><rect x="375" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kaddhi"><rect x="375" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="415" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{add zone}</text></g>
+<rect x="465" y="557" width="80" height="34" rx="7" fill="#0b0e15"/>
+<g class="kmin"><rect x="465" y="554" width="80" height="34" rx="7" fill="#20263a" stroke="#3b4357"/><g class="kminhi"><rect x="465" y="554" width="80" height="34" rx="7" fill="#4a9eff" fill-opacity=".6"/></g><text x="505" y="577" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#e6eaf2">{minimize}</text></g>
 </g>
 <text class="cap0" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Add a zone: it opens empty, with the Launcher in it</text>
 <text class="cap1" x="460" y="624" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="23" font-weight="500" fill="#e6eaf2">Minimize a window: its zone stays, with the Launcher open</text>

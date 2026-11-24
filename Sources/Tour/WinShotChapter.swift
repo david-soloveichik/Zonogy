@@ -26,17 +26,17 @@ extension TourPage {
                 .paragraph("Save the arrangement on the active display with \(save), or with Save Snapshot in the Zonogy menu."),
                 .paragraph("Zonogy can also save automatically (Preferences > Snapshots):"),
                 .points([
-                    Point(lead: "Before Clear/Reset Zones or restoring a snapshot:", text: "saves the arrangement you are about to lose."),
-                    Point(lead: "After every change:", text: "saves each arrangement once it has lasted a few seconds."),
+                    Point(lead: "Before Clear/Reset Zones or restoring a snapshot:", text: "saves the previous arrangement."),
+                    Point(lead: "After every change:", text: "saves the new arrangement."),
                 ]),
                 .permissions(.screenRecording),
                 .paragraph("Without Screen Recording, thumbnails show gray blocks."),
                 .tryIt("With WinShot on, press \(save) to save this arrangement."),
             ]),
             TourPage(title: "Switching snapshots", scene: "winshot-display", blocks: [
-                .paragraph("\(openChooser) to open the chooser on the active display, and tap again to step through its snapshots, most recent first. Add Shift to step back. Release to restore the selected snapshot; Escape cancels."),
+                .paragraph("\(openChooser) to open the chooser on the active display, and tap again to step through its snapshots, most recent first. Release to restore the selected snapshot."),
                 .points([
-                    Point(lead: "Click a thumbnail", text: "to restore it at once, or its × to delete it."),
+                    Point(lead: "Click a thumbnail", text: "to restore it, or its × to delete it."),
                     Point(lead: "Drag a thumbnail to another display", text: "to open the arrangement there."),
                 ]),
                 .tryIt("Save two arrangements, then \(chooser.map { "hold \($0.hold), tap \($0.tap) twice" } ?? "open the chooser"), and release."),

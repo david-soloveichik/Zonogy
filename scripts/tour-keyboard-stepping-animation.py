@@ -14,7 +14,7 @@ Usage: python3 scripts/tour-keyboard-stepping-animation.py Resources/Tour/keyboa
 import sys
 
 from animation_common import ZBLUE, Timeline, launcher, opacity, placeholder, rect
-from tour_common import (LEFT, RIGHT, bottom_half, circle_runs, destination_indicator, inactive_lights,
+from tour_common import (LEFT, RIGHT, TAP, bottom_half, circle_runs, destination_indicator, inactive_lights,
                          navigation_circle, new_zone_bar, panel, top_half, window, write_scene)
 
 DUR = 10.0  # loop length, seconds
@@ -35,7 +35,6 @@ WINDOW, EMPTY = top_half(RIGHT), bottom_half(RIGHT)  # the right column: a windo
 ROWS = (("green", 96, 52), ("amber", 116, 62), ("teal", 86, 48), ("pink", 104, 56))  # the Launcher's rows
 HELD = ((.9, 3.3), (6.2, 7.9))  # the modifier keys, held for each gesture
 RIGHT_KEY, DOWN_KEY, UP_KEY = 1.3, 2.2, 6.6  # arrow presses
-TAP = .14
 
 
 def build(path):

@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Generates Resources/Tour/keyboard-zones.svg, the scene on the Keyboard chapter's Adding and removing zones page.
 
-One loop, worked from the keyboard (the keys pressed show under the display; those the user can change say what
-they do instead of naming a key). Two windows fill the display's two zones, and the right one is focused. The
-add-zone shortcut splits the right side: the window there keeps the top, and the new zone under it is empty, so
-it is the destination and the Launcher opens in it. Return opens the Launcher's first window there, which takes
-the focus. Minimizing that window leaves its zone in place, empty, with the Launcher open again; minimizing once
-more removes the zone, and the window above takes back the whole side, where the loop began.
+One loop, worked from the keyboard (the shortcuts pressed show under the display, as the user's current keys).
+Two windows fill the display's two zones, and the right one is focused. The add-zone shortcut splits the right
+side: the window there keeps the top, and the new zone under it is empty, so it is the destination and the
+Launcher opens in it. The Launcher's first window, picked there, opens in it and takes the focus. Minimizing that
+window leaves its zone in place, empty, with the Launcher open again; minimizing once more removes the zone, and
+the window above takes back the whole side, where the loop began.
 
 Usage: python3 scripts/tour-keyboard-zones-animation.py Resources/Tour/keyboard-zones.svg
 """
 import sys
 
 from animation_common import EIO, Timeline, launcher, launcher_origin, opacity, placeholder, resizable_window, row_center
-from tour_common import (CONTENT_OPACITY, LEFT, RIGHT, arriving, arriving_window, bottom_half, destination_indicator,
-                         inactive_lights, new_zone_bar, panel, shown, top_half, window, write_scene)
+from tour_common import (CONTENT_OPACITY, LEFT, RIGHT, TAP, arriving, arriving_window, bottom_half,
+                         destination_indicator, inactive_lights, new_zone_bar, panel, shown, top_half, window,
+                         write_scene)
 
 DUR = 10.2  # loop length, seconds
 T_STILL = 2.2  # frame shown where CSS animations don't run: the new zone, empty, with the Launcher open in it
@@ -28,17 +29,16 @@ CAPTIONS = (  # (text, shown from, fading out at)
     ("Minimize a window: its zone stays, with the Launcher open", 4.0, 6.8),
     ("Minimize again to remove the zone", 7.1, 9.7),
 )
-KEYS = (("{add zone}", 80, "kadd"), ("↩", 40, "kret"), ("{minimize}", 80, "kmin"))
+KEYS = (("{add zone}", 80, "kadd"), ("{minimize}", 80, "kmin"))
 
 ADDED = bottom_half(RIGHT)  # the zone the shortcut adds, and the second minimize removes
-ROWS = (("orange", 96, 52), ("green", 116, 62), ("amber", 86, 48), ("pink", 104, 56))  # the Launcher's; Return opens the first
-ADD, OPEN, MINIMIZE, REMOVE = 1.2, 2.7, 4.6, 7.4  # key presses
-TAP = .14
+ROWS = (("orange", 96, 52), ("green", 116, 62), ("amber", 86, 48), ("pink", 104, 56))  # the Launcher's; the first is picked
+ADD, OPEN, MINIMIZE, REMOVE = 1.2, 2.7, 4.6, 7.4  # key presses, and the Launcher's pick
 
 
 def build(path):
     tl = Timeline(DUR, T_STILL)
-    for cls, times in (("kadd", (ADD,)), ("kret", (OPEN,)), ("kmin", (MINIMIZE, REMOVE))):
+    for cls, times in (("kadd", (ADD,)), ("kmin", (MINIMIZE, REMOVE))):
         tl.key_presses(cls, [(t, t + TAP) for t in times])
 
     # The right window gives up its lower half to the new zone, and takes it back when the zone is removed. That

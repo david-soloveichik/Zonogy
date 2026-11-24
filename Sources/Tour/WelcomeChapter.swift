@@ -19,10 +19,10 @@ extension TourPage {
             ]),
             TourPage(title: "Zones", scene: "zones", blocks: [
                 .paragraph("An empty zone shows a placeholder that holds the space for a window. Click a New Zone Bar at the side of the display to add a zone, and × on an empty zone to remove it."),
-                .tryIt("Click a New Zone Bar, then × on the new zone. A full display shows no bar."),
+                .tryIt("Click a New Zone Bar, then × on the new zone. A bar disappears once no more zones can be added on its side."),
             ]),
             TourPage(title: "The destination zone", scene: "destination", blocks: [
-                .paragraph("The next window opens in the destination zone, marked by a glow. Click an empty zone to make it the destination."),
+                .paragraph("The next window opens in the destination zone, marked by a glow."),
                 .paragraph("When every zone is full, new windows float above the tiles."),
                 .tryIt("Minimize a window with \(minimize), then open a new window in any app, such as an email reply."),
             ]),
