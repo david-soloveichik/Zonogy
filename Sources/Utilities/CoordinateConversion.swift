@@ -47,4 +47,14 @@ struct CoordinateConversion {
         let cocoaY = primaryTop - (accessibilityFrame.origin.y + accessibilityFrame.height)
         return CGRect(x: accessibilityFrame.origin.x, y: cocoaY, width: accessibilityFrame.width, height: accessibilityFrame.height)
     }
+
+    /// Convert a Cocoa point to Accessibility coordinates.
+    static func cocoaToAccessibility(point: CGPoint, primaryScreenBounds: CGRect) -> CGPoint {
+        cocoaToAccessibility(cocoaFrame: CGRect(origin: point, size: .zero), primaryScreenBounds: primaryScreenBounds).origin
+    }
+
+    /// Convert an Accessibility point to Cocoa coordinates.
+    static func accessibilityToCocoa(point: CGPoint, primaryScreenBounds: CGRect) -> CGPoint {
+        accessibilityToCocoa(accessibilityFrame: CGRect(origin: point, size: .zero), primaryScreenBounds: primaryScreenBounds).origin
+    }
 }

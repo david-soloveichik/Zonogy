@@ -1,7 +1,8 @@
 import Foundation
 import AppKit
 
-/// Handles drag-and-drop of external files/URLs onto placeholders, add-zone indicators, and floating zone indicators.
+/// Handles drag-and-drop of external files/URLs onto placeholders, add-zone indicators, and floating
+/// zones (their indicators, and their windows under gesture-modifier drops).
 extension AppController {
     func placeholderReceivedExternalDrop(
         screenId: CGDirectDisplayID,
@@ -38,7 +39,17 @@ extension AppController {
     func floatingZoneIndicatorReceivedExternalDrop(screenId: CGDirectDisplayID, items: [ExternalDropItem]) {
         guard !items.isEmpty else { return }
         lastEdgePillExternalDropAt = Date()
-        targetFloatingZoneForDrop(on: screenId, reason: "floating-zone-drop")
+        openExternalDropItems(items, inFloatingZoneOn: screenId, reason: "floating-zone-drop")
+    }
+
+    /// Opens dropped items into `screenId`'s floating zone: targets it explicitly, so the window an
+    /// item opens arrives there, taking over any occupant's frame.
+    internal func openExternalDropItems(
+        _ items: [ExternalDropItem],
+        inFloatingZoneOn screenId: CGDirectDisplayID,
+        reason: String
+    ) {
+        targetFloatingZoneForDrop(on: screenId, reason: reason)
         openExternalDropItems(items)
     }
 
@@ -159,9 +170,15 @@ extension AppController {
               !payload.isEmpty else {
             return
         }
+        // The release that ended the drag no longer holds the floating occupant's minimization,
+        // and the rescue lands only after the delay below: hold it from now.
+        if let floatingScreenId {
+            holdFloatingOccupantForDrop(on: floatingScreenId)
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self else { return }
+            // Sleep or a screen lock in the meantime abandons the drop.
+            guard let self, !self.sleepWakeProtectionActive else { return }
             if let consumedAt = self.lastEdgePillExternalDropAt,
                Date().timeIntervalSince(consumedAt) < 0.4 {
                 return

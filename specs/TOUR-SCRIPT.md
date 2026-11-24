@@ -302,9 +302,9 @@ Hold {chooser hold} and tap {chooser tap} to open the chooser on the active disp
 ### Permission banners (shared with Preferences > General)
 
 - Accessibility, granted: Accessibility permission granted
-- Accessibility, missing: Accessibility permission required for window management
-- Screen Recording, granted: Screen Recording permission granted (only used for WinShot snapshots feature)
-- Screen Recording, missing: Screen Recording permission not granted (only used for WinShot snapshots feature)
+- Accessibility, missing: Accessibility permission required
+- Screen Recording, granted: Screen Recording permission granted (for WinShot Snapshots)
+- Screen Recording, missing: Screen Recording permission not granted (for WinShot Snapshots)
 - Button on each: Open Settings…
 
 ### Scene descriptions (read by VoiceOver, never shown)

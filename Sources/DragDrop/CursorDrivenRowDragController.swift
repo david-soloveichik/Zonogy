@@ -173,7 +173,8 @@ final class CursorDrivenRowDragController<Payload> {
     /// Installs a CGEventTap (Input Monitoring) that swallows Escape while the drag is in
     /// flight, so the keystroke never reaches the frontmost app. `NSEvent` global monitors
     /// are observation-only and cannot consume events targeted at other apps, which is why
-    /// a tap is required here.
+    /// a tap is required here. Escape with Command, Control, or Option passes: it is a
+    /// shortcut, such as Clear/Reset Zones mid-drag, not a cancel.
     private func installEscapeInterceptor() {
         let tap = EventTapController(
             name: "\(logPrefix): Escape",
@@ -182,7 +183,10 @@ final class CursorDrivenRowDragController<Payload> {
                 guard type == .keyDown else { return .pass }
 
                 let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-                guard keyCode == CGKeyCode(kVK_Escape) else { return .pass }
+                guard keyCode == CGKeyCode(kVK_Escape),
+                      event.flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate]) else {
+                    return .pass
+                }
 
                 self?.cancelDragByUser()
                 return .swallow

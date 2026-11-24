@@ -14,17 +14,17 @@ WinShot allows users to save and restore window arrangement snapshots. Unlike vi
 
 ## Automatic Snapshots
 
-Preferences offers an auto-save mode with three settings, each a superset of the one before it:
+The "Auto-save" setting in Preferences offers three choices, each a superset of the one before it:
 
-- **Off**: snapshots are created only with the Control-Cmd-/ shortcut (default).
-- **On Clear/Reset Zones**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
-- **On every zone occupancy change**: everything the previous mode does, plus continuous background capture as described below.
+- **never**: snapshots are created only with the Control-Cmd-/ shortcut (default).
+- **before Clear/Reset or restore**: Automatically captured before Clear/Reset Zones (default Control-Cmd-Escape). Switching to a different snapshot from the chooser likewise saves a snapshot first, as does disconnecting a display (which minimizes its windows).
+- **after every change**: everything the previous choice does, plus continuous background capture as described below.
 
-### Auto-save on zone occupancy change
+### Auto-save after every change
 
-In this mode each display's arrangement is saved automatically once it has stayed put for a configurable settle delay (default 3 seconds). A **zone occupancy change** is any change to which window occupies which zone (including moves and swaps between zones), and which tiling zones are present (so adding or removing a zone counts, even an empty one). Resizing zones, or changing only which window is active, is not an occupancy change. As with manual saves, an automatic capture whose occupancy signature matches an existing snapshot replaces it.
+With "after every change" chosen, each display's arrangement is saved automatically once it has stayed put for the settle delay (see **Settle Delay** in [SPECIFICATION.md](SPECIFICATION.md)). Any change to the arrangement counts: which window occupies which zone (including moves and swaps between zones), which tiling zones are present (so adding or removing a zone counts, even an empty one), the size or position of a zone or of the floating window, and, with Sticky Resize on, the size of a tiled window. Changing only which window is active does not count. As with manual saves, an automatic capture replaces the snapshot with the same occupancy signature, so a change that only moves or resizes something updates that arrangement's snapshot rather than adding another.
 
-Tracking is per display, and the settle delay restarts on each occupancy change so only the arrangement that ultimately settles is captured. Displays in a full-screen Space are not tracked. A display entering native full screen captures its arrangement first, so the arrangement from before full screen is saved.
+Tracking is per display, and the settle delay restarts on each change so only the arrangement that ultimately settles is captured. Displays in a full-screen Space are not tracked. A display entering native full screen captures its arrangement first, so the arrangement from before full screen is saved.
 
 Opening the chooser captures the current arrangement immediately, and a snapshot that settles while the chooser is open is saved without disturbing it.
 
@@ -50,11 +50,11 @@ When a display is disconnected, its snapshots move to the neighboring display: t
 - With auto-save snapshots enabled, switching to a prior snapshot first saves the current arrangement of the display it opens on. (This should be logically equivalent to first Clear/Reset Zones, and then restore.)
 - Restores the saved zone count and frames, fitted to the display's current visible bounds, so the zone proportions carry over when an arrangement opens on another display (or the visible bounds changed since the capture). The floating window keeps its size, centered at the same relative position and nudged to stay within the visible bounds (shrunk only if it is larger than them).
 - Unminimizes all windows (tiled and floating) in parallel first, so users see new windows appear immediately.
-- Current windows not in the snapshot are minimized afterward.
+- Activates the previously active window.
+- Current windows not in the snapshot are minimized right after that activation. Subtle reason for this order: an application that is frontmost when its focused window is minimized brings its next window forward, even one on another display, where it can cover that display's floating window.
 - Restore treats these programmatic minimizations as best-effort requests that must be verified: after each minimize, perform a short delayed AX minimized-state check (with a retry if needed) before finalizing restore cleanup for that window.
 - Windows are pre-positioned (resized and moved) before unminimizing for smooth animation (see [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
 - Restores any saved Sticky Resize remembered sizes for the snapshot's windows (scaled along with their zones), so manually resized windows return to their custom sizes when reactivated.
-- Activates the previously active window.
 - **Targeting after restore:**
   - If the current target is on the restored display, apply standard targeting rules (prefer lowest-index empty tiling zone, or floating zone if all tiling zones are filled).
   - If the current target is on another display, leave targeting unchanged.

@@ -21,6 +21,25 @@ extension AppController {
         floatingZoneCoordinator.isWindowInFloatingZone(windowId)
     }
 
+    /// Each floating window, by display, as a drop area, in accessibility coordinates: the part of
+    /// the window within its own display's visible area, like the zones (never under the menu bar
+    /// or Dock, never on another display, so areas never overlap). Read from Zonogy's records (the
+    /// frame last observed, kept current by the window's move and resize notifications), so a drag
+    /// can ask on every move. Displays paused for full screen take no drops.
+    func floatingWindowDropAreas() -> [CGDirectDisplayID: CGRect] {
+        var areas: [CGDirectDisplayID: CGRect] = [:]
+        for (screenId, context) in screenContexts where !isScreenPausedForFullScreen(screenId) {
+            let visibleBounds = context.descriptor.screenToAccessibility(context.descriptor.visibleScreenBounds)
+            guard let occupant = floatingZoneOccupant(on: screenId),
+                  let frame = occupant.cachedFrame?.intersection(visibleBounds),
+                  !frame.isEmpty else {
+                continue
+            }
+            areas[screenId] = frame
+        }
+        return areas
+    }
+
     /// An eviction can strike a window mid floating drag — a new arrival filling the targeted
     /// floating zone, occlusion or focus minimization, recapture, or Clear Zones. Terminate
     /// the window's whole gesture so a later mouse-up or abort cannot restore stale state over
@@ -38,14 +57,23 @@ extension AppController {
         deferredMinimizationCoordinator.queue(windowId: windowId, reason: reason)
     }
 
-    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool {
+    /// Whether a mouse gesture is in progress: the left button is held, or a drag its release ended
+    /// is still to be resolved (a window drag's release, or an external drag's drop, is handled a
+    /// moment after it happens).
+    var isMouseGestureInProgress: Bool {
+        MouseButtons.isLeftMouseButtonDown()
+            || isManagedWindowDragInProgress
+            || externalZoneDropInterceptor.isExternalDragInFlight
+    }
+
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> DeferredMinimizationVerdict {
         floatingZoneCoordinator.prepareForDeferredMinimization(windowId: windowId, reason: reason)
     }
 
     func assignWindowToFloatingZone(
         _ managed: ManagedWindow,
         on screenId: CGDirectDisplayID,
-        centerWindow: Bool = true,
+        placement: FloatingPlacement = .standard,
         activate: Bool = true,
         reason: String,
         displacement: DisplacementStrategy = .synchronous
@@ -57,7 +85,7 @@ extension AppController {
         floatingZoneCoordinator.assign(
             managed,
             to: screenId,
-            centerWindow: centerWindow,
+            placement: placement,
             activate: activate,
             reason: reason,
             displacement: displacement
@@ -145,7 +173,6 @@ extension AppController {
             windowPlacementManager.placeWindow(
                 occupant,
                 into: .tiled(zoneKey),
-                centerFloatingWindow: true,
                 reason: reason,
                 forceRetargetAfterFill: false
             )
@@ -216,6 +243,11 @@ extension AppController {
     }
 
     func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String) {
+        activateFloatingZoneWindow(managed, reason: reason, afterActivation: nil)
+    }
+
+    /// For `afterActivation`, see `scheduleWindowRaise`.
+    func activateFloatingZoneWindow(_ managed: ManagedWindow, reason: String, afterActivation: (() -> Void)?) {
         let logPrefix = "Floating zone activation"
         let pid = managed.backing.pid
         let element = managed.backing.element
@@ -230,6 +262,7 @@ extension AppController {
             cgWindowId: managed.backing.cgWindowId,
             logPrefix: logPrefix,
             reason: reason,
+            afterActivation: afterActivation,
             afterRaise: { [weak self] in
                 // Extend protection after the async activation to cover any subsequent focus events.
                 self?.extendFloatingZoneProtection(windowId: windowId)

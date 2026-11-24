@@ -68,6 +68,8 @@ class WindowController {
     /// cleared on mouse-up.
     internal var manualDragBlockedUntilMouseUp = false
     internal var mouseUpMonitor: Any?
+    /// Installed while a mouse gesture is being tracked: catches the release in other
+    /// applications and, for a live drag, the pointer's moves (see `handleMouseDragged`).
     internal var mouseUpGlobalMonitor: Any?
     /// The action waiting for the left mouse button's release (see `performAtLeftMouseUpIfHeld`).
     internal var leftMouseUpAction: (() -> Void)?
@@ -179,13 +181,23 @@ class WindowController {
         return true
     }
 
+    /// Drops the action waiting for the left mouse button's release, if any.
+    internal func discardLeftMouseUpAction() {
+        leftMouseUpAction = nil
+        updateMouseUpGlobalMonitorInstallation()
+    }
+
     private func installMouseUpGlobalMonitorIfNeeded() {
         guard mouseUpGlobalMonitor == nil else {
             return
         }
 
-        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
-            self?.handleMouseUp()
+        mouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .leftMouseDragged]) { [weak self] event in
+            if event.type == .leftMouseUp {
+                self?.handleMouseUp()
+            } else {
+                self?.handleMouseDragged()
+            }
         }
     }
 
@@ -661,7 +673,8 @@ protocol WindowControllerDelegate: AnyObject {
     func windowElementDidResize(element: AXUIElement, pid: pid_t)
     func windowElementDidClose(element: AXUIElement, pid: pid_t)
     func windowFocusChanged(pid: pid_t, focusedWindowId: Int?)
-    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect)
+    /// `mouse` is the pointer as it was when handling of the resize began, before its frame was read.
+    func windowManualResizeDidEnd(windowId: Int, screenId: CGDirectDisplayID?, frame: CGRect, mouse: MouseButtons.Snapshot)
     /// Whether a cursor-driven chooser-row drag currently owns the mouse button (blocks
     /// manual-drag candidate detection for the gesture's duration).
     func isCursorDrivenDragActive() -> Bool

@@ -21,10 +21,10 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         var right: CGFloat
     }
     struct TiledToFloatingDragContext {
-        let originZoneKey: ZoneKey?
+        var originZoneKey: ZoneKey?
         let originScreenId: CGDirectDisplayID?
         let floatingScreenId: CGDirectDisplayID
-        let displacedWindowId: Int?
+        var displacedWindowId: Int?
         let displacedWindowFrame: CGRect?
     }
     struct FocusedWindowCheckRetryState {
@@ -73,7 +73,8 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let displayMonitor = DisplayReconfigurationMonitor()
     internal let zoneClickInterceptor = ZoneClickInterceptor()
     internal let notificationCenterMonitor = NotificationCenterMonitor()
-    internal let notificationClickInterceptor = NotificationClickInterceptor()
+    internal let notificationGestureInterceptor = NotificationGestureInterceptor()
+    internal lazy var notificationDragController = makeNotificationDragController()
     internal lazy var externalZoneDropInterceptor = ExternalZoneDropInterceptor(host: self)
     // Cached primary-display identity/bounds. Refreshed on every screen-topology change from the
     // screen-context store (the single source of truth) via refreshCachedPrimaryScreenBounds().
@@ -213,7 +214,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     internal let updateChecker = UpdateChecker()
     internal let launcherInstallWatchService = LauncherInstallWatchService()
     internal let winShotManager = WinShotManager()
-    internal let winShotOccupancyAutoSaveScheduler = WinShotOccupancyAutoSaveScheduler()
+    internal let winShotAutoSaveScheduler = WinShotAutoSaveScheduler()
     internal lazy var winShotChooserController: WinShotChooserController = {
         let controller = WinShotChooserController()
         controller.delegate = self
@@ -384,6 +385,9 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     /// Windows from a disconnected display that were asked to leave native full-screen, by CGWindowID;
     /// each is minimized once it has (see AppController+DisplayRemoval.swift).
     internal var windowsLeavingFullScreenToMinimize: Set<CGWindowID> = []
+    /// Windows a WinShot restore removed from their zones and minimizes once it has activated the
+    /// restored active window (see AppController+WinShot.swift).
+    internal var windowsAwaitingRestoreMinimize: Set<Int> = []
     /// How long Zonogy waits for a window it asked to leave full-screen (a chosen arrangement, or the
     /// minimize of a disconnected display's window) before giving up.
     internal let fullScreenExitTimeout: TimeInterval = 3.0
@@ -544,7 +548,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
         zoneNavigationInterceptor.start(delegate: self)
         syncEventTapGates()
         startDockMenusIfConfigured()
-        startNotificationPressPrePositioning()
+        startNotificationGestures()
         startUpdateChecker()
 
         Logger.debug("AppController initialized with multi-screen support across \(screenContexts.count) display(s)")
@@ -597,7 +601,7 @@ class AppController: NSObject, WindowControllerDelegate, ZoneIndicatorManagerDel
     }
 
     @objc private func handleApplicationWillTerminate() {
-        instantMinimizeController.shutdown()
+        shutdownInstantMinimize()
         LogFile.drain()
     }
 

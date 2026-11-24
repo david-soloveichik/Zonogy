@@ -253,6 +253,12 @@ extension AppController {
                 if let windowId = zone.occupantWindowId,
                    let managed = windowController.window(withId: windowId) {
                     let zoneKey = ZoneKey(screenId: screenId, index: zone.index)
+                    // The window the user is dragging stays where the drag puts it until the drop.
+                    if windowId == dragDropCoordinator.currentManualDragWindowId {
+                        setManagedWindow(managed, screenId: screenId, zoneIndex: zone.index)
+                        assignedWindowIds.insert(windowId)
+                        continue
+                    }
                     if !isLiveResizeSync,
                        skipGeometryWindowIds.contains(windowId) {
                         Logger.debug(
@@ -465,8 +471,8 @@ extension AppController {
         launcherController.refreshZoneDerivedDataIfActive()
         cmdTabController.refreshZoneDerivedDataIfActive()
 
-        // Occupancy is now settled for this pass: feed it to the WinShot auto-save settle timer.
-        evaluateWinShotOccupancyAutoSave()
+        // The arrangement is now settled for this pass: feed it to WinShot auto-save.
+        evaluateWinShotAutoSave()
     }
 
     /// Vacates every zone, tiled or floating, whose occupant is minimized. The window's minimize

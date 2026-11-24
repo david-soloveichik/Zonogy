@@ -180,6 +180,9 @@ enum GuardrailTests {
         if !StickyResizePreferencesStoreTests.run() {
             allPassed = false
         }
+        if !SecondsPreferenceTests.run() {
+            allPassed = false
+        }
         if !DebugPreferencesStoreTests.run() {
             allPassed = false
         }
@@ -249,7 +252,7 @@ enum GuardrailTests {
         if !WinShotPreferencesStoreTests.run() {
             allPassed = false
         }
-        if !WinShotOccupancyAutoSavePlanTests.run() {
+        if !WinShotAutoSavePlanTests.run() {
             allPassed = false
         }
         if !WinShotLastActivePolicyTests.run() {

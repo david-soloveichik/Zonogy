@@ -5,9 +5,9 @@
 /// Zonogy's own unminimizes (Launcher selection, WinShot restore, cursor-driven drops, floating
 /// drag revert) go through `unminimizeWithPrePositioning`, which keeps the pre-position step and the
 /// toggle-aware unminimize paired so the flows cannot drift apart. An application may also unminimize
-/// a window itself when the user clicks one of its notifications; its minimized windows are
-/// pre-positioned when the press lands, before Notification Center passes the click on. Both can be
-/// disabled via the Debug preferences toggle.
+/// a window itself when the user clicks one of its notifications or drops one onto a destination;
+/// its minimized windows are pre-positioned before Notification Center receives the click or the
+/// press. Both can be disabled via the Debug preferences toggle.
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -150,18 +150,18 @@ extension AppController {
 // MARK: - Before an application's own unminimize
 
 extension AppController {
-    /// The user is pressing a notification, after which one of `pids` may restore one of its
-    /// minimized windows itself: the notification's application or, for a background helper's
-    /// notification, an application holding the helper (see
+    /// The user clicked a notification, or dropped one onto a destination, after which one of `pids`
+    /// may restore one of its minimized windows itself: the notification's application or, for a
+    /// background helper's notification, an application holding the helper (see
     /// `NotificationCenterMonitor.ShownNotification.pids`). Pre-position all their minimized
     /// windows to the frames they would take in the targeted zone (whichever one is restored goes
     /// there), so a restored window animates straight into its zone.
     ///
-    /// The press waits for this, and a napping application can take tens of milliseconds to answer,
+    /// The click waits for this, and a napping application can take tens of milliseconds to answer,
     /// so nothing here waits on an application: the minimized windows come from Zonogy's records
     /// (managed windows in no zone, other than a full-screen one and a displaced one still visible
     /// until its deferred minimize; see `ManagedWindow.isPlacedInZone`), and the writes go out
-    /// without waiting for answers. They are sent before Notification Center receives the press.
+    /// without waiting for answers. They are sent before Notification Center receives the click.
     internal func prePositionMinimizedWindows(ofApplications pids: [pid_t], reason: String) {
         guard !sleepWakeProtectionActive else { return }
         // Most recent first: the window most likely restored gets its writes first.

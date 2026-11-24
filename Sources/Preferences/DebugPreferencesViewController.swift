@@ -12,7 +12,6 @@ final class DebugPreferencesViewController: NSViewController {
     private var disableNativeTabsCheckbox: NSButton?
     private var highlightImplicitFloatingTargetCheckbox: NSButton?
     private var timeTravelHintLabel: NSTextField?
-    private var loggingInfoPopover: NSPopover?
 
     override func loadView() {
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 580, height: 540))
@@ -115,11 +114,8 @@ final class DebugPreferencesViewController: NSViewController {
             "Zonogy logs through the macOS unified logging system (subsystem \(Logger.subsystem))."
         )
         // The levels and the Terminal commands live in a popover, keeping the tab short.
-        let moreInfoButton = NSButton(title: "More Info…", target: self, action: #selector(showLoggingInfo(_:)))
-        moreInfoButton.controlSize = .small
-        moreInfoButton.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let moreInfoButton = MoreInfoButton { [weak self] in self?.makeLoggingInfoView() }
         moreInfoButton.translatesAutoresizingMaskIntoConstraints = false
-        moreInfoButton.setContentHuggingPriority(.required, for: .horizontal)
         // Names the capture shortcut, so it is filled in by syncControls whenever the tab appears.
         let timeTravelHintLabel = makeHintLabel("")
         self.timeTravelHintLabel = timeTravelHintLabel
@@ -171,23 +167,6 @@ final class DebugPreferencesViewController: NSViewController {
     }
 
     // MARK: - Logging info popover
-
-    @objc private func showLoggingInfo(_ sender: NSButton) {
-        if let popover = loggingInfoPopover, popover.isShown {
-            popover.close()
-            return
-        }
-        let content = makeLoggingInfoView()
-        content.layoutSubtreeIfNeeded()
-        let controller = NSViewController()
-        controller.view = content
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentViewController = controller
-        popover.contentSize = content.fittingSize
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
-        loggingInfoPopover = popover
-    }
 
     /// The log levels and how to read them: the detail behind the tab's one-line summary.
     private func makeLoggingInfoView() -> NSView {
@@ -260,22 +239,10 @@ final class DebugPreferencesViewController: NSViewController {
         return label
     }
 
-    /// A hint-styled bulleted list, one item per line, with wrapped lines indented under the text.
+    /// A hint-sized bulleted list in the primary text color.
     private func makeBulletListLabel(_ items: [String]) -> NSTextField {
-        let indent: CGFloat = 12
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.tabStops = [NSTextTab(textAlignment: .left, location: indent)]
-        paragraph.headIndent = indent
-        paragraph.paragraphSpacing = 4
         let label = makeHintLabel("")
-        label.attributedStringValue = NSAttributedString(
-            string: items.map { "•\t\($0)" }.joined(separator: "\n"),
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.labelColor,
-                .paragraphStyle: paragraph,
-            ]
-        )
+        label.attributedStringValue = .bulletList(items, font: .systemFont(ofSize: 12), color: .labelColor)
         return label
     }
 

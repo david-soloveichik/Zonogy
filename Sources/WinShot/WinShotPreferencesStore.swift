@@ -9,18 +9,14 @@ enum WinShotAutoSaveMode: Int, CaseIterable {
     /// Capture the current arrangement right before Clear/Reset Zones (and before a chooser switch).
     case onClearReset = 1
     /// Everything `onClearReset` does, plus auto-save any arrangement that persists for the
-    /// configured settle delay (see `loadOccupancySettleDelaySeconds`).
-    case onEveryOccupancyChange = 2
+    /// settle delay (see `SecondsPreference.settleDelay`).
+    case onEveryChange = 2
 }
 
 enum WinShotPreferencesStore {
     static let minSnapshotsStored = 1
     static let maxSnapshotsStored = 20
     static let defaultSnapshotsStored = 10
-
-    static let minOccupancySettleDelaySeconds = 1
-    static let maxOccupancySettleDelaySeconds = 60
-    static let defaultOccupancySettleDelaySeconds = 3
 
     /// Auto-save is opt-in; it defaults to off.
     static let defaultAutoSaveMode: WinShotAutoSaveMode = .off
@@ -44,28 +40,6 @@ enum WinShotPreferencesStore {
 
     static func saveAutoSaveMode(_ mode: WinShotAutoSaveMode) {
         UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.winShotAutoSaveMode)
-    }
-
-    /// How long (seconds) an arrangement must persist before `onEveryOccupancyChange` auto-saves it.
-    /// This is also the delay used to capture each settled arrangement as a backup.
-    static func loadOccupancySettleDelaySeconds() -> Int {
-        guard UserDefaults.standard.object(forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds) != nil else {
-            return defaultOccupancySettleDelaySeconds
-        }
-        return normalizedOccupancySettleDelaySeconds(
-            UserDefaults.standard.integer(forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds)
-        )
-    }
-
-    static func saveOccupancySettleDelaySeconds(_ seconds: Int) {
-        UserDefaults.standard.set(
-            normalizedOccupancySettleDelaySeconds(seconds),
-            forKey: UserDefaultsKeys.winShotOccupancySettleDelaySeconds
-        )
-    }
-
-    static func normalizedOccupancySettleDelaySeconds(_ value: Int) -> Int {
-        min(max(value, minOccupancySettleDelaySeconds), maxOccupancySettleDelaySeconds)
     }
 
     static func loadMaxSnapshotsStored() -> Int {

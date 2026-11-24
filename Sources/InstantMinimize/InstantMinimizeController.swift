@@ -36,8 +36,8 @@ final class InstantMinimizeController {
         self.environment = environment
     }
 
-    /// A verified patch lasts for that Dock process, even when Zonogy crashes. Recover it
-    /// before consulting the checkbox, so a lost preference cannot leave an active patch unmanaged.
+    /// A verified patch lasts for that Dock process, even when Zonogy crashes or quits keeping it.
+    /// Recover it before consulting the checkbox, so a lost preference cannot leave an active patch unmanaged.
     func start(enabled: Bool) {
         if let activation = environment.loadActivation(), activation.dock == environment.currentDock() {
             isEnabled = true
@@ -73,10 +73,14 @@ final class InstantMinimizeController {
 
     /// Synchronous cancellation and SIGTERM delivery; no async work is left to run after quitting.
     /// The caller leaves the saved preference alone so the next launch can enable the feature.
-    func shutdown() {
+    /// Only a verified patch can be kept; its saved activation lets the next launch resume it.
+    func shutdown(keepingActivePatch: Bool = false) {
+        let keep = keepingActivePatch && isActive
         isEnabled = false
         stopWork()
-        if let error = restoreDock() {
+        if keep {
+            Logger.debug("InstantMinimize: kept the verified Dock patch after quitting")
+        } else if let error = restoreDock() {
             Logger.error("InstantMinimize: quit cleanup failed: \(error)")
         }
     }

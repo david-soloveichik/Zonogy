@@ -40,20 +40,25 @@ enum InstantMinimizeControllerTests {
         let active = InstantMinimizeResult(status: .active, needsDockRestart: true, message: "verified")
         let denied = InstantMinimizeResult(status: .permissionDenied, needsDockRestart: false, message: "Access denied")
 
-        do {
+        let preferences: [(key: String, load: () -> Bool, save: (Bool) -> Void)] = [
+            (UserDefaultsKeys.instantMinimizeEnabled, ExperimentalPreferencesStore.loadInstantMinimizeEnabled,
+             ExperimentalPreferencesStore.saveInstantMinimizeEnabled),
+            (UserDefaultsKeys.instantMinimizeKeepAfterQuit, ExperimentalPreferencesStore.loadInstantMinimizeKeepAfterQuit,
+             ExperimentalPreferencesStore.saveInstantMinimizeKeepAfterQuit),
+        ]
+        for preference in preferences {
             let defaults = UserDefaults.standard
-            let key = UserDefaultsKeys.instantMinimizeEnabled
-            let previousValue = defaults.object(forKey: key)
+            let previousValue = defaults.object(forKey: preference.key)
             defer {
-                if let previousValue { defaults.set(previousValue, forKey: key) }
-                else { defaults.removeObject(forKey: key) }
+                if let previousValue { defaults.set(previousValue, forKey: preference.key) }
+                else { defaults.removeObject(forKey: preference.key) }
             }
-            defaults.removeObject(forKey: key)
-            check(!ExperimentalPreferencesStore.loadInstantMinimizeEnabled(), "the experimental preference must default to off")
-            ExperimentalPreferencesStore.saveInstantMinimizeEnabled(true)
-            check(ExperimentalPreferencesStore.loadInstantMinimizeEnabled(), "the experimental preference must persist enabling")
-            ExperimentalPreferencesStore.saveInstantMinimizeEnabled(false)
-            check(!ExperimentalPreferencesStore.loadInstantMinimizeEnabled(), "the experimental preference must persist disabling")
+            defaults.removeObject(forKey: preference.key)
+            check(!preference.load(), "\(preference.key) must default to off")
+            preference.save(true)
+            check(preference.load(), "\(preference.key) must persist enabling")
+            preference.save(false)
+            check(!preference.load(), "\(preference.key) must persist disabling")
         }
         do {
             let suite = "Zonogy.InstantMinimizeActivationTests.\(UUID().uuidString)"
@@ -132,6 +137,19 @@ enum InstantMinimizeControllerTests {
             check(controller.hasError == (age < 5) && system.injections.count == (age < 5 ? 0 : 1),
                   "crash recovery must preserve the original activation time for the immediate-exit guard")
         }
+        for keep in [false, true] {
+            let system = System()
+            let controller = InstantMinimizeController(environment: system.environment)
+            controller.setEnabled(true)
+            system.injections[0].reply(active)
+            controller.shutdown(keepingActivePatch: keep)
+            check(system.restarts.isEmpty == keep && (system.activation?.dock == system.dock) == keep,
+                  "quit must restart Dock and forget its activation unless it keeps the verified patch")
+            let relaunched = InstantMinimizeController(environment: system.environment)
+            relaunched.start(enabled: true)
+            check(relaunched.isActive == keep && system.injections.count == (keep ? 1 : 2),
+                  "a kept patch must resume on relaunch without patching Dock again")
+        }
         do {
             let system = System()
             system.prerequisite = "Unsupported configuration"
@@ -183,18 +201,18 @@ enum InstantMinimizeControllerTests {
             check(controller.hasError && system.restarts.count == 1 && system.injections.count == 1 && system.activation == nil,
                   "a partial failure must be cleaned up once and stop automatic retries")
         }
-        do {
+        for keep in [false, true] {
             let system = System()
             let controller = InstantMinimizeController(environment: system.environment)
             controller.setEnabled(true)
             system.injections[0].reply(denied)
             let original = system.dock!
-            controller.shutdown()
+            controller.shutdown(keepingActivePatch: keep)
             system.dock = .init(pid: 101, launchedAt: Date(timeIntervalSince1970: 101))
             system.injections[1].reply(active)
             system.exits[0]()
             check(system.cancellations == 1 && system.restarts == [original] && system.injections.count == 2,
-                  "quit during approval must cancel, restart only its target, and ignore late success")
+                  "quit during approval must cancel, restart only its target, and ignore late success, even when keeping")
             check(system.activation == nil, "late success after quit must not leave an activation record")
         }
         do {

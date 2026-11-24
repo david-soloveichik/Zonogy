@@ -99,7 +99,7 @@ extension AppController {
     // MARK: - Core wake pipeline
 
     /// Polls for display, session, and frontmost-application readiness before running the wake pipeline.
-    /// Matches SPECIFICATION-WAKE: wait until the primary display is awake, the session is unlocked,
+    /// Matches SPECIFICATION-WAKE: wait until the main display is awake, the session is unlocked,
     /// and NSWorkspace reports a non-loginwindow application, polling in 0.5s increments.
     private func startWakeReadinessPolling(reason: String) {
         cancelWakeReadinessTimer(reason: "restarted")
@@ -175,11 +175,13 @@ extension AppController {
     }
 
     /// Returns true when the display, session, and frontmost application are ready for Accessibility work.
-    /// - Display must not be asleep (CGDisplayIsAsleep == false)
+    /// - Main display must not be asleep (CGDisplayIsAsleep == false). Asked live on every poll: the
+    ///   cached `primaryScreenId` can name a display that went away while protection dropped display
+    ///   changes, and CGDisplayIsAsleep can answer nonzero for such a display indefinitely.
     /// - Session must not be locked (CGSSessionScreenIsLocked == false)
     /// - NSWorkspace must be able to return a frontmost application
     private func isWakeEnvironmentReady() -> Bool {
-        let displayAwake = CGDisplayIsAsleep(primaryScreenId) == 0
+        let displayAwake = CGDisplayIsAsleep(CGMainDisplayID()) == 0
         let screenLocked = isScreenLocked()
 
         guard displayAwake && !screenLocked else {
@@ -239,6 +241,7 @@ extension AppController {
         validationRetryManager.cancelAllValidationRetries()
         cancelFocusedWindowCheckRetry()
         cancelUnmanagedWindowEdgeDrag(reason: reason)
+        externalZoneDropInterceptor.abandonGesture()
         winShotChooserController.cancelThumbnailDrag(reason: reason)
         dropAllPendingWinShotOpensAfterFullScreenExit(reason: reason)
         windowsLeavingFullScreenToMinimize.removeAll()

@@ -21,11 +21,11 @@ extension AppController {
             return
         }
         // One overlay over the display's visible bounds, in the style of the zone overlays shown
-        // during window drags. The manager keys overlays by zone, so the display borrows a key with
-        // the (never used) zone index 0.
+        // during window drags. The manager keys overlays by destination, so the display borrows a
+        // tiling-zone key with the (never used) zone index 0.
         winShotDragOverlayManager.present(over: [
             ZoneOverlayDescriptor(
-                key: ZoneKey(screenId: screenId, index: 0),
+                key: .tiled(ZoneKey(screenId: screenId, index: 0)),
                 cocoaFrame: descriptor.visibleCocoaBounds,
                 isEmpty: false
             ),

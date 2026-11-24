@@ -21,7 +21,7 @@ Conceptually, a sync resets every managed window, on every display, to its zone.
 3. **Moves each tiling zone's window into its zone frame.** A window in ActiveFit reveal mode, or one the user resized manually, keeps its frame, and the active window may get its remembered Sticky Resize size. Floating-zone windows are not touched (see **Tiling Layout and Spacing**, **ActiveFit**, and **Resizing Managed Windows** in SPECIFICATION.md).
 4. **Shows a placeholder in each empty tiling zone and closes those of occupied zones,** except on a display in full-screen pause or UnderCovers mode (see **Placeholders**, **Full-screen pause**, and **UnderCovers Mode** in SPECIFICATION.md).
 5. **Promotes each display's floating-zone window** into an overlapping tiling zone on the same display that emptied since the previous pass (see **Promotion to tiling zone** in SPECIFICATION.md).
-6. **Refreshes what depends on the layout:** ensures a destination is targeted (repairing the target if its zone or display is gone or in full-screen pause); redraws target highlights, indicators, and zone resize bars; recomputes where placeholders let clicks through; updates an open Launcher or CmdTab; and reports occupancy to WinShot auto-save (see **Targeting** and **Placeholders** in SPECIFICATION.md, and **Auto-save on zone occupancy change** in [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
+6. **Refreshes what depends on the layout:** ensures a destination is targeted (repairing the target if its zone or display is gone or in full-screen pause); redraws target highlights, indicators, and zone resize bars; recomputes where placeholders let clicks through; updates an open Launcher or CmdTab; and reports the arrangement to WinShot auto-save (see **Targeting** and **Placeholders** in SPECIFICATION.md, and **Auto-save after every change** in [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
 
 ## Destroyed Window Detection
 
@@ -196,9 +196,9 @@ Zonogy handles this with two complementary mechanisms:
 
 - **Programmatic-update suppression:** When Zonogy resizes a window, `WindowController` tags that window as "programmatic" for a short time and ignores the resulting AX moved/resized notifications. This prevents feedback loops where reacting to our own move/resize would cause additional move/resize attempts.
 - **Gesture heuristics for non-programmatic AX events:**
-  - **Moves / drags:** An AXMoved burst is treated as a user drag only if the left mouse button is down and the pointer moves beyond a small activation threshold. Drag end is detected via mouse-up monitoring. This avoids treating incidental or app-driven moves as a drag-and-drop gesture.
+  - **Moves / drags:** To keep incidental and app-driven moves from counting as drags, an AXMoved burst counts as a user drag only while the left mouse button is down, and only once the window has moved a few points (without changing size to avoid potential confusion with resizing). Pointer movement, not just the window's reported moves, updates the drop target, since macOS can stop reporting a dragged window's moves once it crosses onto another display. Mouse-up ends the drag.
   - **Untracked windows from managed apps:** For an untracked window from a managed app, Zonogy tracks only add-zone and floating-zone edge targets. The edge indicator windows pass mouse events through during the gesture; on mouse-up, Zonogy sets the normal placement target that any later capture will use.
-  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until another managed window on its display becomes active or that display's tiling geometry changes. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (cursor near the window border plus left-mouse down or a very recent mouse-up grace window). Full-screen transitions (native, or the configured non-native heuristic) also arrive as non-programmatic resizes but their sizes are macOS's, not the user's, so they are excluded.
+  - **Resizes:** In the normal resize path, most apps' non-programmatic AXResized is treated as a completed manual resize and the window is marked "detached" until another managed window on its display becomes active or that display's tiling geometry changes. For apps that opt into `snapToZoneOnSelfResize`, Zonogy attempts to recognize user edge-drag resizes (left-mouse down, or a very recent mouse-up grace window with the cursor near the window border). Full-screen transitions (native, or the configured non-native heuristic) also arrive as non-programmatic resizes but their sizes are macOS's, not the user's, so they are excluded.
 
 This attribution work is used by:
 
@@ -229,9 +229,9 @@ When Zonogy unminimizes a window that needs to appear at a specific position (e.
 
 #### Unminimize after a notification click
 
-To pre-position a window restored due to a notification click, Zonogy watches Notification Center through Accessibility, which reports each notification's frame and application. A click event tap, on only while a notification is showing, holds a press on a notification just long enough for Zonogy to pre-position all of that application's minimized windows (we don't know which one will be brought up), and only then lets the press through unchanged.
+To pre-position a window restored due to a notification click, Zonogy watches Notification Center through Accessibility, which reports each notification's frame and application. A click event tap, on only while a notification is showing, holds a press on a notification until the button comes up, to tell a click from a drag. For a click, Zonogy then pre-positions all of that application's minimized windows (we don't know which one will be brought up) and posts the press and release again. For a drag: after a drop, Zonogy pre-positions them the same way and then presses the notification through Accessibility (`kAXPressAction`).
 
-To keep the press short, the writes don't wait for the application's answers, so this pre-positioning is best effort.
+To keep the click short, the writes don't wait for the application's answers, so this pre-positioning is best effort.
 
 #### Applications that restore a window's frame
 

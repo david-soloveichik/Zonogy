@@ -7,9 +7,13 @@ extension AppController {
     // MARK: - Keyboard Shortcuts
 
     /// Clear all zones on active screen. If zones are already empty, go to one-zone configuration.
+    /// Mid-drag, the cursor's screen stands in for the active screen.
     @discardableResult
     internal func clearOrResetZones() -> ShortcutHoldPolicy.PressOutcome {
-        clearOrResetZones(on: activeScreenId(), reason: "shortcut-active-screen")
+        if isDragInFlight {
+            return clearOrResetZonesAtCursor()
+        }
+        return clearOrResetZones(on: activeScreenId(), reason: "shortcut-active-screen")
     }
 
     /// Run the clear/reset shortcut on the screen containing the mouse cursor (fallback to active).
@@ -19,7 +23,7 @@ extension AppController {
             return clearOrResetZones(on: cursorScreenId, reason: "shortcut-cursor-screen")
         } else {
             Logger.debug("Clear/reset zones (shortcut-cursor-screen): cursor outside managed displays, falling back to active screen")
-            return clearOrResetZones()
+            return clearOrResetZones(on: activeScreenId(), reason: "shortcut-active-screen")
         }
     }
 
@@ -34,15 +38,24 @@ extension AppController {
         // Any clear/reset that operates on this screen should exit UnderCovers for it.
         endUnderCovers(on: screenId, reason: "clear-or-reset-zones-\(reason)", recreatePlaceholders: false)
 
-        let zones = context.zoneController.allZones
-        let allEmpty = zones.allSatisfy { $0.isEmpty }
         let screenIndex = screenContextStore.loggingIndex(for: screenId)
 
         // WinShot: capture the pre-clear state before applying bulk clear/reset changes.
         autoSavePreClearWinShotSnapshotIfNeeded(on: screenId, clearReason: reason)
 
+        // Mid-drag, the window being dragged stays in hand (the syncs below must not promote it
+        // into a zone it overlaps if it is floating), and the Launcher stays closed: the drop
+        // decides what fills the cleared zones.
+        let isMidDrag = isDragInFlight
+        let draggedWindowId = isMidDrag ? keepDraggedWindowInHand(on: screenId) : nil
+
+        let zones = context.zoneController.allZones
+        let allEmpty = zones.allSatisfy { $0.isEmpty }
+
         // Clear the floating zone occupant (bookkeeping only, minimize batched below).
-        let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId)
+        let floatingOccupant = floatingZoneCoordinator.occupant(on: screenId).flatMap {
+            $0.windowId == draggedWindowId ? nil : $0
+        }
         if let floatingOccupant {
             floatingZoneCoordinator.clear(windowId: floatingOccupant.windowId, reason: "clear-zones-shortcut")
             // The batched minimize below makes this an eviction, so run the eviction teardown
@@ -75,7 +88,8 @@ extension AppController {
 
             placeholderCoordinator.clearPlaceholdersForScreen(screenId)
 
-            syncWindowsToZones()
+            syncWindowsToZones(recentlyPlacedInFloatingZone: draggedWindowId)
+            dragZonesDidChange()
             activeFitRefreshAfterZoneTopologyChange(on: screenId, reason: "reset-to-one-zone")
         } else {
             Logger.debug("Clear/reset zones (\(reason)): minimizing all windows on screen \(screenIndex)")
@@ -84,7 +98,7 @@ extension AppController {
             // the bulk AX minimize. The post-minimize retarget + auto-show inside the
             // dispatched block below remains as an idempotent safety net for when the
             // optimistic path is skipped (preference off, full-screen pause).
-            if context.zoneController.zone(at: 1) != nil {
+            if !isMidDrag, context.zoneController.zone(at: 1) != nil {
                 optimisticallyShowLauncher(
                     targetingZone: ZoneKey(screenId: screenId, index: 1),
                     reason: "clear-zones-optimistic"
@@ -120,14 +134,17 @@ extension AppController {
                     self.removeWindowFromAllZones(windowId: managed.windowId, reason: "clear-zones-shortcut", retarget: false)
                 }
                 Logger.debug("Clear/reset zones (\(reason)): minimized \(minimizedWindowIds.count) window(s) on screen \(screenIndex)")
-                self.syncWindowsToZones()
+                self.syncWindowsToZones(recentlyPlacedInFloatingZone: draggedWindowId)
+                self.dragZonesDidChange()
 
                 if let ctx = self.screenContexts[screenId], ctx.zoneController.zone(at: 1) != nil {
                     self.targetedZoneManager.setTargetedZone(ZoneKey(screenId: screenId, index: 1), reason: "clear-zones-shortcut")
                 } else {
                     self.targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
                 }
-                self.autoShowLauncherIfEmptyTargetedTiledZone()
+                if !isMidDrag {
+                    self.autoShowLauncherIfEmptyTargetedTiledZone()
+                }
             }
             return .clearedZones(screenId: screenId)
         }
@@ -138,12 +155,57 @@ extension AppController {
         } else {
             targetedZoneManager.ensureTargetedZone(reason: "clear-zones-shortcut-fallback")
         }
-        autoShowLauncherIfEmptyTargetedTiledZone()
+        if !isMidDrag {
+            autoShowLauncherIfEmptyTargetedTiledZone()
+        }
         return .resetZones
     }
 
+    /// A drag is in flight: the mouse button is held, or a cursor-driven row drag is active (the
+    /// Dock-icon kind swallows the mouse events).
+    private var isDragInFlight: Bool {
+        MouseButtons.isLeftMouseButtonDown() || dragDropCoordinator.isCursorDrivenDragActive
+    }
+
+    /// The window being dragged stays in hand while `screenId` is cleared: a floating one simply
+    /// stays, and a tiled one leaves its zone there, its drag continuing sourceless (so a drop
+    /// outside any zone places it like a new window). Returns the dragged window's id.
+    private func keepDraggedWindowInHand(on screenId: CGDirectDisplayID) -> Int? {
+        guard let windowId = windowController.currentDraggingWindowId else {
+            return nil
+        }
+        if dragDropCoordinator.currentManualDragWindowId == windowId,
+           let managed = windowController.window(withId: windowId),
+           zoneKey(forManagedWindow: managed)?.screenId == screenId {
+            screenContexts[screenId]?.zoneController.removeWindow(windowId: windowId)
+            clearManagedWindowZone(managed)
+            dragDropCoordinator.detachDragFromOriginZone()
+            Logger.debug("Clear/reset zones: dragged window \(windowId) left its zone and stays in hand")
+        }
+        // A tiled drag turned floating by the gesture modifiers restores its origin zone and the
+        // floating occupant it displaced when they are released: none of that returns to the
+        // cleared display.
+        if var context = tiledToFloatingDragContexts[windowId] {
+            if context.originZoneKey?.screenId == screenId {
+                context.originZoneKey = nil
+            }
+            if context.floatingScreenId == screenId {
+                context.displacedWindowId = nil
+            }
+            tiledToFloatingDragContexts[windowId] = context
+        }
+        return windowId
+    }
+
+    /// A clear or reset changed zones under a drag in flight: bring its zone overlays up to date.
+    private func dragZonesDidChange() {
+        dragDropCoordinator.zonesDidChange()
+        floatingDragHandler.zonesDidChange()
+        externalZoneDropInterceptor.zonesDidChange()
+    }
+
     internal func resolveCursorScreenId() -> CGDirectDisplayID? {
-        guard let cursorPoint = currentCursorAccessibilityPoint() else {
+        guard let cursorPoint = dragDropCoordinator.cursorDrivenCursorPoint ?? currentCursorAccessibilityPoint() else {
             return nil
         }
 

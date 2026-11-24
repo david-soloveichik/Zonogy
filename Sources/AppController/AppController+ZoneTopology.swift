@@ -87,7 +87,6 @@ extension AppController {
         windowPlacementManager.placeWindow(
             occupant,
             into: .tiled(ZoneKey(screenId: screenId, index: zone.index)),
-            centerFloatingWindow: true,
             reason: "add-zone-promote-overlap",
             forceRetargetAfterFill: false
         )

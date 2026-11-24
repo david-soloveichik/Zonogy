@@ -82,6 +82,51 @@ enum EdgePillDragPolicyTests {
             "expected fallback when nothing is hovered"
         )
 
+        // Floating-zone hover: indicators (the targeted one first) win over floating windows.
+        let bar0 = CGRect(x: 100, y: 990, width: 300, height: 10)
+        let overlappingBar1 = CGRect(x: 350, y: 990, width: 300, height: 10)
+        let window1 = CGRect(x: 200, y: 600, width: 500, height: 395)
+        let bars = [screen0: bar0, screen1: overlappingBar1]
+
+        assert(
+            EdgePillDragPolicy.floatingTarget(
+                at: CGPoint(x: 375, y: 995),
+                indicatorHitAreas: bars,
+                targetedScreenId: screen1
+            ) == screen1,
+            "expected the targeted floating indicator to win where indicators overlap"
+        )
+
+        assert(
+            EdgePillDragPolicy.floatingTarget(
+                at: CGPoint(x: 250, y: 992),
+                indicatorHitAreas: bars,
+                targetedScreenId: nil,
+                floatingWindowFrames: [screen1: window1]
+            ) == screen0,
+            "expected a floating indicator to win over a floating window beneath it"
+        )
+
+        assert(
+            EdgePillDragPolicy.floatingTarget(
+                at: CGPoint(x: 300, y: 700),
+                indicatorHitAreas: bars,
+                targetedScreenId: screen0,
+                floatingWindowFrames: [screen1: window1]
+            ) == screen1,
+            "expected a floating window to resolve its floating zone away from every indicator"
+        )
+
+        assert(
+            EdgePillDragPolicy.floatingTarget(
+                at: CGPoint(x: 50, y: 50),
+                indicatorHitAreas: bars,
+                targetedScreenId: screen0,
+                floatingWindowFrames: [screen1: window1]
+            ) == nil,
+            "expected no floating zone away from every indicator and floating window"
+        )
+
         if allPassed {
             print("EdgePillDragPolicyTests: all tests passed")
         }

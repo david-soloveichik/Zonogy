@@ -9,12 +9,14 @@ enum UserDefaultsKeys {
 
     // MARK: - CmdTab
     static let cmdTabActiveWindowTargetingMode = "Zonogy.cmdTab.activeWindowTargetingMode"
+    static let cmdTabJustMinimizedSkipSeconds = "Zonogy.cmdTab.justMinimizedSkipSeconds"
 
     // MARK: - General
     static let stickyResizeEnabled = "Zonogy.general.stickyResize.enabled"
     static let zoneLayoutStyle = "Zonogy.general.zoneLayoutStyle"
     static let overlayHighlightColor = "Zonogy.general.overlayHighlightColor"
     static let overlayOpacityScale = "Zonogy.general.overlayOpacityScale"
+    static let settleDelaySeconds = "Zonogy.general.settleDelaySeconds"
 
     // MARK: - Mouse Gestures
     static let mouseGestureModifiers = "Zonogy.mouseGestures.modifiers"
@@ -34,6 +36,7 @@ enum UserDefaultsKeys {
 
     // MARK: - Experimental
     static let instantMinimizeEnabled = "Zonogy.experimental.instantMinimizeEnabled"
+    static let instantMinimizeKeepAfterQuit = "Zonogy.experimental.instantMinimizeKeepAfterQuit"
     static let instantMinimizeActivation = "Zonogy.experimental.instantMinimizeActivation"
 
     // MARK: - Debug
@@ -54,6 +57,5 @@ enum UserDefaultsKeys {
     // MARK: - WinShot
     static let winShotEnabled = "Zonogy.winShot.enabled"
     static let winShotAutoSaveMode = "Zonogy.winShot.autoSaveMode"
-    static let winShotOccupancySettleDelaySeconds = "Zonogy.winShot.occupancySettleDelaySeconds"
     static let winShotMaxSnapshotsStored = "Zonogy.winShot.maxSnapshotsStored"
 }

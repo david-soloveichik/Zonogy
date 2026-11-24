@@ -153,7 +153,6 @@ extension AppController {
         windowPlacementManager.placeWindow(
             managed,
             into: destination,
-            centerFloatingWindow: true,
             reason: "behind-full-screen-raise",
             forceRetargetAfterFill: false
         )

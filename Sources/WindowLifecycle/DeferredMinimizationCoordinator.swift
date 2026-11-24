@@ -18,12 +18,22 @@
 /// about the flash). `MinimizeLoopGuard` is the safety net that redirects
 /// synchronous minimizes to this queue when it detects the loop happening anyway.
 import Foundation
+
+/// A host's decision, when the timer fires, about one queued minimization.
+enum DeferredMinimizationVerdict {
+    case minimize
+    /// Drop it: the window no longer needs minimizing.
+    case skip
+    /// Keep it queued until the next debounce.
+    case postpone
+}
+
 protocol DeferredMinimizationCoordinatorHost: AnyObject {
     var windowController: WindowController { get }
     var sleepWakeProtectionActive: Bool { get }
-    /// Returns `true` when the deferred minimization should proceed for this window/reason pair.
-    /// Hosts can perform pre-minimization bookkeeping (or veto minimization entirely) here.
-    func prepareForDeferredMinimization(windowId: Int, reason: String) -> Bool
+    /// Decides whether the deferred minimization of this window/reason pair proceeds now. Hosts can
+    /// perform pre-minimization bookkeeping (or veto or postpone minimization) here.
+    func prepareForDeferredMinimization(windowId: Int, reason: String) -> DeferredMinimizationVerdict
     func minimizeWindowProgrammatically(_ managed: ManagedWindow, reason: String)
 }
 
@@ -105,15 +115,23 @@ final class DeferredMinimizationCoordinator {
         let windowsToMinimize = pending
         pending.removeAll()
 
+        var postponed = false
         for (windowId, reason) in windowsToMinimize {
-            guard host.prepareForDeferredMinimization(windowId: windowId, reason: reason) else {
+            switch host.prepareForDeferredMinimization(windowId: windowId, reason: reason) {
+            case .skip:
                 Logger.debug("Deferred minimization skipped for window \(windowId) (reason: \(reason))")
-                continue
+            case .postpone:
+                queue(windowId: windowId, reason: reason)
+                postponed = true
+            case .minimize:
+                if let window = host.windowController.window(withId: windowId) {
+                    host.minimizeWindowProgrammatically(window, reason: reason)
+                    Logger.debug("Deferred minimization completed for window \(windowId) (reason: \(reason))")
+                }
             }
-            if let window = host.windowController.window(withId: windowId) {
-                host.minimizeWindowProgrammatically(window, reason: reason)
-                Logger.debug("Deferred minimization completed for window \(windowId) (reason: \(reason))")
-            }
+        }
+        if postponed {
+            Logger.debug("Deferred minimization postponed for \(pending.count) window(s) until the next debounce")
         }
     }
 }

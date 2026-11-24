@@ -23,8 +23,10 @@ extension AppController {
             }
 
             // Zonogy's records first, so only windows in no zone cost a round trip to their
-            // application (this runs on every Space change).
-            guard zoneKey(forManagedWindow: window) == nil,
+            // application (this runs on every Space change). A window being dragged is placed
+            // by its drop.
+            guard window.windowId != dragDropCoordinator.currentManualDragWindowId,
+                  zoneKey(forManagedWindow: window) == nil,
                   !isWindowInFloatingZone(window.windowId),
                   !isAwaitingMinimization(window),
                   !window.isMinimizedPerAccessibility else {
@@ -63,6 +65,7 @@ extension AppController {
     /// disconnected display leaving full-screen first.
     private func isAwaitingMinimization(_ window: ManagedWindow) -> Bool {
         deferredMinimizationCoordinator.isPending(windowId: window.windowId)
+            || windowsAwaitingRestoreMinimize.contains(window.windowId)
             || windowsLeavingFullScreenToMinimize.contains(CGWindowID(window.backing.cgWindowId))
     }
 }

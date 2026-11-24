@@ -1,10 +1,10 @@
 import AppKit
 import Foundation
 
-/// Moving the focused managed window into a zone of the user's choosing: the "Move Focused Window
-/// to Destination" shortcut moves it into the targeted zone, and zone navigation's move key (the
-/// same shortcut's key) into the selected zone. Both are the one move below — an occupied
-/// destination swaps.
+/// Moving a placed managed window into a zone of the user's choosing: the "Move Focused Window to
+/// Destination" shortcut moves the focused window into the targeted zone, zone navigation's move
+/// key (the same shortcut's key) into the selected zone, and a tiled window dropped into a floating
+/// zone goes there. All are the one move below — an occupied destination swaps.
 extension AppController {
     /// The "Move Focused Window to Destination" shortcut: move the focused managed window into the
     /// targeted zone.
@@ -17,11 +17,12 @@ extension AppController {
             Logger.debug("Move focused window to target: nothing targeted; ignoring")
             return
         }
-        moveFocusedWindow(windowId, to: destination, reason: "shortcut-move-focused-window-to-target")
+        moveWindow(windowId, to: destination, reason: "shortcut-move-focused-window-to-target")
     }
 
-    /// Move the focused window `windowId` into `destination`. An occupied destination swaps: the
-    /// occupant takes the moved window's origin — including across the tiling/floating boundary.
+    /// Move the placed window `windowId` into `destination`. An occupied destination swaps: the
+    /// occupant takes the moved window's origin — including across the tiling/floating boundary —
+    /// and a floating zone keeps its frame for the window entering it.
     /// (Without an origin to give it, the occupant is displaced through the normal placement path
     /// and minimizes.) Targeting follows the move rule, applied once after the swap settles: a
     /// move touching the target retargets as if the destination was just filled; an uninvolved
@@ -30,7 +31,7 @@ extension AppController {
     /// The origin is derived here, on the main queue, rather than carried over from the caller's
     /// decision: everything below runs in one synchronous block against that live state, so an
     /// interleaved placement or topology change can't detach the partner into a stale zone.
-    internal func moveFocusedWindow(
+    internal func moveWindow(
         _ windowId: Int,
         to destination: TargetedZoneManager.TargetedDestination,
         reason: String
@@ -55,12 +56,17 @@ extension AppController {
         let preMoveTarget = targetedZoneManager.targetedDestination
 
         // Identify the swap partner while pre-move occupancy is still accurate, and detach it so
-        // the placements below displace (and minimize) nothing.
+        // the placements below displace (and minimize) nothing. Each floating zone of the swap
+        // keeps its frame for the window entering it, read before either window leaves.
         var partner: ManagedWindow?
-        if origin != nil,
+        var floatingPlacement = FloatingPlacement.standard
+        var partnerFloatingPlacement = FloatingPlacement.standard
+        if let origin,
            let occupant = occupant(of: destination),
            occupant.windowId != managed.windowId {
             partner = occupant
+            floatingPlacement = keptFloatingPlacement(in: destination, for: managed)
+            partnerFloatingPlacement = keptFloatingPlacement(in: origin, for: occupant)
             detach(occupant, from: destination, reason: reason)
         }
 
@@ -78,7 +84,6 @@ extension AppController {
             windowPlacementManager.placeWindow(
                 managed,
                 into: destination,
-                centerFloatingWindow: true,
                 reason: reason,
                 retargetAfterFill: false,
                 afterPlacementAction: {
@@ -95,7 +100,7 @@ extension AppController {
             windowPlacementManager.placeWindow(
                 managed,
                 into: destination,
-                centerFloatingWindow: true,
+                floatingPlacement: floatingPlacement,
                 reason: reason,
                 retargetAfterFill: false
             )
@@ -106,7 +111,7 @@ extension AppController {
             windowPlacementManager.placeWindow(
                 partner,
                 into: origin,
-                centerFloatingWindow: true,
+                floatingPlacement: partnerFloatingPlacement,
                 reason: "\(reason)-swap",
                 retargetAfterFill: false,
                 activate: false
@@ -129,6 +134,19 @@ extension AppController {
             return origin?.tiledKey
         }()
         syncWindowsToZones(recentlyPlacedInFloatingZone: recentlyPlacedInFloatingZone, explicitlyVacatedZone: vacatedTilingZone)
+    }
+
+    /// Where `incoming` goes in `zone` when a swap moves it there: a floating zone keeps the frame
+    /// of the window leaving it (read while that window is still there).
+    private func keptFloatingPlacement(
+        in zone: TargetedZoneManager.TargetedDestination,
+        for incoming: ManagedWindow
+    ) -> FloatingPlacement {
+        guard case .floating(let screenId) = zone,
+              let frame = floatingZoneCoordinator.occupantFrame(on: screenId, excluding: incoming.windowId) else {
+            return .standard
+        }
+        return .frame(frame)
     }
 
     /// Bookkeeping-only removal of a swap partner from its zone (no minimize), mirroring the

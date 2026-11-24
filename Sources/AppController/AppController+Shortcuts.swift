@@ -406,7 +406,6 @@ extension AppController {
         windowPlacementManager.placeWindow(
             floatingWindow,
             into: .tiled(zone1Key),
-            centerFloatingWindow: true,
             reason: reason,
             retargetAfterFill: false
         )

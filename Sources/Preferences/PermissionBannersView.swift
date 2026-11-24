@@ -87,11 +87,11 @@ final class PermissionBannersView: NSView {
             isGranted: hasAccessibility,
             text: hasAccessibility
                 ? "Accessibility permission granted"
-                : "Accessibility permission required for window management")
+                : "Accessibility permission required")
         let hasScreenRecording = CGPreflightScreenCaptureAccess()
         screenRecordingBanner.show(
             isGranted: hasScreenRecording,
-            text: "Screen Recording permission \(hasScreenRecording ? "granted" : "not granted") (only used for WinShot snapshots feature)")
+            text: "Screen Recording permission \(hasScreenRecording ? "granted" : "not granted") (for WinShot Snapshots)")
     }
 }
 

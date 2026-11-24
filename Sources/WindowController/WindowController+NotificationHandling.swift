@@ -583,6 +583,7 @@ extension WindowController {
         }
         // One frame read serves the cache, the log line, and the drag pipeline. Without it (the
         // application is not answering) there is nothing to act on.
+        let previousFrame = managed.cachedFrame
         guard let accessibilityFrame = recordCachedFrame(for: managed) else {
             Logger.debug("External window \(managed.windowId) moved; frame unavailable, ignoring")
             return
@@ -596,7 +597,7 @@ extension WindowController {
         }
 
         Logger.debug("External window \(managed.windowId) moved to \(accessibilityFrame)")
-        if ensureManualDragBegan(for: managed, frame: accessibilityFrame) {
+        if ensureManualDragBegan(for: managed, frame: accessibilityFrame, previousFrame: previousFrame) {
             delegate?.windowManualMoveDidUpdate(windowId: managed.windowId, frame: accessibilityFrame)
         } else {
             // The application moved the window itself (not a Zonogy drag). Remember this so
@@ -619,6 +620,9 @@ extension WindowController {
             Logger.debug("External window \(managed.windowId) resized (ignored programmatic update of a window in no zone)")
             return
         }
+        // Taken before the frame read, which a busy app can stall for most of a second: by the
+        // time the frame arrives, the drag behind this resize may be over.
+        let mouse = MouseButtons.snapshot()
         // One frame read serves the cache and every consumer below.
         let accessibilityFrame = recordCachedFrame(for: managed)
         // Always check full-screen state on resize (even for programmatic updates of placed windows)
@@ -663,7 +667,12 @@ extension WindowController {
            let descriptor = delegate?.screenDescriptor(for: screenId) {
             screenFrame = descriptor.accessibilityToScreen(accessibilityFrame)
         }
-        delegate?.windowManualResizeDidEnd(windowId: managed.windowId, screenId: managed.screenDisplayId, frame: screenFrame)
+        delegate?.windowManualResizeDidEnd(
+            windowId: managed.windowId,
+            screenId: managed.screenDisplayId,
+            frame: screenFrame,
+            mouse: mouse
+        )
     }
 
     private func collapseNativeTabSourceForAppGeometryChangeIfNeeded(

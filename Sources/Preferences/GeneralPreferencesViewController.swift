@@ -5,12 +5,13 @@ final class GeneralPreferencesViewController: NSViewController {
 
     private let permissionBanners = PermissionBannersView()
     private var launchAtLoginCheckbox: NSButton?
-    private var launchAtLoginHintLabel: NSTextField?
     private var updateCheckCheckbox: NSButton?
-    private var updateCheckHintLabel: NSTextField?
+    private var settleDelayInput: NumberStepperInput?
+    private var cmdTabSkipInput: NumberStepperInput?
     private var highlightColorWell: NSColorWell?
-    private var resetHighlightColorButton: NSButton?
+    private var opacitySlider: NSSlider?
     private var opacityValueLabel: NSTextField?
+    private var resetAppearanceButton: NSButton?
     private var dockMenusCheckbox: NSButton?
     private var dockMenusHintLabel: NSTextField?
 
@@ -35,53 +36,49 @@ final class GeneralPreferencesViewController: NSViewController {
         containerView.addSubview(launchAtLoginCheckbox)
         self.launchAtLoginCheckbox = launchAtLoginCheckbox
 
-        let launchAtLoginHintLabel = NSTextField(wrappingLabelWithString: "Automatically start Zonogy when you log in to your Mac.")
-        launchAtLoginHintLabel.font = NSFont.systemFont(ofSize: 12)
-        launchAtLoginHintLabel.textColor = .secondaryLabelColor
-        launchAtLoginHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(launchAtLoginHintLabel)
-        self.launchAtLoginHintLabel = launchAtLoginHintLabel
-
         let updateCheckCheckbox = NSButton(checkboxWithTitle: "Automatically check for updates", target: self, action: #selector(updateCheckToggled(_:)))
         updateCheckCheckbox.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(updateCheckCheckbox)
         self.updateCheckCheckbox = updateCheckCheckbox
 
-        let updateCheckHintLabel = NSTextField(wrappingLabelWithString: "Once a day, Zonogy checks GitHub for a newer release.")
-        updateCheckHintLabel.font = NSFont.systemFont(ofSize: 12)
-        updateCheckHintLabel.textColor = .secondaryLabelColor
-        updateCheckHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(updateCheckHintLabel)
-        self.updateCheckHintLabel = updateCheckHintLabel
+        // Separates the app-level checkboxes from the timing and appearance settings below.
+        let settingsSeparator = NSBox()
+        settingsSeparator.boxType = .separator
+        settingsSeparator.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(settingsSeparator)
+
+        // Several features share the settle delay, so it lives here, with its uses in a popover.
+        let settleDelayInput = NumberStepperInput(range: SecondsPreference.settleDelay.range) { [weak self] seconds in
+            AppController.shared.setSettleDelayFromSettings(seconds)
+            self?.syncSecondsInputs()
+        }
+        self.settleDelayInput = settleDelayInput
+        let settleDelayRow = Self.makeSecondsRow(
+            "Treat changes as intentional after", input: settleDelayInput,
+            trailing: MoreInfoButton { Self.makeSettleDelayInfoView() }
+        )
+        containerView.addSubview(settleDelayRow)
+
+        let cmdTabSkip = SecondsPreference.cmdTabJustMinimizedSkip
+        let cmdTabSkipInput = NumberStepperInput(range: cmdTabSkip.range) { [weak self] seconds in
+            cmdTabSkip.saveSeconds(seconds)
+            self?.syncSecondsInputs()
+        }
+        self.cmdTabSkipInput = cmdTabSkipInput
+        let cmdTabSkipRow = Self.makeSecondsRow(
+            "CmdTab doesn't suggest windows minimized in the last", input: cmdTabSkipInput
+        )
+        containerView.addSubview(cmdTabSkipRow)
 
         // Overlay appearance: the highlight color and opacity of everything Zonogy draws on the desktop.
-        let appearanceSeparator = NSBox()
-        appearanceSeparator.boxType = .separator
-        appearanceSeparator.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(appearanceSeparator)
-
-        let highlightColorLabel = NSTextField(labelWithString: "Highlight color:")
-        highlightColorLabel.font = NSFont.systemFont(ofSize: 13)
-        highlightColorLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(highlightColorLabel)
+        let highlightLabel = NSTextField(labelWithString: "Highlight:")
+        highlightLabel.font = NSFont.systemFont(ofSize: 13)
 
         let highlightColorWell = NSColorWell(style: .minimal)
         highlightColorWell.supportsAlpha = false
         highlightColorWell.target = self
         highlightColorWell.action = #selector(highlightColorChanged(_:))
-        highlightColorWell.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(highlightColorWell)
         self.highlightColorWell = highlightColorWell
-
-        let resetHighlightColorButton = NSButton(title: "Reset to Blue", target: self, action: #selector(resetHighlightColor))
-        resetHighlightColorButton.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(resetHighlightColorButton)
-        self.resetHighlightColorButton = resetHighlightColorButton
-
-        let opacityLabel = NSTextField(labelWithString: "Opacity:")
-        opacityLabel.font = NSFont.systemFont(ofSize: 13)
-        opacityLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacityLabel)
 
         let opacitySlider = NSSlider(
             value: OverlayAppearance.opacityScale,
@@ -93,16 +90,32 @@ final class GeneralPreferencesViewController: NSViewController {
         // A tick every 25% from 25% to 150%, so 100% (the default look) is a tick.
         opacitySlider.numberOfTickMarks = 6
         opacitySlider.isContinuous = true
-        opacitySlider.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacitySlider)
+        opacitySlider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        self.opacitySlider = opacitySlider
 
         let opacityValueLabel = NSTextField(labelWithString: "")
         opacityValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-        opacityValueLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(opacityValueLabel)
+        // Wide enough for "150%", so the reset button beside it holds still while dragging.
+        opacityValueLabel.widthAnchor.constraint(equalToConstant: 40).isActive = true
         self.opacityValueLabel = opacityValueLabel
 
-        let appearanceHintLabel = NSTextField(wrappingLabelWithString: "Applies to everything Zonogy draws on the desktop, such as placeholders, zone bars, and the destination indicator.")
+        // Last in the row, so hiding it while both settings are at their defaults moves nothing.
+        let resetAppearanceButton = NSButton(
+            image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset to blue and 100%")!,
+            target: self, action: #selector(resetAppearance))
+        resetAppearanceButton.isBordered = false
+        resetAppearanceButton.contentTintColor = .secondaryLabelColor
+        resetAppearanceButton.toolTip = "Reset to blue and 100%"
+        self.resetAppearanceButton = resetAppearanceButton
+
+        let highlightRow = NSStackView(views: [highlightLabel, highlightColorWell, opacitySlider, opacityValueLabel, resetAppearanceButton])
+        highlightRow.orientation = .horizontal
+        highlightRow.alignment = .centerY
+        highlightRow.spacing = 10
+        highlightRow.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(highlightRow)
+
+        let appearanceHintLabel = NSTextField(wrappingLabelWithString: "Used for placeholders, zone bars, destination indicators, and more.")
         appearanceHintLabel.font = NSFont.systemFont(ofSize: 12)
         appearanceHintLabel.textColor = .secondaryLabelColor
         appearanceHintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -150,39 +163,23 @@ final class GeneralPreferencesViewController: NSViewController {
             launchAtLoginCheckbox.topAnchor.constraint(equalTo: permissionBanners.bottomAnchor, constant: 18),
             launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            launchAtLoginHintLabel.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 6),
-            launchAtLoginHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            launchAtLoginHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            updateCheckCheckbox.topAnchor.constraint(equalTo: launchAtLoginHintLabel.bottomAnchor, constant: 18),
+            updateCheckCheckbox.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 10),
             updateCheckCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            updateCheckHintLabel.topAnchor.constraint(equalTo: updateCheckCheckbox.bottomAnchor, constant: 6),
-            updateCheckHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            updateCheckHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            settingsSeparator.topAnchor.constraint(equalTo: updateCheckCheckbox.bottomAnchor, constant: 20),
+            settingsSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
+            settingsSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            appearanceSeparator.topAnchor.constraint(equalTo: updateCheckHintLabel.bottomAnchor, constant: 20),
-            appearanceSeparator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            appearanceSeparator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
+            settleDelayRow.topAnchor.constraint(equalTo: settingsSeparator.bottomAnchor, constant: 14),
+            settleDelayRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            highlightColorWell.topAnchor.constraint(equalTo: appearanceSeparator.bottomAnchor, constant: 14),
-            highlightColorWell.leadingAnchor.constraint(equalTo: highlightColorLabel.trailingAnchor, constant: 8),
-            highlightColorLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            highlightColorLabel.centerYAnchor.constraint(equalTo: highlightColorWell.centerYAnchor),
+            cmdTabSkipRow.topAnchor.constraint(equalTo: settleDelayRow.bottomAnchor, constant: 10),
+            cmdTabSkipRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            resetHighlightColorButton.leadingAnchor.constraint(equalTo: highlightColorWell.trailingAnchor, constant: 12),
-            resetHighlightColorButton.centerYAnchor.constraint(equalTo: highlightColorWell.centerYAnchor),
+            highlightRow.topAnchor.constraint(equalTo: cmdTabSkipRow.bottomAnchor, constant: 14),
+            highlightRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            opacitySlider.topAnchor.constraint(equalTo: highlightColorWell.bottomAnchor, constant: 12),
-            opacitySlider.leadingAnchor.constraint(equalTo: highlightColorWell.leadingAnchor),
-            opacitySlider.widthAnchor.constraint(equalToConstant: 220),
-            opacityLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
-            opacityLabel.centerYAnchor.constraint(equalTo: opacitySlider.centerYAnchor),
-
-            opacityValueLabel.leadingAnchor.constraint(equalTo: opacitySlider.trailingAnchor, constant: 8),
-            opacityValueLabel.centerYAnchor.constraint(equalTo: opacitySlider.centerYAnchor),
-
-            appearanceHintLabel.topAnchor.constraint(equalTo: opacitySlider.bottomAnchor, constant: 8),
+            appearanceHintLabel.topAnchor.constraint(equalTo: highlightRow.bottomAnchor, constant: 8),
             appearanceHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
             appearanceHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
@@ -201,16 +198,16 @@ final class GeneralPreferencesViewController: NSViewController {
             dockMenusDragHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
             dockMenusDragHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
 
-            versionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -20),
+            versionLabel.topAnchor.constraint(equalTo: dockMenusDragHintLabel.bottomAnchor, constant: 24),
             versionLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 580)
+        fitPreferredContentSizeToContent()
         syncLaunchAtLoginCheckbox()
         syncUpdateCheckCheckbox()
-        syncHighlightColorControls()
-        syncOpacityValueLabel()
+        syncSecondsInputs()
+        syncAppearanceControls()
         syncDockMenusCheckbox()
     }
 
@@ -246,29 +243,70 @@ final class GeneralPreferencesViewController: NSViewController {
         updateCheckCheckbox?.state = enabled ? .on : .off
     }
 
+    private func syncSecondsInputs() {
+        settleDelayInput?.show(SecondsPreference.settleDelay.loadSeconds())
+        cmdTabSkipInput?.show(SecondsPreference.cmdTabJustMinimizedSkip.loadSeconds())
+    }
+
+    /// A setting that reads "<words> [N] seconds", with `trailing` after it.
+    private static func makeSecondsRow(_ words: String, input: NumberStepperInput, trailing: NSView? = nil) -> NSStackView {
+        let wordsLabel = NSTextField(labelWithString: words)
+        wordsLabel.font = NSFont.systemFont(ofSize: 13)
+        let secondsLabel = NSTextField(labelWithString: "seconds")
+        secondsLabel.font = NSFont.systemFont(ofSize: 13)
+        let row = NSStackView(views: [wordsLabel, input.field, input.stepper, secondsLabel] + [trailing].compactMap { $0 })
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 6
+        row.setCustomSpacing(12, after: secondsLabel)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        return row
+    }
+
+    /// What the settle delay is for, in its More Info popover.
+    private static func makeSettleDelayInfoView() -> NSView {
+        let width: CGFloat = 380
+        let label = NSTextField(wrappingLabelWithString: "This counters apps temporarily bringing forward a window other than the one you want, such as an existing window when you open a document.")
+        label.font = NSFont.systemFont(ofSize: 12)
+        label.preferredMaxLayoutWidth = width
+        label.translatesAutoresizingMaskIntoConstraints = false
+        let content = NSView()
+        content.addSubview(label)
+        NSLayoutConstraint.activate([
+            // Pinned to a width: a wrapping label yields horizontally, and the popover's fitting
+            // size would otherwise squeeze it to its longest word.
+            label.widthAnchor.constraint(equalToConstant: width),
+            label.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+            label.topAnchor.constraint(equalTo: content.topAnchor, constant: 14),
+            label.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -14),
+        ])
+        return content
+    }
+
     @objc private func highlightColorChanged(_ sender: NSColorWell) {
         OverlayAppearance.setCustomHighlightColor(sender.color)
-        resetHighlightColorButton?.isEnabled = true
-    }
-
-    @objc private func resetHighlightColor() {
-        OverlayAppearance.setCustomHighlightColor(nil)
-        syncHighlightColorControls()
-    }
-
-    private func syncHighlightColorControls() {
-        highlightColorWell?.color = OverlayAppearance.highlightColor
-        resetHighlightColorButton?.isEnabled = OverlayAppearance.customHighlightColor != nil
+        syncAppearanceControls()
     }
 
     /// Stores 5% steps so the percentage reads cleanly; the slider itself moves freely.
     @objc private func opacityChanged(_ sender: NSSlider) {
         OverlayAppearance.setOpacityScale((sender.doubleValue * 20).rounded() / 20)
-        syncOpacityValueLabel()
+        syncAppearanceControls()
     }
 
-    private func syncOpacityValueLabel() {
+    @objc private func resetAppearance() {
+        OverlayAppearance.setCustomHighlightColor(nil)
+        OverlayAppearance.setOpacityScale(1)
+        opacitySlider?.doubleValue = OverlayAppearance.opacityScale
+        syncAppearanceControls()
+    }
+
+    /// Everything but the slider's position, which follows the pointer while dragged.
+    private func syncAppearanceControls() {
+        highlightColorWell?.color = OverlayAppearance.highlightColor
         opacityValueLabel?.stringValue = "\(Int((OverlayAppearance.opacityScale * 100).rounded()))%"
+        resetAppearanceButton?.isHidden = OverlayAppearance.customHighlightColor == nil && OverlayAppearance.opacityScale == 1
     }
 
     @objc private func dockMenusToggled(_ sender: NSButton) {

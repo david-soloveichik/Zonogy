@@ -48,8 +48,8 @@ protocol DockMenusCoordinatorDelegate: AnyObject {
 
     // MARK: - Drag Cancellation
 
-    /// Called when the user cancels an in-flight drag (e.g., by pressing Escape). The
-    /// delegate should tear down any cursor-driven drag session and not perform the drop.
+    /// Called when an in-flight drag is cancelled (the user pressed Escape, or its release went
+    /// unseen). The delegate should tear down any cursor-driven drag session and not perform the drop.
     func dockMenusCoordinatorDidCancelDrag(_ coordinator: DockMenusCoordinator)
 }
 
@@ -74,6 +74,14 @@ final class DockMenusCoordinator {
     var isClickPointCoveredByZonogyEdgeUI: ((CGPoint) -> Bool)? {
         didSet {
             clickInterceptor.isPointCoveredByZonogyEdgeUI = isClickPointCoveredByZonogyEdgeUI
+        }
+    }
+
+    /// Forwarded to the click interceptor: called after it swallows the release that ends a Dock
+    /// click or drag it intercepted, a mouse-up no event monitor sees.
+    var onSwallowedDockRelease: (() -> Void)? {
+        didSet {
+            clickInterceptor.onSwallowedRelease = onSwallowedDockRelease
         }
     }
 
@@ -351,6 +359,11 @@ extension DockMenusCoordinator: DockClickInterceptorDelegate {
     func dockClickInterceptorDidEndDrag(_ interceptor: DockClickInterceptor, cursorPoint: CGPoint) {
         rowDragController.endDrag(cursorPointAX: cursorPoint)
     }
+
+    func dockClickInterceptorDidAbortDrag(_ interceptor: DockClickInterceptor) {
+        rowDragController.cancelDrag()
+        delegate?.dockMenusCoordinatorDidCancelDrag(self)
+    }
 }
 
 // MARK: - DockMenuPanelControllerDelegate
@@ -382,21 +395,10 @@ extension DockMenusCoordinator: DockMenuPanelControllerDelegate {
 
 extension DockMenusCoordinator {
     private func currentCursorAccessibilityPoint() -> CGPoint? {
-        let cocoaPoint = NSEvent.mouseLocation
-        let cocoaFrame = CGRect(origin: cocoaPoint, size: .zero)
-        let accessibilityFrame = CoordinateConversion.cocoaToAccessibility(
-            cocoaFrame: cocoaFrame,
-            primaryScreenBounds: primaryScreenBounds
-        )
-        return accessibilityFrame.origin
+        CoordinateConversion.cocoaToAccessibility(point: NSEvent.mouseLocation, primaryScreenBounds: primaryScreenBounds)
     }
 
     private func cocoaPoint(fromAccessibilityPoint point: CGPoint) -> CGPoint {
-        let accessibilityFrame = CGRect(origin: point, size: .zero)
-        let cocoaFrame = CoordinateConversion.accessibilityToCocoa(
-            accessibilityFrame: accessibilityFrame,
-            primaryScreenBounds: primaryScreenBounds
-        )
-        return cocoaFrame.origin
+        CoordinateConversion.accessibilityToCocoa(point: point, primaryScreenBounds: primaryScreenBounds)
     }
 }

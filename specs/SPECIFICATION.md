@@ -154,6 +154,8 @@ Pressing Shift-Control-Cmd-Escape performs the same steps, but works with the di
 
 **Hold to clear and reset:** A quick press clears the display; a 0.5-second hold clears and resets it to one zone. If the display is already clear, either gesture resets it immediately.
 
+**Clearing mid-drag:** While the mouse button is held, as in any drag, Control-Cmd-Escape operates on the display where the mouse pointer is (like its Shift variant), so a drag can clear its destination before the drop.
+
 ### Targeting
 
 **Targeting rule:** Exactly one zone (tiling zone or floating zone) is targeted at any moment. Newly created or unminimized windows are always placed into the targeted zone.
@@ -173,7 +175,7 @@ Focus changes do not retarget zones, with the exception of an implicitly targete
 
 An implicit floating target follows the display of the frontmost window (managed or not). (Zonogy's own windows and windows not yet placed in a zone, ie arriving or unminimizing, do not count.) Only an explicit floating target colors its bar and flashes.
 
-Opening a document in an application that already has a window shown typically brings that window to the front first, moving an implicit floating target to its display, so the document's window would open there too. To prevent this, when an application coming to the front moves an implicit floating target to another display, its next window opened or unminimized within the WinShot settle delay (3 seconds by default) goes to the previous floating zone. This does not happen when something shows the user went to the new display explicitly:
+Opening a document in an application that already has a window shown typically brings that window to the front first, moving an implicit floating target to its display, so the document's window would open there too. To prevent this, when an application coming to the front moves an implicit floating target to another display, its next window opened or unminimized within the settle delay (see **Settle Delay**) goes to the previous floating zone. This does not happen when something shows the user went to the new display explicitly:
 
 - A key or mouse button was pressed after the application came to the front, such as Cmd-N after switching to it.
 - The pointer was on the new display when the target moved there. (Clicking the application's window there brings it to the front just as opening a document does.)
@@ -247,19 +249,21 @@ The gesture works while the Launcher is open: the Launcher keeps its plain arrow
 
 Each display has exactly one floating zone for floating a single managed window over the tiled layout.
 
-When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. After placement, the user may freely move/resize it without affecting tiled frames. A floating window that moves to another display becomes that display's floating-zone occupant (swapping places with any window already floating there); when the application itself relocates the window, this rebooking does not retarget.
+When placed into the floating zone, a window is centered and sized to the first available of: its remembered floating-zone size, its current size, or 55% of the display's visible bounds, clamped between 1/3 and 80% of those bounds. If the floating zone is occupied and explicitly targeted (see **Implicit and explicit floating targets**), the incoming window instead takes the occupant's frame; a window that cannot take that size still gets the frame's top-left corner. Dropping a window into the floating zone counts as explicitly targeting it. After placement, the user may freely move/resize it without affecting tiled frames. A floating window that moves to another display becomes that display's floating-zone occupant (swapping places with any window already floating there); when the application itself relocates the window, this rebooking does not retarget.
 
 Zonogy records a window's floating-zone size on first placement and updates it on each user resize in the floating zone. The size survives promotions to tiling zones and is cleared only when the window is destroyed.
 
-Placing another window into the floating zone minimizes the previous occupant.
+Placing another window into the floating zone minimizes the previous occupant, except for moves that swap the two windows (see **Dragging Windows Between Zones** and **Moving the focused window to the target**).
 
 #### Automatic minimization of floating zone occupant
 
 The floating zone occupant is minimized when it becomes *occluded* by an occupied tiling zone (on the same display). For this rule, test overlap against the tiling zone's frame, not the tiling window's current frame. This means temporary tiling-window geometry changes outside the zone frame (for example, ActiveFit reveal mode) do not increase the floating window's measured occlusion. Ignore tiny overlaps (e.g., window shadows) when computing occlusion.
 
+Defer this minimization while a mouse gesture is in progress: clicking a tiled window to drag it brings that window to the front, and the floating window must stay available as a drop destination for that drag.
+
 #### Promotion to tiling zone
 
-When a tiling zone on a display becomes empty and that display has a floating-zone occupant, promote the floating window into the emptied zone **only if the floating window’s current frame overlaps the emptied zone’s frame**. Exception: If the tiling zone became empty because the user explicitly moved that zone’s window into the floating zone (e.g., by dragging onto the floating zone indicator, by Control-Command drag promotion, or by placing it into the floating zone via the Launcher), do not promote the floating-zone occupant in response to that same emptying event.
+When a tiling zone on a display becomes empty and that display has a floating-zone occupant, promote the floating window into the emptied zone **only if the floating window’s current frame overlaps the emptied zone’s frame**. Exception: If the tiling zone became empty because the user explicitly moved that zone’s window into the floating zone (e.g., by dragging it into the floating zone, by Control-Command drag promotion, or by placing it into the floating zone via the Launcher), do not promote the floating-zone occupant in response to that same emptying event.
 
 When a new tiling zone is created on a display, promote the floating-zone occupant into that zone if its current frame overlaps the new zone's frame (ignoring tiny overlaps). If there is no overlap, the floating-zone occupant stays as is. (When a new zone is created as part of a drag/drop onto the add-zone indicator, do not auto-promote the floating occupant since the dragged window is taking that new zone.)
 
@@ -305,11 +309,11 @@ Per-app exception: applications may opt into `doNotResizeWidth`. For those windo
 
 Dragging behavior differs between tiled windows and floating-zone (floating) windows.
 
-**Tiled window drags:** When the user drags a managed window that is currently assigned to a tiling zone, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every tiling zone, and highlights the zone under the mouse cursor. The drop target is whichever tiling zone currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across displays if needed). If the system cannot determine a drop target—either because the cursor is outside every tiling zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
+**Tiled window drags:** When the user drags a managed window that is currently assigned to a tiling zone, Zonogy suspends reflows until mouse-up, shows non-interactive overlays for every tiling zone, and highlights the zone under the mouse cursor. The drop target is whichever zone (tiling or floating) currently contains the cursor; if no zone contains it, no zone is highlighted. Dropping onto an empty zone moves the window there; dropping onto an occupied zone swaps the two windows (across displays if needed). If the system cannot determine a drop target—either because the cursor is outside every zone or because the prospective target disappears mid-gesture—we cancel the drop and push the dragged window back through the normal placement pipeline.
 
 If the source app destroys the dragged window mid-gesture (e.g., Chrome tab merges), we immediately tear down drag overlays and defer placing the replacement window until the app finishes creating it.
 
-If a tiled window is dropped onto a floating zone indicator, place it into that display's floating zone (replacing and minimizing any prior floating occupant). The floating zone indicator should highlight when the mouse is over it during drag.
+If a tiled window is dropped onto a floating zone indicator, treat it as a drop into that display's floating zone. During the drag, the floating window gets an overlay like a tiling zone's, which highlights together with the floating zone indicator when the mouse is over either.
 
 **Floating-zone window drags:** Default drags merely reposition the floating window (no zone overlays), except when the cursor is over an empty tiling zone (placeholder): in that case, the drag automatically behaves as a promoted drag — showing zone overlays and highlighting the empty zone as a drop target. Dropping onto the empty zone places the window there. Moving the cursor away from the empty zone (or over an occupied zone) reverts to normal repositioning.
 
@@ -319,21 +323,27 @@ Holding Control-Command during a tiled drag promotes it into a floating-zone dra
 
 If a window is dragged and dropped over an add-zone indicator ("new zone" pill), we immediately add the zone on that indicator's side and place the dragged window into it (works for both tiled and floating-zone drags). During tab tear-out flows (e.g., Chrome creating a fresh window mid-drag), keep the original zone's occupant intact until the new window lands in the newly created zone.
 
-### Drag and Drop on Placeholder Windows and the Add-Zone Indicator
+### Drag and Drop on Placeholder Windows and the Add-Zone and Floating Zone Indicators
 
-Placeholder windows and the add-zone indicator accept external drops so the user can route content directly into a zone.
+Placeholder windows and the add-zone and floating zone indicators accept external drops so the user can route content directly into a zone.
 
 Dragging external content over an empty-zone placeholder shows the same blue zone-overlay UI used for tiled-window drags, with that placeholder's zone highlighted.
 
-Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder) temporarily promotes that gesture into the same full-display zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
+Holding Control-Command during an external drag over an **occupied** tiling zone (or empty-zone placeholder, or floating window) temporarily promotes that gesture into the same full-display zone-overlay UI used for tiled-window drags. Dropping onto an occupied tiling zone in this mode first empties that zone by minimizing its current occupant, then treats the drop exactly as though it landed on that zone's empty placeholder window. Dropping onto a floating window instead treats the drop exactly as though it landed on that display's floating zone indicator, without minimizing the floating window first, so that a new window opened for the item takes over its frame. Exception: if the source app that began the drag has `disableMouseGestures`, Zonogy does not promote/intercept that Control-Command external drag; normal placeholder/add-zone behavior still applies.
 
 Holding Shift during an external drag makes placeholders let the drag pass through to whatever is beneath them. This allows, for example, moving a desktop icon to a spot covered by a placeholder, where the drop would otherwise open the file in that zone.
 
-**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on an add-zone indicator first creates the new zone on that indicator's side, targets the lowest-index empty tiling zone on that display, and then opens the file the same way.
+**Files:** When a file is dropped on a placeholder window, immediately target that placeholder's zone and pass the file to the system default application (Launch Services "open"). Dropping on an add-zone indicator first creates the new zone on that indicator's side, targets the lowest-index empty tiling zone on that display, and then opens the file the same way. Dropping on a floating zone indicator targets that floating zone and opens the file the same way.
 
-**URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on both placeholder windows and the add-zone indicator. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
+**URLs:** Accept pasteboard URLs (including custom schemes such as `message:`) on placeholder windows and the add-zone and floating zone indicators. Targeting behavior mirrors the file path above. After targeting, open the URL with its default handler unless it is an HTTP(S) link.
 
 **Web links:** For HTTP and HTTPS links, determine the default browser, create **a new window** in that browser, and load the URL there instead of invoking the generic opener. We currently support Safari, Chrome, Firefox, and Edge for the new-window automation.
+
+### Clicking and Dragging Notifications
+
+Zonogy intercepts clicks on macOS notifications, so that a window unminimized by the click appears directly in the targeted zone (see **Unminimize after a notification click** in [SPECIFICATION-IMPLEMENTATION.md](SPECIFICATION-IMPLEMENTATION.md)).
+
+A notification can also be dragged onto a zone, like a Dock icon. Dropping it targets that zone and opens the notification as clicking it would.
 
 ### Minimize Active Window
 
@@ -428,10 +438,20 @@ For the CmdTab window switcher feature, see **[SPECIFICATION-CMDTAB.md](SPECIFIC
 
 Zonogy draws its desktop overlays (placeholders, target indicators, add-zone and floating zone indicators, the border over a targeted occupied zone, zone overlays during drags, the zone-navigation circle, and zone resize bars) in white and a highlight color, blue by default. Preferences → General sets:
 
-- **Highlight color:** any color, picked from a color well. "Reset to Blue" restores the default.
+- **Highlight color:** any color, picked from a color well.
 - **Opacity:** a scale from 25% to 150% (default 100%) that multiplies every opacity in these overlays, white parts included, so they become subtler or bolder without changing their relative look. Opacities cap at fully opaque.
 
+A reset button, shown while either setting differs from its default, restores both.
+
 Selection highlights in Zonogy's own panels (Launcher, CmdTab, DockMenus, WinShot chooser) follow the macOS accent color instead.
+
+## Settle Delay
+
+Preferences → General sets the settle delay ("Treat changes as intentional after N seconds", default 2 seconds). Zonogy treats a change as temporary until it has lasted this long. In particular, the worry is apps temporarily bringing forward a window other than the one you want, such as an existing window when you open a document.
+
+- **WinShot auto-save:** with "after every change", an arrangement is saved only once it has lasted this long (see [SPECIFICATION-WINSHOT.md](SPECIFICATION-WINSHOT.md)).
+- **Implicit targeting:** when an application coming to the front moves an implicit floating target to another display, its next window opened within this time still goes to the previous floating zone (see **Implicit and explicit floating targets**).
+- **Drops into a floating zone:** when a drop into an occupied floating zone opens a window, the application may first bring forward an existing tiled window over the floating window, which would minimize it. So that minimization waits this long after a drop, letting the new window replace the floating window. (If we just remembered the frame without a timer, we wouldn't know whether to reuse the frame or recenter.)
 
 ## Menu Bar Menu
 
@@ -456,11 +476,11 @@ Zonogy can check GitHub Releases for a newer version. (The check requests only t
 
 ## Disabling Minimize / Restore Animation System-wide (Experimental feature)
 
-Zonogy can patch the Dock process to disable minimize and restore animations across all applications. This is controlled by the "Disable minimize and restore animations" toggle in "Experimental" Preferences tab. It requires a compatible Apple Silicon macOS 27 configuration with System Integrity Protection (SIP) partially disabled, using the same setup as yabai. The tab links to [yabai’s SIP instructions](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection). Administrator approval is required to enable the feature. The preference is remembered between launches.
+Zonogy can patch the Dock process to disable minimize and restore animations across all applications. This is controlled by the "Disable minimize and restore animations system-wide" toggle in "Experimental" Preferences tab. It requires a compatible Apple Silicon macOS 27 configuration with System Integrity Protection (SIP) partially disabled, using the same setup as yabai. The tab links to [yabai’s SIP instructions](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection). Administrator approval is required to enable the feature. The preference is remembered between launches.
 
-Turning the toggle off or quitting Zonogy restarts the current user's Dock to restore animations. Dock restarts during use reapply the feature. (If activation fails, Zonogy restarts Dock to prevent incomplete patching; automatic attempts stop after a failure to avoid a restart loop.) Toggle feature off and on to retry.
+Turning the toggle off restarts the current user's Dock to restore animations, as does quitting Zonogy unless the "Keep animations disabled after quitting (until Dock restarts)" sub-option (off by default) is on. Dock restarts during use reapply the feature. (If activation fails, Zonogy restarts Dock to prevent incomplete patching; automatic attempts stop after a failure to avoid a restart loop.) Toggle feature off and on to retry.
 
-Note that a Zonogy crash leaves the effect active until Dock next restarts. On relaunch, Zonogy recognizes a previous patch if the same Dock process is still running, restores the enabled checkbox and "Active" status.
+Quitting with that sub-option on, like a Zonogy crash, leaves the effect active until Dock next restarts. On relaunch, Zonogy recognizes a previous patch if the same Dock process is still running, and restores the enabled checkbox and "Active" status without patching Dock again.
 
 ## Developer Tools
 

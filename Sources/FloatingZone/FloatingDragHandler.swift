@@ -80,7 +80,28 @@ final class FloatingDragHandler {
             return
         }
 
-        let cursorPoint = host.currentCursorAccessibilityPoint()
+        refreshHover(&current, cursorPoint: host.currentCursorAccessibilityPoint())
+        state = current
+    }
+
+    /// Zones changed mid-drag (the display under the cursor was cleared or reset): present the zone
+    /// overlays and hovered zone afresh over the current zones.
+    func zonesDidChange() {
+        guard var current = state, let host else {
+            return
+        }
+        tearDownOverlaysIfNeeded(&current)
+        current.hoveredEmptyZoneKey = nil
+        refreshHover(&current, cursorPoint: host.currentCursorAccessibilityPoint())
+        state = current
+    }
+
+    /// Resolves what the cursor hovers (an empty tiling zone or an edge pill) and updates the zone
+    /// overlays and highlights to match.
+    private func refreshHover(_ current: inout State, cursorPoint: CGPoint?) {
+        guard let host else {
+            return
+        }
         current.lastCursorPoint = cursorPoint
 
         let addZoneTarget = host.resolveAddZoneDropTarget(cursorPoint: cursorPoint)
@@ -115,8 +136,6 @@ final class FloatingDragHandler {
             current.hoveredFloatingScreenId = floatingTarget
             host.updateFloatingIndicatorHighlight(screenId: floatingTarget)
         }
-
-        state = current
     }
 
     func endDrag(finalFrame: CGRect) {

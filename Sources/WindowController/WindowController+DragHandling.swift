@@ -19,9 +19,11 @@ extension WindowController {
         delegate?.windowManualMoveDidBegin(windowId: managed.windowId, frame: frame)
     }
 
-    // Returns true once the pointer has moved far enough (with button down) to
-    // consider the gesture a live drag; false keeps accumulating movement.
-    internal func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect) -> Bool {
+    // Returns true once the window has moved far enough (with button down) to
+    // consider the gesture a live drag; false keeps accumulating movement. See
+    // ManualDragGatePolicy.candidateOrigin for where movement counts from; `previousFrame`
+    // is the window's frame as observed before this report.
+    internal func ensureManualDragBegan(for managed: ManagedWindow, frame: CGRect, previousFrame: CGRect?) -> Bool {
         // One left button means one gesture — see ManualDragGatePolicy for the ownership rules.
         switch ManualDragGatePolicy.gate(
             windowId: managed.windowId,
@@ -43,18 +45,20 @@ extension WindowController {
             return false
         }
 
-        if let candidate = dragCandidate, candidate.windowId == managed.windowId {
-            let deltaX = frame.midX - candidate.originFrame.midX
-            let deltaY = frame.midY - candidate.originFrame.midY
-            if hypot(deltaX, deltaY) >= dragActivationDistance {
-                startManualDrag(for: managed, with: candidate.originFrame, trigger: .accessibility)
-                return true
-            }
-            return false
+        let candidateOrigin = dragCandidate.flatMap { $0.windowId == managed.windowId ? $0.originFrame : nil }
+        let originFrame = ManualDragGatePolicy.candidateOrigin(
+            candidateOrigin: candidateOrigin,
+            previousFrame: previousFrame,
+            frame: frame
+        )
+        if ManualDragGatePolicy.startsDrag(origin: originFrame, frame: frame, threshold: dragActivationDistance) {
+            startManualDrag(for: managed, with: originFrame, trigger: .accessibility)
+            return true
         }
-
-        dragCandidate = DragCandidate(windowId: managed.windowId, originFrame: frame)
-        updateMouseUpGlobalMonitorInstallation()
+        if originFrame != candidateOrigin {
+            dragCandidate = DragCandidate(windowId: managed.windowId, originFrame: originFrame)
+            updateMouseUpGlobalMonitorInstallation()
+        }
         return false
     }
 
@@ -100,6 +104,17 @@ extension WindowController {
         dragCandidate = nil
         manualDragBlockedUntilMouseUp = true
         updateMouseUpGlobalMonitorInstallation()
+    }
+
+    /// The pointer moved with the button held. A live drag follows it even while the window's
+    /// moves go unreported (macOS can stop reporting them once the pointer crosses onto another
+    /// display, until release), passing along the window's last observed frame.
+    internal func handleMouseDragged() {
+        guard let windowId = currentDraggingWindowId,
+              let frame = windowRegistry.window(withId: windowId)?.cachedFrame else {
+            return
+        }
+        delegate?.windowManualMoveDidUpdate(windowId: windowId, frame: frame)
     }
 
     internal func handleMouseUp() {

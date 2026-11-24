@@ -24,21 +24,11 @@ struct ExceptionsPreferencesEntry {
     var summary: String {
         var parts: [String] = []
 
-        if isIgnored { parts.append("ignored") }
-        if rule.hasMainWindow == true { parts.append("preferMain") }
-        if rule.snapToZoneOnSelfResize == true { parts.append("snap") }
-        if rule.doNotResizeWidth == true { parts.append("keepWidth") }
-        if rule.disableMouseGestures == true { parts.append("noMouseGestures") }
-        if rule.disallowEmptyTitleWindows == true { parts.append("noEmpty") }
-        if rule.ignoreActivationPolicy == true { parts.append("activation") }
-        if rule.ignoreZoomButtonRequirement == true { parts.append("zoom") }
-        if rule.requireActiveZoomButton == true { parts.append("activeZoom") }
-        if rule.ignoreHeightRequirement == true { parts.append("height") }
-        if rule.manageNonStandardWindows == true { parts.append("nonStd") }
+        if isIgnored { parts.append(ExceptionOption.ignoredShortName) }
+        parts += ExceptionOption.all.filter { rule[keyPath: $0.setting] == true }.map(\.shortName)
         if let titles = rule.excludedWindowTitles, !titles.isEmpty {
-            parts.append("excl:\(titles.count)")
+            parts.append("\(ExceptionOption.excludedTitlesShortName):\(titles.count)")
         }
-        if rule.treatAXUnknownFullWidthAsFullScreen == true { parts.append("axUnknownFS") }
 
         return parts.isEmpty ? "(none)" : parts.joined(separator: ", ")
     }

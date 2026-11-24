@@ -5,27 +5,27 @@ import Foundation
 /// filtering behavior (for example, activation policy checks).
 struct ApplicationExceptionRule: Codable, Equatable {
     let bundleIdentifier: String
-    let ignoreActivationPolicy: Bool?
-    let ignoreZoomButtonRequirement: Bool?
-    let ignoreHeightRequirement: Bool?
-    let disallowEmptyTitleWindows: Bool?
-    let hasMainWindow: Bool?
-    let snapToZoneOnSelfResize: Bool?
+    var ignoreActivationPolicy: Bool?
+    var ignoreZoomButtonRequirement: Bool?
+    var ignoreHeightRequirement: Bool?
+    var disallowEmptyTitleWindows: Bool?
+    var hasMainWindow: Bool?
+    var snapToZoneOnSelfResize: Bool?
     /// When enabled, Zonogy preserves the window's current width when applying zone frames.
-    let doNotResizeWidth: Bool?
+    var doNotResizeWidth: Bool?
     /// When enabled, Zonogy does not consume this app's mouse gestures (gesture-modifier click/drag).
-    let disableMouseGestures: Bool?
+    var disableMouseGestures: Bool?
     /// Some apps (e.g., Keynote presentation windows) don't expose `AXFullScreen` reliably.
     /// When enabled, Zonogy treats `AXUnknown` windows that span the full screen width as full-screen.
-    let treatAXUnknownFullWidthAsFullScreen: Bool?
+    var treatAXUnknownFullWidthAsFullScreen: Bool?
     /// When enabled, a window's zoom button must be enabled (not grayed out) for Zonogy to manage it.
-    let requireActiveZoomButton: Bool?
+    var requireActiveZoomButton: Bool?
     /// Some apps (e.g., Adobe Premiere Pro) report their windows with a non-standard accessibility
     /// role (such as `AXUnknown`) and/or subrole (such as `AXDialog`) instead of the standard
     /// `AXWindow` / `AXStandardWindow`. When enabled, Zonogy relaxes the role and subrole checks so
     /// these windows can still be managed (the other criteria—movable, zoom, height—still apply).
-    let manageNonStandardWindows: Bool?
-    let excludedWindowTitles: [String]?
+    var manageNonStandardWindows: Bool?
+    var excludedWindowTitles: [String]?
 
     init(
         bundleIdentifier: String,

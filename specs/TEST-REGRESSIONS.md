@@ -41,7 +41,7 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
   - Think about: The native-tab adoption path should fall back to the placed window's remembered frame after confirming its old `CGWindowID` no longer has a live WindowServer frame.
 
 - Bug report: Dragging a tiled window's last native tab into another tiled window can leave the source tab assigned to its old zone, so later focus/layout handling can snap the visible tab back there instead of treating the drag as a merge. Some apps report this final frame change as `AXResized`, not `AXMoved`.
-  - Think about: When an application-driven move or resize puts a placed same-process source window at another placed window's frame, collapse the source into the destination: destination keeps its `windowId` and zone while adopting the source backing, and the source zone is emptied. Suppress immediate focus-driven reasserts briefly while such app-driven frame changes settle.
+  - Think about: When an application-driven move or resize puts a placed same-process source window at another placed window's frame, collapse the source into the destination: destination keeps its `windowId` and zone while adopting the source backing, and the source zone is emptied. Suppress immediate focus-driven reasserts briefly while such app-driven frame changes settle. While a tab is dragged, focus follows it over the application's windows, and the merge is reported only after the release: frame changes Zonogy makes in between (focus-driven reasserts, or work deferred to the release) can move the destination away from the frame the tab lands at, or the dropped tab back to its old zone.
 
 - Bug report: Selecting or dragging a parked native-tab window from Launcher, DockMenus, CmdTab, or another explicit chooser can place one tab identity in a tiling zone while sibling tab identities later get placed separately, making one real window appear to occupy multiple zones.
   - Think about: Explicit placement paths should not assign minimized windows directly. Set the intended target, then let the deminiaturize notification run unsuppressed so native-tab replacement can collapse the active tab into an existing placed managed window before any normal placement, and focus the resulting visible window afterward.
@@ -59,7 +59,7 @@ Keep entries short. When applicable, prefer phrasing them generally rather than 
   - Think about: Recapture should only place unzoned candidates that the same recapture pass revalidated as live with a WindowServer frame.
 
 - Bug report: Restoring a WinShot snapshot with an empty tiling zone can leave that zone without its placeholder because restore sync ran before removing windows that should be absent.
-  - Think about: WinShot restore must remove/minimize non-snapshot windows before its sync pass so placeholder reconciliation sees the final occupancy state.
+  - Think about: WinShot restore must remove non-snapshot windows from their zones before its sync pass (minimizing them can come later) so placeholder reconciliation sees the final occupancy state.
 
 - Bug report: Launcher auto-show can close almost immediately because focus-based dismissal races the panel open.
   - Think about: Preserve a real post-open grace window so focus-based dismissals (e.g. macOS auto-focusing another window after a close/minimize) cannot race the panel open.

@@ -17,5 +17,22 @@ enum MouseButtons {
     static func secondsSinceLastLeftMouseUp() -> TimeInterval {
         CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseUp)
     }
+
+    /// The pointer as it was at one moment, so a decision that must first wait on a slow call
+    /// still judges the pointer as it was before that call.
+    struct Snapshot {
+        /// Cursor location in Cocoa global coordinates.
+        let location: CGPoint
+        let isLeftButtonDown: Bool
+        let secondsSinceLeftButtonUp: TimeInterval
+    }
+
+    static func snapshot() -> Snapshot {
+        Snapshot(
+            location: NSEvent.mouseLocation,
+            isLeftButtonDown: isLeftMouseButtonDown(),
+            secondsSinceLeftButtonUp: secondsSinceLastLeftMouseUp()
+        )
+    }
 }
 

@@ -28,6 +28,12 @@ extension AppController {
         coordinator.isClickPointCoveredByZonogyEdgeUI = { [weak self] point in
             self?.isPointCoveredByZonogyEdgePill(point) ?? false
         }
+        // The swallowed release still ends the gesture for manual-drag tracking: a Dock-icon drag
+        // claimed the button and blocks window drags until its mouse-up, so without this the next
+        // window drag would be ignored.
+        coordinator.onSwallowedDockRelease = { [weak self] in
+            self?.windowController.handleMouseUp()
+        }
         dockMenusCoordinator = coordinator
         coordinator.start()
     }
@@ -218,7 +224,7 @@ extension AppController: DockMenusCoordinatorDelegate {
     // MARK: - Drag Cancellation
 
     func dockMenusCoordinatorDidCancelDrag(_ coordinator: DockMenusCoordinator) {
-        Logger.debug("DockMenus: drag cancelled by user (Escape)")
+        Logger.debug("DockMenus: drag cancelled")
         dragDropCoordinator.tearDownDragSession()
     }
 

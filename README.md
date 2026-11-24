@@ -76,7 +76,7 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 <img src="docs/images/dockmenus.png" alt="DockMenus" width="356" />
 
 - **ActiveFit** — windows that can't shrink to fit their zone are automatically shifted into view when focused (outside of their zone's bounds), then slide back when you move on.
-- **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it.
+- **Floating zones** — a window in the floating zone stays on top of tiling zone windows: it auto-minimizes when a tiling window it overlaps is focused. If an overlapping tiling zone empties, the floating window is promoted into it. Drop a window onto the floating zone to put it in that spot.
 - **UnderCovers mode** — reveal the desktop and unmanaged windows.
 - **Keyboard Zone Navigation** — the geometric arrangement of zones makes navigation of zones and windows unambiguous via keyboard.
 - **Restores straight into zones** — macOS has no API to place a window before it unminimizes, so with most window managers a restored window first appears in its old spot and then jumps into place. Zonogy instead moves the window into the destination zone before it appears whenever you reopen it through Zonogy (the Launcher, CmdTab, or a Dock click, which DockMenus intercepts) or from its app's notification banner or alert.
@@ -92,9 +92,9 @@ Filling the destination zone advances it to the next empty tiling zone (if avail
 | Drag resize bar between zones (appears on hover) | Adjust zone proportions live |
 | Drag window → tiling zone | Move it there, swapping if occupied |
 | Drag window → New Zone Bar | Add a zone and place the window in it |
-| Drag window → Floating Zone Bar | Float the window above the tiles |
+| Drag window → floating zone (its window or bar) | Float it there, swapping if occupied |
 | Hold `Control-Cmd` during window drag | Promote between tiled and floating zone |
-| Drag file or URL → empty zone or New Zone Bar | Open it there in the default app |
+| Drag file or URL → empty zone, New Zone Bar, or Floating Zone Bar | Open it there in the default app |
 | Hold `Control-Cmd` during file or URL drag | Replace zone occupant with the dragged item opened in default app |
 | Hold `Shift` during file or URL drag | Drop onto the desktop behind an empty zone (e.g. to move a desktop icon) |
 | Drag Dock icon or DockMenu window → zone | Place that window there (or launch the app) |

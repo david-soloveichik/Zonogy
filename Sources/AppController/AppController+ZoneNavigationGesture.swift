@@ -397,7 +397,7 @@ extension AppController {
 
     /// The interceptor's Move key, which has ended the gesture: drop the gesture state and, given a
     /// focused managed window not already in the selected zone, perform the move
-    /// (`moveFocusedWindow`, shared with the Move Focused Window to Destination shortcut).
+    /// (`moveWindow`, shared with the Move Focused Window to Destination shortcut).
     private func performZoneNavigationMove() {
         guard let state = zoneNavigationState else { return }
         clearZoneNavigation()
@@ -409,7 +409,7 @@ extension AppController {
             Logger.debug("Zone navigation move: nothing to move into \(state.selection.id)")
             return
         }
-        moveFocusedWindow(focusedId, to: destination, reason: "zone-navigation-move")
+        moveWindow(focusedId, to: destination, reason: "zone-navigation-move")
     }
 
     // MARK: - Show Launcher key (target the selected zone and open the Launcher)

@@ -1,15 +1,16 @@
 import AppKit
+import Carbon
 
-/// Tracks gesture-modifier external drags over managed tiling zones and presents zone overlays,
-/// and lets Shift pass an external drag through the placeholders.
+/// Tracks gesture-modifier external drags over managed tiling zones and floating windows and
+/// presents their overlays, and lets Shift pass an external drag through the placeholders.
 protocol ExternalZoneDropInterceptorHost: AnyObject, DragOverlayExternalDropDelegate {
     var isManagedWindowDragInProgress: Bool { get }
     func currentCursorAccessibilityPoint() -> CGPoint?
     func noteExternalDragSourceBundleIdentifierIfNeeded()
     func shouldApplyGestureModifierExternalDrag() -> Bool
     func shouldBeginExternalZoneDropInterception(cursorPoint: CGPoint) -> Bool
-    func resolveInterceptedExternalDropZoneKey(cursorPoint: CGPoint) -> ZoneKey?
-    func externalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
+    func resolveInterceptedExternalDropDestination(cursorPoint: CGPoint) -> TargetedZoneManager.TargetedDestination?
+    func interceptedExternalDropOverlayDescriptors() -> [ZoneOverlayDescriptor]
     func suspendPlaceholderExternalDragOverlay(reason: String)
     func resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: CGPoint?)
     func resetObservedPlaceholderExternalDrag(reason: String)
@@ -45,6 +46,14 @@ final class ExternalZoneDropInterceptor {
     /// hover state (and worse, the drop rescue) would outlive the cancelled session.
     private var escapeGlobalMonitor: Any?
     private var escapeLocalMonitor: Any?
+
+    /// Whether a live external drag is in flight: from its first event until its gesture finishes
+    /// a moment after the release, so a drop AppKit delivers after the release still falls inside.
+    /// A release the monitors missed (say, during sleep) ends it too: the button is then up with no
+    /// teardown pending.
+    var isExternalDragInFlight: Bool {
+        isDrivingEdgePillHover && (MouseButtons.isLeftMouseButtonDown() || pendingMouseUpTearDownWorkItem != nil)
+    }
 
     init(host: ExternalZoneDropInterceptorHost) {
         self.host = host
@@ -163,7 +172,7 @@ final class ExternalZoneDropInterceptor {
             return
         }
 
-        let interceptedZoneKey = host.resolveInterceptedExternalDropZoneKey(cursorPoint: cursorPoint)
+        let interceptedDestination = host.resolveInterceptedExternalDropDestination(cursorPoint: cursorPoint)
 
         if !isInterceptionActive {
             guard allowBeginInterception else {
@@ -173,17 +182,43 @@ final class ExternalZoneDropInterceptor {
                 return
             }
 
-            overlayManager.present(over: host.externalDropOverlayDescriptors())
+            overlayManager.present(over: host.interceptedExternalDropOverlayDescriptors())
             isInterceptionActive = true
             Logger.debug("External zone drop interception began")
-        } else if interceptedZoneKey == nil {
+        } else if interceptedDestination == nil {
             tearDownOverlays()
             host.resumePlaceholderExternalDragOverlayIfNeeded(cursorPoint: cursorPoint)
             return
+        } else {
+            // Floating windows can come, go, or move during the drag (a no-op unless the
+            // destinations changed since the overlays were drawn).
+            overlayManager.present(over: host.interceptedExternalDropOverlayDescriptors())
         }
 
         host.suspendPlaceholderExternalDragOverlay(reason: "control-command-external-drop")
-        overlayManager.updateHighlight(to: interceptedZoneKey)
+        overlayManager.updateHighlight(to: interceptedDestination)
+    }
+
+    /// Zones changed mid-drag (the display under the cursor was cleared or reset): redraw the
+    /// interception overlays over the current zones, and replay the cursor so the drag resolves its
+    /// destination (and the highlight) against the windows now under it.
+    /// Abandons any external drag gesture in flight, as when the system sleeps: a release missed
+    /// meanwhile must neither keep the gesture going nor let a later click rescue its stale drop.
+    func abandonGesture() {
+        pendingMouseUpTearDownWorkItem?.cancel()
+        pendingMouseUpTearDownWorkItem = nil
+        dragSession.endGesture(changeCount: dragPasteboard.changeCount)
+        finishGesture()
+    }
+
+    func zonesDidChange() {
+        guard dragSession.isLiveExternalDrag else {
+            return
+        }
+        if isInterceptionActive, let host {
+            overlayManager.present(over: host.interceptedExternalDropOverlayDescriptors())
+        }
+        replayCursorPosition()
     }
 
     /// Shift lets an external drag, whatever its content, through the placeholders to whatever is
@@ -278,19 +313,25 @@ final class ExternalZoneDropInterceptor {
         finishGesture()
     }
 
+    /// Escape with Command, Control, or Option is a shortcut, such as Clear/Reset Zones mid-drag,
+    /// not a cancel.
     private func installEscapeMonitors() {
         guard escapeGlobalMonitor == nil, escapeLocalMonitor == nil else { return }
         escapeGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {
+            if Self.isCancellingEscape(event) {
                 self?.handleEscapeDuringExternalDrag()
             }
         }
         escapeLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {
+            if Self.isCancellingEscape(event) {
                 self?.handleEscapeDuringExternalDrag()
             }
             return event
         }
+    }
+
+    private static func isCancellingEscape(_ event: NSEvent) -> Bool {
+        event.keyCode == UInt16(kVK_Escape) && event.modifierFlags.isDisjoint(with: [.command, .control, .option])
     }
 
     private func tearDownEscapeMonitors() {

@@ -87,10 +87,12 @@ extension AppController {
             return
         }
 
+        // A floating window over the placeholder takes the unmodified drop itself, like a pill.
         let hoveredKey = EdgePillDragPolicy.effectiveZoneHover(
             hoveredZoneKey: resolveEmptyTilingZoneUnderCursor(cursorPoint: cursorPoint),
             hoveredAddZonePill: resolveAddZoneDropTarget(cursorPoint: cursorPoint),
             hoveredFloatingScreenId: resolveFloatingDropTarget(cursorPoint: cursorPoint)
+                ?? floatingWindowDropScreenId(containing: cursorPoint)
         )
 
         guard let key = hoveredKey,
@@ -128,7 +130,7 @@ extension AppController {
             placeholderExternalDragOverlayManager.present(over: externalDropOverlayDescriptors())
         }
         placeholderExternalDragOverlayKey = key
-        placeholderExternalDragOverlayManager.updateHighlight(to: key)
+        placeholderExternalDragOverlayManager.updateHighlight(to: .tiled(key))
     }
 
     private func schedulePlaceholderExternalDragOverlayTearDown(from key: ZoneKey, reason: String) {

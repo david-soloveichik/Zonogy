@@ -21,11 +21,11 @@ final class ZonesPreferencesViewController: NSViewController {
     private static func hint(for style: ZoneLayoutStyle) -> String {
         switch style {
         case .rightBar:
-            return "Clicking the add-zone bar on the right edge of the display adds a zone. Up to 3 zones: one on the left, two stacked on the right."
+            return "Up to 3 zones: one on the left, two stacked on the right."
         case .leftBar:
-            return "Clicking the add-zone bar on the left edge of the display adds a zone. Up to 3 zones: one on the right, two stacked on the left."
+            return "Up to 3 zones: one on the right, two stacked on the left."
         case .dualBar:
-            return "Clicking an add-zone bar adds a zone on that side of the display. Up to 4 zones: two stacked on each side."
+            return "Up to 4 zones: two stacked on each side."
         }
     }
 
@@ -85,11 +85,6 @@ final class ZonesPreferencesViewController: NSViewController {
         containerView.addSubview(autoShowLauncherCheckbox)
         self.autoShowLauncherCheckbox = autoShowLauncherCheckbox
 
-        let autoShowLauncherHintLabel = NSTextField(wrappingLabelWithString: "When a tiling zone becomes empty, or Zone Navigation selects an empty zone, Launcher opens automatically.")
-        autoShowLauncherHintLabel.font = NSFont.systemFont(ofSize: 12)
-        autoShowLauncherHintLabel.textColor = .secondaryLabelColor
-        autoShowLauncherHintLabel.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(autoShowLauncherHintLabel)
 
         let stickyResizeCheckbox = NSButton(
             checkboxWithTitle: "Sticky Resize for tiled windows",
@@ -101,7 +96,7 @@ final class ZonesPreferencesViewController: NSViewController {
         self.stickyResizeCheckbox = stickyResizeCheckbox
 
         let stickyResizeHintLabel = NSTextField(
-            wrappingLabelWithString: "Manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated until that display's tiling geometry changes."
+            wrappingLabelWithString: "Manually resized tiled windows return to the zone frame when inactive, then restore their remembered size when reactivated."
         )
         stickyResizeHintLabel.font = NSFont.systemFont(ofSize: 12)
         stickyResizeHintLabel.textColor = .secondaryLabelColor
@@ -122,7 +117,7 @@ final class ZonesPreferencesViewController: NSViewController {
         containerView.addSubview(destinationTitleLabel)
 
         let destinationDescriptionLabel = NSTextField(
-            wrappingLabelWithString: "Windows open into the destination zone, marked with the glowing indicator. Emptying a zone (minimizing or closing its window) makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
+            wrappingLabelWithString: "Windows open into the destination zone, marked with the glowing indicator. Emptying a zone makes that zone the destination; you can also change the destination by mouse or keyboard (see Shortcuts)."
         )
         destinationDescriptionLabel.font = NSFont.systemFont(ofSize: 12)
         destinationDescriptionLabel.textColor = .secondaryLabelColor
@@ -161,11 +156,7 @@ final class ZonesPreferencesViewController: NSViewController {
             autoShowLauncherCheckbox.topAnchor.constraint(equalTo: zoneLayoutSeparator.bottomAnchor, constant: 14),
             autoShowLauncherCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
-            autoShowLauncherHintLabel.topAnchor.constraint(equalTo: autoShowLauncherCheckbox.bottomAnchor, constant: 6),
-            autoShowLauncherHintLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 40),
-            autoShowLauncherHintLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -20),
-
-            stickyResizeCheckbox.topAnchor.constraint(equalTo: autoShowLauncherHintLabel.bottomAnchor, constant: 18),
+            stickyResizeCheckbox.topAnchor.constraint(equalTo: autoShowLauncherCheckbox.bottomAnchor, constant: 18),
             stickyResizeCheckbox.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 20),
 
             stickyResizeHintLabel.topAnchor.constraint(equalTo: stickyResizeCheckbox.bottomAnchor, constant: 6),
@@ -192,10 +183,10 @@ final class ZonesPreferencesViewController: NSViewController {
         ])
 
         self.view = containerView
-        self.preferredContentSize = NSSize(width: 580, height: 585)
         syncAutoShowLauncherCheckbox()
         syncStickyResizeCheckbox()
         syncZoneLayoutSelection()
+        fitPreferredContentSizeToContent()
     }
 
     private func zoneLayoutStyleSelected(_ style: ZoneLayoutStyle) {

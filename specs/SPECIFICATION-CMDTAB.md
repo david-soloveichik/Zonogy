@@ -33,7 +33,7 @@ CmdTab MUST override the system app switcher for its configured shortcut. This r
 - **Direction:** Each press moves selection down the list (toward less recently used windows). Holding Shift cycles backward. (If the configured shortcut already includes Shift, reverse cycling is unavailable.)
 - **Wrap behavior:** In app-specific mode (Cmd-`), selection wraps around at list boundaries. In all-windows mode (Cmd-Tab), selection stops at the first/last item. (Wrapping works well with a few windows, but with many windows, rolling over, eg, to the least-recently-used window is unexpected.)
 - On first show, CmdTab selects the second item (index 1), which is the previously active window (index 0 is the currently active window). If no managed window is currently focused, it selects the first item (index 0). If invoked with Shift added (the reverse-cycling variant), it selects the least-recent window.
-- **Just-minimized windows:** When the user has just minimized windows, the initial selection skips them (along with the currently focused window wherever it sits in the list – after a minimize, macOS often focuses another window of the same app). Minimizing and then opening CmdTab means the user is switching away, so the default selection must not re-offer the window they just dismissed. A window counts as just minimized for the WinShot occupancy settle delay after the minimize, and additionally for as long as the modifier keys held during the minimize remain held, so an in-chord Cmd-M then Cmd-Tab always skips. This does not cover windows Zonogy minimizes as a side effect (for example, a window displaced from its zone). Selecting a window through Zonogy (CmdTab, the Launcher, Dock menus, zone navigation) ends these skips — the user has moved on.
+- **Just-minimized windows:** When the user has just minimized windows, the initial selection skips them (along with the currently focused window wherever it sits in the list – after a minimize, macOS often focuses another window of the same app). Minimizing and then opening CmdTab means the user is switching away, so the default selection must not re-offer the window they just dismissed. A window counts as just minimized for a configurable time after the minimize (3 seconds by default), and additionally for as long as the modifier keys held during the minimize remain held, so an in-chord Cmd-M then Cmd-Tab always skips. This does not cover windows Zonogy minimizes as a side effect (for example, a window displaced from its zone). Selecting a window through Zonogy (CmdTab, the Launcher, Dock menus, zone navigation) ends these skips — the user has moved on.
 
 ## Actions
 
@@ -70,6 +70,7 @@ When invoked with the app-specific shortcut (default Cmd-`), CmdTab shows only w
 - Keyboard shortcut configurable in Zonogy Preferences (default: Cmd-Tab)
 - App-specific shortcut configurable in Zonogy Preferences (default: Cmd-`)
 - `CmdTab targets zone with focused window` mode in Preferences → Zones → Replacing focused window: Off (default), Current app only, or All windows too
+- How long a window counts as just minimized, in Preferences → General ("CmdTab doesn't suggest windows minimized in the last N seconds", default: 3 seconds)
 - The modifier(s) for cycling are derived from the configured shortcut
 
 ## Implementation Notes
